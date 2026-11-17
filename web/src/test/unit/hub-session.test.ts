@@ -7,6 +7,7 @@ import {
   needsCsrfHeader,
   signInAddress,
   signInAvailability,
+  signInFailed,
   type SessionHost,
 } from "../../runtime/hub-session";
 
@@ -78,6 +79,31 @@ describe("sign-in address", () => {
     ).toBe(
       `/v1/auth/login?returnTo=${encodeURIComponent("/console/notifications#ntf-inbox")}`,
     );
+  });
+  it("does not return a retry to the address that says sign-in failed", () => {
+    expect(
+      signInAddress({
+        pathname: "/console/",
+        search: "?sign-in=failed",
+        hash: "",
+      }),
+    ).toBe(`/v1/auth/login?returnTo=${encodeURIComponent("/console/")}`);
+    expect(
+      signInAddress({
+        pathname: "/console/",
+        search: "?view=fleet&sign-in=failed",
+        hash: "#area-fleet",
+      }),
+    ).toBe(
+      `/v1/auth/login?returnTo=${encodeURIComponent("/console/?view=fleet#area-fleet")}`,
+    );
+  });
+  it("recognises only the Hub's failure marker", () => {
+    expect(signInFailed("?sign-in=failed")).toBe(true);
+    expect(signInFailed("?view=fleet&sign-in=failed")).toBe(true);
+    expect(signInFailed("")).toBe(false);
+    expect(signInFailed("?sign-in=ok")).toBe(false);
+    expect(signInFailed("?signin=failed")).toBe(false);
   });
   it("offers only the console as a return address", () => {
     for (const pathname of ["/", "/v1/session", "//evil.example/console/"])
@@ -318,6 +344,38 @@ describe("the installed session", () => {
     expect(assigned).toEqual([
       `/v1/auth/login?returnTo=${encodeURIComponent("/console/#ntf-inbox")}`,
     ]);
+  });
+
+  it("says a refused sign-in did not complete and offers to try again", async () => {
+    const { host, byId, assigned, location } = fakeHost({
+      "/v1/operator-identity": published,
+    });
+    location.search = "?sign-in=failed";
+    location.hash = "";
+    installHubSession(host);
+    await settle();
+    const prompt = byId.get("session-ended-prompt");
+    expect(prompt?.attributes.get("aria-label")).toBe(
+      "Sign-in did not complete",
+    );
+    expect(prompt?.children[0]?.textContent).toContain("you are not signed in");
+    byId.get("session-sign-in-again")?.listeners.get("click")?.();
+    expect(assigned).toEqual([
+      `/v1/auth/login?returnTo=${encodeURIComponent("/console/")}`,
+    ]);
+  });
+
+  it("says nothing about a failed sign-in on a Hub that runs none, or without the marker", async () => {
+    const without = fakeHost({});
+    without.location.search = "?sign-in=failed";
+    installHubSession(without.host);
+    await settle();
+    expect(without.byId.has("session-ended-prompt")).toBe(false);
+    const unmarked = fakeHost({ "/v1/operator-identity": published });
+    installHubSession(unmarked.host);
+    await settle();
+    expect(unmarked.byId.has("session-ended-prompt")).toBe(false);
+    expect(unmarked.calls).toEqual([]);
   });
 
   it("shows no prompt on a Hub without sign-in, or for a refusal that is not 401", async () => {

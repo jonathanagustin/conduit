@@ -102,6 +102,24 @@ test("the sign-in screen navigates to the Hub's login route, not to the provider
   expect(provider).toEqual([]);
 });
 
+test("a sign-in the Hub refused says so and a retry returns to the console, not to the failure address", async ({
+  page,
+}) => {
+  const { handler } = hub(IDENTITY, (_request, url) => {
+    if (url.pathname === "/v1/session")
+      return { status: 401, json: { error: "unauthorized", status: "401" } };
+    return undefined;
+  });
+  await stubHub(page, handler);
+  await page.goto("/console/?sign-in=failed");
+  const prompt = page.locator("#session-ended-prompt");
+  await expect(prompt).toBeVisible();
+  await expect(prompt).toContainText("Sign-in did not complete");
+  const login = waitForLogin(page);
+  await page.locator("#session-sign-in-again").click();
+  expect(returnTo(await login)).toBe("/console/");
+});
+
 test("a Hub without sign-in routes shows no sign-in button and no session prompt", async ({
   page,
 }) => {

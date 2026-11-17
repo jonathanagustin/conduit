@@ -27,6 +27,13 @@ export const SIGN_IN_PATH = "/v1/auth/login" as const;
 export const SIGN_OUT_PATH = "/v1/auth/logout" as const;
 export const IDENTITY_PATH = "/v1/operator-identity" as const;
 export const CONSOLE_PATH = "/console/" as const;
+/** The Hub sends every refused sign-in to `/console/?sign-in=failed`. */
+export const SIGN_IN_OUTCOME = "sign-in" as const;
+
+/** Whether the Hub returned the browser here from a sign-in it refused. */
+export function signInFailed(search: string): boolean {
+  return new URLSearchParams(search).get(SIGN_IN_OUTCOME) === "failed";
+}
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
@@ -78,7 +85,12 @@ export function signInAddress(location: {
   search: string;
   hash: string;
 }): string {
-  const current = `${location.pathname}${location.search}${location.hash}`;
+  // The Hub's own failure marker is dropped: a retry that succeeds must not
+  // come back to an address that says it failed.
+  const query = new URLSearchParams(location.search);
+  query.delete(SIGN_IN_OUTCOME);
+  const search = query.size > 0 ? `?${query.toString()}` : "";
+  const current = `${location.pathname}${search}${location.hash}`;
   const returnTo = location.pathname.startsWith(CONSOLE_PATH)
     ? current
     : CONSOLE_PATH;
@@ -183,14 +195,18 @@ export function installHubSession(host: SessionHost): {
 
   const signIn = () => host.location.assign(signInAddress(host.location));
 
-  const showPrompt = () => {
+  const showPrompt = (
+    message = "Your session has ended. Sign in again to continue; this view is kept.",
+    action = "Sign in again",
+    label = "Your session has ended",
+  ) => {
     const document = host.document;
     if (document.getElementById(PROMPT_ID) !== null) return;
     const prompt = document.createElement("div");
     prompt.id = PROMPT_ID;
     prompt.setAttribute("role", "alertdialog");
     prompt.setAttribute("aria-live", "assertive");
-    prompt.setAttribute("aria-label", "Your session has ended");
+    prompt.setAttribute("aria-label", label);
     prompt.setAttribute(
       "style",
       "position:fixed;left:50%;top:44px;transform:translateX(-50%);z-index:2147483000;" +
@@ -199,13 +215,12 @@ export function installHubSession(host: SessionHost): {
         "font:500 12px/1.4 Inter,system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.45)",
     );
     const text = document.createElement("span");
-    text.textContent =
-      "Your session has ended. Sign in again to continue; this view is kept.";
+    text.textContent = message;
     const again = document.createElement("button");
     again.type = "button";
     again.id = "session-sign-in-again";
     again.className = "so-btn so-btn-blue";
-    again.textContent = "Sign in again";
+    again.textContent = action;
     // The address is read at the click, so it names the view on screen then.
     again.addEventListener("click", signIn);
     prompt.append(text, again);
@@ -278,6 +293,20 @@ export function installHubSession(host: SessionHost): {
     return response;
   };
   host.fetch = wrapped;
+
+  // The Hub refused a sign-in and sent the browser back. It gives one address
+  // for every reason, so there is no reason to show: only that it did not
+  // happen, and a way to try again.
+  if (signInFailed(host.location.search)) {
+    void readAvailability().then(({ available }) => {
+      if (available)
+        showPrompt(
+          "Sign-in did not complete, and you are not signed in. If it keeps failing, ask the Conduit operator to check the Hub's log.",
+          "Try again",
+          "Sign-in did not complete",
+        );
+    });
+  }
 
   const installation = { signIn, signOut };
   marked[INSTALLED] = installation;
