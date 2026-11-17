@@ -1332,6 +1332,95 @@ test("an index past the read bound lists what was read and says more exist", asy
   expect(scoped.some((path) => /\/dev\/|=dev$/.test(path))).toBe(false);
 });
 
+test("a view whose renderer throws is contained and the shell stays usable", async ({
+  page,
+}) => {
+  const records: Record<string, unknown>[] = [];
+  page.on("console", (message) => {
+    if (message.type() !== "error") return;
+    void message
+      .args()[0]
+      ?.jsonValue()
+      .then((value) => {
+        if (value?.event === "conduit.console.client_error")
+          records.push(value);
+      })
+      .catch(() => {});
+  });
+  // A plan row the approvals board cannot read: its renderer throws.
+  await page.route("**/v1/**", (route) =>
+    new URL(route.request().url()).pathname === "/v1/plans"
+      ? route.fulfill({ json: { plans: [null] } })
+      : route.fulfill({ json: {} }),
+  );
+  await hydrate(page);
+  await page.goto("/console/");
+  await page.evaluate(() =>
+    (window as unknown as { switchScreen: (id: string) => void }).switchScreen(
+      "s16-approvals-board",
+    ),
+  );
+  const failure = page.locator('[data-render-failure="s16-approvals-board"]');
+  await expect(failure).toContainText("This view failed to render");
+  await expect(failure.locator("[data-render-failure-screen]")).toHaveText(
+    "s16-approvals-board",
+  );
+  await expect(failure.getByRole("button", { name: "Reload" })).toBeVisible();
+  await expect(page.locator("[data-approvals-board]")).toHaveCount(0);
+  // A failed view is not a Hub read and must not carry the live label.
+  await expect(page.locator("#example-data-badge")).toHaveText("UNAVAILABLE");
+  await expect
+    .poll(
+      () =>
+        records.filter(
+          (record) =>
+            record.kind === "render" && record.screen === "s16-approvals-board",
+        ).length,
+    )
+    .toBeGreaterThan(0);
+  // The contained failure is the only client error this session logged.
+  expect(records.map((record) => record.kind)).toEqual(["render"]);
+  expect(Object.keys(records[0]!).sort()).toEqual([
+    "build",
+    "event",
+    "kind",
+    "message",
+    "name",
+    "screen",
+    "stack",
+  ]);
+  expect(String(records[0]!.build)).toMatch(/^index-[\w-]+\.js$/);
+
+  // The area tabs beside the failed view still switch.
+  await page.locator('[data-area-tab="gate"]').click();
+  await expect(page.locator("#area-body")).toContainText(
+    "Action constraint gate",
+  );
+  await expect(page.locator("[data-render-failure]")).toHaveCount(0);
+  // And so does the left navigation.
+  await page
+    .getByRole("button", { name: "Audit", exact: true })
+    .first()
+    .click();
+  await expect(page.locator('[data-area-tab="chain"]')).toBeVisible();
+  await expect(page.locator("[data-render-failure]")).toHaveCount(0);
+
+  // Reload returns to a working console.
+  await page.evaluate(() =>
+    (window as unknown as { switchScreen: (id: string) => void }).switchScreen(
+      "s16-approvals-board",
+    ),
+  );
+  await Promise.all([
+    page.waitForEvent("load"),
+    failure.getByRole("button", { name: "Reload" }).click(),
+  ]);
+  await expect(page.locator("#operator-root")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Command Center" }).first(),
+  ).toBeVisible();
+});
+
 test("environment hub scopes header, installations, blackout and timeline to selection", async ({
   page,
 }) => {

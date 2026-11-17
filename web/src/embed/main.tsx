@@ -9,11 +9,21 @@ import { Assistant } from "../../app/assistant";
 import { Providers } from "../app/providers";
 import { PackagingRunPage } from "../features/packaging/PackagingRunPage.js";
 import { loadRuntimeBootstrap } from "../runtime/bootstrap";
+import { buildId, installClientErrorHandlers } from "../runtime/client-errors";
+import { ConsoleErrorBoundary } from "./ErrorBoundary";
 
 const container = document.getElementById("root");
 if (container === null) {
   throw new Error("index.html has no #root element to mount into");
 }
+
+// One structured console record per uncaught error or unhandled rejection.
+// Console only: the bootstrap carries no reporting endpoint by design.
+installClientErrorHandlers(
+  window,
+  (record) => console.error(record),
+  buildId(document),
+);
 
 const root = createRoot(container);
 
@@ -33,22 +43,24 @@ if (gallery) {
     loadRuntimeBootstrap();
     root.render(
       <StrictMode>
-        <Providers>
-          <Routes>
-            <Route
-              path="packaging-runs/:runId"
-              element={<PackagingRunPage />}
-            />
-            <Route
-              path="*"
-              element={
-                <div className="antialiased">
-                  <Assistant />
-                </div>
-              }
-            />
-          </Routes>
-        </Providers>
+        <ConsoleErrorBoundary region="console">
+          <Providers>
+            <Routes>
+              <Route
+                path="packaging-runs/:runId"
+                element={<PackagingRunPage />}
+              />
+              <Route
+                path="*"
+                element={
+                  <div className="antialiased">
+                    <Assistant />
+                  </div>
+                }
+              />
+            </Routes>
+          </Providers>
+        </ConsoleErrorBoundary>
       </StrictMode>,
     );
   } catch {

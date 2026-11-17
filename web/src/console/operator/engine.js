@@ -71,6 +71,8 @@ import {
   screenBadge,
   truncationMarkup,
 } from "./screen-registry.js";
+import { renderContained } from "./render-containment.js";
+import { logClientError } from "../../runtime/client-errors.js";
 import { createIntelligence } from "./intelligence.js";
 import { createDevWorkspaces } from "./dev-workspaces.js";
 import {
@@ -1392,6 +1394,9 @@ export function mountOperator(host, options) {
           !operationalExamples.enabled(screen)) ||
         document.getElementById("main-workspace")?.dataset.unavailableScreen ===
           screen,
+      failed:
+        document.getElementById("main-workspace")?.dataset.renderFailed ===
+        screen,
     });
     if (view.hidden) {
       badge.style.display = "none";
@@ -4787,6 +4792,34 @@ export function mountOperator(host, options) {
     if (state.cmdOmnibarOpen) renderPaletteResults();
   }
 
+  /**
+   * Paint one view so that a throwing renderer leaves a stated failure in
+   * `node` instead of a blank or half-painted workspace. The shell, the
+   * navigation and the area tabs are painted outside this and stay usable.
+   */
+  let loggedRenderFailure = "";
+  function containView(node, screen, paint) {
+    return (
+      renderContained(node, screen, paint, {
+        esc: escAttr,
+        log: (failed, error) => {
+          // A background refresh repaints the same failing view; one record
+          // per failure, not one per repaint.
+          const key = `${failed}\n${error?.message}`;
+          if (key === loggedRenderFailure) return;
+          loggedRenderFailure = key;
+          logClientError("render", error, failed);
+        },
+        reload: () => window.location.reload(),
+      }) || markRenderFailed(screen)
+    );
+  }
+  function markRenderFailed(screen) {
+    const main = document.getElementById("main-workspace");
+    if (main) main.dataset.renderFailed = screen;
+    return false;
+  }
+
   let previousScreen = "";
   function renderMainWorkspace() {
     if (state.screen !== "au01-audit" && state.screen !== "area-audit")
@@ -4794,9 +4827,11 @@ export function mountOperator(host, options) {
     const root = document.getElementById("main-workspace");
     if (!root) return;
     delete root.dataset.unavailableScreen;
+    delete root.dataset.renderFailed;
     operationalExamples.sync(visibleScreen());
     if (AREAS[state.screen]) {
-      renderArea(root);
+      containView(root, visibleScreen(), () => renderArea(root));
+      if (!root.dataset.renderFailed) loggedRenderFailure = "";
       updateExampleBadge();
       settings.applyChrome();
       settings.ensureLoaded();
@@ -4805,51 +4840,54 @@ export function mountOperator(host, options) {
     const screenChanged =
       previousScreen !== "" && previousScreen !== state.screen;
     previousScreen = state.screen;
-    const m = classifyRenderers({
-      "s01-intake": renderS01Intake,
-      "s02-workspaces": renderS02Workspaces,
-      "s03-saved-views": renderS03SavedViews,
-      "s04-scope-plan": renderS04ScopePlan,
-      "s05-backlog": renderS05Backlog,
-      "s06-active-work": renderS06ActiveWork,
-      "s07-pipeline": renderS07Pipeline,
-      "s08-staged-run": renderS08StagedRun,
-      "au01-audit": renderAuditLedger,
-      "adm-platform-status": (node) => void adminStatus.render(node),
-      "s09-source": renderS09Source,
-      "s10-diff": renderS10Diff,
-      "s11-preview": renderS11Preview,
-      "s12-lifecycle": renderS12Lifecycle,
-      "s13-fleet-overview": renderS13FleetOverview,
-      "s14-env-detail": renderS14EnvDetail,
-      "s15-plan-detail": renderS15PlanDetail,
-      "s16-approvals-board": renderS16ApprovalsBoard,
-      "s17-spokes-audit": renderS17SpokesAudit,
-      "s18-components": renderS18Components,
-      "s19-ontology": renderS19Ontology,
-      "rm01-env-page": renderRM01EnvPage,
-      "rm02-env-activity": renderRM02EnvActivity,
-      "rm03-plan-detail": renderRM03PlanDetail,
-      "rm04-constraints": renderRM04Constraints,
-      "rm05-release-rollout": renderRM05ReleaseRollout,
-      "rm06-promotion-pipe": renderRM06PromotionPipe,
-      "rm07-change-requests": renderRM07ChangeRequests,
-      "rm08-bundle-preview": renderRM08BundlePreview,
-      "ai01-logic": (root) => intelligence.renderLogic(root),
-      "ai02-evals": (root) => intelligence.renderEvals(root),
-      "ai03-events": (root) => intelligence.renderEvents(root),
-      "ai04-courses": (root) => intelligence.renderCourses(root),
-      ...releaseGates.renderers,
-      ...ontologyGraph.renderers,
-      ...settings.renderers,
+    containView(root, state.screen, () => {
+      const m = classifyRenderers({
+        "s01-intake": renderS01Intake,
+        "s02-workspaces": renderS02Workspaces,
+        "s03-saved-views": renderS03SavedViews,
+        "s04-scope-plan": renderS04ScopePlan,
+        "s05-backlog": renderS05Backlog,
+        "s06-active-work": renderS06ActiveWork,
+        "s07-pipeline": renderS07Pipeline,
+        "s08-staged-run": renderS08StagedRun,
+        "au01-audit": renderAuditLedger,
+        "adm-platform-status": (node) => void adminStatus.render(node),
+        "s09-source": renderS09Source,
+        "s10-diff": renderS10Diff,
+        "s11-preview": renderS11Preview,
+        "s12-lifecycle": renderS12Lifecycle,
+        "s13-fleet-overview": renderS13FleetOverview,
+        "s14-env-detail": renderS14EnvDetail,
+        "s15-plan-detail": renderS15PlanDetail,
+        "s16-approvals-board": renderS16ApprovalsBoard,
+        "s17-spokes-audit": renderS17SpokesAudit,
+        "s18-components": renderS18Components,
+        "s19-ontology": renderS19Ontology,
+        "rm01-env-page": renderRM01EnvPage,
+        "rm02-env-activity": renderRM02EnvActivity,
+        "rm03-plan-detail": renderRM03PlanDetail,
+        "rm04-constraints": renderRM04Constraints,
+        "rm05-release-rollout": renderRM05ReleaseRollout,
+        "rm06-promotion-pipe": renderRM06PromotionPipe,
+        "rm07-change-requests": renderRM07ChangeRequests,
+        "rm08-bundle-preview": renderRM08BundlePreview,
+        "ai01-logic": (root) => intelligence.renderLogic(root),
+        "ai02-evals": (root) => intelligence.renderEvals(root),
+        "ai03-events": (root) => intelligence.renderEvents(root),
+        "ai04-courses": (root) => intelligence.renderCourses(root),
+        ...releaseGates.renderers,
+        ...ontologyGraph.renderers,
+        ...settings.renderers,
+      });
+      const renderer = m[state.screen];
+      if (!renderer) {
+        root.dataset.unavailableScreen = state.screen;
+        root.innerHTML = `<section class="so-panel p-3" aria-label="View unavailable">This view is unavailable. Choose a view from the navigation.</section>`;
+      } else if (!operationalExamples.paint(root, state.screen, renderer)) {
+        renderer(root);
+      }
     });
-    const renderer = m[state.screen];
-    if (!renderer) {
-      root.dataset.unavailableScreen = state.screen;
-      root.innerHTML = `<section class="so-panel p-3" aria-label="View unavailable">This view is unavailable. Choose a view from the navigation.</section>`;
-    } else if (!operationalExamples.paint(root, state.screen, renderer)) {
-      renderer(root);
-    }
+    if (!root.dataset.renderFailed) loggedRenderFailure = "";
     updateExampleBadge();
     settings.applyChrome();
     settings.ensureLoaded();
@@ -5031,8 +5069,10 @@ export function mountOperator(host, options) {
     })[current.screen];
     if (renderer) {
       const body = root.querySelector("#area-body");
-      if (!operationalExamples.paint(body, current.screen, renderer))
-        renderer(body);
+      containView(body, current.screen, () => {
+        if (!operationalExamples.paint(body, current.screen, renderer))
+          renderer(body);
+      });
     }
     root.querySelectorAll("[data-area-tab]").forEach((button) => {
       button.addEventListener("click", () => {
