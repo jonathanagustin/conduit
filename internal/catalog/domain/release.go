@@ -43,8 +43,8 @@ type Artifact struct {
 	// Kind is one of the ArtifactKind constants; empty means ArtifactKindHelmChart.
 	Kind string `json:"kind,omitempty"`
 	// Architectures lists the cluster architectures a Zarf package or UDS
-	// bundle was built for. It is required for those kinds and refused for a
-	// Helm chart, which is architecture-neutral.
+	// bundle was built for. Exactly one is supported: the digest must name a
+	// platform manifest, not a multiarchitecture index. Refused for Helm.
 	Architectures []string `json:"architectures,omitempty"`
 	// PackageName is the Zarf package name (zarf.yaml metadata.name) the
 	// artifact deploys as. Zarf records a deployment under that name and
@@ -144,6 +144,9 @@ func (artifact Artifact) PackageProblems() []ArtifactProblem {
 	}
 	if len(artifact.Architectures) == 0 {
 		add("architectures", "must list at least one architecture the package was built for")
+	}
+	if len(artifact.Architectures) > 1 {
+		add("architectures", "must name exactly one target architecture and pin its platform manifest; multiarchitecture index resolution is not supported")
 	}
 	seen := make(map[string]struct{}, len(artifact.Architectures))
 	for _, architecture := range artifact.Architectures {

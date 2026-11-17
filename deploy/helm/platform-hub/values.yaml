@@ -32,6 +32,27 @@ repository:
     secretName: ""
     dsnKey: dsn
 
+# Periodically verify the stored audit chain against an independently retained
+# checkpoint. This does not establish or advance trust: collect successful
+# receipts outside the database's credentials and approve checkpoint updates
+# separately. The Secret must contain a dedicated SELECT-only database DSN;
+# it must not be the Hub's writer Secret. Neither object is created by Helm.
+# A namespace egress policy must allow the audit-checkpoint Pods to reach DNS
+# and PostgreSQL; they deliberately do not match the Hub Service selector.
+auditCheckpoint:
+  enabled: false
+  schedule: "0 * * * *"
+  timeoutSeconds: 120
+  activeDeadlineSeconds: 180
+  startingDeadlineSeconds: 300
+  databaseSecretName: ""
+  databaseSecretKey: dsn
+  checkpointConfigMapName: ""
+  checkpointKey: checkpoint.json
+  resources:
+    requests: {cpu: 25m, memory: 32Mi}
+    limits: {cpu: 250m, memory: 128Mi}
+
 # The only tenant-controlled console runtime surface. The Hub validates this
 # exact document again at startup; session capabilities and security policy are
 # never accepted here.

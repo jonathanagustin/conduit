@@ -27,6 +27,8 @@ import (
 // bounded during long soaks, including after backlog makes requests slower.
 var capacityLatencyBounds = [...]time.Duration{100 * time.Microsecond, 250 * time.Microsecond, 500 * time.Microsecond, time.Millisecond, 2 * time.Millisecond, 5 * time.Millisecond, 10 * time.Millisecond, 20 * time.Millisecond, 50 * time.Millisecond, 100 * time.Millisecond, 250 * time.Millisecond, 500 * time.Millisecond, time.Second, 2 * time.Second, 5 * time.Second, 10 * time.Second, 30 * time.Second, time.Minute}
 
+var errCapacityHarnessShutdown = errors.New("capacity harness stopped its workers")
+
 type capacityRPC struct {
 	Requests   uint64  `json:"requests"`
 	Errors     uint64  `json:"errors"`
@@ -110,12 +112,21 @@ type capacityTransport struct {
 type capacityBody struct {
 	io.ReadCloser
 	once     sync.Once
-	complete func()
+	failed   atomic.Bool
+	complete func(bool)
+}
+
+func (body *capacityBody) Read(buffer []byte) (int, error) {
+	count, err := body.ReadCloser.Read(buffer)
+	if err != nil && !errors.Is(err, io.EOF) {
+		body.failed.Store(true)
+	}
+	return count, err
 }
 
 func (body *capacityBody) Close() error {
 	err := body.ReadCloser.Close()
-	body.once.Do(body.complete)
+	body.once.Do(func() { body.complete(body.failed.Load() || err != nil) })
 	return err
 }
 
@@ -128,15 +139,23 @@ func (transport capacityTransport) RoundTrip(request *http.Request) (*http.Respo
 		}
 	}
 	started := time.Now()
+	observe := func(status int, failed bool) {
+		if failed {
+			// Only the harness's explicit stop is excluded. Client deadlines and
+			// other cancellations still describe interrupted service requests.
+			if errors.Is(context.Cause(request.Context()), errCapacityHarnessShutdown) {
+				return
+			}
+			status = 0
+		}
+		transport.metrics.observe(operation, status, time.Since(started))
+	}
 	response, err := transport.base.RoundTrip(request)
 	if err != nil {
-		// Coordinated harness shutdown does not become a measured service error.
-		if request.Context().Err() == nil {
-			transport.metrics.observe(operation, 0, time.Since(started))
-		}
+		observe(0, true)
 		return response, err
 	}
-	response.Body = &capacityBody{ReadCloser: response.Body, complete: func() { transport.metrics.observe(operation, response.StatusCode, time.Since(started)) }}
+	response.Body = &capacityBody{ReadCloser: response.Body, complete: func(failed bool) { observe(response.StatusCode, failed) }}
 	return response, nil
 }
 
@@ -301,7 +320,7 @@ func runFleetCapacity(t *testing.T, config capacityConfig, hooks ...capacityHook
 	completions := make([]atomic.Uint64, config.Environments)
 	var readyOnce sync.Once
 	var readyErr error
-	workers, stopWorkers := context.WithCancel(ctx)
+	workers, stopWorkers := context.WithCancelCause(ctx)
 	var pollers sync.WaitGroup
 	for environment := 0; environment < config.Environments; environment++ {
 		for number := 0; number < config.Agents; number++ {
@@ -416,7 +435,7 @@ func runFleetCapacity(t *testing.T, config capacityConfig, hooks ...capacityHook
 	case <-done:
 	case <-ctx.Done():
 	}
-	stopWorkers()
+	stopWorkers(errCapacityHarnessShutdown)
 	pollers.Wait()
 	producers.Wait()
 	elapsed := time.Since(started)

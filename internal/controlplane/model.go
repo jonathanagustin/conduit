@@ -87,6 +87,13 @@ func rolloutWindowFor(settings []ProductSettings, product, channel string) (int,
 type Environment struct {
 	ID         string `json:"id"`
 	Generation string `json:"generation"`
+	// PackageArchitecture is the operator-declared target for Zarf/UDS
+	// package Plans. It is required only when a package is selected. The
+	// Spoke independently checks its configured architecture before execution.
+	//
+	// CONDUIT-INVENTED: environments.PackageTargetArchitecture
+	// Displaced-by: a published or owner-approved Environment capability contract establishing package target architecture and its admission semantics.
+	PackageArchitecture string `json:"packageArchitecture,omitempty"`
 	// ConnectionSetting and DeclaredStateSource place this Environment in a Hub
 	// topology. They gate Plan issuance, Agent connection, relayed state
 	// admission, promotion participation, and whether an imported Bundle may

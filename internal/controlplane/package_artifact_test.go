@@ -13,6 +13,7 @@ const packageArtifactDigest = "sha256:cccccccccccccccccccccccccccccccccccccccccc
 // Zarf package instead of a chart.
 func zarfFoundation() DesiredState {
 	state := foundation()
+	state.Environment.PackageArchitecture = "amd64"
 	state.Releases[0].Chart = Artifact{
 		Kind: ArtifactKindZarfPackage, Repository: "registry.example/packages/example-api", Digest: packageArtifactDigest,
 		Architectures: []string{"amd64"}, PackageName: "example-api",
@@ -133,6 +134,74 @@ func TestPlanCarriesThePackageArtifactOnItsStep(t *testing.T) {
 		if !strings.Contains(string(encoded), fragment) {
 			t.Fatalf("the step document lacks %s: %s", fragment, encoded)
 		}
+	}
+}
+
+func TestPackagePlanningRequiresTheDeclaredTargetArchitecture(t *testing.T) {
+	for _, kind := range []string{ArtifactKindZarfPackage, ArtifactKindUDSBundle} {
+		for _, architecture := range []string{"", "arm64"} {
+			t.Run(kind+"/"+architecture, func(t *testing.T) {
+				state := zarfFoundation()
+				state.Environment.PackageArchitecture = architecture
+				state.Releases[0].Chart.Kind = kind
+				message, found := problemAt(Validate(state), "entities[1].release.chart.architectures")
+				if !found || !strings.Contains(message, "packageArchitecture") {
+					t.Fatalf("missing target architecture refusal: %#v", Validate(state))
+				}
+				if _, err := BuildPlan(state); err == nil {
+					t.Fatal("a package Plan was issued without a compatible declared target")
+				}
+			})
+		}
+	}
+	state := foundation()
+	if _, err := BuildPlan(state); err != nil {
+		t.Fatalf("Helm-only Plan now requires a package architecture: %v", err)
+	}
+	state.Environment.PackageArchitecture = "sparc"
+	if _, found := problemAt(Validate(state), "environment.packageArchitecture"); !found {
+		t.Fatal("an unsupported declared architecture was accepted")
+	}
+	// Unselected packages do not impose a target on a Helm-only deployment.
+	state = foundation()
+	packaged := zarfFoundation().Releases[0]
+	packaged.Version = "0.2.0"
+	state.Releases = append(state.Releases, packaged)
+	if _, err := BuildPlan(state); err != nil {
+		t.Fatalf("an unused package blocked a Helm installation: %v", err)
+	}
+}
+
+func TestPackageChannelSelectsACompatibleArchitecture(t *testing.T) {
+	state := channelFoundation("0.1.0", "0.2.0")
+	state.Environment.PackageArchitecture = "amd64"
+	for index := range state.Releases {
+		state.Releases[index].Chart = zarfFoundation().Releases[0].Chart
+	}
+	state.Releases[1].Chart.Architectures = []string{"arm64"}
+	plan, err := BuildPlan(state)
+	if err != nil || len(plan.Steps) != 1 || plan.Steps[0].Version != "0.1.0" {
+		t.Fatalf("channel did not select the compatible package: %#v, %v", plan, err)
+	}
+	state.Environment.PackageArchitecture = "arm64"
+	plan, err = BuildPlan(state)
+	if err != nil || len(plan.Steps) != 1 || plan.Steps[0].Version != "0.2.0" {
+		t.Fatalf("channel ignored the changed target architecture: %#v, %v", plan, err)
+	}
+	state.Environment.PackageArchitecture = ""
+	if _, err = BuildPlan(state); err == nil || !strings.Contains(err.Error(), "packageArchitecture") {
+		t.Fatalf("missing target lost its refusal reason: %v", err)
+	}
+}
+
+func TestPackagePlanningRefusesAMultiarchitectureDeclaration(t *testing.T) {
+	state := zarfFoundation()
+	state.Releases[0].Chart.Architectures = []string{"amd64", "arm64"}
+	if _, found := problemAt(Validate(state), "releases[0].chart.architectures"); !found {
+		t.Fatal("multiarchitecture declaration was accepted without platform resolution")
+	}
+	if _, err := BuildPlan(state); err == nil {
+		t.Fatal("a Plan was issued for an unsupported multiarchitecture declaration")
 	}
 }
 

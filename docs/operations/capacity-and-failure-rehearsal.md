@@ -42,6 +42,14 @@ matching PASS receipt and log. An interrupted run can leave a partial report.
 
 ### Recorded development samples
 
+The retained samples below predate the RPC measurement correction in PR #888.
+That implementation omitted client deadlines before headers and counted some
+response-body failures as successful HTTP responses. Their Plan progress and
+source-bound logs remain historical functional evidence; their RPC request,
+error and latency aggregates must not qualify current capacity or availability.
+Corrected measurements are being recorded separately rather than rewriting the
+original reports or receipts.
+
 The [retained record](../evidence/fleet-validation-2026-11-17/index.json)
 contains raw reports, logs and matching receipts for source commit
 `e2a4518658cf9660938ca928b56ca1cb96bdf7c7`. These are **contended workstation

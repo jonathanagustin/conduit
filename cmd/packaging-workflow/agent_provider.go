@@ -1,12 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -59,27 +57,15 @@ func runProviderPrompt(ctx context.Context, provider, prompt string) (string, er
 			timeout = d
 		}
 	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
-	cmd.Stdin = strings.NewReader(prompt + providerReplyRule)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("%s provider failed: %w: %s", provider, err, strings.TrimSpace(truncate(stderr.String(), 400)))
+	stdout, err := localcmd.Execute(ctx, argv, timeout, []byte(prompt+providerReplyRule))
+	if err != nil {
+		return "", fmt.Errorf("%s provider failed: %w", provider, err)
 	}
-	reply := normalizeProviderReply(stdout.String(), strings.Contains(prompt, "JSON") || strings.Contains(prompt, "toolCalls"))
+	reply := normalizeProviderReply(string(stdout), strings.Contains(prompt, "JSON") || strings.Contains(prompt, "toolCalls"))
 	if reply == "" {
 		return "", fmt.Errorf("%s provider returned an empty reply", provider)
 	}
 	return reply, nil
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n]
 }
 
 // normalizeProviderReply strips markdown fences and, when JSON is expected and

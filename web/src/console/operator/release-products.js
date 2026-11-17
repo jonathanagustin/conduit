@@ -2,6 +2,7 @@
 // channel and how many reported installations run the newest release.
 
 import { emptyState } from "./empty-states.js";
+import { artifactMarkup } from "./package-artifact.js";
 const CHANNEL_ORDER = ["DEV", "CANDIDATE", "STABLE"];
 
 const defaultEsc = (value) =>
@@ -61,6 +62,7 @@ export function productRows(products, installations) {
       releases: releases.length,
       latest: latest?.version || "",
       latestDigest: latest?.chart?.digest || "",
+      latestArtifact: latest?.chart || null,
       channels,
       installations: running.length,
       onLatest,
@@ -99,6 +101,7 @@ export function productsMarkup(rows, { esc = defaultEsc, note = "" } = {}) {
       return `<tr>
         <td class="code-id">${esc(row.product)}</td>
         <td class="code-id" title="${esc(row.latestDigest)}">${esc(row.latest)}</td>
+        <td>${artifactMarkup(row.latestArtifact)}</td>
         ${cells}
         <td>${esc(row.releases)}</td>
         <td><span class="kit-badge kit-badge-${tone}">${esc(row.onLatest)} of ${esc(row.installations)}</span></td>
@@ -109,7 +112,7 @@ export function productsMarkup(rows, { esc = defaultEsc, note = "" } = {}) {
     <div class="kit-view-head"><h2>Products and versions</h2><span class="kit-count" title="${rows.length} in the catalog">${rows.length}</span></div>
     <p class="kit-muted">Newest release per channel. The last column counts reported installations that run the newest release.</p>
     <div class="overflow-x-auto"><table class="so-table">
-      <thead><tr><th>Product</th><th>Newest</th>${head}<th>Releases</th><th>On newest</th></tr></thead>
+      <thead><tr><th>Product</th><th>Newest</th><th>Newest artifact</th>${head}<th>Releases</th><th>On newest</th></tr></thead>
       <tbody>${body}</tbody>
     </table></div>
   </div>`;

@@ -227,7 +227,12 @@ type ReleaseIneligibility struct {
 //     Apollo Hub". This repository fails closed on both.
 //   - The SECURITY_ kinds have no upstream counterpart on that page. ArtifactSecurityPolicy is a
 //     policy this repository applies; nothing recovered names a vulnerability-scan constraint.
+//   - PACKAGE_ARCHITECTURE is Conduit-native admission against the operator's
+//     native desired-state target declaration, not an Apollo constraint or
+//     discovered cluster capability.
 const (
+	IneligiblePackageArchitecture = "PACKAGE_ARCHITECTURE"
+
 	IneligibleSecurityAssessmentMissing    = "SECURITY_ASSESSMENT_MISSING"
 	IneligibleSecurityAssessmentIncomplete = "SECURITY_ASSESSMENT_INCOMPLETE"
 	IneligibleSecurityOutcomeNotPass       = "SECURITY_OUTCOME_NOT_PASS"
@@ -249,6 +254,9 @@ func releaseSatisfiesEnvironmentPolicies(release Release, environment Environmen
 // misconfigured Release costs an afternoon.
 func environmentPolicyIneligibility(release Release, environment Environment) []ReleaseIneligibility {
 	var reasons []ReleaseIneligibility
+	if reason := packageArchitectureIneligibility(release, environment); reason != nil {
+		reasons = append(reasons, *reason)
+	}
 	add := func(kind, message string, subjects ...string) {
 		reasons = append(reasons, ReleaseIneligibility{
 			Version: release.Version, Kind: kind, Message: message, Subjects: subjects,
@@ -298,6 +306,25 @@ func environmentPolicyIneligibility(release Release, environment Environment) []
 		}
 	}
 	return reasons
+}
+
+// packageArchitectureIneligibility applies to selected package Releases only:
+// a catalog may contain artifacts for other targets without blocking a Helm
+// installation or forcing the target to choose the newest incompatible one.
+func packageArchitectureIneligibility(release Release, environment Environment) *ReleaseIneligibility {
+	if !release.Chart.IsPackage() {
+		return nil
+	}
+	message := ""
+	if environment.PackageArchitecture == "" {
+		message = "the Environment must declare packageArchitecture before a Zarf package or UDS bundle can be planned"
+	} else if !release.Chart.SupportsArchitecture(environment.PackageArchitecture) {
+		message = fmt.Sprintf("the package supports %s, not the Environment packageArchitecture %s", strings.Join(release.Chart.Architectures, ", "), environment.PackageArchitecture)
+	}
+	if message == "" {
+		return nil
+	}
+	return &ReleaseIneligibility{Version: release.Version, Kind: IneligiblePackageArchitecture, Message: message}
 }
 
 func validateRecalls(recalls []Recall, errs *[]ValidationError) {

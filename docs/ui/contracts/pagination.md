@@ -30,6 +30,15 @@ request with no `limit` returns the first 100 events and a `nextCursor`; before
 issue #841 it returned the whole log. An unparseable `since`, `until` or `view`
 returns `422`.
 
+Each PostgreSQL audit page reads the native ledger and pending legacy records
+from one repeatable database snapshot. During a mixed Hub rollout, pending
+legacy records follow the native ledger in event-time/ID order. A cursor in
+that legacy portion is bound to the complete matching pending set. Adoption or
+another legacy write that changes that set invalidates the cursor and returns
+`422`; restart without the cursor to read the authoritative order. Legacy
+cursors issued before this binding existed are also refused. Native sequence
+cursors continue to seek the ledger as before. No snapshot spans HTTP requests.
+
 Every page returns `pageSize`, `limit`, `hasPrevious`, and optional
 `nextCursor` and `previousCursor`. Index envelopes also return the authorized,
 filtered `total`; Fleet returns its authorized summary.

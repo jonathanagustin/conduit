@@ -233,6 +233,9 @@ func extractInspectRepoFromPrompt(prompt string) domain.RepoInspect {
 }
 
 func extractTreeLinesFromPrompt(prompt string) []string {
+	if inspected := extractInspectRepoFromPrompt(prompt); len(inspected.Tree) > 0 {
+		return inspected.Tree
+	}
 	idx := strings.Index(prompt, "\nTree:\n")
 	if idx < 0 {
 		return []string{"package.json"}

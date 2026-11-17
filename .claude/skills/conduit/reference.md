@@ -287,6 +287,15 @@ A section that could not be computed reports `status: UNAVAILABLE` rather than
 operations and targets checked. **Allows are recorded, not only denies** — an
 audit trail holding only refusals cannot answer who was let in.
 
+The administrator-only response is paginated: `limit` defaults to 100 (maximum
+200), `cursor` continues the read, and `since`, `until` and `resourceRid` bound
+it. Follow `nextCursor` until absent. `view=chain` folds a read projection; it
+does not expose the original stored ledger. For verified JSONL archival use
+the Hub binary's `verify-authorization-audit --export-file=...` with an
+independently retained `--checkpoint-file`; `--archive-file=...` checks that
+archive offline. See `docs/operations/authorization-audit-integrity.md` for the
+explicit bootstrap mode, guarantees and remaining live-retention decision.
+
 ---
 
 ## §4: The operator console

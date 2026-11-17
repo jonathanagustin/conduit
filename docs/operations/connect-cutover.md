@@ -20,7 +20,7 @@ including reads. A read encoded as POST is not a governed state change.
 | `GET /v1/packaging-runs/{runID}` | `conduit.packaging.v1.PackagingRunService/GetPackagingRun` | Generated detail client |
 | `GET /v1/packaging-runs/{runID}/events` | `conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents` | Generated history client for operator refresh |
 | `GET /v1/products?view=summary` | `conduit.catalog.v1.ProductReadService/ListProductSummaries` | Generated legacy name-only summary helper; full-catalog operator reads remain REST |
-| `POST /v1/plans/{planID}/approvals` | `conduit.plans.v1.PlanApprovalService/ApprovePlan` | Native governed command; explicit CLI `plan approve --write-transport connect` returns a versioned receipt; default remains REST, no automatic retry |
+| `POST /v1/plans/{planID}/approvals` | `conduit.plans.v1.PlanApprovalService/ApprovePlan` | Native governed command; generated legacy console approval helper; explicit CLI `plan approve --write-transport connect` returns a versioned receipt; CLI default remains REST, no automatic retry |
 | `GET /v1/plans?view=summary` | `conduit.plans.v1.PlanReadService/ListPlanSummaries` | Explicit CLI `plan list --read-transport connect`; default remains REST |
 | `GET /v1/notifications/events` | `conduit.notifications.v1.NotificationService/ListNotificationEvents` | Generated Audit notification client |
 
@@ -120,7 +120,8 @@ identity, TLS trust and timeout, and follows bounded native pages without
 interpreting cursors. It rejects invalid evidence and continuation cycles.
 Refusals never trigger a replay through REST. See
 [Plan summaries](connect-plan-summaries.md) for the transport and conversion
-bounds. Plan detail and governed approve/cancel commands remain REST.
+bounds. Plan detail and cancellation remain REST; approval has the explicit
+Connect mode documented below.
 
 ## Live updates
 
@@ -159,5 +160,23 @@ CLI `plan approve --write-transport connect` uses the generated governed command
 and returns `conduit.plan-approval/v1`, rather than a full Plan document. The REST
 default and explicit REST rollback retain the existing full-document output.
 See [approval receipt and ambiguous outcomes](../architecture/cli-plan-approval-connect.md).
+
+## Legacy console approval caller
+
+The legacy `data/hub.ts` approval helper calls the generated native Plan approval
+client and keeps its `Promise<void>` contract. It does not issue a compensating
+read or retry through REST. The existing review UI remains the caller; no second
+approval path or client-side authority is added. Active operator Plan, fleet and
+change-request reads have not migrated as a consequence of this helper change.
+
+Commands use same-origin credentials, a ten-second deadline, cancellation and
+redirect refusal. A successful receipt must identify the requested Plan and
+contain consistent review counts and valid native timestamps. Revision/counts
+remain bigint and timestamps retain nanoseconds in the typed adapter. Missing,
+corrupt or mismatched success evidence is an unknown outcome, not permission to
+repeat the command. A single matching recorded-approval error detail preserves
+the known recorded state and any failed execution handoff. Missing, conflicting,
+wrong-Plan or unrecorded details remain unknown. Error messages direct the caller
+to refresh and preserve the mapped status without displaying server diagnostics.
 No command failure is automatically replayed over REST, and REST deprecation is
 not activated.
