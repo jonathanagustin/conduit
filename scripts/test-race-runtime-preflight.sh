@@ -29,38 +29,60 @@ name="$2"
 name="${name#^}"
 name="${name%\$}"
 printf '%s\n' "$name" >> "$TRACE"
+record() {
+  local kind="$1" display_name="$2" prefix= line
+  [[ "$SCENARIO" != "suffixed-$kind-name" ]] || display_name+="DidNotExecute"
+  [[ "$SCENARIO" != "prefixed-$kind-record" ]] || prefix='unrelated output '
+  case "$kind" in
+    run) line="=== RUN   $display_name" ;;
+    pass) line="--- PASS: $display_name (0.00s)" ;;
+    fail) line="--- FAIL: $display_name (0.00s)" ;;
+  esac
+  printf '%s%s\n' "$prefix" "$line"
+}
+body() {
+  local token="$1"
+  [[ "$SCENARIO" != prefixed-body-token ]] || token="unrelated output $token"
+  [[ "$SCENARIO" != suffixed-body-token ]] || token+="_NOT_EXECUTED"
+  printf '    race_runtime_test.go:31: %s\n' "$token"
+}
 if [[ "$SCENARIO" == startup-zero || "$SCENARIO" == startup-with-markers ]]; then
   echo 'SanitizerTool: CHECK failed: sanitizer_allocator_primary32.h:292'
   if [[ "$SCENARIO" == startup-with-markers ]]; then
-    echo "=== RUN   $name"
-    echo CONDUIT_RACE_PREFLIGHT_POSITIVE_BODY
-    echo "--- PASS: $name (0.00s)"
+    record run "$name"
+    body CONDUIT_RACE_PREFLIGHT_POSITIVE_BODY
+    record pass "$name"
     echo PASS
   fi
   exit 0
 fi
 [[ "$SCENARIO" != missing-run ]] || exit 0
-echo "=== RUN   $name"
+record run "$name"
 case "$name" in
   TestPositive)
-    [[ "$SCENARIO" == missing-positive-body ]] || echo CONDUIT_RACE_PREFLIGHT_POSITIVE_BODY
-    echo '--- PASS: TestPositive (0.00s)'
+    [[ "$SCENARIO" == missing-positive-body ]] || body CONDUIT_RACE_PREFLIGHT_POSITIVE_BODY
+    record pass "$name"
     echo PASS
     [[ "$SCENARIO" != positive-nonzero ]] || exit 1
     exit 0
     ;;
   TestUnconditionalFailure)
-    echo CONDUIT_RACE_PREFLIGHT_FAILURE_BODY
-    echo '--- FAIL: TestUnconditionalFailure (0.00s)'
+    body CONDUIT_RACE_PREFLIGHT_FAILURE_BODY
+    record fail "$name"
     echo FAIL
     [[ "$SCENARIO" != unconditional-zero ]] || exit 0
     exit 1
     ;;
   TestIntentionalRace)
-    [[ "$SCENARIO" == missing-race-body ]] || echo CONDUIT_RACE_PREFLIGHT_RACE_BODY
-    [[ "$SCENARIO" == missing-race-warning ]] || echo 'WARNING: DATA RACE'
+    [[ "$SCENARIO" == missing-race-body ]] || body CONDUIT_RACE_PREFLIGHT_RACE_BODY
+    case "$SCENARIO" in
+      missing-race-warning) ;;
+      prefixed-race-warning) echo 'unrelated output WARNING: DATA RACE' ;;
+      suffixed-race-warning) echo 'WARNING: DATA RACE_NOT_EXECUTED' ;;
+      *) echo 'WARNING: DATA RACE' ;;
+    esac
     if [[ "$SCENARIO" != halt-on-error ]]; then
-      echo '--- FAIL: TestIntentionalRace (0.00s)'
+      record fail "$name"
       echo FAIL
     fi
     [[ "$SCENARIO" != race-zero ]] || exit 0
@@ -106,6 +128,16 @@ check unconditional-zero fail 'unconditional failure was not rejected'
 check missing-race-body fail 'required test body did not execute'
 check missing-race-warning fail 'intentional race was not detected and rejected'
 check race-zero fail 'intentional race was not detected and rejected'
+check prefixed-run-record fail 'required test body did not execute'
+check prefixed-pass-record fail 'positive control did not pass'
+check prefixed-fail-record fail 'unconditional failure was not rejected'
+check suffixed-run-name fail 'required test body did not execute'
+check suffixed-pass-name fail 'positive control did not pass'
+check suffixed-fail-name fail 'unconditional failure was not rejected'
+check prefixed-body-token fail 'required test body did not execute'
+check suffixed-body-token fail 'required test body did not execute'
+check prefixed-race-warning fail 'intentional race was not detected and rejected'
+check suffixed-race-warning fail 'intentional race was not detected and rejected'
 printf 'race runtime preflight rejects false success and preserves all controls (%d cases)\n' "$cases"
 
 # The preflight must remain before the suite in its Go job and in the complete
