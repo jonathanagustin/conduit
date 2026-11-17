@@ -69,6 +69,7 @@ export const SCREEN_REGISTRY = Object.freeze({
   "ai02-evals": live(),
   "ai03-events": live(),
   "ai04-courses": live(),
+  "ntf-inbox": live(),
   "pt01-proposal-trace": Object.freeze({
     data: "example",
     liveWhen: "packagingRuns",

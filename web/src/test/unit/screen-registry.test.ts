@@ -51,7 +51,12 @@ function engineRendererKeys(): string[] {
   // The screen table and the area-tab table. A third table must be routed
   // through classifyRenderers as well, and then this count is updated.
   expect(tables).toHaveLength(2);
-  const spread = ["release-gates.js", "ontology-graph.js", "settings.js"];
+  const spread = [
+    "release-gates.js",
+    "ontology-graph.js",
+    "settings.js",
+    "notifications.js",
+  ];
   for (const name of spread) expect(engine.includes(`./${name}`)).toBe(true);
   expect(
     tables[0]!.match(/\.\.\.\w+\.renderers/g)?.map((item) => item.slice(3)),
@@ -59,6 +64,7 @@ function engineRendererKeys(): string[] {
     "releaseGates.renderers",
     "ontologyGraph.renderers",
     "settings.renderers",
+    "notifications.renderers",
   ]);
   return [
     ...tables.flatMap(tableKeys),

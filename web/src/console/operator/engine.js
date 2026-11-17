@@ -66,6 +66,7 @@ import { createAdminStatus } from "./admin-status.js";
 import { productRows, productsMarkup } from "./release-products.js";
 import { createSettings } from "./settings.js";
 import { createCapabilities } from "./session-capabilities.js";
+import { createNotifications } from "./notifications.js";
 import { createLiveHub } from "./live-hub.js";
 import {
   deliverySlots,
@@ -1001,11 +1002,17 @@ export function mountOperator(host, options) {
   });
   settings.extendState();
   SCREENS.push(...settings.screens);
-  // Session capabilities (#824).
+  // Session capabilities (#824) and the notification inbox (#819).
   const capabilities = createCapabilities({
     state,
     render: () => renderApp({ backgroundRefresh: true }),
   });
+  const notifications = createNotifications({
+    state,
+    render: () => renderApp({ backgroundRefresh: true }),
+    capabilities,
+  });
+  SCREENS.push(...notifications.screens);
   const adminStatus = createAdminStatus({ navigate: switchScreen });
   const commandCenter = createCommandCenter({
     getIdentity: () => ({
@@ -1520,6 +1527,7 @@ export function mountOperator(host, options) {
       { label: "Ontology", icon: "globe", id: "s19-ontology" },
       { label: "Component System", icon: "settings", id: "s18-components" },
       ...settings.navItems(),
+      ...notifications.navItems(),
     ];
     // Every section is a list of groups so the collapsed rail can flatten them.
     const sections = [
@@ -1537,8 +1545,9 @@ export function mountOperator(host, options) {
       state.leftRailCollapsed ||
       window.matchMedia("(max-width: 1024px) and (min-width: 1024px)").matches;
 
-    // Capability-derived navigation (#824).
+    // Capability-derived navigation (#824) and the inbox indicator (#819).
     capabilities.sync();
+    notifications.sync();
     capabilities.paintNotice(AREAS, iconRail, escAttr);
     for (const section of sections)
       for (const group of section.groups)
@@ -4913,6 +4922,7 @@ export function mountOperator(host, options) {
         ...releaseGates.renderers,
         ...ontologyGraph.renderers,
         ...settings.renderers,
+        ...notifications.renderers,
       });
       const renderer = m[state.screen];
       if (!renderer) {

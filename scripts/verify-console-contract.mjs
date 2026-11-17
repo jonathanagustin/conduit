@@ -9,12 +9,15 @@
 // which looks like a broken deployment. An invented version and a renamed meta
 // are both drift.
 //
-// The closed vocabulary in web/src/console/operator/hub-vocabulary.js: the
-// session application ids that gate navigation. It is compared to the Go
-// source as a set, in both directions: a Go value the console does not list is
-// an application the operator never sees, and a console value Go does not
-// define is a navigation entry that can never appear. The navigation table
-// must name only application ids in it.
+// The closed vocabularies in web/src/console/operator/hub-vocabulary.js: the
+// notification event types the preference editor offers as checkboxes, the
+// channels and contact kinds it sends, and the session application ids that
+// gate navigation. Each is compared to the Go source as a set, in both
+// directions: a Go value the console does not list is a checkbox or an
+// application the operator never sees, and a console value Go does not define
+// is a request the Hub refuses or a navigation entry that can never appear.
+// The preference editor must also build its checkboxes from that list, and the
+// navigation table must name only application ids in it.
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -54,10 +57,27 @@ function captureAll(text, pattern, file) {
   return values;
 }
 
+const NOTIFICATIONS_GO = "internal/notifications/domain/notifications.go";
 const SESSION_GO = "internal/controlplane/session.go";
 const OPERATOR = "web/src/console/operator";
 const vocabulary = await import(pathToFileURL(resolve(ROOT, OPERATOR, "hub-vocabulary.js")).href);
+const notificationsGo = read(NOTIFICATIONS_GO);
 const sets = [
+  {
+    name: "notification event types",
+    go: captureAll(notificationsGo, /\bEvent\w+\s+EventType\s*=\s*"([^"]+)"/g, NOTIFICATIONS_GO),
+    ui: vocabulary.EVENT_TYPES,
+  },
+  {
+    name: "notification channels",
+    go: captureAll(notificationsGo, /\bChannel\w+\s+Channel\s*=\s*"([^"]+)"/g, NOTIFICATIONS_GO),
+    ui: vocabulary.CHANNELS,
+  },
+  {
+    name: "notification contact kinds",
+    go: captureAll(notificationsGo, /\bContact\w+\s+ContactKind\s*=\s*"([^"]+)"/g, NOTIFICATIONS_GO),
+    ui: vocabulary.CONTACT_KINDS,
+  },
   {
     name: "session applications",
     go: captureAll(read(SESSION_GO), /\{ID:\s*"([^"]+)",\s*Enabled:/g, SESSION_GO),
@@ -76,7 +96,14 @@ for (const set of sets) {
   if (invented.length) failures.push(`${set.name}: the console lists ${invented.join(", ")} and Go does not define it`);
 }
 
-// The list is only a contract if navigation is built from it.
+// The lists are only a contract if the screens are built from them.
+const notificationsUI = read(`${OPERATOR}/notifications.js`);
+if (
+  !/EVENT_TYPES\s*\.filter\([\s\S]{0,200}?type="checkbox"\s+data-ntf-type=/.test(notificationsUI) ||
+  notificationsUI.split('type="checkbox" data-ntf-type=').length !== 2
+) {
+  failures.push("notification event types: the preference editor does not build its type checkboxes from EVENT_TYPES alone");
+}
 const capabilitiesUI = read(`${OPERATOR}/session-capabilities.js`);
 const navTable = /NAV_APPLICATIONS\s*=\s*Object\.freeze\(\{([\s\S]*?)\}\);/.exec(capabilitiesUI);
 if (!navTable) {
@@ -86,7 +113,7 @@ if (!navTable) {
     [...match[1].matchAll(/"([^"]+)"/g)].map((id) => id[1]),
   );
   if (!mapped.length) failures.push("session applications: the navigation table maps nothing");
-  const unknown = mapped.filter((id) => !sets[0].go.includes(id));
+  const unknown = mapped.filter((id) => !sets[3].go.includes(id));
   if (unknown.length) failures.push(`session applications: navigation is mapped to ${unknown.join(", ")}, which the Hub never returns`);
 }
 
