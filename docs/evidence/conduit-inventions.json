@@ -519,6 +519,13 @@
       "riskIfWrong": "The reference grammar, the ownership metadata and the exit statuses are this implementation's and would change. The preparer keeps no history, so a rollback restores from whatever the previous reference names now; it declines image pre-pull rather than claiming it; and it acts with the Agent's ServiceAccount, so it adds no isolation between the Agent and the material it handles. ESO and Vault integration is by composition and has not been exercised."
     },
     {
+      "id": "assistant.MCPReadToolSurface",
+      "what": "The Hub route POST /v1/mcp: stateless Streamable HTTP speaking MCP 2025-11-25, serving the assistant's two read tools (query_ontology_objects, review_change_diff) as the authenticated operator, each call audited with origin mcp and bounded at 8 KiB.",
+      "why": "#815 asks for the assistant's read tools to be reachable from an MCP client. Nothing recovered establishes that Apollo exposes an MCP surface or what it would carry, so the tool names, argument shapes and result payload are the assistant tool port's own and the endpoint adds no authority: it reuses the assistant's read-only mode allowlist, its argument validation, authorization as the caller and its per-call audit.",
+      "displacedBy": "A published or sanitized Apollo MCP or agent-tool contract defining tools, transport and authority.",
+      "riskIfWrong": "The route, the tool names and the result shape would change and MCP clients configured against it would need reconfiguring. The surface is read-only, so a wrong guess cannot have changed state; review_change_diff is readable by any authenticated operator, which is the assistant's existing rule and would be inherited by any replacement unless tightened there."
+    },
+    {
       "id": "modeleval.Harness",
       "what": "The conduit-eval command and its files under docs/evidence/model-evals: the corpus schema (cases, capabilities, assertion kinds), transcripts keyed by the sha256 of the prompt bytes, the score report keyed by model id, prompt digest set and skill digest, the five score dimensions, and the replay gate rule (no unrecorded prompt, no score below the committed baseline).",
       "why": "#814 requires an offline-first way to detect prompt and skill changes and to score a model on the planning and packaging prompts. No Apollo evaluation contract is recovered; the planning and packaging prompts are Conduit's own, so their evaluation format is too. The harness drives the product's planner and package writer rather than a copy of their prompts.",

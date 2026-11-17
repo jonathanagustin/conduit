@@ -544,6 +544,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; asks the configured local model CLI for one proposal, then the packaging gate, and does not approve"},
 		{Pattern: "POST /v1/assistant/tools",
 			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; runs one ontology read, governed-action proposal, or change-request diff and does not apply the action"},
+		{Pattern: "POST /v1/mcp",
+			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal on every request (stateless Streamable HTTP, no session); serves the assistant's read tools only, each call validated, authorized as the caller and audited with origin mcp by the assistant tool port; no tool that writes is listed or callable"},
 		{Pattern: "POST /v1/assistant/turns",
 			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; asks the configured model for tool calls over a bounded number of rounds, validates and audits each one, and applies nothing a person has not confirmed; a threadId is read and appended only under the caller's own principal"},
 		{Pattern: "GET /v1/assistant/threads",

@@ -54,6 +54,7 @@ func mountAssistant(
 			return application.Actor{Username: principal.Username, Teams: principal.Teams, Groups: principal.Groups}, nil
 		},
 	})
+	mountMCP(mux, api, governanceService, options)
 	mux.Handle("/", legacy)
 	return mux
 }
@@ -329,6 +330,7 @@ func (audit toolAudit) Record(ctx context.Context, record application.AuditRecor
 		time.Now().UTC(), record.Actor, "assistant."+record.Tool, record.Resource, decision, record.Reason,
 		map[string]any{
 			"tool": record.Tool, "argsSha256": assistantdomain.Digest(record.Args), "resultSha256": assistantdomain.Digest(record.Result),
+			"origin": toolOrigin(ctx),
 		},
 	)
 	saved, err := audit.repository.AppendAuthorizationAudit(ctx, event)
