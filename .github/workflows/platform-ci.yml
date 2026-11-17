@@ -783,6 +783,11 @@ jobs:
         run: |
           ruby scripts/verify-zarf-package.rb
           ./scripts/test-zarf-runtime-selection.sh
+          # The package deploys manifests, not the charts: this renders both
+          # for each profile with the Helm pinned above and fails on any
+          # difference deploy/zarf/chart-equivalence.yaml does not list.
+          ruby scripts/verify-zarf-chart-equivalence.rb
+          ./scripts/test-zarf-chart-equivalence.sh
           ./scripts/test-uds-up.sh
           ./scripts/test-uds-keycloak-users.sh
       - name: Validate offline workspace schemas

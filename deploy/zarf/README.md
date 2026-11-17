@@ -36,14 +36,77 @@ cluster that already has UDS Core. A plain Zarf install leaves the component
 out. The commands and the limits of that check are in
 [the UDS package note](../../docs/operations/uds-package.md).
 
-The Hub in this package is file-backed by default and serves no metrics, so
-`uds` registers no monitor. `/metrics` needs both
-`--set-variables REPOSITORY_KIND=postgres` (the DSN is the `dsn` key of
-`PACKAGING_POSTGRES_SECRET`) and `--set-variables METRICS_ADDRESS=:9090`.
-With those set, select `uds-metrics` instead of `uds`: it is the same Package
-custom resource plus a ServiceMonitor. Selecting it without them registers a
-scrape target that stays down. The other notification, plan-orchestrator and
-material-preparer settings the Helm charts expose are not Zarf variables.
+## Profiles
+
+`REPOSITORY_KIND` is the one profile switch. The settings that must move with
+it are derived from it at deploy time by the `runtime` component's `onDeploy`
+actions, so they cannot be set inconsistently by hand.
+
+| | `REPOSITORY_KIND=postgres` | `REPOSITORY_KIND=file` |
+| --- | --- | --- |
+| Intended use | **Production.** This is the profile the Helm chart defaults to. | Development and evaluation only. |
+| Hub replicas | 2 | 1 |
+| Rollout | `RollingUpdate`, `maxUnavailable: 0`, `maxSurge: 1` | `Recreate` |
+| Hub state | PostgreSQL, DSN from the `dsn` key of `PACKAGING_POSTGRES_SECRET` | The retained `platform-delivery-state` claim |
+| PodDisruptionBudget | Keeps one Hub serving through a voluntary disruption | Present, and permits evicting the one Pod |
+| Metrics, `uds-metrics`, `packaging-worker` | Available | Not available |
+
+The variable's default is `file`, so that a package deployed with no variables
+still starts on a cluster with no database, and an existing file-backed install
+upgrades in place. A production deployment sets `REPOSITORY_KIND=postgres`
+explicitly.
+
+The actions are three POSIX `sh` `case` statements. They run on the host that
+runs `zarf package deploy`, which therefore needs `sh`; a Windows deploy host
+without one is not supported. Moving an existing install from `file` to
+`postgres` does not migrate its data, and the claim is left in place.
+
+`/metrics` needs both `--set-variables REPOSITORY_KIND=postgres` and
+`--set-variables METRICS_ADDRESS=:9090`. With those set, select `uds-metrics`
+instead of `uds`: it is the same Package custom resource plus a ServiceMonitor.
+Selecting it without them registers a scrape target that stays down. The
+notification, plan-orchestrator and material-preparer settings the Helm charts
+expose are not Zarf variables.
+
+### One definition, checked against the other
+
+The package deploys `manifests/runtime.yaml`, not the Helm charts. Switching
+the components to `charts:` was considered and rejected for now: the charts
+read the mTLS CA from a ConfigMap where this package's Secret contract carries
+it as `ca.crt`, have no mount for the UDS trust bundle, and select Pods with
+labels an installed package's immutable Deployment selectors do not have, so an
+existing install could not upgrade.
+
+Instead `scripts/verify-zarf-chart-equivalence.rb` resolves the manifests for
+each profile exactly as a deployment would, renders `deploy/helm/platform-hub`
+and `deploy/helm/platform-spoke` with the values that profile stands for, and
+fails on any difference not listed with a reason in
+[`chart-equivalence.yaml`](chart-equivalence.yaml). A listed difference that no
+longer occurs fails too. One listed difference is a known gap rather than a
+choice: the packaged Hub is given no Temporal frontend address, so it cannot
+start packaging workflows; the `packaging-worker` component only executes
+workflows another client starts.
+
+## Declared external dependencies
+
+The package carries exactly two images, the Hub and the Spoke Agent, each by
+platform-manifest digest. Everything else a full system needs is supplied by
+the Environment and is declared here. Nothing in this table is bundled, pulled
+or version-pinned by the package.
+
+| Dependency | Needed when | How it is supplied on UDS | Contract |
+| --- | --- | --- | --- |
+| PostgreSQL | `REPOSITORY_KIND=postgres` (production), `packaging-worker`, metrics | An in-cluster PostgreSQL operator or package the Environment already runs, or a managed database outside the cluster. This package names no package coordinates because none has been tested with it. | Secret named by `PACKAGING_POSTGRES_SECRET` (default `platform-postgres`) in `platform-system` with key `dsn`, one line. With the `uds` component, in-cluster Pods are selected by `POSTGRES_NAMESPACE` and `POSTGRES_NAME_LABEL`; a database outside the cluster needs its own `remoteHost` allow. |
+| Temporal | `packaging-worker` only | A Temporal frontend the Environment already runs, in-cluster or managed. No package coordinates are named, for the same reason. | `PACKAGING_TEMPORAL_ADDRESS` is the frontend `host:port`, plaintext, namespace `default`. With the `uds` component, in-cluster Pods are selected by `TEMPORAL_NAMESPACE` and `TEMPORAL_NAME_LABEL`. |
+| Workspace editor image | Never, in this package | Not applicable. | The Hub's developer-workspace Pods default to the image `workspace-editor:local`, which is not in the package. The packaged Hub does not set `DEVWORKSPACE_PODS`, so it never starts one, and the validator refuses a manifest that does. |
+| Product charts and images | Every Plan the Spoke executes | The OCI registry the Plans name, normally the Zarf registry. | Consumer-owned; see the first paragraph. |
+
+`packaging-worker` requires `REPOSITORY_KIND=postgres`. The worker writes Plans
+to PostgreSQL and a file-backed Hub never reads them, so the component's
+`onDeploy` action refuses the deployment, as the Helm chart refuses
+`packagingWorkflow.worker.enabled` with `repository.kind=file`.
+
+## Environment-owned Secrets
 
 The model provider is configured with the `MODEL_*` variables, all of which
 default to no model call. The API key is the `api-key` key of

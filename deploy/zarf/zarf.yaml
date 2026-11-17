@@ -49,7 +49,7 @@ variables:
     description: Existing Secret whose dsn key is the Hub Postgres DSN. Read by the Hub when REPOSITORY_KIND=postgres and by the optional packaging-worker component.
     default: platform-postgres
   - name: REPOSITORY_KIND
-    description: Hub repository. file is the single-replica baseline on the package PVC. postgres reads the DSN from PACKAGING_POSTGRES_SECRET and is required for metrics.
+    description: Selects the Hub profile. postgres is the production profile (two replicas, rolling update, PodDisruptionBudget, DSN from PACKAGING_POSTGRES_SECRET) and is required for metrics and the packaging worker. file is a single-replica development and evaluation profile on the package PVC.
     default: file
     pattern: "^(file|postgres)$"
   - name: METRICS_ADDRESS
@@ -161,6 +161,27 @@ components:
         namespace: platform-system
         files:
           - manifests/runtime.yaml
+    # REPOSITORY_KIND is the one profile switch. These actions derive the Hub
+    # settings that must move with it, so no operator can pair two replicas
+    # with the file repository. Each runs on the deploying host under POSIX sh
+    # before the manifest is templated. scripts/verify-zarf-chart-equivalence.rb
+    # executes these exact commands and compares the result with the Helm
+    # chart's render of the same profile.
+    actions:
+      onDeploy:
+        before:
+          - description: Derive the Hub replica count from REPOSITORY_KIND
+            cmd: 'case "${ZARF_VAR_REPOSITORY_KIND}" in postgres) echo 2 ;; file) echo 1 ;; *) exit 1 ;; esac'
+            setVariables:
+              - name: HUB_REPLICAS
+          - description: Derive the Hub rollout strategy from REPOSITORY_KIND
+            cmd: 'case "${ZARF_VAR_REPOSITORY_KIND}" in postgres) echo "{type: RollingUpdate, rollingUpdate: {maxUnavailable: 0, maxSurge: 1}}" ;; file) echo "{type: Recreate}" ;; *) exit 1 ;; esac'
+            setVariables:
+              - name: HUB_STRATEGY
+          - description: Derive the Hub state volume from REPOSITORY_KIND
+            cmd: 'case "${ZARF_VAR_REPOSITORY_KIND}" in postgres) echo "emptyDir: {}" ;; file) echo "persistentVolumeClaim: {claimName: platform-delivery-state}" ;; *) exit 1 ;; esac'
+            setVariables:
+              - name: HUB_STATE_VOLUME
     images:
       - "###ZARF_PKG_TMPL_HUB_IMAGE###"
       - "###ZARF_PKG_TMPL_SPOKE_AGENT_IMAGE###"
@@ -175,7 +196,15 @@ components:
         name: platform-spoke-agent
   - name: packaging-worker
     required: false
-    description: Optional packaging worker. Temporal Server is operator-supplied and is not in this package. Deploy only with --components packaging-worker after overriding PACKAGING_TEMPORAL_ADDRESS.
+    description: Optional packaging worker. Temporal Server and PostgreSQL are operator-supplied and are not in this package. Deploy only with --components packaging-worker, REPOSITORY_KIND=postgres, and PACKAGING_TEMPORAL_ADDRESS overridden.
+    # The worker writes Plans to PostgreSQL. A file-backed Hub never reads
+    # them, so the combination is refused at deploy time, as the Helm chart
+    # refuses packagingWorkflow.worker.enabled with repository.kind=file.
+    actions:
+      onDeploy:
+        before:
+          - description: Refuse the packaging worker beside a file-backed Hub
+            cmd: 'test "${ZARF_VAR_REPOSITORY_KIND}" = postgres || { echo "packaging-worker requires REPOSITORY_KIND=postgres so the worker and the Hub share one Plan store" >&2; exit 1; }'
     manifests:
       - name: packaging-worker
         namespace: platform-system

@@ -104,7 +104,7 @@ gate() {
 # an ambient helm of a different version cannot be what the tests measure. The
 # version is pinned for a reason: the post-render test is sensitive to it.
 
-if [[ -z "${only}" || "${only}" == *helm* || "${only}" == *Test* ]]; then
+if [[ -z "${only}" || "${only}" == *helm* || "${only}" == *Test* || "${only}" == *Zarf* ]]; then
   helm_archive="$(fetch_pinned helm get.helm.sh/helm-v /tmp/helm.tar.gz helm.tar.gz)"
   if [[ ! -x "${cache}/helm" ]]; then
     tar -xzf "${helm_archive}" -C "${cache}" --strip-components=1 linux-amd64/helm
@@ -243,7 +243,7 @@ gate 'Validate release path' release_path
 gate 'Validate Rubix substrate CRDs' ruby scripts/verify-rubix-crds.rb
 gate 'Validate Flux runtime source' ruby scripts/verify-flux-runtime.rb
 gate 'Validate Helm runtime chart' ruby scripts/verify-helm-runtime.rb
-gate 'Validate Zarf air-gap package' env ZARF_BIN="${zarf_bin}" bash -c 'ruby scripts/verify-zarf-package.rb && ./scripts/test-zarf-runtime-selection.sh && ./scripts/test-uds-up.sh && ./scripts/test-uds-keycloak-users.sh'
+gate 'Validate Zarf air-gap package' env ZARF_BIN="${zarf_bin}" bash -c 'ruby scripts/verify-zarf-package.rb && ./scripts/test-zarf-runtime-selection.sh && ruby scripts/verify-zarf-chart-equivalence.rb && ./scripts/test-zarf-chart-equivalence.sh && ./scripts/test-uds-up.sh && ./scripts/test-uds-keycloak-users.sh'
 gate 'Build commands' build_commands
 gate 'Validate offline workspace schemas' ./scripts/verify-workspace-schemas.sh
 gate 'Validate administrator status API' ./scripts/verify-admin-status-api.sh

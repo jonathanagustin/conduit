@@ -44,6 +44,40 @@ images.grep_v(/###ZARF_PKG_TMPL_/).each do |image|
   abort "Zarf image is not pinned by digest: #{image}" unless image.match?(/:[^@]+@sha256:[a-f0-9]{64}\z/)
 end
 
+# Every image a selected component can start is in that component's package
+# layer by digest, or is declared external (#828). The first half is checked
+# against every manifest a component applies; the second against the README
+# table an operator reads, and against the Go default it describes.
+packaged = {"###ZARF_CONST_HUB_IMAGE###" => "###ZARF_PKG_TMPL_HUB_IMAGE###", "###ZARF_CONST_SPOKE_AGENT_IMAGE###" => "###ZARF_PKG_TMPL_SPOKE_AGENT_IMAGE###"}
+definition.fetch("components").each do |component|
+  started = (component["manifests"] || []).flat_map { |item| item.fetch("files") }.flat_map do |file|
+    File.read(File.join(root, "deploy/zarf", file)).scan(/^\s*image:\s*(.+?)\s*$/).flatten.map { |image| image.delete(%q("')) }
+  end.uniq
+  started.each do |image|
+    abort "#{component['name']} starts an image that is not a packaged digest constant: #{image}" unless packaged.key?(image)
+    abort "#{component['name']} starts #{image} without carrying it in its images" unless (component["images"] || []).include?(packaged.fetch(image))
+  end
+end
+packaged.each_key do |constant|
+  name = constant[/ZARF_CONST_([A-Z_]+)/, 1]
+  abort "#{name} must be a digest-constrained package constant" unless
+    definition.fetch("constants").any? { |item| item["name"] == name && item["pattern"] == "^.+@sha256:[a-f0-9]{64}$" }
+end
+readme = File.read(File.join(root, "deploy/zarf/README.md"))
+external = readme[/^## Declared external dependencies\n(.*?)(?=^## )/m, 1]
+abort "Zarf README must declare the package's external dependencies" unless external
+workspace_default = File.read(File.join(root, "internal/devworkspace/domain/pod.go"))[/request\.Image = "([^"]+)"/, 1]
+abort "workspace editor image default moved; update the external dependency declaration" unless workspace_default
+{"PostgreSQL" => "PACKAGING_POSTGRES_SECRET", "Temporal" => "PACKAGING_TEMPORAL_ADDRESS", "Workspace editor image" => "`#{workspace_default}`"}.each do |dependency, detail|
+  row = external.lines.find { |line| line.start_with?("| #{dependency} |") }
+  abort "Zarf README must declare #{dependency} as an external dependency naming #{detail}" unless row&.include?(detail)
+end
+# The workspace image is external and unpackaged, so no packaged workload may
+# be configured to start it: an air-gapped cluster could never pull it.
+Dir[File.join(root, "deploy/zarf/manifests/*.yaml")].each do |file|
+  abort "#{File.basename(file)} enables workspace Pods, whose image is not in the package" if File.read(file).include?("DEVWORKSPACE_")
+end
+
 namespaces = manifests.filter_map { |item| item.dig("metadata", "namespace") }.uniq
 abort "Zarf runtime escaped platform-system" unless namespaces == ["platform-system"]
 created_namespaces = manifests.select { |item| item["kind"] == "Namespace" }.map { |item| item.dig("metadata", "name") }
@@ -68,6 +102,18 @@ abort "Zarf package must use static mTLS in the disconnected baseline" unless %w
 ].all? { |name| manifest_text.include?(name) }
 abort "Zarf package must not contain credential bytes" if manifest_text.match?(/BEGIN (?:PRIVATE KEY|CERTIFICATE)/)
 abort "Zarf runtime must not require a root bootstrap container" if manifest_text.include?("initContainers")
+# REPOSITORY_KIND selects the profile, and the settings that must move with
+# it are derived, not typed (#828). Unquoted on purpose: replicas must be an
+# integer and strategy a mapping once Zarf has substituted its text. The
+# resolved profiles are checked by verify-zarf-chart-equivalence.rb.
+{"replicas" => "HUB_REPLICAS", "strategy" => "HUB_STRATEGY"}.each do |field, variable|
+  abort "Hub #{field} must be derived from REPOSITORY_KIND as #{variable}" unless manifest_text.scan(/^  #{field}: (.*)$/).flatten.first == "###ZARF_VAR_" + variable + "###"
+end
+abort "Hub state volume must be derived from REPOSITORY_KIND" unless manifest_text.include?("\n        - name: state\n          ###ZARF_VAR_HUB_STATE_VOLUME" + "###\n")
+budget = manifests.find { |item| item["kind"] == "PodDisruptionBudget" }
+abort "Zarf package must carry the Hub PodDisruptionBudget" unless
+  budget&.dig("metadata", "name") == "platform-delivery" && budget.dig("spec", "maxUnavailable") == 1 &&
+  budget.dig("spec", "selector", "matchLabels") == ({"app.kubernetes.io/name" => "platform-delivery"})
 deployments = manifests.select { |item| item["kind"] == "Deployment" }
 abort "Zarf runtime must contain two Deployments" unless deployments.length == 2
 deployments.each do |deployment|

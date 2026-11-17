@@ -36,9 +36,13 @@ metadata:
   labels:
     app.kubernetes.io/name: platform-delivery
 spec:
-  replicas: 1
-  strategy:
-    type: Recreate
+  # Both lines are derived from REPOSITORY_KIND by the runtime component's
+  # onDeploy actions in zarf.yaml, never set by hand: file is one replica with
+  # Recreate, postgres is two with a surge-one rolling update. The values are
+  # deliberately unquoted, because replicas must be an integer and strategy a
+  # mapping once Zarf has substituted its text.
+  replicas: ###ZARF_VAR_HUB_REPLICAS###
+  strategy: ###ZARF_VAR_HUB_STRATEGY###
   selector:
     matchLabels:
       app.kubernetes.io/name: platform-delivery
@@ -120,9 +124,12 @@ spec:
             - { name: conduit-model, mountPath: /run/conduit-model, readOnly: true }
             - { name: conduit-model-ca, mountPath: /run/conduit-model-ca, readOnly: true }
       volumes:
+        # Derived from REPOSITORY_KIND like the replica count. file mounts the
+        # retained PVC. postgres mounts a per-Pod emptyDir, because two replicas
+        # cannot share a ReadWriteOnce claim and the PostgreSQL Hub stores
+        # nothing under DATA_DIRECTORY.
         - name: state
-          persistentVolumeClaim:
-            claimName: platform-delivery-state
+          ###ZARF_VAR_HUB_STATE_VOLUME###
         # Optional so a Hub with no model, or a keyless one, starts without
         # them. With MODEL_API_KEY_FILE or MODEL_CA_FILE set, a missing object
         # is a startup failure that names the file, not a silent fallback.
@@ -171,6 +178,23 @@ spec:
   ports:
     - { name: https, port: 8081, targetPort: https }
     - { name: metrics, port: 9090, targetPort: metrics }
+---
+# Present in both profiles because a raw manifest cannot be conditional. With
+# the two-replica postgres profile it keeps one Hub serving through a voluntary
+# disruption. With the one-replica file profile it permits evicting that one
+# Pod, which is what having no budget permits.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: platform-delivery
+  namespace: platform-system
+  labels:
+    app.kubernetes.io/name: platform-delivery
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: platform-delivery
 ---
 apiVersion: apps/v1
 kind: Deployment

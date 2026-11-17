@@ -26,8 +26,11 @@ cluster operating after the images are already present.
 - Ingress from the Spoke to the Hub on 8081, and the matching egress.
 - Egress from the Hub and the packaging worker to operator-supplied Postgres
   on 5432. The namespace and `app.kubernetes.io/name` value default to
-  `postgres` (`POSTGRES_NAMESPACE`, `POSTGRES_NAME_LABEL`). The Zarf baseline
-  itself uses the file repository and does not open a database connection.
+  `postgres` (`POSTGRES_NAMESPACE`, `POSTGRES_NAME_LABEL`). The Hub opens a
+  database connection only with `REPOSITORY_KIND=postgres`, the production
+  profile; the default `file` profile is for development and evaluation and
+  never uses this allow. See
+  [Profiles](../../deploy/zarf/README.md#profiles).
 - Egress from the Hub to the OIDC issuer, by two in-cluster routes. One is the
   tenant ingress gateway Pods on 443 and 8443, which is where an issuer such
   as `https://sso.uds.dev/realms/uds` resolves inside the cluster. The other

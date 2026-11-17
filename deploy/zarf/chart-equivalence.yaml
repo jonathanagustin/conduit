@@ -1,0 +1,372 @@
+# The reviewed list of differences between what this package deploys
+# (manifests/runtime.yaml and manifests/packaging-worker.yaml, resolved per
+# profile) and what the Helm charts render for the same profile.
+# scripts/verify-zarf-chart-equivalence.rb fails on any difference that is not
+# listed here, and on any entry here that no longer occurs.
+#
+# profiles: the Zarf variables each profile sets, and the chart values that
+#   stand for the same deployment. The postgres profile leaves replicaCount and
+#   repository.kind to the chart's defaults on purpose, so a changed chart
+#   default is a difference. Values prefixed chart-only- name objects the chart
+#   requires and the package has no equivalent for.
+# chartOnlyLabels: label keys ignored wherever labels or selectors appear.
+# chartObjectNames: chart objects compared under the package's name for them.
+# allow: one entry per difference. `side` is zarf-only, chart-only or differs.
+#   Print the current differences with
+#   PRINT_DIFFERENCES=1 ruby scripts/verify-zarf-chart-equivalence.rb
+profiles:
+  file:
+    repositoryKind: file
+    zarfVariables:
+      ENVIRONMENT_ID: example-environment
+      AGENT_ID: example-agent
+      BOOTSTRAP_ADMINISTRATORS: operator@example.test
+    hubValues:
+      bootstrapAdministrators: [operator@example.test]
+      nameOverride: platform-delivery
+      image: "ghcr.io/example/platform-hub:0.0.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      replicaCount: 1
+      repository:
+        kind: file
+      tls:
+        serverSecretName: platform-hub-tls
+        externalCAConfigMapName: chart-only-agent-ca
+      bundleSigningSecretName: platform-bundle-signing
+    spokeValues: &spoke
+      nameOverride: platform-spoke-agent
+      image: "ghcr.io/example/platform-spoke-agent:0.0.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      environmentId: example-environment
+      agentId: example-agent
+      controlPlaneURL: https://platform-delivery.platform-system.svc.cluster.local:8081
+      tls:
+        clientSecretName: platform-agent-tls
+        externalCAConfigMapName: chart-only-hub-ca
+      rbac:
+        create: false
+  postgres:
+    repositoryKind: postgres
+    packagingWorker: true
+    zarfVariables:
+      ENVIRONMENT_ID: example-environment
+      AGENT_ID: example-agent
+      BOOTSTRAP_ADMINISTRATORS: operator@example.test
+    hubValues:
+      bootstrapAdministrators: [operator@example.test]
+      nameOverride: platform-delivery
+      image: "ghcr.io/example/platform-hub:0.0.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      repository:
+        postgres:
+          secretName: platform-postgres
+      tls:
+        serverSecretName: platform-hub-tls
+        externalCAConfigMapName: chart-only-agent-ca
+      bundleSigningSecretName: platform-bundle-signing
+      packagingWorkflow:
+        enabled: true
+        address: "127.0.0.1:7233"
+        worker:
+          enabled: true
+    spokeValues: *spoke
+chartOnlyLabels:
+  reason: Helm release bookkeeping. The package is not a Helm release of these charts, and the UDS Package CR and the package's own selectors use app.kubernetes.io/name alone.
+  keys:
+    - app.kubernetes.io/component
+    - app.kubernetes.io/instance
+    - app.kubernetes.io/managed-by
+    - app.kubernetes.io/part-of
+    - helm.sh/chart
+chartObjectNames:
+  - chart: Deployment/platform-delivery-packaging
+    zarf: Deployment/platform-packaging-worker
+    reason: The package named its worker before the chart had one; the UDS Package CR selects Pods by the package's name.
+allow:
+  - object: ConfigMap/platform-delivery-console-bootstrap
+    path: ""
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "The package ships the Hub's built-in console bootstrap; CONSOLE_BOOTSTRAP_FILE unset selects consoleui.DefaultBootstrap. The chart always renders a tenant bootstrap ConfigMap."
+  - object: Deployment/platform-delivery
+    path: "spec.template.metadata.annotations"
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "The chart's only Pod annotation is the checksum of the console bootstrap ConfigMap, which the package does not render."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[AGENT_CLIENT_CA_FILE].value"
+    side: differs
+    profiles: [file, postgres]
+    reason: "The package's Secret contract carries the CA as ca.crt inside the TLS Secret (deploy/zarf/README.md); the chart reads it from a separate ConfigMap."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[CONSOLE_BOOTSTRAP_FILE]"
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "The package ships the Hub's built-in console bootstrap; CONSOLE_BOOTSTRAP_FILE unset selects consoleui.DefaultBootstrap. The chart always renders a tenant bootstrap ConfigMap."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[DATA_DIRECTORY]"
+    side: chart-only
+    profiles: [file]
+    reason: "The Hub image sets DATA_DIRECTORY=/var/lib/platform-delivery (Containerfile), which is where the package mounts the state volume."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[METRICS_ADDRESS]"
+    side: zarf-only
+    profiles: [file, postgres]
+    reason: "The package always names the metrics port so METRICS_ADDRESS can be a deploy variable; nothing listens unless it is set with the postgres profile. The chart renders the port only when metrics.enabled."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[OPERATOR_OIDC_CA_FILE]"
+    side: zarf-only
+    profiles: [file, postgres]
+    reason: "Operator OIDC is a deploy variable that defaults to empty; the Hub treats an all-empty OIDC environment as disabled. The chart renders these only when operatorOIDC.enabled."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[OPERATOR_OIDC_CLIENT_ID]"
+    side: zarf-only
+    profiles: [file, postgres]
+    reason: "Operator OIDC is a deploy variable that defaults to empty; the Hub treats an all-empty OIDC environment as disabled. The chart renders these only when operatorOIDC.enabled."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[OPERATOR_OIDC_GROUPS_CLAIM]"
+    side: zarf-only
+    profiles: [file, postgres]
+    reason: "Operator OIDC is a deploy variable that defaults to empty; the Hub treats an all-empty OIDC environment as disabled. The chart renders these only when operatorOIDC.enabled."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[OPERATOR_OIDC_ISSUER]"
+    side: zarf-only
+    profiles: [file, postgres]
+    reason: "Operator OIDC is a deploy variable that defaults to empty; the Hub treats an all-empty OIDC environment as disabled. The chart renders these only when operatorOIDC.enabled."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[OPERATOR_OIDC_USERNAME_CLAIM]"
+    side: zarf-only
+    profiles: [file, postgres]
+    reason: "Operator OIDC is a deploy variable that defaults to empty; the Hub treats an all-empty OIDC environment as disabled. The chart renders these only when operatorOIDC.enabled."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[PACKAGING_TEMPORAL_ADDRESS]"
+    side: chart-only
+    profiles: [postgres]
+    reason: "KNOWN GAP (#828 follow-up): the package's Hub is given no Temporal frontend, so it cannot start packaging workflows; the packaging-worker component only executes workflows another client starts."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[PACKAGING_TEMPORAL_NAMESPACE]"
+    side: chart-only
+    profiles: [postgres]
+    reason: "KNOWN GAP (#828 follow-up): the package's Hub is given no Temporal frontend, so it cannot start packaging workflows; the packaging-worker component only executes workflows another client starts."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[PACKAGING_TEMPORAL_TASK_QUEUE]"
+    side: chart-only
+    profiles: [postgres]
+    reason: "KNOWN GAP (#828 follow-up): the package's Hub is given no Temporal frontend, so it cannot start packaging workflows; the packaging-worker component only executes workflows another client starts."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[POSTGRES_DSN_FILE]"
+    side: zarf-only
+    profiles: [file]
+    reason: "A raw manifest cannot drop the DSN mount by variable, so it is always present and optional; the file-backed Hub ignores POSTGRES_DSN_FILE."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].ports[metrics]"
+    side: zarf-only
+    profiles: [file, postgres]
+    reason: "The package always names the metrics port so METRICS_ADDRESS can be a deploy variable; nothing listens unless it is set with the postgres profile. The chart renders the port only when metrics.enabled."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].volumeMounts[console-bootstrap]"
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "The package ships the Hub's built-in console bootstrap; CONSOLE_BOOTSTRAP_FILE unset selects consoleui.DefaultBootstrap. The chart always renders a tenant bootstrap ConfigMap."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].volumeMounts[database]"
+    side: zarf-only
+    profiles: [file]
+    reason: "A raw manifest cannot drop the DSN mount by variable, so it is always present and optional; the file-backed Hub ignores POSTGRES_DSN_FILE."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].volumeMounts[external-ca]"
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "The package's Secret contract carries the CA as ca.crt inside the TLS Secret (deploy/zarf/README.md); the chart reads it from a separate ConfigMap."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].volumeMounts[hub-tls]"
+    side: zarf-only
+    profiles: [file, postgres]
+    reason: "Same Secret mount as the chart's server-tls volume under the package's older volume name."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].volumeMounts[oidc-ca]"
+    side: zarf-only
+    profiles: [file, postgres]
+    reason: "UDS Core writes the issuer CA to the uds-trust-bundle ConfigMap; the package mounts it, optionally, where OPERATOR_OIDC_CA_FILE can point. The chart mounts its Agent CA ConfigMap at that path instead."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].volumeMounts[server-tls]"
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "The package mounts the same Secret at the same path as its hub-tls volume."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].volumeMounts[state]"
+    side: zarf-only
+    profiles: [postgres]
+    reason: "A raw manifest cannot drop the state mount by variable. With the postgres profile it is a per-Pod emptyDir the PostgreSQL Hub never writes; the chart mounts nothing there."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.serviceAccountName"
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "The Hub calls no Kubernetes API and mounts no token, so the package runs it as the namespace default ServiceAccount instead of creating one."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.volumes[bundle-signing].secret.optional"
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "Kubernetes treats an absent secret.optional as false, which is what the chart writes out; the signing Secret is required either way."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.volumes[console-bootstrap]"
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "The package ships the Hub's built-in console bootstrap; CONSOLE_BOOTSTRAP_FILE unset selects consoleui.DefaultBootstrap. The chart always renders a tenant bootstrap ConfigMap."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.volumes[database]"
+    side: zarf-only
+    profiles: [file]
+    reason: "A raw manifest cannot drop the DSN mount by variable, so it is always present and optional; the file-backed Hub ignores POSTGRES_DSN_FILE."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.volumes[database].secret.optional"
+    side: differs
+    profiles: [postgres]
+    reason: "The DSN Secret is optional so the file profile starts without it. With the postgres profile a missing Secret is still a startup failure that names POSTGRES_DSN_FILE, where the chart fails at Pod creation."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.volumes[external-ca]"
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "The package's Secret contract carries the CA as ca.crt inside the TLS Secret (deploy/zarf/README.md); the chart reads it from a separate ConfigMap."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.volumes[hub-tls]"
+    side: zarf-only
+    profiles: [file, postgres]
+    reason: "Same Secret as the chart's server-tls volume under the package's older volume name; secretName is the HUB_TLS_SECRET variable."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.volumes[oidc-ca]"
+    side: zarf-only
+    profiles: [file, postgres]
+    reason: "Optional uds-trust-bundle ConfigMap written by UDS Core, absent on a plain Zarf cluster. The chart has no UDS trust-bundle mount."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.volumes[server-tls]"
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "The package declares the same Secret as its hub-tls volume. Kubernetes treats an absent secret.optional as false, which is what the chart writes out."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.volumes[state]"
+    side: zarf-only
+    profiles: [postgres]
+    reason: "With the postgres profile the state volume is a per-Pod emptyDir rather than the claim, so two replicas never share a ReadWriteOnce volume; the chart declares no state volume."
+  - object: Deployment/platform-packaging-worker
+    path: "metadata.labels.app.kubernetes.io/name"
+    side: differs
+    profiles: [postgres]
+    reason: "The package labels the worker platform-packaging-worker so the UDS Package CR can scope its PostgreSQL and Temporal egress to the worker alone; the chart reuses the Hub's name label with a component label."
+  - object: Deployment/platform-packaging-worker
+    path: "spec.selector.matchLabels.app.kubernetes.io/name"
+    side: differs
+    profiles: [postgres]
+    reason: "Follows the worker's own name label; see metadata.labels."
+  - object: Deployment/platform-packaging-worker
+    path: "spec.template.metadata.labels.app.kubernetes.io/name"
+    side: differs
+    profiles: [postgres]
+    reason: "Follows the worker's own name label; see metadata.labels."
+  - object: Deployment/platform-packaging-worker
+    path: "spec.template.spec.containers[packaging-worker].env[PACKAGING_TEMPORAL_NAMESPACE]"
+    side: chart-only
+    profiles: [postgres]
+    reason: "The package exposes only the Temporal address as a variable; the worker's built-in namespace default equals the chart default."
+  - object: Deployment/platform-packaging-worker
+    path: "spec.template.spec.containers[packaging-worker].env[PACKAGING_TEMPORAL_TASK_QUEUE]"
+    side: chart-only
+    profiles: [postgres]
+    reason: "The package exposes only the Temporal address as a variable; the worker's built-in task queue default equals the chart default."
+  - object: Deployment/platform-packaging-worker
+    path: "spec.template.spec.volumes[database].secret.optional"
+    side: chart-only
+    profiles: [postgres]
+    reason: "Kubernetes treats an absent secret.optional as false, which is what the chart writes out; the worker's DSN Secret is required either way."
+  - object: Deployment/platform-spoke-agent
+    path: "spec.template.spec.automountServiceAccountToken"
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "The package sets automountServiceAccountToken on the ServiceAccount, the chart on the Pod; the Agent's token is mounted either way."
+  - object: Deployment/platform-spoke-agent
+    path: "spec.template.spec.containers[spoke-agent].env[CONTROL_PLANE_CA_FILE].value"
+    side: differs
+    profiles: [file, postgres]
+    reason: "The package's Secret contract carries the CA as ca.crt inside the TLS Secret (deploy/zarf/README.md); the chart reads it from a separate ConfigMap."
+  - object: Deployment/platform-spoke-agent
+    path: "spec.template.spec.containers[spoke-agent].env[HEALTH_POLL_INTERVAL]"
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "The package leaves the Agent's built-in 5s health poll interval, which equals the chart default."
+  - object: Deployment/platform-spoke-agent
+    path: "spec.template.spec.containers[spoke-agent].env[HELM_PLAIN_HTTP]"
+    side: zarf-only
+    profiles: [file, postgres]
+    reason: "HELM_PLAIN_HTTP is a deploy variable that defaults to false, so the package always renders it; the chart renders it only when true."
+  - object: Deployment/platform-spoke-agent
+    path: "spec.template.spec.containers[spoke-agent].volumeMounts[agent-tls]"
+    side: zarf-only
+    profiles: [file, postgres]
+    reason: "Same Secret mount as the chart's client-tls volume under the package's older volume name."
+  - object: Deployment/platform-spoke-agent
+    path: "spec.template.spec.containers[spoke-agent].volumeMounts[client-tls]"
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "The package mounts the same Secret at the same path as its agent-tls volume."
+  - object: Deployment/platform-spoke-agent
+    path: "spec.template.spec.containers[spoke-agent].volumeMounts[external-ca]"
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "The package's Secret contract carries the CA as ca.crt inside the TLS Secret (deploy/zarf/README.md); the chart reads it from a separate ConfigMap."
+  - object: Deployment/platform-spoke-agent
+    path: "spec.template.spec.volumes[agent-tls]"
+    side: zarf-only
+    profiles: [file, postgres]
+    reason: "Same Secret as the chart's client-tls volume under the package's older volume name; secretName is the AGENT_TLS_SECRET variable."
+  - object: Deployment/platform-spoke-agent
+    path: "spec.template.spec.volumes[client-tls]"
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "The package declares the same Secret as its agent-tls volume."
+  - object: Deployment/platform-spoke-agent
+    path: "spec.template.spec.volumes[external-ca]"
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "The package's Secret contract carries the CA as ca.crt inside the TLS Secret (deploy/zarf/README.md); the chart reads it from a separate ConfigMap."
+  - object: Namespace/platform-system
+    path: ""
+    side: zarf-only
+    profiles: [file, postgres]
+    reason: "The package creates and labels its one namespace for Zarf's labeled image mutation; a Helm chart never creates its release namespace."
+  - object: PersistentVolumeClaim/platform-delivery-state
+    path: ""
+    side: zarf-only
+    profiles: [postgres]
+    reason: "A raw manifest cannot be conditional, so the claim exists in the postgres profile too. It is unmounted there and retained, so switching profile never deletes file-profile state."
+  - object: PersistentVolumeClaim/platform-delivery-state
+    path: "metadata.labels"
+    side: chart-only
+    profiles: [file]
+    reason: "The package's claim carries no labels; nothing selects it by label."
+  - object: PodDisruptionBudget/platform-delivery
+    path: ""
+    side: zarf-only
+    profiles: [file]
+    reason: "A raw manifest cannot be conditional, so the budget exists in the file profile too. maxUnavailable 1 over one replica permits what having no budget permits."
+  - object: Service/platform-delivery
+    path: "spec.ports[https].protocol"
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "TCP is the Kubernetes default the chart writes out."
+  - object: Service/platform-delivery
+    path: "spec.ports[metrics]"
+    side: zarf-only
+    profiles: [file, postgres]
+    reason: "The package always names the metrics port so METRICS_ADDRESS can be a deploy variable; nothing listens unless it is set with the postgres profile. The chart renders the port only when metrics.enabled."
+  - object: Service/platform-delivery
+    path: "spec.type"
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "ClusterIP is the Kubernetes default the chart writes out."
+  - object: ServiceAccount/platform-delivery
+    path: ""
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "The Hub calls no Kubernetes API and mounts no token, so the package creates no ServiceAccount for it."
+  - object: ServiceAccount/platform-spoke-agent
+    path: "metadata.labels"
+    side: chart-only
+    profiles: [file, postgres]
+    reason: "The package's ServiceAccount carries no labels; nothing selects it by label."
