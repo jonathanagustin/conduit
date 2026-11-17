@@ -4698,9 +4698,20 @@ export function mountOperator(host, options) {
     }, 20);
   }
 
-  function renderConduitModals() {
+  function renderConduitModals({ backgroundRefresh = false } = {}) {
     const root = document.getElementById("conduit-modal-root");
     if (!root) return;
+    // Keep the focused input through background Hub updates. Replacing it can
+    // detach a keystroke target before its input event reaches the handler.
+    if (
+      backgroundRefresh &&
+      state.cmdOmnibarOpen &&
+      !state.rmPromoDialogOpen &&
+      root.querySelector("#conduit-omnibar-inp")
+    ) {
+      renderPaletteResults();
+      return;
+    }
     const selCh =
       RM_CHANNELS.find((c) => c.id === state.rmSelectedChannel) ||
       RM_CHANNELS[3];
@@ -5141,7 +5152,7 @@ export function mountOperator(host, options) {
     )
       renderMainWorkspace();
     renderChatRail();
-    renderConduitModals();
+    renderConduitModals({ backgroundRefresh });
     if (typeof notifyOperator === "function") notifyOperator();
   }
 

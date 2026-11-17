@@ -1058,6 +1058,11 @@ test("the command palette lists only what the session enables", async ({
   await expect(row("Fleet")).toHaveCount(0);
   await palette.getByLabel("Search").fill("Change requests");
   await expect(row("Change requests")).not.toHaveCount(0);
+  const search = await palette.getByLabel("Search").elementHandle();
+  await page.evaluate(() => Reflect.get(window, "refreshHub")());
+  expect(await search?.evaluate((element) => element.isConnected)).toBe(true);
+  await expect(palette.getByLabel("Search")).toHaveValue("Change requests");
+  await expect(row("Change requests")).not.toHaveCount(0);
 
   // The same Hub answer with every application on lists Fleet again.
   hub.session = session();
