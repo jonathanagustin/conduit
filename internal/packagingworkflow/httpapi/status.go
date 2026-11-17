@@ -9,13 +9,14 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/jonathanagustin/conduit/internal/packagingworkflow/application"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 )
 
 const Route = "GET /v1/packaging-runs/{runID}"
 
 // ErrNotFound is returned by a reader when the run id is unknown.
-var ErrNotFound = errors.New("packaging run not found")
+var ErrNotFound = application.ErrRunNotFound
 
 // StatusError is an authorization or request failure with an HTTP status.
 type StatusError struct {

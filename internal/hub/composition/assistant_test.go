@@ -32,14 +32,12 @@ func (runningPackaging) Events(context.Context, string) ([]packagingdomain.StepE
 
 func TestAssistantDeniesWithoutARoleAndAllowsAPendingRequest(t *testing.T) {
 	repository := controlplane.NewMemoryRepository()
-	handler, err := NewHub(repository, controlplane.HandlerOptions{AllowInsecureOperatorIdentityHeaders: true}, Options{PackagingStatus: runningPackaging{}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	fixture := newActionFixture(t, repository)
+	handler := fixture.handler
 	denied := postAssistant(handler, "local-developer", "", "/v1/assistant/tools", `{
 		"mode":"release_plan",
 		"tool":"propose_governed_action",
-		"arguments":{"actionId":"cancel_packaging_run","targetEntityId":"sample-app-1","targetObjectType":"PackagingRun","environment":"dev","installationId":"sample-app","productId":"app.example:sample-app"}
+		"arguments":{"actionId":"cancel_packaging_run","targetEntityId":"run-a","targetObjectType":"PackagingRun","environment":"env-a","installationId":"api","productId":"acme:api"}
 	}`)
 	if denied.Code != http.StatusOK || !strings.Contains(denied.Body.String(), "caller does not have a role") || strings.Contains(denied.Body.String(), `"allowed":true`) {
 		t.Fatalf("deny = %d %s", denied.Code, denied.Body.String())
@@ -48,10 +46,10 @@ func TestAssistantDeniesWithoutARoleAndAllowsAPendingRequest(t *testing.T) {
 	if err != nil || len(stored) != 0 {
 		t.Fatalf("stored = %#v %v", stored, err)
 	}
-	allowed := postAssistant(handler, "local-developer", "Operator", "/v1/assistant/tools", `{
+	allowed := postAssistant(handler, "alice", "Operator", "/v1/assistant/tools", `{
 		"mode":"ontology",
 		"tool":"propose_governed_action",
-		"arguments":{"actionId":"cancel_packaging_run","targetEntityId":"sample-app-1","targetObjectType":"PackagingRun","environment":"dev","installationId":"sample-app","productId":"app.example:sample-app"}
+		"arguments":{"actionId":"cancel_packaging_run","targetEntityId":"run-a","targetObjectType":"PackagingRun","environment":"env-a","installationId":"api","productId":"acme:api"}
 	}`)
 	if allowed.Code != http.StatusOK || !strings.Contains(allowed.Body.String(), `"allowed":true`) || !strings.Contains(allowed.Body.String(), "PENDING_APPROVALS") {
 		t.Fatalf("allow = %d %s", allowed.Code, allowed.Body.String())

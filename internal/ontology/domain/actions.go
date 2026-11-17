@@ -101,6 +101,9 @@ func runCancellable(facts ActionFacts) bool {
 }
 
 var actionRules = map[string]ActionRule{
+	"add_eval_case":          {ID: "add_eval_case", Roles: []string{"Developer", "Operator"}, AuditEvent: "intelligence.eval_case_authorized"},
+	"approve_change_request": {ID: "approve_change_request", Roles: []string{"Release Approver"}, AuditEvent: "change_request.review_requested"},
+	"reject_change_request":  {ID: "reject_change_request", Roles: []string{"Release Approver", "Security Admin"}, AuditEvent: "change_request.rejection_requested"},
 	"execute_plan":           {ID: "execute_plan", Roles: []string{"Operator", "Release Approver"}, AuditEvent: "plan.execution_dispatched"},
 	"promote_release_manual": {ID: "promote_release_manual", Roles: []string{"Release Approver", "Profile Owner"}, AuditEvent: "release_channel.manual_promoted"},
 	"include_change_in_plan": {ID: "include_change_in_plan", Roles: []string{"Developer", "Operator", "Profile Owner"}, AuditEvent: "change_request.included_in_plan"},
@@ -122,6 +125,19 @@ var actionRules = map[string]ActionRule{
 }
 
 var blockers = map[string]func(ActionFacts) string{
+	"add_eval_case": func(ActionFacts) string { return "" },
+	"approve_change_request": func(facts ActionFacts) string {
+		if facts.ChangeStatus != "PENDING_APPROVALS" && facts.ChangeStatus != "APPROVED" {
+			return "change request is not awaiting review or approved execution recovery"
+		}
+		return ""
+	},
+	"reject_change_request": func(facts ActionFacts) string {
+		if facts.ChangeStatus != "PENDING_APPROVALS" {
+			return "change request is not awaiting review"
+		}
+		return ""
+	},
 	"execute_plan": func(facts ActionFacts) string {
 		if !facts.WindowOpen && !facts.HasOverride {
 			return "maintenance window is closed"

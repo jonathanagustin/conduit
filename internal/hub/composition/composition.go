@@ -80,6 +80,7 @@ func NewHub(
 		return nil, err
 	}
 	options.AfterPlanApproved = sequencer
+	options = withAssistantActions(repository, options, hubOptions)
 	handler, err := mountNotifications(controlplane.NewHandler(repository, options), repository, options, hubOptions)
 	if err != nil {
 		return nil, err

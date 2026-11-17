@@ -15,6 +15,7 @@ import (
 	devdomain "github.com/jonathanagustin/conduit/internal/devworkspace/domain"
 	governanceports "github.com/jonathanagustin/conduit/internal/governance/ports"
 	"github.com/jonathanagustin/conduit/internal/notifications/domain"
+	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	"github.com/jonathanagustin/conduit/internal/workspaceacp/adapters/memorybridge"
 	acpdomain "github.com/jonathanagustin/conduit/internal/workspaceacp/domain"
 )
@@ -26,6 +27,26 @@ type committedOpeningProbe struct {
 	repository controlplane.Repository
 	next       governanceports.ChangeRequestOpenings
 	openings   []governanceports.ChangeRequestOpening
+}
+
+func announcementPackagingWorker(t *testing.T, repository controlplane.Repository) *assistantWorker {
+	t.Helper()
+	service := controlplane.NewGovernanceService(repository)
+	if _, err := service.PutTeam(t.Context(), controlplane.Team{Name: "Operator", DisplayName: "Operator", AdminUsers: []string{"local-developer"}, MemberUsers: []string{"local-developer"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.PutGrant(t.Context(), controlplane.ResourceGrant{ResourceRID: "environment/dev", Team: "Operator", Roles: []string{"environment:editor"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repository.CreatePlan(t.Context(), controlplane.PlanRecord{
+		ID: "announcement-packaging-target", Status: controlplane.PlanAwaitingApproval, CreatedAt: time.Now(),
+		Plan: controlplane.Plan{Environment: "dev", Steps: []controlplane.PlanStep{{Entity: "sample-app", InstallationID: "sample-app", Product: "app.example:sample-app", Version: "2"}}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return &assistantWorker{runs: map[string]packagingdomain.RunStatus{
+		"sample-app-1": {RunID: "sample-app-1", Phase: packagingdomain.PhaseReview, SourceDigest: "sha256:announcement-source", ProposalRevision: "reviewed-revision", TargetPlanRef: "dev/sample-app", TemplateVersion: "template-1", ToolVersions: "tools-1"},
+	}}
 }
 
 func (probe *committedOpeningProbe) AwaitingApproval(ctx context.Context, opening governanceports.ChangeRequestOpening) error {
@@ -94,12 +115,17 @@ func TestAlternateHubSurfacesAnnouncePersistedHumanProposals(t *testing.T) {
 				}
 				bundleID = built[0].Manifest.ID
 			}
+			hubOptions := Options{NotificationStore: store, PackagingStatus: runningPackaging{}}
+			if surface == "assistant" {
+				worker := announcementPackagingWorker(t, repository)
+				hubOptions.PackagingStatus, hubOptions.PackagingControls = worker, worker
+			}
 			handler, err := NewHub(repository, controlplane.HandlerOptions{
 				AllowInsecureOperatorIdentityHeaders: true,
 				BootstrapAdministrators:              []string{"local-developer"},
 				Announcements:                        controlplane.Announcements{ChangeRequestOpenings: probe},
 				BundlePrivateKey:                     key,
-			}, Options{NotificationStore: store, PackagingStatus: runningPackaging{}})
+			}, hubOptions)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -195,10 +221,11 @@ func TestWorkspaceACPAnnouncesItsHighRiskReviewThroughConfiguredPorts(t *testing
 func TestCallerAnnouncementPortSurvivesWithoutANotificationStore(t *testing.T) {
 	repository := controlplane.NewMemoryRepository()
 	probe := &committedOpeningProbe{t: t, repository: repository}
+	worker := announcementPackagingWorker(t, repository)
 	handler, err := NewHub(repository, controlplane.HandlerOptions{
 		AllowInsecureOperatorIdentityHeaders: true,
 		Announcements:                        controlplane.Announcements{ChangeRequestOpenings: probe},
-	}, Options{PackagingStatus: runningPackaging{}})
+	}, Options{PackagingStatus: worker, PackagingControls: worker})
 	if err != nil {
 		t.Fatal(err)
 	}

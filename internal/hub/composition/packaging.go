@@ -101,9 +101,16 @@ func (log packagingDecisions) Lookup(ctx context.Context, runID, decisionID stri
 		return packaginghttp.DecisionRecord{
 			Subject: event.Subject, Action: event.Action, RunID: runID, Verdict: event.Decision,
 			Reason: event.Reason, DecisionID: decisionID, At: event.CreatedAt,
+			SourceDigest: stringContext(event.Context, "sourceDigest"), ProposalRevision: stringContext(event.Context, "proposalRevision"),
+			TargetPlanRef: stringContext(event.Context, "targetPlanRef"), PlanID: stringContext(event.Context, "planId"), NewRunID: stringContext(event.Context, "newRunId"),
 		}, true, nil
 	}
 	return packaginghttp.DecisionRecord{}, false, nil
+}
+
+func stringContext(values map[string]any, key string) string {
+	value, _ := values[key].(string)
+	return value
 }
 
 func (log packagingDecisions) Append(ctx context.Context, record packaginghttp.DecisionRecord) error {

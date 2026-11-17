@@ -31,3 +31,26 @@ func TestDownloadStaysBlockedUntilTheArtifactIsKnownSigned(t *testing.T) {
 		t.Fatalf("signed download = %#v", signed)
 	}
 }
+
+func TestAssistantWritesHaveConcreteActionRules(t *testing.T) {
+	for _, test := range []struct{ action, role, status string }{
+		{"add_eval_case", "Operator", ""}, {"add_eval_case", "Developer", ""},
+		{"approve_change_request", "Release Approver", "PENDING_APPROVALS"},
+		{"reject_change_request", "Security Admin", "PENDING_APPROVALS"},
+	} {
+		allowed := Decide(test.action, ActionFacts{Roles: []string{test.role}, ChangeStatus: test.status})
+		if !allowed.Known || !allowed.Allowed {
+			t.Fatalf("%s has no executable rule: %+v", test.action, allowed)
+		}
+		denied := Decide(test.action, ActionFacts{Roles: []string{"unrelated"}, ChangeStatus: test.status})
+		if denied.Allowed {
+			t.Fatalf("%s bypassed its role", test.action)
+		}
+	}
+	if Decide("reject_change_request", ActionFacts{Roles: []string{"Security Admin"}, ChangeStatus: "REJECTED"}).Allowed {
+		t.Fatal("terminal request admitted for rejection")
+	}
+	if Decide("approve_change_request", ActionFacts{Roles: []string{"Release Approver"}}).Allowed {
+		t.Fatal("unknown change request admitted for approval")
+	}
+}
