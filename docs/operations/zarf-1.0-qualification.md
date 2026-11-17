@@ -57,6 +57,23 @@ values feature at initialization. A successful legacy `uds create` does not
 establish deployment compatibility. Migrating the owned YAML bundle to that
 new contract, or an explicit refusal of unsupported inputs, is still required;
 no deployment compatibility is claimed from source inspection alone.
+
+The pinned release binary exposes the new command tree only with
+`--features NextMode`: its commands are `bundle create`, `bundle verify` and
+`bundle deploy`, rather than the legacy top-level commands. This is a whole
+consumer-contract change, including HCL configuration and signature flags;
+setting a values flag on the old command is insufficient.
+
+A local image-free beta-package fixture assembled successfully using
+`uds --features NextMode bundle create ... --unsigned`. Native inspect reports
+its package `valuesFiles`, and the resulting OCI archive contains the exact
+input values bytes (SHA256
+`73d2e4b9a9b5a0f0c9fd4f9dffbf79efbba15aa80dacda0d976d223f387cae8f`).
+This intentionally unsigned fixture exercises assembly only. Invoking native
+`bundle verify` without a trust policy refuses with `invalid bundle verification
+policy`; inspect explicitly reports that signature verification was not done.
+No trust check was bypassed on a production artifact. No bundle deployment,
+cluster acceptance, publication or signing was performed for this probe.
 The new init defaults, compressed state, removed storageclass/distro state and
 changed init inputs still require cluster acceptance.
 
