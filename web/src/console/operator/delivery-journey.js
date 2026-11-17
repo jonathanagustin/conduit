@@ -8,6 +8,7 @@
  * success is painted only from what the Hub returned, and is followed by a
  * refresh of the Hub indexes. A refusal is painted with the Hub's own reason.
  */
+import { PlanApprovalError } from "../../api/plan-approval.js";
 import {
   actionTransition,
   buildPlanDecision,
@@ -91,6 +92,12 @@ export function actionChromeMarkup(action, { noun = "request" } = {}) {
   }
   if (current.phase === "inflight")
     return `<div class="kit-card kit-bar-info" role="status" data-dj-inflight>Sent. Waiting for the Hub to answer; nothing is recorded as done yet.</div>`;
+  if (current.phase === "uncertain")
+    return `<div class="kit-card kit-bar-warn space-y-2" role="alert" data-dj-uncertain data-dj-approval-recorded="${current.outcome?.approvalRecorded === true}">
+      <p>Plan ${esc(current.request?.body?.planId || "identity unavailable")}: ${esc(current.error)}</p>
+      <p>Another approval is blocked until you reload the Plan's current state. Reloading sends no approval.</p>
+      <button type="button" class="so-btn" data-dj-refresh-plan>Reload Plan state</button>
+    </div>`;
   if (current.phase === "failure")
     return `<div class="kit-card kit-bar-err" role="alert" data-dj-error>The Hub did not accept this ${esc(noun)}: ${esc(current.error)}</div>`;
   if (current.error)
@@ -99,7 +106,9 @@ export function actionChromeMarkup(action, { noun = "request" } = {}) {
 }
 
 const locked = (action) =>
-  action?.phase === "confirm" || action?.phase === "inflight";
+  action?.phase === "confirm" ||
+  action?.phase === "inflight" ||
+  action?.phase === "uncertain";
 const dis = (flag) => (flag ? " disabled" : "");
 
 function slot(state, key) {
@@ -180,6 +189,10 @@ function mountPanel(
   node.onclick = async (event) => {
     const hit = (selector) =>
       event.target instanceof Element ? event.target.closest(selector) : null;
+    if (hit("[data-dj-refresh-plan]") && panel.action.phase === "uncertain") {
+      window.location.reload();
+      return;
+    }
     const review = hit("[data-dj-review]");
     if (review?.disabled) return;
     if (review) {
@@ -219,10 +232,21 @@ function mountPanel(
     } catch (error) {
       // The Hub's reason first, verbatim; then any detail the Hub can add.
       const detail = explain ? await explain(error, request) : "";
+      const approvalFailure =
+        request.transport === "connect-plan-approval" &&
+        error instanceof PlanApprovalError;
       panel.action = actionTransition(panel.action, {
-        type: "rejected",
+        type: approvalFailure ? "uncertain" : "rejected",
         error: detail ? `${error?.message} (${detail})` : error?.message,
+        outcome: approvalFailure
+          ? {
+              outcomeKnown: error.outcomeKnown,
+              approvalRecorded: error.approvalRecorded,
+              handoffFailed: error.handoffFailed,
+            }
+          : undefined,
       });
+      if (approvalFailure) state.approvalRecoveryRequired = panel.action;
     }
     repaint();
     // The affected indexes are read again only after the Hub answered.
@@ -411,14 +435,16 @@ export function decisionMarkup(plan, review, panel, { picker = "" } = {}) {
   const head = `<h3>Approve or reject this plan</h3>${picker}`;
   const rule = `<div class="kit-card kit-bar-info">Two-person rule: the author of a change cannot approve it. The Hub refuses a self-approval and records it.</div>`;
   if (action.phase === "success") {
-    const body = action.result || {};
+    const result = action.result || {};
+    const body =
+      result.kind === "conduit.plan-approval/v1" ? result.plan || {} : result;
     return `<section class="so-panel p-3 space-y-2" data-dj-panel="decide">${head}${outcomeMarkup(
       "ok",
       [
         `The Hub recorded the ${action.request?.summary?.find(([label]) => label === "Decision")?.[1] || "decision"}.`,
         `${body.id || "The record"} is now ${body.status || "status unavailable"}.`,
       ],
-    )}</section>`;
+    )}<button type="button" class="so-btn" data-dj-again>Review another Plan</button></section>`;
   }
   if (!plan)
     return `<section class="so-panel p-3 space-y-2" data-dj-panel="decide">${head}<p class="kit-muted" data-dj-reason>No plan awaiting approval is selected.</p></section>`;
@@ -447,8 +473,14 @@ export function mountPlanDecision(
   state,
   { planId = "", board = false, fetchImpl = fetch } = {},
 ) {
-  const key = board ? "decideBoard" : "decide";
+  // One mutable panel slot routes pending replies to whichever entry point is
+  // currently mounted, and keeps both views from offering a second command.
+  const key = "decide";
   const panel = slot(state, key);
+  // Both approval entry points share the same recovery barrier. Navigation
+  // cannot turn an unknown or already-recorded command into a fresh retry.
+  if (state.approvalRecoveryRequired)
+    panel.action = state.approvalRecoveryRequired;
   const plans = () => (Array.isArray(state.hub?.plans) ? state.hub.plans : []);
   const awaiting = () =>
     plans().filter((plan) => plan.status === "AWAITING_APPROVAL");

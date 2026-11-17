@@ -9,6 +9,14 @@
  * builder never adds one.
  */
 import { reviewState } from "./change-review.js";
+import { toJson } from "@bufbuild/protobuf";
+import { ApprovePlanResponseSchema } from "../../api/gen/conduit/plans/v1/plan_approval_pb.js";
+import {
+  planApprovalTransport,
+  submitPlanApproval,
+} from "../../api/plan-approval.js";
+
+const APPROVAL_RPC = "/conduit.plans.v1.PlanApprovalService/ApprovePlan";
 
 const text = (value) => (typeof value === "string" ? value.trim() : "");
 const list = (value) => (Array.isArray(value) ? value : []);
@@ -76,7 +84,8 @@ export function actionTransition(action, event) {
   const current = action || idleAction();
   switch (event?.type) {
     case "review":
-      if (current.phase === "inflight") return current;
+      if (current.phase === "inflight" || current.phase === "uncertain")
+        return current;
       if (event.request?.error)
         return { ...idleAction(), error: event.request.error };
       return {
@@ -95,6 +104,15 @@ export function actionTransition(action, event) {
       return current.phase === "inflight"
         ? { ...current, phase: "success", result: event.result ?? null }
         : current;
+    case "uncertain":
+      return current.phase === "inflight"
+        ? {
+            ...current,
+            phase: "uncertain",
+            error: event.error,
+            outcome: event.outcome,
+          }
+        : current;
     case "rejected":
       return current.phase === "inflight"
         ? {
@@ -104,7 +122,9 @@ export function actionTransition(action, event) {
           }
         : current;
     case "reset":
-      return current.phase === "inflight" ? current : idleAction();
+      return current.phase === "inflight" || current.phase === "uncertain"
+        ? current
+        : idleAction();
     default:
       return current;
   }
@@ -116,6 +136,24 @@ export function actionTransition(action, event) {
  * routes take no idempotency key, so none is sent.
  */
 export async function sendAction(request, fetchImpl = fetch) {
+  if (request.transport === "connect-plan-approval") {
+    if (request.method !== "POST" || request.path !== APPROVAL_RPC)
+      throw new Error("Invalid Plan approval command.");
+    const receipt = await submitPlanApproval(
+      planApprovalTransport(window.location.origin, fetchImpl),
+      request.body.planId,
+      request.body.rationale,
+      request.signal,
+    );
+    return {
+      status: 200,
+      body: {
+        kind: "conduit.plan-approval/v1",
+        ...toJson(ApprovePlanResponseSchema, receipt),
+      },
+    };
+  }
+  if (request.transport) throw new Error("Unknown command transport.");
   const response = await fetchImpl(request.path, {
     method: request.method,
     headers: {
@@ -400,7 +438,7 @@ export function planReviewState(
 }
 
 /**
- * Approve: POST /v1/plans/{planID}/approvals {rationale}.
+ * Approve: the generated native Connect command {planId, rationale}.
  * Reject: a governed plan is refused through its change request
  * (POST /v1/change-requests/{id}/reject {rationale}); a plan with none is
  * cancelled (POST /v1/plans/{planID}/cancel {reason}).
@@ -427,9 +465,10 @@ export function buildPlanDecision(plan, decision, rationale) {
   if (decision === "approve")
     return {
       method: "POST",
-      path: `/v1/plans/${id}/approvals`,
+      path: APPROVAL_RPC,
+      transport: "connect-plan-approval",
       headers: {},
-      body: { rationale: reason },
+      body: { planId: plan.id, rationale: reason },
       summary,
       capability: {
         operation: plan.changeRequestId ? "change:review" : "resource:operate",

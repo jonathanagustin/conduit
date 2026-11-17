@@ -87,3 +87,26 @@ export async function stubHub(page: Page, handler: Handler): Promise<void> {
     });
   });
 }
+
+/** Synthetic Connect approval receipt; never a full native Plan document. */
+export function approvalReceipt(
+  id: string,
+  status: string,
+  subject = "bob",
+  rationale = "reviewed",
+) {
+  return {
+    plan: {
+      id,
+      environment: "dev",
+      status,
+      stepCount: "1",
+      approvalCount: "1",
+      requiredApprovals: "1",
+      createdAt: "2026-11-17T00:00:00Z",
+      updatedAt: "2026-11-17T00:00:01Z",
+    },
+    approvals: [{ subject, rationale, createdAt: "2026-11-17T00:00:01Z" }],
+    changeRequestId: "crq_new",
+  };
+}
