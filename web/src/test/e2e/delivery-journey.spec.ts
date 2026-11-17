@@ -1070,6 +1070,13 @@ for (const failure of ["unknown", "recorded", "handoff-failed"]) {
     await expect(decide.locator("[data-dj-review]")).toHaveCount(0);
     await page.evaluate(() => Reflect.get(window, "renderMainWorkspace")());
     await expect(message).toBeVisible();
+    await openArea(page, "Releases", "Plans");
+    await page
+      .locator("#main-workspace [data-release-plan]")
+      .selectOption("pln_new");
+    await expect(message).toBeVisible();
+    await expect(message).toContainText("pln_new");
+    await expect(decide.locator("[data-dj-review]")).toHaveCount(0);
     expect(hub.writes).toHaveLength(1);
     expect(hub.writes[0]?.body).toEqual({
       planId: "pln_new",

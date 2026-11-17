@@ -69,7 +69,7 @@ Successful approval displays the returned summary status. Its versioned
 `conduit.plan-approval/v1` result retains the generated receipt; it does not
 invent a full desired-state document. An approval response failure preserves
 the client's recorded/unknown and handoff-failed outcome information. The panel
-does not label a recorded approval refused, and blocks another approval until
+does not label a recorded approval refused, and blocks approval panels until
 the operator explicitly reloads current Plan state. Reloading performs reads;
 it never repeats the approval. Navigation or a background repaint does not
 clear the blocked state. There is no automatic REST fallback or command retry.

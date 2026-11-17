@@ -94,7 +94,7 @@ export function actionChromeMarkup(action, { noun = "request" } = {}) {
     return `<div class="kit-card kit-bar-info" role="status" data-dj-inflight>Sent. Waiting for the Hub to answer; nothing is recorded as done yet.</div>`;
   if (current.phase === "uncertain")
     return `<div class="kit-card kit-bar-warn space-y-2" role="alert" data-dj-uncertain data-dj-approval-recorded="${current.outcome?.approvalRecorded === true}">
-      <p>${esc(current.error)}</p>
+      <p>Plan ${esc(current.request?.body?.planId || "identity unavailable")}: ${esc(current.error)}</p>
       <p>Another approval is blocked until you reload the Plan's current state. Reloading sends no approval.</p>
       <button type="button" class="so-btn" data-dj-refresh-plan>Reload Plan state</button>
     </div>`;
@@ -246,6 +246,7 @@ function mountPanel(
             }
           : undefined,
       });
+      if (approvalFailure) state.approvalRecoveryRequired = panel.action;
     }
     repaint();
     // The affected indexes are read again only after the Hub answered.
@@ -474,6 +475,10 @@ export function mountPlanDecision(
 ) {
   const key = board ? "decideBoard" : "decide";
   const panel = slot(state, key);
+  // Both approval entry points share the same recovery barrier. Navigation
+  // cannot turn an unknown or already-recorded command into a fresh retry.
+  if (state.approvalRecoveryRequired)
+    panel.action = state.approvalRecoveryRequired;
   const plans = () => (Array.isArray(state.hub?.plans) ? state.hub.plans : []);
   const awaiting = () =>
     plans().filter((plan) => plan.status === "AWAITING_APPROVAL");
