@@ -105,3 +105,7 @@ Intelligence course staging uses `change:propose` on the exact selected
 Changing a target clears confirmation and recalculates the decision. A refusal
 is shown inline and on the disabled button; submission rechecks it. Passing a
 scored memory gate does not grant proposal permission or approval.
+
+Offline handoff and report-back require `resource:operate` at `platform/root`,
+matching the server write boundary. Refusal disables those writes with a stated
+reason; catalog reads, signature verification and downloads remain available.

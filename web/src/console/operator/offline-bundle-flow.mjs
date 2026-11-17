@@ -1,3 +1,7 @@
+import {
+  capabilityBlocks,
+  deliveryCapabilityHook,
+} from "./delivery-actions.js";
 const esc = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -111,8 +115,20 @@ export function createOfflineBundleFlow({
         action,
         outcome,
       ]);
+    const capability = () =>
+      deliveryCapabilityHook("resource:operate", "platform/root");
+    const reason = document.createElement("p");
+    reason.setAttribute("role", "status");
+    reason.setAttribute("data-offline-capability", "");
+    handoffForm.after(reason);
     const sync = () => {
+      const gate = capability();
+      const blocked = capabilityBlocks(gate);
+      reason.textContent = blocked ? gate.reason : "";
+      for (const form of [handoffForm, reportForm])
+        form.querySelector("button").title = blocked ? gate.reason : "";
       handoffForm.querySelector("button").disabled =
+        blocked ||
         busy ||
         !ready() ||
         !knownSite(site()) ||
@@ -120,6 +136,7 @@ export function createOfflineBundleFlow({
         Boolean(handoff) ||
         attempted.has(fingerprint("handoff"));
       reportForm.querySelector("button").disabled =
+        blocked ||
         busy ||
         !ready() ||
         !handoffMatches() ||
@@ -229,6 +246,7 @@ export function createOfflineBundleFlow({
     handoffForm.onsubmit = async (event) => {
       event.preventDefault();
       if (
+        capabilityBlocks(capability()) ||
         busy ||
         !ready() ||
         !knownSite(site()) ||
@@ -271,6 +289,7 @@ export function createOfflineBundleFlow({
       event.preventDefault();
       const outcome = reportForm.elements.namedItem("outcome").value;
       if (
+        capabilityBlocks(capability()) ||
         busy ||
         !ready() ||
         !handoffMatches() ||
