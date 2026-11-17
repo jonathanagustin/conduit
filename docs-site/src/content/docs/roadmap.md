@@ -6,27 +6,23 @@ sidebar:
   order: 5
 ---
 
-Generated from the same reviewed issue evidence as [Readiness](/conduit/readiness/), observed at `2026-11-17T07:27:11Z`. GitHub issues are the current tracker; this is a dated index, not a project board or a release promise.
+Generated from the same reviewed issue evidence as [Readiness](/conduit/readiness/), observed at `2026-11-17T12:25:42Z`. GitHub issues are the current tracker; this is a dated index, not a project board or a release promise.
 
 ## AI execution and assurance
 
-[#807](https://github.com/jonathanagustin/conduit/issues/807), [#810](https://github.com/jonathanagustin/conduit/issues/810), [#813](https://github.com/jonathanagustin/conduit/issues/813), [#814](https://github.com/jonathanagustin/conduit/issues/814), [#815](https://github.com/jonathanagustin/conduit/issues/815), [#817](https://github.com/jonathanagustin/conduit/issues/817), [#917](https://github.com/jonathanagustin/conduit/issues/917), [#930](https://github.com/jonathanagustin/conduit/issues/930), [#947](https://github.com/jonathanagustin/conduit/issues/947), [#952](https://github.com/jonathanagustin/conduit/issues/952).
+[#807](https://github.com/jonathanagustin/conduit/issues/807), [#810](https://github.com/jonathanagustin/conduit/issues/810), [#813](https://github.com/jonathanagustin/conduit/issues/813), [#814](https://github.com/jonathanagustin/conduit/issues/814), [#815](https://github.com/jonathanagustin/conduit/issues/815), [#817](https://github.com/jonathanagustin/conduit/issues/817), [#917](https://github.com/jonathanagustin/conduit/issues/917), [#930](https://github.com/jonathanagustin/conduit/issues/930).
 
 ## Operator identity and console completeness
 
-[#818](https://github.com/jonathanagustin/conduit/issues/818), [#820](https://github.com/jonathanagustin/conduit/issues/820), [#823](https://github.com/jonathanagustin/conduit/issues/823), [#824](https://github.com/jonathanagustin/conduit/issues/824), [#827](https://github.com/jonathanagustin/conduit/issues/827), [#931](https://github.com/jonathanagustin/conduit/issues/931), [#942](https://github.com/jonathanagustin/conduit/issues/942).
+[#818](https://github.com/jonathanagustin/conduit/issues/818), [#820](https://github.com/jonathanagustin/conduit/issues/820), [#823](https://github.com/jonathanagustin/conduit/issues/823), [#824](https://github.com/jonathanagustin/conduit/issues/824), [#827](https://github.com/jonathanagustin/conduit/issues/827).
 
 ## Packaging and cluster acceptance
 
-[#829](https://github.com/jonathanagustin/conduit/issues/829), [#830](https://github.com/jonathanagustin/conduit/issues/830), [#831](https://github.com/jonathanagustin/conduit/issues/831), [#832](https://github.com/jonathanagustin/conduit/issues/832), [#834](https://github.com/jonathanagustin/conduit/issues/834), [#838](https://github.com/jonathanagustin/conduit/issues/838), [#844](https://github.com/jonathanagustin/conduit/issues/844), [#615](https://github.com/jonathanagustin/conduit/issues/615), [#619](https://github.com/jonathanagustin/conduit/issues/619), [#639](https://github.com/jonathanagustin/conduit/issues/639), [#943](https://github.com/jonathanagustin/conduit/issues/943).
+[#829](https://github.com/jonathanagustin/conduit/issues/829), [#830](https://github.com/jonathanagustin/conduit/issues/830), [#831](https://github.com/jonathanagustin/conduit/issues/831), [#832](https://github.com/jonathanagustin/conduit/issues/832), [#834](https://github.com/jonathanagustin/conduit/issues/834), [#838](https://github.com/jonathanagustin/conduit/issues/838), [#844](https://github.com/jonathanagustin/conduit/issues/844), [#615](https://github.com/jonathanagustin/conduit/issues/615), [#619](https://github.com/jonathanagustin/conduit/issues/619), [#639](https://github.com/jonathanagustin/conduit/issues/639).
 
 ## Typed contract migration
 
 [#391](https://github.com/jonathanagustin/conduit/issues/391), [#392](https://github.com/jonathanagustin/conduit/issues/392), [#393](https://github.com/jonathanagustin/conduit/issues/393), [#394](https://github.com/jonathanagustin/conduit/issues/394).
-
-## Executed verification regressions
-
-[#946](https://github.com/jonathanagustin/conduit/issues/946), [#948](https://github.com/jonathanagustin/conduit/issues/948).
 
 ## Decisions and deployment evidence
 
