@@ -22,7 +22,8 @@
 # embedded bundle hydrates the tenant bootstrap and says the local Codex bridge
 # is absent. The healthy scenario also walks the release journey through the
 # operator workbench (release-journey.spec.ts), approving the seeded change
-# request as a second person.
+# request as a second person, and takes assistant turns against the Hub's own
+# turn loop and thread store (assistant-turns.spec.ts) with a stand-in model.
 #   ./scripts/simulate-console.sh                      # embedded assistant shell
 #   ./scripts/simulate-console.sh --keep               # leave the Hub running
 set -euo pipefail
@@ -56,20 +57,23 @@ done
 port="${CONDUIT_SIMULATION_PORT:-8099}"
 hub_url="http://127.0.0.1:${port}"
 work="$(mktemp -d)"
+# The stand-in model listens beside the Hub. See scripts/simulate/fake-model.mjs.
+model_port="${CONDUIT_SIMULATION_MODEL_PORT:-$((port + 1))}"
 hub_pid=""
 agent_pid=""
+model_pid=""
 
 cleanup() {
   local status=$?
   if [ "${keep}" -eq 0 ]; then
-    for pid in "${agent_pid}" "${hub_pid}"; do
+    for pid in "${agent_pid}" "${hub_pid}" "${model_pid}"; do
       [ -n "${pid}" ] || continue
       kill "${pid}" 2>/dev/null || true
       wait "${pid}" 2>/dev/null || true
     done
   fi
   if [ "${status}" -ne 0 ]; then
-    for log in hub agent; do
+    for log in hub agent model; do
       [ -s "${work}/${log}.log" ] || continue
       echo "--- ${log} log ---" >&2
       tail -40 "${work}/${log}.log" >&2
@@ -100,6 +104,22 @@ echo "simulate: building the console"
 echo "simulate: building the Hub"
 go build -o "${work}/hub" "${repo_root}/cmd/platform-delivery"
 
+# The assistant needs a model to take a turn at all, and a simulation cannot
+# call a real one. This is a loopback script that calls one read tool and then
+# answers; everything around it -- the turn loop, the tool, the audit entries,
+# the thread store, the event stream -- is the Hub's own. Plain http is accepted
+# without an opt-in because the address is loopback.
+echo "simulate: starting the stand-in model on 127.0.0.1:${model_port}"
+node "${repo_root}/scripts/simulate/fake-model.mjs" "${model_port}" >"${work}/model.log" 2>&1 &
+model_pid=$!
+for _ in $(seq 1 40); do
+  grep -q "listening" "${work}/model.log" 2>/dev/null && break
+  kill -0 "${model_pid}" 2>/dev/null || { echo "simulate: the stand-in model exited during startup" >&2; exit 1; }
+  sleep 0.25
+done
+grep -q "listening" "${work}/model.log" ||
+  { echo "simulate: the stand-in model never listened" >&2; exit 1; }
+
 echo "simulate: starting it on ${hub_url}"
 # Insecure identity headers are what make a browser-driven simulation possible
 # at all: the console has no OIDC provider here, so the operator it acts as is
@@ -108,12 +128,21 @@ echo "simulate: starting it on ${hub_url}"
 # a Hub that has not said it is a development Hub refuses to start rather than
 # signing Bundles as a signer nobody trusts. This is why the script is not a
 # gate -- it configures a Hub no deployment should run.
+#
+# The anonymous burst is raised because every spec opens a fresh browser
+# context, which downloads the whole embedded bundle again from one loopback
+# address within a second or two. The default bucket (60, refilled at 10 a
+# second) is shaped for people, and the suite drains it: the last spec's page
+# load was answered 429 once the assistant specs were added in front of it.
 LISTEN_ADDRESS="127.0.0.1:${port}" \
+  RATE_LIMIT_ANONYMOUS_BURST=600 \
   DATA_DIRECTORY="${work}/data" \
   ALLOW_INSECURE_OPERATOR_IDENTITY_HEADERS=true \
   ALLOW_INSECURE_AGENT_IDENTITY_HEADERS=true \
   ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY=true \
   PLATFORM_BOOTSTRAP_ADMINISTRATORS=proposer,operator \
+  CONDUIT_MODEL_BASE_URL="http://127.0.0.1:${model_port}/v1" \
+  CONDUIT_MODEL_NAME=simulated-model \
   "${work}/hub" >"${work}/hub.log" 2>&1 &
 hub_pid=$!
 
@@ -154,14 +183,14 @@ fi
 
 if [ "${keep}" -eq 1 ]; then
   echo "simulate: Hub left running at ${hub_url}/console/ (pid ${hub_pid}, data ${work})"
-  echo "simulate: stop it with: kill ${hub_pid} ${agent_pid}"
+  echo "simulate: stop it with: kill ${hub_pid} ${agent_pid} ${model_pid}"
   exit 0
 fi
 
 # Explicit rather than derived from the scenario name: the mapping is the thing
 # a reader needs, and a scenario whose specs silently did not exist would pass.
 case "${scenario}" in
-  healthy) specs="assistant.spec.ts release-journey.spec.ts release-write-journey.spec.ts" ;;
+  healthy) specs="assistant.spec.ts assistant-turns.spec.ts release-journey.spec.ts release-write-journey.spec.ts" ;;
   failure|degraded) specs=assistant.spec.ts ;;
   *) echo "simulate: unknown scenario '${scenario}'" >&2; exit 1 ;;
 esac
