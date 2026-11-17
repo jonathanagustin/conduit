@@ -84,6 +84,7 @@ if [[ -f "${stamp}" && -f "${index}" ]] \
   && grep -q 'id="root"' "${index}" \
   && grep -q 'conduit-console-bootstrap' "${index}" \
   && [[ "$(cat "${stamp}")" == "${current}" ]]; then
+  run_pinned node "${root}/web/scripts/check-bundle-size.mjs" "${dist}"
   echo "console build is up to date"
   exit 0
 fi
