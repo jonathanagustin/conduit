@@ -55,7 +55,7 @@ func (service *GovernanceService) ProposeMembershipPlan(ctx context.Context, sta
 		err := func() error {
 			file.mu.Lock()
 			defer file.mu.Unlock()
-			return operation(&FileRepository{root: file.root})
+			return operation(&FileRepository{root: file.root, transactionLocal: true})
 		}()
 		if err != nil {
 			return PlanRecord{}, ChangeRequest{}, err

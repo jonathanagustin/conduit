@@ -6,6 +6,7 @@ import {
   INBOX_LIMITS,
   contactPayload,
   contactProblem,
+  hasCompleteTypeAvailability,
   inboxBound,
   inboxPath,
   inboxReduce,
@@ -272,6 +273,40 @@ describe("preference edit", () => {
     ).toBe("contact-1");
   });
 
+  it("distinguishes complete availability from an older Hub's selected-only array", () => {
+    const older = {
+      types: ["PLAN_FAILURES", "RBAC_CHANGE"],
+      typesNotYetEmitted: ["RBAC_CHANGE"],
+    };
+    expect(hasCompleteTypeAvailability(older)).toBe(false);
+    expect(
+      hasCompleteTypeAvailability({
+        ...older,
+        typeAvailabilityScope: "SELECTED",
+      }),
+    ).toBe(false);
+    const complete = { ...older, typeAvailabilityScope: "ALL_KNOWN" };
+    expect(hasCompleteTypeAvailability(complete)).toBe(true);
+    expect(
+      hasCompleteTypeAvailability({ ...complete, typesNotYetEmitted: [] }),
+    ).toBe(true);
+    for (const invalid of [
+      undefined,
+      null,
+      "RBAC_CHANGE",
+      [42],
+      [""],
+      [" RBAC_CHANGE"],
+    ]) {
+      expect(
+        hasCompleteTypeAvailability({
+          ...complete,
+          typesNotYetEmitted: invalid,
+        }),
+      ).toBe(false);
+    }
+  });
+
   it("refuses first what the Hub would refuse", () => {
     const empty = { types: [], allFutureTypes: false, contactId: "" };
     expect(preferenceProblem("product/payments", empty)).toContain(
@@ -428,6 +463,8 @@ describe("screen markup", () => {
     expect(unknown).toContain("did not report notification availability");
     expect(unknown).toMatch(/data-ntf-type="PLAN_FAILURES"[^>]*disabled/);
     expect(unknown).toMatch(/data-ntf-action="save-preference"[^>]*disabled/);
+    expect(unknown).toMatch(/data-ntf-future[^>]*disabled/);
+    expect(unknown).toMatch(/data-ntf-contact[^>]*disabled/);
     const legacy = editor({
       notYetEmitted: ["ROLE_CHANGE"],
       draft: {

@@ -302,6 +302,7 @@ func (api *api) readPreference(writer http.ResponseWriter, request *http.Request
 	case errors.Is(err, application.ErrNoPreference):
 		writeJSON(writer, http.StatusNotFound, map[string]any{
 			"error": err.Error(), "typesNotYetEmitted": domain.NotYetRaised(domain.EventTypes()),
+			"typeAvailabilityScope": typeAvailabilityScopeAllKnown,
 		})
 		return
 	case err != nil:
@@ -369,11 +370,19 @@ func (api *api) writePreference(writer http.ResponseWriter, request *http.Reques
 // before a save. Legacy saved selections stay readable and removable.
 type preferenceResponse struct {
 	domain.Preference
-	TypesNotYetEmitted []domain.EventType `json:"typesNotYetEmitted"`
+	TypesNotYetEmitted    []domain.EventType `json:"typesNotYetEmitted"`
+	TypeAvailabilityScope string             `json:"typeAvailabilityScope"`
 }
 
+// Older Hubs returned unavailable types only among the saved selections. The
+// scope distinguishes that partial list from complete build availability.
+const typeAvailabilityScopeAllKnown = "ALL_KNOWN"
+
 func describedPreference(preference domain.Preference) preferenceResponse {
-	return preferenceResponse{Preference: preference, TypesNotYetEmitted: domain.NotYetRaised(domain.EventTypes())}
+	return preferenceResponse{
+		Preference: preference, TypesNotYetEmitted: domain.NotYetRaised(domain.EventTypes()),
+		TypeAvailabilityScope: typeAvailabilityScopeAllKnown,
+	}
 }
 
 // maximumPreferenceBytes bounds a body whose largest legitimate form is a list

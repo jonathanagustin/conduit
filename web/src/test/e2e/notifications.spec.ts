@@ -145,6 +145,7 @@ test("preferences disclose unavailable types before saving and allow removal of 
             json: {
               error: "no notification preference",
               typesNotYetEmitted: unavailable,
+              typeAvailabilityScope: "ALL_KNOWN",
             },
           };
     const body = request.postDataJSON();
@@ -161,6 +162,7 @@ test("preferences disclose unavailable types before saving and allow removal of 
       revision: 1,
       updatedAt: "2026-11-17T00:00:00Z",
       typesNotYetEmitted: unavailable,
+      typeAvailabilityScope: "ALL_KNOWN",
     };
     return { json: stored };
   });
@@ -204,7 +206,9 @@ test("preferences disclose unavailable types before saving and allow removal of 
     types: ["PLAN_FAILURES", "PRODUCT_RECALLS"],
     allFutureTypes: false,
   });
-  stored = Object.assign({}, stored, { types: ["PLAN_FAILURES", "RBAC_CHANGE"] });
+  stored = Object.assign({}, stored, {
+    types: ["PLAN_FAILURES", "RBAC_CHANGE"],
+  });
   await page.getByRole("button", { name: "Load preference" }).click();
   await expect(silent.locator('input[type="checkbox"]')).toBeDisabled();
   await expect(silent.locator('input[type="checkbox"]')).toBeChecked();
@@ -223,6 +227,95 @@ test("preferences disclose unavailable types before saving and allow removal of 
   });
   await expect(page.locator('[data-ntf-type="PLAN_FAILURES"]')).toBeChecked();
   await expect(save).toBeDisabled();
+});
+
+test("an older Hub's partial availability array keeps preference editing disabled", async ({
+  page,
+}) => {
+  const rid = "product/payments";
+  let coverage: "old" | "complete" | "malformed" = "old";
+  let writes = 0;
+  await stubHub(page, (request, url) => {
+    if (url.pathname === "/v1/session")
+      return {
+        json: session({
+          resources: url.searchParams
+            .getAll("resourceRid")
+            .map((resourceRid) => ({
+              resourceRid,
+              operations: ["resource:read"],
+            })),
+        }),
+      };
+    if (url.pathname === "/v1/notifications/contacts")
+      return { json: { owner, contacts: [] } };
+    if (url.pathname !== "/v1/notifications/preferences") return undefined;
+    if (request.method() !== "GET") writes += 1;
+    return {
+      json: {
+        id: "pref-legacy",
+        owner,
+        resourceRid: rid,
+        channel: "IN_APP",
+        types: ["PLAN_FAILURES", "RBAC_CHANGE"],
+        revision: 4,
+        ...(coverage === "old"
+          ? { typesNotYetEmitted: ["RBAC_CHANGE"] }
+          : {
+              typeAvailabilityScope: "ALL_KNOWN",
+              typesNotYetEmitted:
+                coverage === "malformed"
+                  ? ["RBAC_CHANGE", 42]
+                  : [
+                      "BLUE_GREEN_UPGRADE_FAILED",
+                      "INSTALLED_PRODUCT_RELEASE_VULNERABILITY_UPDATE",
+                      "LATEST_PRODUCT_RELEASE_VULNERABILITY_UPDATE",
+                      "RBAC_CHANGE",
+                    ],
+            }),
+      },
+    };
+  });
+  await page.goto("/console/notifications");
+  await page.locator('.kit-subnav [data-ntf-view="preferences"]').click();
+  await page.getByLabel("Resource").fill(rid);
+  const load = page.getByRole("button", { name: "Load preference" });
+  const save = page.getByRole("button", { name: "Save preference" });
+  await load.click();
+  await expect(page.locator("[data-save-reason]")).toContainText(
+    "did not report notification availability",
+  );
+  await expect(
+    page.locator('[data-ntf-type="BLUE_GREEN_UPGRADE_FAILED"]'),
+  ).toBeDisabled();
+  await expect(page.locator('[data-ntf-type="PLAN_FAILURES"]')).toBeChecked();
+  await expect(page.locator("[data-ntf-future]")).toBeDisabled();
+  await expect(save).toBeDisabled();
+
+  coverage = "malformed";
+  await load.click();
+  await expect(page.locator("[data-save-reason]")).toContainText(
+    "did not report notification availability",
+  );
+  await expect(save).toBeDisabled();
+
+  coverage = "complete";
+  await load.click();
+  await expect(page.locator('[data-ntf-type="PLAN_FAILURES"]')).toBeEnabled();
+  await expect(
+    page.locator('[data-ntf-type="BLUE_GREEN_UPGRADE_FAILED"]'),
+  ).toHaveCount(0);
+  const legacy = page.locator('[data-type-not-emitted="RBAC_CHANGE"]');
+  await expect(legacy.locator('input[type="checkbox"]')).toBeChecked();
+  await legacy.getByRole("button", { name: "Remove" }).click();
+  await expect(save).toBeEnabled();
+  // An older replica answering the final re-read must also prevent a write.
+  coverage = "old";
+  await save.click();
+  await expect(page.locator("[data-preference-error]")).toContainText(
+    "did not report complete notification availability; nothing was saved",
+  );
+  expect(writes).toBe(0);
 });
 
 test("Save is disabled with the reason when the session lacks the grant", async ({
@@ -250,6 +343,7 @@ test("Save is disabled with the reason when the session lacks the grant", async 
           channel: "IN_APP",
           types: ["PLAN_FAILURES"],
           typesNotYetEmitted: [],
+          typeAvailabilityScope: "ALL_KNOWN",
           revision: 4,
         },
       };

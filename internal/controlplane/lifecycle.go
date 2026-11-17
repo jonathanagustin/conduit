@@ -92,6 +92,9 @@ const (
 )
 
 type Repository interface {
+	// InTransaction identifies a transaction-local view, whose successful writes
+	// remain subject to an enclosing commit. Repository decorators preserve it.
+	InTransaction() bool
 	ModuleRepository
 	ArtifactRepository
 	ProductPublicationRepository

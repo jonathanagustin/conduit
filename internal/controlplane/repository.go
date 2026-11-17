@@ -19,12 +19,14 @@ import (
 )
 
 type FileRepository struct {
-	root string
-	mu   sync.Mutex
+	root             string
+	mu               sync.Mutex
+	transactionLocal bool
 }
 
 type MemoryRepository struct {
 	mu                          sync.Mutex
+	transactionLocal            bool
 	liveOutboxes                map[string]nativeLiveOutbox
 	plans                       map[string]PlanRecord
 	reports                     map[string]EnvironmentReport
@@ -1015,7 +1017,7 @@ func (repository *FileRepository) Transaction(ctx context.Context, operation fun
 	if err := copyRepositoryTree(repository.root, snapshot); err != nil {
 		return fmt.Errorf("snapshot repository: %w", err)
 	}
-	if err := operation(&FileRepository{root: snapshot}); err != nil {
+	if err := operation(&FileRepository{root: snapshot, transactionLocal: true}); err != nil {
 		return err
 	}
 	if err := replaceRepositoryTree(repository.root, snapshot); err != nil {

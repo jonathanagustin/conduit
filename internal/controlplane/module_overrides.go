@@ -405,7 +405,7 @@ func moduleOverrideBoundary(ctx context.Context, repository Repository, operatio
 	if file, ok := repository.(*FileRepository); ok {
 		file.mu.Lock()
 		defer file.mu.Unlock()
-		if err := operation(&FileRepository{root: file.root}); err != nil {
+		if err := operation(&FileRepository{root: file.root, transactionLocal: true}); err != nil {
 			return err
 		}
 		return ctx.Err()

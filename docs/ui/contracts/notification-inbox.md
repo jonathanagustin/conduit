@@ -77,7 +77,8 @@ authoritative; a type unknown to the server is refused with 422.
 
 **A known type is not necessarily a raised one.** `GET` and `PUT
 /v1/notifications/preferences` answer with an additional
-`typesNotYetEmitted` array naming the complete known set that no emit site in
+`typeAvailabilityScope: "ALL_KNOWN"` marker and a `typesNotYetEmitted` array
+naming the complete known set that no emit site in
 this build raises (`domain.EventType.Raised`). A missing preference's 404
 response also carries it, so the editor can disable those choices before a
 first save. Saving an explicit selection of an unavailable type returns 422;
@@ -85,8 +86,11 @@ legacy stored preferences remain readable so they can be repaired. The console
 renders each unavailable type disabled and labelled "Not yet emitted by this
 Hub", with a Remove control for a saved selection. Opting into all future types
 keeps its forward-consent meaning and does not imply an emitter exists today.
-An older Hub response without availability metadata disables preference edits
-and explains that the Hub must report its supported emitters first.
+An older Hub response without the complete-scope marker disables preference
+edits even if it carries a partial `typesNotYetEmitted` list for saved choices.
+The editor explains that the Hub must report its supported emitters first and
+requires complete coverage again during the pre-save re-read, so a different
+older replica cannot silently admit a selection the first response refused.
 This availability and write policy is a Conduit extension; the captured Apollo
 vocabulary does not establish server-side emitter availability.
 

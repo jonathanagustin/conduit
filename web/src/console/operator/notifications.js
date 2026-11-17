@@ -194,6 +194,18 @@ export function initialPreferenceDraft(stored) {
   };
 }
 
+/** Earlier Hubs reported only unavailable types among the saved selection. */
+export function hasCompleteTypeAvailability(body) {
+  return (
+    body?.typeAvailabilityScope === "ALL_KNOWN" &&
+    Array.isArray(body.typesNotYetEmitted) &&
+    body.typesNotYetEmitted.every(
+      (type) =>
+        typeof type === "string" && type.trim() === type && type.length > 0,
+    )
+  );
+}
+
 /** What an explicit save would change, against what the Hub last returned. */
 export function preferenceDiff(stored, draft) {
   const before = initialPreferenceDraft(stored);
@@ -441,9 +453,9 @@ function preferenceEditor(model, decision) {
     ${silent ? `<div><div class="text-[11px] uppercase tracking-[0.08em] text-[#8b96a5] mb-1">Unavailable notification types</div><ul class="space-y-1.5">${silent}</ul></div>` : ""}
     <p class="text-[11px] text-[#8b96a5]">Unavailable types remain visible as part of the known vocabulary. All future types includes types this Hub emits and consents to later implementations; it cannot make an unavailable type deliver today.</p>
     ${carried.length ? `<p class="text-[12px]" data-carried-types>Stored types this console does not know are carried through a save unchanged: <span class="code-id">${esc(carried.join(", "))}</span></p>` : ""}
-    <label class="flex items-start gap-2 text-[12px]"><input type="checkbox" data-ntf-future data-key="future" ${draft.allFutureTypes ? "checked" : ""}/><span>All future types. Include types a later Hub adds.</span></label>
+    <label class="flex items-start gap-2 text-[12px]"><input type="checkbox" data-ntf-future data-key="future" ${draft.allFutureTypes ? "checked" : ""} ${pref.availabilityKnown ? "" : "disabled"}/><span>All future types. Include types a later Hub adds.</span></label>
     <label class="block text-[12px]">Contact
-      <select class="so-select ml-2" data-ntf-contact data-key="pref-contact">${contactOptions}</select>
+      <select class="so-select ml-2" data-ntf-contact data-key="pref-contact" ${pref.availabilityKnown ? "" : "disabled"}>${contactOptions}</select>
       ${model.contacts.status === "ready" ? "" : `<span class="text-[11px] text-[#8b96a5] ml-2">Your contacts ${model.contacts.status === "loading" ? "are loading" : "could not be read"}.</span>`}
     </label>
     <div class="flex items-center gap-2 flex-wrap">
@@ -803,9 +815,7 @@ export function createNotifications({ state, render, capabilities }) {
     pref.status = "ready";
     pref.stored = stored;
     pref.draft = initialPreferenceDraft(stored);
-    pref.availabilityKnown =
-      Array.isArray(coverage?.typesNotYetEmitted) &&
-      coverage.typesNotYetEmitted.every((type) => typeof type === "string");
+    pref.availabilityKnown = hasCompleteTypeAvailability(coverage);
     pref.notYetEmitted = pref.availabilityKnown
       ? coverage.typesNotYetEmitted
       : [];
@@ -863,7 +873,9 @@ export function createNotifications({ state, render, capabilities }) {
     const current = await hubRequest("GET", preferencePath());
     const stale =
       current.ok || current.status === 404
-        ? staleRevision(pref.stored, current.ok ? current.body : null)
+        ? !hasCompleteTypeAvailability(current.body)
+          ? "The Hub did not report complete notification availability; nothing was saved. Reload after updating the Hub."
+          : staleRevision(pref.stored, current.ok ? current.body : null)
         : `The preference could not be re-read before saving, so nothing was saved. ${current.message}`;
     if (stale) {
       pref.saving = false;

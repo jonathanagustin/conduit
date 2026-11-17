@@ -259,6 +259,11 @@ carried to the residual list as item 5.
    maintenance and module-override operations announce after their transaction
    commits. A failed transaction emits nothing; repeating the same review
    round retains the notification's deterministic identity.
+   Services over a transaction-local repository remain silent, including a
+   successfully released nested savepoint: that is not the outer commit. A
+   caller composing these services in a larger transaction must announce the
+   committed result after its own boundary. The normal Hub routes use the root
+   repository; this guard prevents a later outer rollback from notifying anyone.
 
    Four declared types are still raised by
    nothing — `LATEST_PRODUCT_RELEASE_VULNERABILITY_UPDATE`,
@@ -266,7 +271,9 @@ carried to the residual list as item 5.
    and `RBAC_CHANGE` — because Conduit has no event for any of them. Explicit
    selections of those types are refused when saving preferences. The
    preference response names the complete unavailable set in
-   `typesNotYetEmitted`, including when no preference exists yet;
+   `typesNotYetEmitted`, including when no preference exists yet. The
+   `typeAvailabilityScope: "ALL_KNOWN"` marker distinguishes that full set from
+   an older replica's selected-only list;
    `domain.EventType.Raised` is the predicate and
    `TestRaisedTypesHaveAnEmitSite` holds it to the adapters. "A Release becoming
    available" still emits nothing. The console disables unavailable choices

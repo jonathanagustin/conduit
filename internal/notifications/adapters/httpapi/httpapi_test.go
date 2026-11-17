@@ -606,10 +606,14 @@ func TestPreferenceCoverageIsAvailableBeforeSavingAndUnavailableSelectionsAreRef
 	}
 	for name, response := range map[string]*httptest.ResponseRecorder{"missing": missing, "legacy": read, "repaired": repaired, "forward": forward} {
 		var body struct {
-			Types              []domain.EventType `json:"types"`
-			TypesNotYetEmitted []domain.EventType `json:"typesNotYetEmitted"`
+			Types                 []domain.EventType `json:"types"`
+			TypesNotYetEmitted    []domain.EventType `json:"typesNotYetEmitted"`
+			TypeAvailabilityScope string             `json:"typeAvailabilityScope"`
 		}
 		decode(t, response, &body)
+		if body.TypeAvailabilityScope != "ALL_KNOWN" {
+			t.Errorf("%s: typeAvailabilityScope = %q, want ALL_KNOWN", name, body.TypeAvailabilityScope)
+		}
 		if len(body.TypesNotYetEmitted) != 4 ||
 			body.TypesNotYetEmitted[0] != domain.EventBlueGreenUpgradeFailed ||
 			body.TypesNotYetEmitted[1] != domain.EventInstalledReleaseVulnerability ||
