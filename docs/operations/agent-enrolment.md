@@ -299,7 +299,11 @@ of the gauge 24 hours later. Alert well before expiry, not at it.
 - A Spoke installed from the example values.
 - cert-manager in a UDS deployment.
 - The example alert rule.
-- The PostgreSQL deny-list tests (written, not run: no database was available).
+
+
+The PostgreSQL deny-list, replica convergence and atomic audited-removal tests
+were subsequently run against PostgreSQL 18.6; see the dated
+[credential verification record](../evidence/agent-credentials-2026-11-17.md).
 
 What was run: the Go tests named in
 `internal/hub/composition/agent_credentials_test.go`, which drive the assembled
