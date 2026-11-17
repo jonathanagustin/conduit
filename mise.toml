@@ -11,7 +11,11 @@ pnpm = "12.20.0"
 rg = "15.2.0"
 ruby = "3.4.12"
 task = "3.54.0"
+uds = "0.41.0"
 zarf = "1.0.0"
+
+[tool_alias.uds]
+backend = "aqua:defenseunicorns/uds-cli"
 
 [settings]
 lockfile = true
