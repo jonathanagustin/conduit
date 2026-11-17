@@ -11,8 +11,8 @@ import (
 	"github.com/jonathanagustin/conduit/internal/localcmd"
 )
 
-// Provider names accepted by `agent-exec --provider`. "deterministic" is the
-// built-in offline agent; the rest delegate one turn to a local model CLI.
+// deterministic is the only implicit provider. Delegating to any other
+// engine requires an operator-supplied command; no vendor argv is guessed.
 const (
 	providerDeterministic = "deterministic"
 	providerClaude        = "claude"
@@ -21,24 +21,16 @@ const (
 	providerGrok          = "grok"
 )
 
-// providerArgv returns the argv for a provider. Each can be replaced with
-// CONDUIT_PROVIDER_<NAME>_CMD (whitespace-separated argv). Credentials stay in
-// the CLI's own configuration; Conduit never reads or forwards them.
-//
-// The defaults and whether each has been exercised are one table,
-// localcmd.Presets. Every delegating preset is UNVERIFIED there: no run
-// against a real codex, claude, gemini or grok CLI is recorded in this
-// repository (none is installed in CI), and selecting one logs a warning.
-// Override the argv if your version differs.
 func providerArgv(name string) ([]string, error) {
 	env := "CONDUIT_PROVIDER_" + strings.ToUpper(name) + "_CMD"
-	if raw := strings.Fields(os.Getenv(env)); len(raw) > 0 {
-		return raw, nil
+	if raw := strings.TrimSpace(os.Getenv(env)); raw != "" {
+		argv, err := localcmd.ParseArgv(raw)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", env, err)
+		}
+		return argv, nil
 	}
-	if preset, ok := localcmd.PresetByName(name); ok && name != "" && len(preset.Argv) > 0 {
-		return append([]string(nil), preset.Argv...), nil
-	}
-	return nil, fmt.Errorf("unknown agent provider %q (want deterministic, claude, codex, gemini or grok)", name)
+	return nil, fmt.Errorf("provider %q has no implicit command; set %s to the command for your installed CLI", name, env)
 }
 
 const providerReplyRule = "\n\nReply with the requested output only: no commentary and no markdown fences. " +

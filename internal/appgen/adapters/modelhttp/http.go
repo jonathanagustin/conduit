@@ -21,8 +21,9 @@ func (adapter Adapter) Generate(ctx context.Context, request domain.Request) (do
 		return domain.Spec{}, domain.Provenance{}, domain.ErrModelUnavailable
 	}
 	prompt := domain.Prompt(request)
-	provenance := domain.Provenance{Adapter: modelhttp.AdapterName, PromptSHA256: domain.Digest([]byte(prompt))}
+	provenance := domain.Provenance{Adapter: modelhttp.AdapterName, ConfiguredModel: adapter.Client.RequestedModel(), PromptSHA256: domain.Digest([]byte(prompt))}
 	completion, err := adapter.Client.Complete(ctx, prompt)
+	provenance.ProviderModel = completion.Model
 	provenance.ResponseSHA256 = domain.Digest([]byte(completion.Text))
 	if err != nil {
 		return domain.Spec{}, provenance, modelError(err)
@@ -33,10 +34,6 @@ func (adapter Adapter) Generate(ctx context.Context, request domain.Request) (do
 	}
 	return spec, provenance, nil
 }
-
-// ReportedModel is the model id from the most recent response. The port has
-// no field for it.
-func (adapter Adapter) ReportedModel() string { return adapter.Client.ReportedModel() }
 
 func modelError(err error) error {
 	switch {

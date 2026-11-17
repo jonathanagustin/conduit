@@ -108,12 +108,12 @@ func TestModelBaseURLSelectsTheHTTPAdapters(t *testing.T) {
 	if !ok {
 		t.Fatalf("assistant model is %T", model)
 	}
-	text, provenance, err := model.Complete(context.Background(), "prompt")
+	text, provenance, err := adapter.Complete(context.Background(), "prompt")
 	if err != nil || text != "reply" || provenance.Adapter != modelhttp.AdapterName {
 		t.Fatalf("text %q provenance %+v err %v", text, provenance, err)
 	}
-	if authorization != "Bearer file-key" || adapter.ReportedModel() != "served" {
-		t.Fatalf("authorization %q reported %q", authorization, adapter.ReportedModel())
+	if authorization != "Bearer file-key" || provenance.ProviderModel != "served" {
+		t.Fatalf("authorization %q reported %q", authorization, provenance.ProviderModel)
 	}
 	generator, err := appGenerator(getenv)
 	if _, ok := generator.(appmodelhttp.Adapter); err != nil || !ok {

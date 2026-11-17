@@ -336,6 +336,88 @@
         "baseURL": {"type": "string", "pattern": "^$|^https?://[^[:space:][:cntrl:]@?#]+$", "maxLength": 2048},
         "name": {"type": "string", "pattern": "^$|^[^[:space:][:cntrl:]]+$", "maxLength": 256},
         "timeout": {"type": "string", "pattern": "^$|^[1-9][0-9]*(ms|s|m)$"},
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "assistant": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "timeout"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "^$|^[^[:space:][:cntrl:]]+$",
+                  "maxLength": 256
+                },
+                "timeout": {
+                  "type": "string",
+                  "pattern": "^$|^[1-9][0-9]*(ms|s|m)$"
+                }
+              }
+            },
+            "planning": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "timeout"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "^$|^[^[:space:][:cntrl:]]+$",
+                  "maxLength": 256
+                },
+                "timeout": {
+                  "type": "string",
+                  "pattern": "^$|^[1-9][0-9]*(ms|s|m)$"
+                }
+              }
+            },
+            "packaging": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "timeout"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "^$|^[^[:space:][:cntrl:]]+$",
+                  "maxLength": 256
+                },
+                "timeout": {
+                  "type": "string",
+                  "pattern": "^$|^[1-9][0-9]*(ms|s|m)$"
+                }
+              }
+            },
+            "appgen": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "timeout"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "^$|^[^[:space:][:cntrl:]]+$",
+                  "maxLength": 256
+                },
+                "timeout": {
+                  "type": "string",
+                  "pattern": "^$|^[1-9][0-9]*(ms|s|m)$"
+                }
+              }
+            }
+          }
+        },
         "apiKeySecret": {
           "type": "object",
           "additionalProperties": false,
@@ -361,6 +443,7 @@
           "if": {"properties": {"baseURL": {"minLength": 1}}},
           "then": {"properties": {"name": {"minLength": 1}}},
           "else": {"properties": {
+            "capabilities": {"properties":{"assistant":{"properties":{"name":{"maxLength":0},"timeout":{"maxLength":0}}},"planning":{"properties":{"name":{"maxLength":0},"timeout":{"maxLength":0}}},"packaging":{"properties":{"name":{"maxLength":0},"timeout":{"maxLength":0}}},"appgen":{"properties":{"name":{"maxLength":0},"timeout":{"maxLength":0}}}}},
             "name": {"maxLength": 0},
             "timeout": {"maxLength": 0},
             "apiKeySecret": {"properties": {"name": {"maxLength": 0}}},

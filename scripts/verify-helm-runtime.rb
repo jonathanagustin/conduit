@@ -810,6 +810,22 @@ abort "model environment did not render exactly" unless model_env == [
 ]
 abort "the chart must not configure a model command: the Hub image carries no model CLI" if
   model_container.fetch("env").any? { |item| item["name"] == "CONDUIT_MODEL_CMD" }
+# #808: all capability selections use the same endpoint/key and survive render.
+capabilities = %w[assistant planning packaging appgen]
+capability_args = capabilities.flat_map do |capability|
+  ["--set-string", "model.capabilities.#{capability}.name=#{capability}-model",
+   "--set-string", "model.capabilities.#{capability}.timeout=2m"]
+end
+capability_pod = render!(helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set-string", "model.baseURL=https://models.example.test/v1", "--set-string", "model.name=global-model", *capability_args]
+).find { |item| item["kind"] == "Deployment" }
+capability_env = capability_pod.dig("spec", "template", "spec", "containers", 0, "env").to_h { |item| [item["name"], item["value"]] }
+capabilities.each do |capability|
+  abort "#{capability} model override was not rendered" unless
+    capability_env["CONDUIT_#{capability.upcase}_MODEL_NAME"] == "#{capability}-model" &&
+    capability_env["CONDUIT_#{capability.upcase}_MODEL_TIMEOUT"] == "2m"
+end
+
 model_volumes = model_pod.dig("spec", "template", "spec", "volumes").to_h { |item| [item["name"], item] }
 abort "model API key must be one required Secret key mounted as a file" unless
   model_volumes.dig("conduit-model", "secret") == {
@@ -858,6 +874,11 @@ model_base = ["--set-string", "model.baseURL=https://models.example.test/v1", "-
   [*model_base, "--set-string", "model.apiKeySecret.value=sk-literal"],
   [*model_base, "--set", "model.allowInsecureHTTP=true"],
   [*model_base, "--set-string", "model.command=codex exec -"],
+  [*model_base, "--set-string", "model.capabilities.assistant.timeout=0s"],
+  [*model_base, "--set-string", "model.capabilities.planning.name=has space"],
+  [*model_base, "--set-string", "model.capabilities.packaging.baseURL=https://elsewhere.example/v1"],
+  [*model_base, "--set-string", "model.capabilities.bogus.name=unknown"],
+  ["--set-string", "model.capabilities.assistant.name=unconfigured"],
   ["--set-string", "model.baseURL=http://vllm.models.svc.cluster.local:8000/v1", "--set-string", "model.name=served-model"],
   ["--set-string", "model.baseURL=https://user:secret@models.example.test/v1", "--set-string", "model.name=served-model"],
   ["--set-string", "model.baseURL=https://models.example.test/v1?key=secret", "--set-string", "model.name=served-model"],

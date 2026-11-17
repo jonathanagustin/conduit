@@ -419,6 +419,8 @@ func handleTurn(ctx workflow.Context, in Input, session *domain.Session, req Tur
 	}
 	if result.Model != "" {
 		session.Model = result.Model
+		session.ConfiguredModel = result.ConfiguredModel
+		session.ProviderModel = result.ProviderModel
 	}
 	if session.Model == "" {
 		session.Model = domain.DefaultModelLabel
@@ -516,12 +518,13 @@ func handleAccept(ctx workflow.Context, in Input, session *domain.Session) (*dom
 		model = domain.DefaultModelLabel
 	}
 	binding := &domain.Binding{
-		Profile:        session.Profile,
-		Intake:         intake,
-		ResolvedCommit: session.ResolvedCommit,
-		Model:          model,
-		Plan:           plan,
-		AcceptedAt:     now,
+		Profile:         session.Profile,
+		Intake:          intake,
+		ResolvedCommit:  session.ResolvedCommit,
+		Model:           model,
+		ConfiguredModel: session.ConfiguredModel, ProviderModel: session.ProviderModel,
+		Plan:       plan,
+		AcceptedAt: now,
 	}
 	info := workflow.GetInfo(ctx)
 	actCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
@@ -548,8 +551,9 @@ func handleAccept(ctx workflow.Context, in Input, session *domain.Session) (*dom
 		Message:          intake.Message,
 		ResolvedCommit:   binding.ResolvedCommit,
 		Model:            binding.Model,
-		PlanHash:         binding.Plan.SHA256,
-		AcceptedAt:       now,
+		ConfiguredModel:  binding.ConfiguredModel, ProviderModel: binding.ProviderModel,
+		PlanHash:   binding.Plan.SHA256,
+		AcceptedAt: now,
 	}
 	if err := workflow.ExecuteActivity(actCtx, ActAuditAccept, AuditAcceptActivityInput{
 		Actor:   in.Actor,

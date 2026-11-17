@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"github.com/jonathanagustin/conduit/internal/localcmd"
 	"io"
 	"os"
 	"strings"
@@ -107,32 +108,15 @@ func TestWorkerSelectsOneModelTransport(t *testing.T) {
 	}
 }
 
-func TestUnverifiedPresetWarnsOnStderr(t *testing.T) {
+func TestRemovedVendorPresetsAreNotAdvertised(t *testing.T) {
 	for _, provider := range []string{providerClaude, providerCodex, providerGemini, providerGrok} {
-		got := captureStderr(t, func() {
-			warnUnverifiedPreset([]string{"packaging-workflow", "agent-exec", "--provider", provider}, "")
-		})
-		if !strings.Contains(got, "UNVERIFIED") || !strings.Contains(got, "provider="+provider) {
-			t.Fatalf("%s: stderr = %q", provider, got)
+		if _, ok := localcmd.PresetByName(provider); ok {
+			t.Fatalf("unverified default still advertised: %s", provider)
 		}
-	}
-	quiet := captureStderr(t, func() {
-		warnUnverifiedPreset([]string{"packaging-workflow", "agent-exec"}, "")
-		warnUnverifiedPreset([]string{"packaging-workflow", "agent-exec", "--provider=deterministic"}, "claude")
-		warnUnverifiedPreset([]string{"my-own-model-cli", "--provider", "claude"}, "")
-	})
-	if quiet != "" {
-		t.Fatalf("the deterministic agent and a non-preset command must not warn: %q", quiet)
-	}
-	fromEnv := captureStderr(t, func() {
-		warnUnverifiedPreset([]string{"packaging-workflow", "agent-exec"}, "gemini")
-	})
-	if !strings.Contains(fromEnv, "provider=gemini") {
-		t.Fatalf("CONDUIT_AGENT_PROVIDER was not honoured: %q", fromEnv)
 	}
 }
 
-func TestAgentExecWarnsWhenAnUnverifiedPresetRuns(t *testing.T) {
+func TestAgentExecUsesAnExplicitCommandWithoutAConformanceClaim(t *testing.T) {
 	script := t.TempDir() + "/fake-llm"
 	if err := os.WriteFile(script, []byte("#!/bin/sh\ncat >/dev/null\nprintf 'ok\\n'\n"), 0o755); err != nil {
 		t.Fatal(err)
@@ -155,7 +139,7 @@ func TestAgentExecWarnsWhenAnUnverifiedPresetRuns(t *testing.T) {
 	if strings.TrimSpace(stdout) != "ok" {
 		t.Fatalf("the warning must not reach stdout, which is the reply: %q", stdout)
 	}
-	if !strings.Contains(stderr, "UNVERIFIED") || !strings.Contains(stderr, "provider=grok") {
+	if strings.Contains(stderr, "VERIFIED") {
 		t.Fatalf("stderr = %q", stderr)
 	}
 	if _, stderr = run("agent-exec"); strings.Contains(stderr, "UNVERIFIED") {

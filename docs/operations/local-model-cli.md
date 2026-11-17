@@ -1,6 +1,6 @@
 # Local model CLI
 
-Set `CONDUIT_MODEL_CMD` to the argv of a local command. The documented default is `codex exec --skip-git-repo-check --sandbox read-only --ephemeral -`.
+Set `CONDUIT_MODEL_CMD` to the explicit argv of an installed local command. Conduit supplies no vendor command defaults.
 
 A model served over HTTP is configured with `CONDUIT_MODEL_BASE_URL` instead; see [HTTP model endpoint](model-http.md). The Hub refuses to start when both are set.
 
@@ -32,40 +32,82 @@ blocks. Filenames retain their exact JSON string value even when they contain
 newlines or delimiter text. This framing helps the model distinguish evidence
 from instructions; it grants no execution or approval authority.
 
-`packaging-workflow agent-exec` is a ready-made `CONDUIT_MODEL_CMD`. Its `--provider` flag (or `CONDUIT_AGENT_PROVIDER`) chooses the engine:
+`packaging-workflow agent-exec` has one implicit provider:
 
 | Provider | Delegates to | Default argv | Status | Evidence |
 | --- | --- | --- | --- | --- |
 | `deterministic` (default) | built-in offline agent | none | VERIFIED | Exercised by the `cmd/packaging-workflow` tests in CI. |
-| `codex` | Codex CLI | `codex exec --skip-git-repo-check --sandbox read-only --ephemeral -` | UNVERIFIED | The argv is this document's contract. No run against the real CLI is recorded in this repository. |
-| `claude` | Claude Code CLI | `claude -p --output-format text` | UNVERIFIED | No run against the real CLI is recorded in this repository. |
-| `gemini` | Gemini CLI | `gemini -p "<instruction>"` (prompt on stdin) | UNVERIFIED | No run against the real CLI is recorded in this repository. |
-| `grok` | Grok CLI | `grok -p` | UNVERIFIED | No run against the real CLI is recorded in this repository. |
 
-VERIFIED means this repository holds a recorded run of the preset against the real engine. A test that uses a fake CLI does not count, and that is all the four delegating presets have. The table is `Presets` in `internal/localcmd/presets.go`; a test fails when this document and that table disagree.
+The former Codex, Claude, Gemini and Grok command defaults were removed because
+this repository has no recorded conformance run against those real CLIs. A
+fake-CLI test verifies process plumbing and does not establish vendor support.
+The table is `Presets` in `internal/localcmd/presets.go`.
 
-Selecting an UNVERIFIED preset is allowed and is logged. The Hub and the `packaging-workflow` worker log one warning at startup when `CONDUIT_MODEL_CMD` names such a preset, and `agent-exec` writes the same warning to its standard error on every turn. Confirm the preset with a local run before you rely on it. To move a preset to VERIFIED, record that run in this repository and change the table and its test together.
+To delegate a turn, choose an operator-defined label with `--provider` (or
+`CONDUIT_AGENT_PROVIDER`) and supply its exact command in
+`CONDUIT_PROVIDER_<NAME>_CMD`. For example, `--provider custom` requires
+`CONDUIT_PROVIDER_CUSTOM_CMD`. Existing explicit vendor-labelled commands
+continue to work; selecting a label without a command fails with the missing
+setting's name. Quoted argv is parsed without shell expansion. Credentials
+stay in the CLI's configuration. Confirm the command with your installed
+version before relying on it.
 
-Example: `CONDUIT_MODEL_CMD="packaging-workflow agent-exec --provider claude"`.
-
-Each turn's prompt goes to the CLI on stdin. Markdown fences are stripped and, where JSON is expected, the first balanced JSON object is extracted from surrounding prose. Replace any default argv with `CONDUIT_PROVIDER_<NAME>_CMD`. Credentials stay in each CLI's own configuration.
+Each turn's prompt goes to the CLI on stdin. Markdown fences are stripped and,
+where JSON is expected, the first balanced JSON object is extracted from prose.
 
 ## Model name
 
 A model CLI does not tell the Hub which model it ran. Set `CONDUIT_MODEL_NAME` to the name you configured in the CLI; the Hub binds that name at Accept and writes it to the audit event as `configuredModel`. With `CONDUIT_MODEL_NAME` unset the binding reads `unverified (model CLI, CONDUIT_MODEL_NAME not set)`. The Hub never takes the name from the model's reply: a `"model"` field in a reply is model-authored text and is ignored. The name is the operator's statement, so the Hub records it and does not check it against the CLI. An [HTTP model endpoint](model-http.md) also records the id the provider returned.
 
+## Per-capability selection
+
+The global `CONDUIT_MODEL_NAME`, `CONDUIT_MODEL_CMD` and
+`CONDUIT_MODEL_TIMEOUT` remain the defaults. Set
+`CONDUIT_<CAPABILITY>_MODEL_NAME`, `_CMD` or `_TIMEOUT` for
+`ASSISTANT`, `PLANNING`, `PACKAGING` or `APPGEN` to override that
+capability. An HTTP name is sent as the model id to the same endpoint and key.
+An explicit capability command selects CLI execution for that capability,
+shadowing the global HTTP transport. For a CLI, select the actual model in its
+argv and set the name to the operator assertion you want recorded; changing a
+name does not invent a vendor-specific command-line flag. There is no
+capability-specific endpoint or credential override.
+
+Planning sessions and immutable Accept bindings retain separate
+`configuredModel` and `providerModel` fields alongside the existing display
+label, and the Accept audit carries both. Legacy records leave the new fields
+absent. A provider that omits its id leaves it absent for that call; a previous
+call cannot fill it in. The console shows the serving id and configuration
+separately, including when the provider id is unavailable.
+
+The shipped HTTP-only chart exposes `model.capabilities.<capability>.name`
+and `.timeout` for the same four lower-case capability names. The Zarf
+package exposes `<CAPABILITY>_MODEL_NAME` and `<CAPABILITY>_MODEL_TIMEOUT`.
+Empty values inherit the global setting. Both continue sharing the configured
+endpoint and mounted key. Neither shipped artifact supplies a local model CLI.
+
 ## Workspace editor ACP agent
 
 The Hub's workspace ACP bridge (`DEVWORKSPACE_ACP_BRIDGE=node`) launches one coding agent that speaks ACP over stdio. Choose it with `DEVWORKSPACE_ACP_AGENT`:
 
-| Value | Launches |
-| --- | --- |
-| `codex` (default) | the bundled `codex-acp` |
-| `claude` | `claude-code-acp` |
-| `gemini` | `gemini --experimental-acp` |
-| `grok` | no preset; requires `DEVWORKSPACE_ACP_AGENT_CMD` |
+The empty setting or `codex` selects the bundled `codex-acp`. Its recorded
+real-executable check covers ACP initialization and protocol negotiation only;
+it does not establish authenticated model, editing, terminal or cancellation
+conformance. Every other agent requires `DEVWORKSPACE_ACP_AGENT_CMD` with explicit
+argv for an ACP-speaking command. The unverified Claude and Gemini implicit
+launch commands were removed. An unknown or unusable setting disables the
+bridge with a log line; it never substitutes a simulated agent. Every file
+write and command still passes through the Hub's governed permission mapping.
 
-`DEVWORKSPACE_ACP_AGENT_CMD` replaces any preset with an explicit whitespace-separated command. An unknown or unusable setting disables the bridge with a log line; it never substitutes a simulated agent. Every file write and command still passes through the Hub's governed permission mapping, so the choice of agent adds no authority. Only the `codex` default is exercised here; the `claude` and `gemini` presets are unverified against real installs.
+After installing the locked web dependencies, run
+`node scripts/verify-codex-acp-initialize.mjs` from the repository root to repeat
+the bounded smoke. It launches the installed adapter and Codex subprocess with
+fresh temporary profile directories and no inherited credentials or
+configuration, sends one `initialize` request, requires the pinned protocol and
+adapter identity, then terminates its process group. It sends no authentication,
+session or prompt request. The [recorded receipt](../evidence/codex-acp-initialize.json)
+identifies the exact adapter, Codex and Node versions, lockfile and adapter
+digests, request, and response. FakeACP tests cover Conduit's bridge behavior
+separately and do not prove vendor conformance.
 
 ## Post-Accept compute
 
@@ -74,6 +116,6 @@ not admit an image builder. Set `CONDUIT_IMAGE_BUILDER=docker` and
 `DEVWORKSPACE_GIT_ROOT` to run the governed build after Accept. Leave
 `CONDUIT_MODEL_CMD` unset, or set it to `packaging-workflow agent-exec`, for the
 deterministic writer. A live model is the same variable pointed at that CLI,
-for example `CONDUIT_MODEL_CMD="packaging-workflow agent-exec --provider claude"`.
+with an explicitly configured provider command as described above.
 The Hub still refuses to invent an image digest when the builder is not
 admitted. See [native workspace compute](native-workspace-compute.md).

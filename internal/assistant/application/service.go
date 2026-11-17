@@ -188,8 +188,10 @@ type ToolCall struct {
 // Served names what answered the turn. Kind is the adapter; Model is the id
 // the provider reported, when the adapter reads one.
 type Served struct {
-	Kind  string `json:"kind"`
-	Model string `json:"model,omitempty"`
+	ConfiguredModel string `json:"configuredModel,omitempty"`
+	ProviderModel   string `json:"providerModel,omitempty"`
+	Kind            string `json:"kind"`
+	Model           string `json:"model,omitempty"`
 }
 
 // Service executes tools. A nil Model means turns are refused.

@@ -119,11 +119,15 @@ describe("planning flow state", () => {
       intake: { repoUrl: "https://h/o/r", ref: "main" },
       resolvedCommit: "c".repeat(40),
       model: "m-1",
+      configuredModel: "configured-alias",
+      providerModel: "provider-version",
       plan,
       acceptedAt: "2026-01-01T00:00:00Z",
     };
     const rows = Object.fromEntries(bindingRows(binding));
     expect(rows["Profile version"]).toBe("v3");
+    expect(rows["Configured model"]).toBe("configured-alias");
+    expect(rows["Provider-reported model"]).toBe("provider-version");
     expect(rows["Profile hash"]).toBe("ph");
     expect(rows["Commit SHA"]).toBe("c".repeat(40));
     expect(rows["Plan hash"]).toBe("abc123");
@@ -223,6 +227,7 @@ describe("planning flow state", () => {
       }),
     );
     expect(rows["Model"]).toBe("Configured model");
+    expect(rows["Provider-reported model"]).toBe("Not recorded");
     expect(rows["Accepted"]).toContain("ET");
     expect(rows["Accepted"]).toContain("2026-04-19T19:01:02Z");
   });

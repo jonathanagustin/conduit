@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jonathanagustin/conduit/internal/modelconfig"
 	"net/http"
 	"os"
 	"sort"
@@ -58,6 +59,7 @@ func mountAssistant(
 }
 
 func assistantModel(getenv func(string) string) (assistantdomain.Model, error) {
+	getenv = modelconfig.ForCapability(getenv, modelconfig.Assistant)
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
@@ -82,7 +84,7 @@ func assistantModel(getenv func(string) string) (assistantdomain.Model, error) {
 		}
 		timeout = parsed
 	}
-	return modelcli.Runner{Argv: argv, Timeout: timeout}, nil
+	return modelcli.Runner{Argv: argv, Timeout: timeout, ModelName: configuredModelName(getenv)}, nil
 }
 
 type assistantAPI struct {

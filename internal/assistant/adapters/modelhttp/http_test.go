@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,6 +16,46 @@ import (
 )
 
 var _ domain.Model = Adapter{}
+
+func TestProviderIdentityBelongsToEachCompletion(t *testing.T) {
+	adapter := Adapter{Client: client(t, func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Messages []struct {
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+			return
+		}
+		prompt := body.Messages[0].Content
+		model := "served-" + prompt
+		if prompt == "omitted" {
+			model = ""
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"model": model,
+			"choices": []any{map[string]any{"message": map[string]any{"content": `{"text":"done"}`}}}})
+	}, time.Second)}
+	check := func(prompt string) {
+		t.Helper()
+		_, provenance, err := adapter.Complete(t.Context(), prompt)
+		want := "served-" + prompt
+		if prompt == "omitted" {
+			want = ""
+		}
+		if err != nil || provenance.ConfiguredModel != "asked" || provenance.ProviderModel != want {
+			t.Errorf("%s: model provenance=%+v error=%v", prompt, provenance, err)
+		}
+	}
+	check("named")
+	check("omitted") // A previous successful call must not fill in a missing id.
+	var calls sync.WaitGroup
+	for i := 0; i < 24; i++ {
+		calls.Add(1)
+		go func() { defer calls.Done(); check(fmt.Sprint(i)) }()
+	}
+	calls.Wait()
+}
 
 func client(t *testing.T, handler http.HandlerFunc, timeout time.Duration) *shared.Client {
 	t.Helper()
@@ -36,11 +78,11 @@ func TestCompleteReturnsTheTextAndProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if text != `{"text":"hi"}` || adapter.ReportedModel() != "served" {
-		t.Fatalf("text %q model %q", text, adapter.ReportedModel())
+	if text != `{"text":"hi"}` || provenance.ProviderModel != "served" {
+		t.Fatalf("text %q model %q", text, provenance.ProviderModel)
 	}
 	want := domain.Provenance{
-		Adapter: "openai-http", PromptSHA256: domain.Digest([]byte("the prompt")), ResponseSHA256: domain.Digest([]byte(text)),
+		Adapter: "openai-http", ConfiguredModel: "asked", ProviderModel: "served", PromptSHA256: domain.Digest([]byte("the prompt")), ResponseSHA256: domain.Digest([]byte(text)),
 	}
 	if provenance != want {
 		t.Fatalf("provenance = %+v", provenance)

@@ -106,6 +106,14 @@ spec:
             # optional Secret mounted below. See docs/operations/model-http.md.
             - { name: CONDUIT_MODEL_BASE_URL, value: "###ZARF_VAR_MODEL_BASE_URL###" }
             - { name: CONDUIT_MODEL_NAME, value: "###ZARF_VAR_MODEL_NAME###" }
+            - { name: CONDUIT_ASSISTANT_MODEL_NAME, value: "###ZARF_VAR_ASSISTANT_MODEL_NAME###" }
+            - { name: CONDUIT_ASSISTANT_MODEL_TIMEOUT, value: "###ZARF_VAR_ASSISTANT_MODEL_TIMEOUT###" }
+            - { name: CONDUIT_PLANNING_MODEL_NAME, value: "###ZARF_VAR_PLANNING_MODEL_NAME###" }
+            - { name: CONDUIT_PLANNING_MODEL_TIMEOUT, value: "###ZARF_VAR_PLANNING_MODEL_TIMEOUT###" }
+            - { name: CONDUIT_PACKAGING_MODEL_NAME, value: "###ZARF_VAR_PACKAGING_MODEL_NAME###" }
+            - { name: CONDUIT_PACKAGING_MODEL_TIMEOUT, value: "###ZARF_VAR_PACKAGING_MODEL_TIMEOUT###" }
+            - { name: CONDUIT_APPGEN_MODEL_NAME, value: "###ZARF_VAR_APPGEN_MODEL_NAME###" }
+            - { name: CONDUIT_APPGEN_MODEL_TIMEOUT, value: "###ZARF_VAR_APPGEN_MODEL_TIMEOUT###" }
             - { name: CONDUIT_MODEL_TIMEOUT, value: "###ZARF_VAR_MODEL_TIMEOUT###" }
             - { name: CONDUIT_MODEL_API_KEY_FILE, value: "###ZARF_VAR_MODEL_API_KEY_FILE###" }
             - { name: CONDUIT_MODEL_CA_FILE, value: "###ZARF_VAR_MODEL_CA_FILE###" }

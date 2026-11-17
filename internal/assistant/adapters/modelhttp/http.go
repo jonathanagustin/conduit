@@ -20,18 +20,15 @@ func (adapter Adapter) Complete(ctx context.Context, prompt string) (string, dom
 	if adapter.Client == nil {
 		return "", domain.Provenance{}, domain.ErrModelUnavailable
 	}
-	provenance := domain.Provenance{Adapter: modelhttp.AdapterName, PromptSHA256: domain.Digest([]byte(prompt))}
+	provenance := domain.Provenance{Adapter: modelhttp.AdapterName, ConfiguredModel: adapter.Client.RequestedModel(), PromptSHA256: domain.Digest([]byte(prompt))}
 	completion, err := adapter.Client.Complete(ctx, prompt)
+	provenance.ProviderModel = completion.Model
 	provenance.ResponseSHA256 = domain.Digest([]byte(completion.Text))
 	if err != nil {
 		return "", provenance, modelError(err)
 	}
 	return completion.Text, provenance, nil
 }
-
-// ReportedModel is the model id from the most recent response. The port has
-// no field for it.
-func (adapter Adapter) ReportedModel() string { return adapter.Client.ReportedModel() }
 
 func modelError(err error) error {
 	switch {

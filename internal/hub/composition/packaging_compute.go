@@ -3,6 +3,7 @@ package composition
 import (
 	"context"
 	"fmt"
+	"github.com/jonathanagustin/conduit/internal/modelconfig"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -140,6 +141,7 @@ func packagingPlanningComputer(repository controlplane.Repository, principal con
 }
 
 func packagingWriter(getenv func(string) string) (packagingapp.PackageWriter, error) {
+	getenv = modelconfig.ForCapability(getenv, modelconfig.Packaging)
 	if client, err := modelHTTPClient(getenv); err != nil {
 		return nil, err
 	} else if client != nil {

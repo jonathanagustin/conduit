@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jonathanagustin/conduit/internal/modelconfig"
 	"log/slog"
 	"net"
 	"net/http"
@@ -299,6 +300,7 @@ func sessionCompute(
 }
 
 func planningPlanner(getenv func(string) string, repository controlplane.Repository) (planningapp.Planner, error) {
+	getenv = modelconfig.ForCapability(getenv, modelconfig.Planning)
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
@@ -405,7 +407,8 @@ func recordPlanningAccept(ctx context.Context, repository controlplane.Repositor
 	ctxMap := map[string]any{"profileName": record.ProfileName, "profileVersion": record.ProfileVersion,
 		"profileHash": record.ProfileHash, "repoUrl": record.RepoURL, "ref": record.Ref,
 		"intakeMessageSha256": packagingdomain.DigestText([]byte(record.Message)),
-		"resolvedCommit":      record.ResolvedCommit, "model": record.Model, "planHash": record.PlanHash}
+		"resolvedCommit":      record.ResolvedCommit, "model": record.Model, "planHash": record.PlanHash,
+		"configuredModel": record.ConfiguredModel, "providerModel": record.ProviderModel}
 	if record.ProblemStatement != "" {
 		ctxMap["problemStatementSha256"] = packagingdomain.DigestText([]byte(record.ProblemStatement))
 	}

@@ -15,6 +15,13 @@
   ],
   "inventions": [
     {
+      "id": "modelconfig.CapabilitySelection",
+      "what": "Conduit-native capability-scoped model name/command/deadline overrides and separate configured/provider model identities on planning sessions, immutable Accept bindings, audit records and per-call assistant/app-generation provenance.",
+      "why": "No adopted upstream contract in this repository defines selection or model provenance for Conduit AI capabilities. A configured alias and provider-reported response id are different facts. Native keys preserve global configuration defaults and share one HTTP endpoint/key; explicit command overrides select CLI execution only for their capability.",
+      "displacedBy": "An adopted versioned capability-selection and model-provenance contract replacing these native configuration keys and Accept fields.",
+      "riskIfWrong": "The keys and additive fields may need replacement. Provider response metadata is not attestation; a CLI model name is an operator assertion. Missing provider identity stays absent, historical records are not rewritten, and selection adds no approval, publication or deployment authority."
+    },
+    {
       "id": "grype.LocalNormalizedReport",
       "what": "The local Grype report envelope retains provider/package/fix data, selects NVD identifiers and scores, and marks normalization as CONDUIT_NATIVE rather than a Hub artifact assessment.",
       "why": "The pinned public CLI page specifies local execution, NVD preference, CVSS v3/v2 fallback, JSON file output and nonzero-exit behavior, but provides no JSON report fixture or complete tie-break rules. Conduit preserves the Grype envelope with explicit native metadata. NVD scores take priority, then version 3 over 2, then highest score and lexical identifier; zero v3 scores use Grype's Negligible label. Only selected v3 scores remain in the primary CVSS array.",

@@ -33,8 +33,9 @@ func TestNormalizeProviderReply(t *testing.T) {
 
 func TestProviderArgvDefaultsAndOverride(t *testing.T) {
 	for _, name := range []string{providerClaude, providerCodex, providerGemini, providerGrok} {
+		t.Setenv("CONDUIT_PROVIDER_"+strings.ToUpper(name)+"_CMD", "")
 		argv, err := providerArgv(name)
-		if err != nil || argv[0] != name {
+		if err == nil || len(argv) != 0 {
 			t.Fatalf("%s: argv=%v err=%v", name, argv, err)
 		}
 	}

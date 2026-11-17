@@ -585,6 +585,8 @@ export function bindingRows(binding) {
     ...intakeRows,
     ["Commit SHA", binding.resolvedCommit || ""],
     ["Model", displayModelName(binding.model)],
+    ["Configured model", binding.configuredModel || "Not recorded"],
+    ["Provider-reported model", binding.providerModel || "Not recorded"],
     ["Plan hash", binding.plan?.sha256 || ""],
     ["Accepted", formatAcceptedTimestamp(binding.acceptedAt)],
   ];
