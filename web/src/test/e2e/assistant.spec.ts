@@ -985,7 +985,10 @@ test("packaging graph and staged chunks keep the selected run and paged history"
         path: new URL(route.request().url()).pathname,
         method: route.request().method(),
       });
-      expect(route.request().postDataJSON()).toEqual({});
+      expect(route.request().postDataJSON()).toEqual({
+        view: "summary",
+        limit: 20,
+      });
       await route.fulfill({
         json: {
           configured: true,
@@ -1331,22 +1334,23 @@ test("an index past the read bound lists what was read and says more exist", asy
     ),
   );
   const board = page.locator("[data-approvals-board]");
-  await expect(board).toContainText("Needs review · 100");
-  await expect(board).toContainText("bulk-plan-4-19");
+  await expect(board).toContainText("Needs review · 20");
+  await expect(board).toContainText("bulk-plan-0-19");
   await expect(board).not.toContainText("Hub did not return plans.");
   await expect(page.locator("[data-index-truncation]")).toHaveText(
-    "Showing the first 100 of 240 plans. The rest are not loaded in this view.",
+    "Showing 20 of 240 plans in this page. Use Next or Previous to change page.",
   );
-  expect(planPages.slice(0, 5)).toEqual([
-    "",
-    "?cursor=1",
-    "?cursor=2",
-    "?cursor=3",
-    "?cursor=4",
-  ]);
+  expect(
+    planPages.every(
+      (query) => new URLSearchParams(query).get("view") === "summary",
+    ),
+  ).toBe(true);
+  expect(
+    planPages.every((query) => !new URLSearchParams(query).has("cursor")),
+  ).toBe(true);
   // Environment-scoped refresh reads name the environment the Hub returned.
-  expect(scoped).toContain("/v1/environments/edge-a/timeline");
-  expect(scoped).toContain("/v1/blackouts?environment=edge-a");
+  // The approval board does not request unrelated environment evidence.
+  expect(scoped).toEqual([]);
   expect(scoped.some((path) => /\/dev\/|=dev$/.test(path))).toBe(false);
 });
 
@@ -1365,13 +1369,24 @@ test("a view whose renderer throws is contained and the shell stays usable", asy
       })
       .catch(() => {});
   });
-  // A plan row the approvals board cannot read: its renderer throws.
+  // Transport validation refuses malformed rows. Plant a renderer failure
+  // after the valid page loads to exercise the separate containment boundary.
   await page.route("**/v1/**", (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/v1/session")
       return route.fulfill({ json: { applications: APPLICATIONS } });
     return path === "/v1/plans"
-      ? route.fulfill({ json: { plans: [null] } })
+      ? route.fulfill({
+          json: {
+            plans: [
+              {
+                id: "render-check",
+                status: "SUCCEEDED",
+                plan: { environment: "edge-a", steps: [] },
+              },
+            ],
+          },
+        })
       : route.fulfill({ json: {} });
   });
   await hydrate(page);
@@ -1381,6 +1396,19 @@ test("a view whose renderer throws is contained and the shell stays usable", asy
       "s16-approvals-board",
     ),
   );
+  await expect(page.locator("[data-approvals-board]")).toContainText(
+    "render-check",
+  );
+  const breakView = () =>
+    page.evaluate(() => {
+      const app = window as unknown as {
+        state: { hub: { plans: unknown[] } };
+        renderMainWorkspace(): void;
+      };
+      app.state.hub.plans = [null];
+      app.renderMainWorkspace();
+    });
+  await breakView();
   const failure = page.locator('[data-render-failure="s16-approvals-board"]');
   await expect(failure).toContainText("This view failed to render");
   await expect(failure.locator("[data-render-failure-screen]")).toHaveText(
@@ -1432,6 +1460,10 @@ test("a view whose renderer throws is contained and the shell stays usable", asy
       "s16-approvals-board",
     ),
   );
+  await expect(page.locator("[data-approvals-board]")).toContainText(
+    "render-check",
+  );
+  await breakView();
   await Promise.all([
     page.waitForEvent("load"),
     failure.getByRole("button", { name: "Reload" }).click(),

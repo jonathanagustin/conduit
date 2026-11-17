@@ -3,7 +3,7 @@
 
 # The shape of the release path, asserted rather than described.
 #
-# Two properties matter and neither is visible from reading one file:
+# Three properties matter and are not visible from reading one file:
 #
 #   1. Releasing is ONE human instruction and never fewer. platform-release.yml
 #      may have exactly one trigger, workflow_dispatch, and so may the
@@ -17,6 +17,11 @@
 #      fraction of a release and reported success (#196). The preflight job that
 #      closes that is only a guard while every other job still needs it, which
 #      is a property of the graph, not of any single job.
+#
+#   3. Trunk skips drafts, so a draft becoming ready must start verification of
+#      its existing head. Explicit PR activities must retain the ordinary
+#      opened, synchronize and reopened events as well as ready_for_review,
+#      with main as the target and manual unchanged-head reruns still available.
 #
 # Kept in its own file rather than added to verify-trusted-supply-chain.rb: that
 # file asserts what the published artifacts are, this one asserts who may start
@@ -146,6 +151,19 @@ preconditions = File.read(File.join(repository_root, "scripts/verify-release-pre
 context = preconditions[/^trunk_gate_context='([^']+)'/, 1]
 fail_gate("verify-release-preconditions.sh names no Trunk gate status context") if context.nil?
 ci = File.read(ci_path, encoding: "UTF-8")
+ci_document = YAML.safe_load(ci, aliases: true)
+fail_gate("Trunk workflow must be a mapping") unless ci_document.is_a?(Hash)
+ci_triggers = triggers.call(ci_document)
+fail_gate("Trunk must retain pull_request and workflow_dispatch triggers") unless
+  ci_triggers.is_a?(Hash) && ci_triggers.keys.sort == %w[pull_request workflow_dispatch]
+ci_pull_request = ci_triggers["pull_request"]
+fail_gate("Trunk pull_request must target only main") unless
+  ci_pull_request.is_a?(Hash) && ci_pull_request["branches"] == ["main"]
+ci_activities = ci_pull_request["types"]
+required_ci_activities = %w[opened synchronize reopened ready_for_review]
+fail_gate("Trunk pull_request must explicitly cover opened, synchronize, reopened and ready_for_review") unless
+  ci_activities.is_a?(Array) && ci_activities.all? { |activity| activity.is_a?(String) } &&
+    ci_activities.sort == required_ci_activities.sort
 fail_gate("the status context the release requires (#{context}) is not the one platform-ci.yml publishes") unless
   ci.include?("-f context='#{context}'")
 

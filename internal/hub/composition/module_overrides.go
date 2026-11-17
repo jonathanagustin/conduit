@@ -23,7 +23,7 @@ func mountModuleOverrides(legacy http.Handler, repository controlplane.Repositor
 		return nil, err
 	}
 	mux.Handle("/", legacy)
-	return withOperatorCarrier(controlplane.NewGovernanceService(repository), options, mux), nil
+	return withOperatorCarrier(newGovernanceService(repository, options), options, mux), nil
 }
 
 type moduleOverrideController struct {

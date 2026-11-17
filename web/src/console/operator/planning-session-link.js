@@ -9,7 +9,9 @@ const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
 
 /** `#screen/param` -> { screen, param }. A hash with no param has "". */
 export function parseScreenHash(hash) {
-  const raw = String(hash || "").replace(/^#/, "");
+  const raw = String(hash || "")
+    .replace(/^#/, "")
+    .split("?")[0];
   const cut = raw.indexOf("/");
   if (cut === -1) return { screen: raw, param: "" };
   let param = raw.slice(cut + 1);
@@ -37,7 +39,10 @@ export function planningHash(sessionId) {
 
 /** The hash a screen switch writes: the planning screen keeps its session. */
 export function screenHash(screen, state) {
-  return screen === PLANNING_SCREEN
-    ? planningHash(state?.planning?.session?.id)
-    : `#${screen}`;
+  const path =
+    screen === PLANNING_SCREEN
+      ? planningHash(state?.planning?.session?.id)
+      : `#${screen}`;
+  const query = String(state?.indexQuery || "");
+  return query ? `${path}?${query}` : path;
 }

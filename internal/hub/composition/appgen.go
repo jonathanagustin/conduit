@@ -174,7 +174,7 @@ func appGenerationBuildExecutor(sbx application.Sandbox) AppGenerationBuildExecu
 func mountAppGenerationWithService(
 	legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, service application.Service,
 ) http.Handler {
-	governanceService := controlplane.NewGovernanceService(repository)
+	governanceService := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	apphttp.Register(mux, apphttp.Config{
 		Service: service,
@@ -198,6 +198,7 @@ func mountAppGenerationWithService(
 
 func appgenPlanningComputer(
 	service application.Service, repository controlplane.Repository, principal controlplane.Principal, getenv func(string) string,
+	handlerOptions ...controlplane.HandlerOptions,
 ) planningapp.AppgenComputer {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
@@ -320,7 +321,7 @@ func appgenPlanningComputer(
 			}
 		}
 		if repository != nil && strings.TrimSpace(principal.Username) != "" {
-			submitter := devchange.New(controlplane.NewGovernanceService(repository))
+			submitter := devchange.New(newGovernanceService(repository, handlerOptions...))
 			sourceDigest := res.ImageDigest
 			if sourceDigest == "" {
 				sourceDigest = res.Provenance.ResponseSHA256

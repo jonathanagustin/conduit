@@ -13,16 +13,17 @@ import (
 
 // Emitter records an event and the inbox entries it produced.
 type Emitter struct {
-	store ports.Store
+	store       ports.Store
+	eligibility ports.RecipientEligibility
 }
 
 var _ ports.Emitter = (*Emitter)(nil)
 
-func NewEmitter(store ports.Store) (*Emitter, error) {
-	if store == nil {
-		return nil, errors.New("a notification store is required; an emitter with nowhere to write is the gap it exists to close")
+func NewEmitter(store ports.Store, eligibility ports.RecipientEligibility) (*Emitter, error) {
+	if store == nil || eligibility == nil {
+		return nil, errors.New("a notification store and current recipient eligibility are required")
 	}
-	return &Emitter{store: store}, nil
+	return &Emitter{store: store, eligibility: eligibility}, nil
 }
 
 // Emit validates the event, resolves who wanted to know, and commits both.
@@ -46,7 +47,30 @@ func (emitter *Emitter) Emit(ctx context.Context, event domain.Event) error {
 	if err != nil {
 		return fmt.Errorf("read notification preferences for %s: %w", event.ResourceRID, err)
 	}
-	if err := emitter.store.RecordEvent(ctx, event, domain.Fan(event, preferences)); err != nil {
+	eligible := []domain.Preference{}
+	decisions := make(map[domain.Owner]bool)
+	for _, preference := range preferences {
+		if !preference.Matches(event) {
+			continue
+		}
+		allowed, checked := decisions[preference.Owner]
+		if !checked {
+			allowed, err = emitter.eligibility.Check(ctx, preference.Owner, event.ResourceRID)
+			if err != nil {
+				// Do not commit a partial audience: replay must preserve the first
+				// committed snapshot, so an uncertain recipient cannot be added later.
+				return fmt.Errorf("authorize notification recipient: %w", err)
+			}
+			decisions[preference.Owner] = allowed
+		}
+		if allowed {
+			eligible = append(eligible, preference)
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := emitter.store.RecordEvent(ctx, event, domain.Fan(event, eligible)); err != nil {
 		return fmt.Errorf("record notification event %s: %w", event.ID, err)
 	}
 	return nil

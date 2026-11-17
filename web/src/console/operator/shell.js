@@ -79,11 +79,35 @@ function kpi(id, label, items, compute) {
 // Unknown, stale or never-reported installations cannot establish convergence.
 export function kpisFromHub(hub) {
   const h = hub || {};
-  const environments = h.loading || h.note ? null : list(h.environments);
+  const completePage = (index) => {
+    if (!h.pagedIndexes) return true;
+    const page = h.indexPages?.[index];
+    return (
+      page &&
+      !page.error &&
+      !page.nextCursor &&
+      !page.hasPrevious &&
+      !page.selectedOutside &&
+      !page.filtered &&
+      (page.total === null || BigInt(page.total) === BigInt(page.shown))
+    );
+  };
+  const environments =
+    h.loading || h.note || !completePage("environments")
+      ? null
+      : list(h.environments);
   const installations =
-    h.loading || h.installationNote ? null : list(h.installations);
-  const packaging = h.loading || h.packagingNote ? null : list(h.packaging);
-  const changes = h.loading || h.changeNote ? null : list(h.changes);
+    h.loading || h.installationNote || !completePage("installations")
+      ? null
+      : list(h.installations);
+  const packaging =
+    h.loading || h.packagingNote || !completePage("packaging")
+      ? null
+      : list(h.packaging);
+  const changes =
+    h.loading || h.changeNote || !completePage("changes")
+      ? null
+      : list(h.changes);
   const complete = environments && installations;
   const hasSpokeStates =
     environments &&

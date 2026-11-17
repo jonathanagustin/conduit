@@ -35,7 +35,7 @@ answer, and nothing here should be read as claiming it.
 | Area | Claim | Evidence |
 | --- | --- | --- |
 | Correctness | **Every** local gate passes at the trunk tip (tests, vet, lint, formatting, domain boundaries, contract validation, GitOps acceptance). The count is deliberately not restated here: `verify-local.sh` reads the step names out of `.github/workflows/platform-ci.yml` and **fails when CI runs a step it does not**, so the set is reconciled by the script rather than by a number in this table. | `./scripts/verify-local.sh` — "all CI gates passed locally"; hosted `Trunk gate` status green at the same tree. **Qualified by #128**: the hosted Apollo step runs fewer gates than the local script, so a green Trunk gate is not yet equivalent to a green `verify-local.sh`. Corrected on 2026-08-18: this row read "All 30 local gates" and the script ran 35 — a hand-maintained count in a row that is supposed to be checkable, drifted, which is the failure mode the closing rule of this document names. |
-| Concurrency and replica correctness | The Hub runs two replicas over a transactional PostgreSQL repository, with a PodDisruptionBudget protecting one replica; concurrent lease, approval, idempotency, and crash-recovery are proven against real PostgreSQL. | A7; `scripts/test-postgres-repository.sh`; `ruby scripts/verify-helm-runtime.rb` (aborts unless replicas == 2 and the PDB exists). **Bounded by the two Missing rows in [Test types](#test-types)**: failure injection and load/soak. What is proven is that two replicas do not corrupt each other and that one dying mid-commit loses nothing. Availability *when the infrastructure underneath fails* — PostgreSQL failover, Agent disconnect mid-Plan, partition — is untested, and behaviour at depth is unmeasured. This row was titled "Availability" until the 2026-08-18 external audit; the title asserted more than the evidence carries. |
+| Concurrency and replica correctness | The Hub runs two replicas over a transactional PostgreSQL repository, with a PodDisruptionBudget protecting one replica; concurrent lease, approval, idempotency, and crash-recovery are proven against real PostgreSQL. | A7; `scripts/test-postgres-repository.sh`; `ruby scripts/verify-helm-runtime.rb` (aborts unless replicas == 2 and the PDB exists). **Bounded by the failure-injection and load/soak rows in [Test types](#test-types)**. Synthetic TCP partition, Agent disconnect and synchronous PostgreSQL promotion now have bounded [rehearsals](capacity-and-failure-rehearsal.md); workload execution is simulated and the two Hub pools share one process. Production infrastructure availability and capacity at representative history depths remain unqualified. This row was titled "Availability" until the 2026-08-18 external audit; the title asserted more than the evidence carries. |
 | Identity | Production identity is OIDC for operators and mTLS or SPIFFE for Agents. Insecure identity headers exist only behind explicit `ALLOW_INSECURE_*` opt-ins; `cmd/platform-delivery` exits rather than combine them with any secure mechanism, and the chart gate aborts if any `ALLOW_INSECURE_` variable is set. | `cmd/platform-delivery/main.go` startup checks; `verify-helm-runtime.rb` ("chart enabled insecure identity"). |
 | Bundle signing | A Hub refuses to start with no `BUNDLE_SIGNING_KEY_FILE`. The ephemeral development key survives only behind an explicit `ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY=true`, which is itself refused in combination with a mounted key or with production identity — the fail-closed shape the insecure identity headers already have — and which no chart profile can set. Which signer a Hub came up with is on its startup line as `bundleSigner`: the base64 Ed25519 **public** key, the same encoding `BUNDLE_TRUSTED_KEYS_FILE` uses, so a changed signer is readable rather than only detectable by a target refusing a Bundle. | `checkBundleSigningPosture` in `cmd/platform-delivery/main.go`; `TestBundleSigningPostureRefusesAnUndeclaredEphemeralKey`, `TestBundleSigningKeyIdentifierPublishesThePublicKeyOnly`; `verify-helm-runtime.rb` ("Hub renders no BUNDLE_SIGNING_KEY_FILE and would refuse to start", "Hub enabled insecure opt-ins", and the render that fails closed on an empty `bundleSigningSecretName`). |
 | Delivery | A clean production cluster reconciles the signed private runtime artifact from OCI with no Git source or credential: pull-only registry authority, trusted-signature success, wrong-signer rejection, exact-digest application. | A8; `scripts/test-gitless-clean-cluster.sh`; ADR 0001. |
@@ -93,7 +93,7 @@ one-way reference is how this pair diverged: gap 5 never mentioned the offline-b
 row, so editing one left the other untouched and unreviewed. Applied here to
 Offline-bundle packaging ↔ gap 5, Metrics exposition ↔ gap 2, Disaster recovery ↔
 gap 4, Agent privilege ↔ gap 8, and Concurrency and replica correctness ↔ the
-Missing rows in [Test types](#test-types).
+failure-injection and load/soak rows in [Test types](#test-types).
 
 The full record of that audit, including the findings that were refuted against
 the code and the ones deliberately left open, is
@@ -252,21 +252,41 @@ carried to the residual list as item 5.
    registered as `governance.NotificationEventSelection` and
    `catalog.PromotionFailureSelection`.
 
-   What this does **not** close. Four declared types are still raised by
+   **Composition coverage and unavailable choices (#840).** The assistant,
+   model proposals, intelligence courses, workspace submissions and ACP,
+   blackouts, drift fixes, waves and offline bundles receive the same
+   announcement ports as the main API. Requests written directly by governed
+   maintenance and module-override operations announce after their transaction
+   commits. A failed transaction emits nothing; repeating the same review
+   round retains the notification's deterministic identity.
+   Services over a transaction-local repository remain silent, including a
+   successfully released nested savepoint: that is not the outer commit. A
+   caller composing these services in a larger transaction must announce the
+   committed result after its own boundary. The normal Hub routes use the root
+   repository; this guard prevents a later outer rollback from notifying anyone.
+
+   Four declared types are still raised by
    nothing — `LATEST_PRODUCT_RELEASE_VULNERABILITY_UPDATE`,
    `INSTALLED_PRODUCT_RELEASE_VULNERABILITY_UPDATE`, `BLUE_GREEN_UPGRADE_FAILED`
-   and `RBAC_CHANGE` — because Conduit has no event for any of them. They stay
-   subscribable, since the console's checkbox list is held to the vocabulary,
-   and a preference response now names them in `typesNotYetEmitted`;
+   and `RBAC_CHANGE` — because Conduit has no event for any of them. Explicit
+   selections of those types are refused when saving preferences. The
+   preference response names the complete unavailable set in
+   `typesNotYetEmitted`, including when no preference exists yet. The
+   `typeAvailabilityScope: "ALL_KNOWN"` marker distinguishes that full set from
+   an older replica's selected-only list;
    `domain.EventType.Raised` is the predicate and
    `TestRaisedTypesHaveAnEmitSite` holds it to the adapters. "A Release becoming
-   available" still emits nothing. The change-request and grant announcements
-   are wired to the facade's own Governance service only: a request opened by a
-   surface that builds its own — the assistant, model proposals, intelligence
-   courses, workspace ACP, dev-workspace submissions, blackouts, drift fixes,
-   waves and offline bundles — is stored waiting and still tells nobody. And an
-   approver is told by subscribing to the Environment, not by being eligible to
-   approve: nothing resolves a reviewer requirement to recipients.
+   available" still emits nothing. The console disables unavailable choices
+   before a first save and shows legacy saved choices with a Remove control.
+   Opting into all future types remains forward consent rather than a promise
+   that these four have emitters. Existing stored preferences remain readable.
+   An approver is told by subscribing to the Environment, not by being eligible
+   to approve: nothing resolves a reviewer requirement to recipients. Requests
+   with no Environment are logged without an event on an invented resource.
+   Emission remains best effort after the primary write: failures are logged,
+   without a transactional outbox guaranteeing a later retry
+   ([#869](https://github.com/jonathanagustin/conduit/issues/869)). File-backed Hubs
+   with no notification store emit no notifications.
 
 2. **Observability is partial.** Metrics now exist and the wedge signal is
    exported: `conduit_reconciliation_pending`, `_leased`, `_exhausted` and
@@ -535,7 +555,7 @@ end-to-end and live suites, and mutation scores on both sides.
 | The reconstruction is wrong about Apollo | **Evidence binding** — source compared against a committed capture, failing the build when they disagree | Strong. Ten `verify-*` gates, the invention register, and the provenance reconciler. |
 | A published contract is not honoured | **Contract conformance** — pinned OpenAPI, CLI corpus, GraphQL provenance | Strong. 13/13 routes with named tests. |
 | A unit computes the wrong answer | **Unit** | Strong, and mutation-scored. |
-| **The control loop decides something unsafe** | **Property / invariant** — generate fleets and assert no run ever produces a forbidden Plan | **Missing.** Example-based tests sample this thinly, and it is the core risk of a control plane. |
+| **The control loop decides something unsafe** | **Property / invariant** — generate fleets and assert no run ever produces a forbidden Plan | **Bounded generated coverage.** `TestGeneratedFleetPlannerInvariants` exercises 400 seeded DAG fleets, namespaces, input permutations, exact artifacts and changed content bindings; 200 generated cycles must be refused. It covers these planner invariants, not every policy combination. See [capacity and failure rehearsal](capacity-and-failure-rehearsal.md). |
 | **A rolling upgrade meets its own past** | **Version skew** — old Agent against new Hub, old data against new code | **Rehearsed with bounds.** Separate fixtures cover previous-release data, both Agent/Hub source directions and two live Hub image replacements with real renewed execution leases, exact reports and persistence invariants. The Kubernetes API fixture is ConfigMap-only; Hub replacement is driver-managed, not a Deployment-controller or production-capacity test. See `old-data-upgrade-rehearsal.md`, `version-skew-rehearsal.md` and `hub-rolling-upgrade-rehearsal.md`. |
 | Two replicas race, or one dies mid-commit | **Concurrency and crash durability** | Present against real PostgreSQL: leases, fencing, atomic commit, crash-safe receipts. |
 | Applying the schema again destroys data | **Idempotent re-application** | Present: a source-level guard on the DDL, and a populated-database re-apply test. |
@@ -544,8 +564,8 @@ end-to-end and live suites, and mutation scores on both sides.
 | Wrong bytes are admitted | **Adversarial supply chain** | Strong. Wrong-signer, tampered-digest and unsigned all refused, proven against a real registry and signature. |
 | It cannot be installed in the target topology | **Clean-room delivery** | Strong. Clean cluster, no Git source or credential, Zarf offline bundle. |
 | The tests do not actually test | **Mutation** | Present on both Go and web, with committed scores. |
-| **Infrastructure fails underneath it** | **Failure injection** — PostgreSQL failover mid-transaction, Agent disconnect mid-Plan, partial network | **Missing.** Bounds the Concurrency and replica correctness row above: that row proves replicas do not corrupt each other, not that the Hub stays available when the infrastructure under it fails. |
-| **It degrades under its own backlog** | **Load and soak** — sustained multi-replica reconciliation, lease contention, no starvation | **Missing.** Concurrency tests prove correctness at small N, not behaviour at depth. Bounds the Concurrency and replica correctness row above. |
+| **Infrastructure fails underneath it** | **Failure injection** — PostgreSQL failover mid-transaction, Agent disconnect mid-Plan, partial network | **Bounded rehearsal.** Real HTTP/Agent tests cover TCP-dial refusal/recovery and mid-Plan disconnect through actual lease expiry and successor reporting. A digest-pinned synchronous PostgreSQL promotion run with corrected RPC accounting retained 132 completed Plans, including fresh reconciliation in both Environments after promotion. The [current record](../evidence/fleet-validation-corrected-2026-11-17/index.json) binds logs/reports to the tested source and retains an earlier startup-handshake failure before any reconciliation. Managed-database/DNS/cluster failure availability remains unqualified. See [capacity and failure rehearsal](capacity-and-failure-rehearsal.md). |
+| **It degrades under its own backlog** | **Load and soak** — sustained multi-replica reconciliation, lease contention, no starvation | **Measured synthetic fixture; production limits unmeasured.** `scripts/test-fleet-capacity.sh` drives real HTTP Agent workers and repeated approved generations, retaining latency, progress, allocation and exact-commit evidence. The shared-Mac matrix with corrected RPC accounting reaches 25 Environments × 2 Agents; a 30-second sustained profile completes 431 Plans with no measured request errors. Earlier undercounted RPC aggregates remain historical, as qualified in the [current record](../evidence/fleet-validation-corrected-2026-11-17/index.json). These are observed sample counts, not supported maxima or a long soak. Workload execution is simulated; multiple handlers use independent PostgreSQL pools in one process. See [capacity and failure rehearsal](capacity-and-failure-rehearsal.md). |
 | It is running and nobody can tell | **Observability assertion** | Present for metrics: the exposition format, the label allowlist and the wedge-versus-busy distinction are all asserted. Tracing remains unbuilt. |
 | Nobody is told what happened | **Delivery end-to-end** | **Partial.** Ports exist and are driven: one emit site records an exhausted reconciliation proposal, fans it out to the preferences stored for the Environment, and a read path returns it — asserted against a real database in `internal/notifications/adapters/postgres` — and, when an operator configures one, a transport leases the entry and POSTs it or logs it; the recipient can now read their own inbox in the console rather than by hand. Native SMTP and Slack also submit to the selected recipient contact (#119), verified with isolated protocol servers and the PostgreSQL queue. Real mailbox receipt and human acknowledgement are not established. |
 | A recall does not reach a disconnected target | **Bundle round trip** | **Blocked** by the design decision in #126, not by effort. |

@@ -137,7 +137,7 @@ func mountNotifications(
 			return nil, err
 		}
 	}
-	service := controlplane.NewGovernanceService(repository)
+	service := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	if err := notificationhttp.Register(mux, notificationhttp.Config{
 		Reader:      reader,

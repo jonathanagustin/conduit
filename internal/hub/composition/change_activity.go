@@ -14,7 +14,7 @@ import (
 )
 
 func mountChangeActivity(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, store activityports.Store) (http.Handler, error) {
-	service := controlplane.NewGovernanceService(repository)
+	service := newGovernanceService(repository, options)
 	bundles, err := controlplane.NewBundleService(repository, options.BundlePrivateKey, options.TrustedBundleKeys)
 	if err != nil {
 		return nil, err

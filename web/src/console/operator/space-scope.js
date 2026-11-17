@@ -81,11 +81,18 @@ export function applySpaceScope(next, spaceId) {
 export function spaceSelectorMarkup(hubState, selectedId) {
   const spaces = Array.isArray(hubState?.spaces) ? hubState.spaces : [];
   const active = activeSpaceId(selectedId, spaces);
+  const paged = hubState?.pagedIndexes === true;
+  const scoped = paged ? ["environments (by the Hub)"] : SPACE_SCOPED;
+  const unscoped = paged
+    ? ["installations", "plans", "change requests", ...SPACE_UNSCOPED]
+    : SPACE_UNSCOPED;
   const title = hubState?.spaceNote
     ? hubState.spaceNote
     : active
-      ? `Scoped to this Space: ${SPACE_SCOPED.join(", ")}. Not scoped by the Hub API: ${SPACE_UNSCOPED.join(", ")}.`
-      : "All Spaces. Selecting one scopes environments at the Hub, and the installations, plans and change requests that name them.";
+      ? `Scoped to this Space: ${scoped.join(", ")}. Not scoped by the Hub API: ${unscoped.join(", ")}.`
+      : paged
+        ? "All Spaces. Selecting one filters the environment index; other pages use their displayed server-side filters."
+        : "All Spaces. Selecting one scopes environments at the Hub, and the installations, plans and change requests that name them.";
   const rows = spaces
     .map(
       (space) =>
@@ -119,6 +126,44 @@ function writeSpaceSelection(value, storage = globalThis.localStorage) {
   }
 }
 
+/** A Space change starts a new Environment window and drops its old selection. */
+export function changeSpaceSelection(state, value) {
+  const spaceId = value || "";
+  const query = new URLSearchParams(state.indexQuery || "");
+  if ((query.get("space") || "") !== spaceId) {
+    const environment =
+      state.releaseEnvironmentId ||
+      state.envDetailId ||
+      query.get("environment");
+    query.delete("environments.cursor");
+    query.delete("environment");
+    state.releaseEnvironmentId = "";
+    state.envDetailId = "";
+    // Drop filters derived from that selection; preserve independent filters.
+    for (const index of ["plans", "installations", "changes"]) {
+      if (!environment || query.get(`${index}.environment`) !== environment)
+        continue;
+      query.delete(`${index}.environment`);
+      query.delete(`${index}.cursor`);
+      if (index === "plans") {
+        state.releasePlanId = "";
+        query.delete("plan");
+      }
+      if (index === "changes") {
+        if (state.crReview) {
+          state.crReview.selectedId = "";
+          state.crReview.draft = { decision: "", rationale: "" };
+        }
+        query.delete("change");
+      }
+    }
+  }
+  if (spaceId) query.set("space", spaceId);
+  else query.delete("space");
+  state.spaceId = spaceId;
+  state.indexQuery = query.toString();
+}
+
 /**
  * Paint the selector into the top bar, left of the data badge. The host is
  * created here so the top-bar template itself is untouched.
@@ -134,7 +179,7 @@ export function mountSpaceSelector(doc, state, refresh) {
     host.addEventListener("change", (event) => {
       const target = event.target;
       if (!target || target.id !== "space-selector") return;
-      state.spaceId = target.value;
+      changeSpaceSelection(state, target.value);
       writeSpaceSelection(state.spaceId);
       void refresh();
     });

@@ -10,6 +10,10 @@ import (
 	"github.com/jonathanagustin/conduit/internal/notifications/domain"
 )
 
+type allowRecipients struct{}
+
+func (allowRecipients) Check(context.Context, domain.Owner, string) (bool, error) { return true, nil }
+
 // failingNotificationStore reads normally and cannot record, which is a
 // notification database that is up for reads and refusing writes.
 type failingNotificationStore struct{ *notificationStore }

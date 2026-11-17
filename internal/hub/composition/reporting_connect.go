@@ -14,7 +14,7 @@ import (
 type overviewPrincipalKey struct{}
 
 func mountReportingConnect(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions) http.Handler {
-	governance := controlplane.NewGovernanceService(repository)
+	governance := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	reportinghttp.RegisterConnect(mux, reportinghttp.Config{
 		Authenticate: func(request *http.Request) (context.Context, error) {

@@ -85,6 +85,9 @@ func (preferences *Preferences) Save(
 	if err := validateGrain(proposed.ResourceRID, proposed.Owner, proposed.Channel); err != nil {
 		return domain.Preference{}, err
 	}
+	if err := proposed.ValidateSelection(); err != nil {
+		return domain.Preference{}, err
+	}
 	now := preferences.clock.Now().UTC()
 	stored := domain.Preference{
 		ID:             PreferenceID(proposed.ResourceRID, proposed.Owner, proposed.Channel),

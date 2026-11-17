@@ -10,8 +10,8 @@ import (
 )
 
 func mountWaves(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions) http.Handler {
-	service := &waveapp.Service{Store: repository}
-	governance := controlplane.NewGovernanceService(repository)
+	service := &waveapp.Service{Store: repository, Governance: newGovernanceService(repository, options)}
+	governance := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	wavehttp.Register(mux, wavehttp.Config{
 		Authorize: func(request *http.Request) error {

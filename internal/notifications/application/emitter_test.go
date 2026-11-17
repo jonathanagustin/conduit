@@ -21,6 +21,10 @@ type fixedAt struct{ offset time.Duration }
 
 func (clock fixedAt) Now() time.Time { return at().Add(clock.offset) }
 
+type allowRecipients struct{}
+
+func (allowRecipients) Check(context.Context, domain.Owner, string) (bool, error) { return true, nil }
+
 func planFailed() domain.Event {
 	return domain.Event{
 		ID: "nev-1", Type: domain.EventPlanFailures,
@@ -36,7 +40,7 @@ func planFailed() domain.Event {
 func TestAnEventNobodySubscribedToIsStillRecorded(t *testing.T) {
 	t.Parallel()
 	store := &fakeStore{}
-	emitter, err := NewEmitter(store)
+	emitter, err := NewEmitter(store, allowRecipients{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +69,7 @@ func TestEmitFansOutToTheSubscribersOfThatResourceOnly(t *testing.T) {
 			AllFutureTypes: true,
 		}},
 	}}
-	emitter, err := NewEmitter(store)
+	emitter, err := NewEmitter(store, allowRecipients{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +90,7 @@ func TestEmitFansOutToTheSubscribersOfThatResourceOnly(t *testing.T) {
 func TestAnInvalidEventIsRefusedBeforeAnythingIsWritten(t *testing.T) {
 	t.Parallel()
 	store := &fakeStore{}
-	emitter, err := NewEmitter(store)
+	emitter, err := NewEmitter(store, allowRecipients{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +108,7 @@ func TestAStoreFailureIsReportedRatherThanSwallowed(t *testing.T) {
 	t.Parallel()
 	failure := errors.New("the database is down")
 	store := &fakeStore{recordErr: failure}
-	emitter, err := NewEmitter(store)
+	emitter, err := NewEmitter(store, allowRecipients{})
 	if err != nil {
 		t.Fatal(err)
 	}

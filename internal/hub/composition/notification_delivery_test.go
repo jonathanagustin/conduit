@@ -7,11 +7,23 @@ import (
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/hub/composition"
+	"github.com/jonathanagustin/conduit/internal/notifications/application"
+	"github.com/jonathanagustin/conduit/internal/notifications/domain"
 	"github.com/jonathanagustin/conduit/internal/notifications/ports"
 )
 
 func environment(pairs map[string]string) func(string) string {
 	return func(name string) string { return pairs[name] }
+}
+
+type allowRecipients struct{}
+
+func (allowRecipients) Check(context.Context, domain.Owner, string) (bool, error) { return true, nil }
+
+func authorizedDispatcherConfig() application.DispatcherConfig {
+	config := composition.DefaultDispatcherConfig()
+	config.Eligibility = allowRecipients{}
+	return config
 }
 
 // The whole opt-in, stated as a test: an existing deployment that sets nothing
@@ -27,7 +39,7 @@ func TestDeliveryIsOffUntilAnOperatorAsksForIt(t *testing.T) {
 		t.Fatalf("an unconfigured deployment built a %s transport", transport.Name())
 	}
 	dispatcher, err := composition.NewNotificationDispatcher(
-		nilQueue{}, transport, stoppedClock{}, composition.DefaultDispatcherConfig())
+		nilQueue{}, transport, stoppedClock{}, authorizedDispatcherConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +61,7 @@ func TestAConfiguredWebhookBuildsTheWebhookTransport(t *testing.T) {
 		t.Fatalf("transport = %v", transport)
 	}
 	dispatcher, err := composition.NewNotificationDispatcher(
-		nilQueue{}, transport, stoppedClock{}, composition.DefaultDispatcherConfig())
+		nilQueue{}, transport, stoppedClock{}, authorizedDispatcherConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +130,7 @@ func TestAConfiguredTransportWithNoQueueIsRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := composition.NewNotificationDispatcher(
-		nil, transport, stoppedClock{}, composition.DefaultDispatcherConfig()); err == nil {
+		nil, transport, stoppedClock{}, authorizedDispatcherConfig()); err == nil {
 		t.Error("notification delivery was enabled with no queue behind it")
 	}
 }

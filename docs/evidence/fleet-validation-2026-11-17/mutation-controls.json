@@ -1,0 +1,36 @@
+{
+  "commit": "ecd66c7bd1ee81600f2b72ae62e7b38f5c550bc7",
+  "controls": [
+    {
+      "mutation": "remove_initial_ready_sort",
+      "expected": "FAIL",
+      "exit_code": 1,
+      "matched_expectation": true,
+      "log_sha256": "84417c5b4ff163ab86fd688cc0804c7fe1878d875bf1420fe327bbaaba8c384a"
+    },
+    {
+      "mutation": "omit_artifacts_from_release_binding",
+      "expected": "FAIL",
+      "exit_code": 1,
+      "matched_expectation": true,
+      "log_sha256": "219c5cc482e810eb7e29233a6af8c17934318b1eabfce873ee6bbe0daec327f0"
+    },
+    {
+      "mutation": "allow_dependency_cycles",
+      "expected": "FAIL",
+      "exit_code": 1,
+      "matched_expectation": true,
+      "log_sha256": "7fa01716d29cc4d2db0d6cea5c17075b50ac99f1041c4193187dff7bbecb6091"
+    },
+    {
+      "mutation": "equivalent_map_capacity_hint",
+      "expected": "PASS",
+      "exit_code": 0,
+      "matched_expectation": true,
+      "log_sha256": "458f841b01c2646d6b9a541c1a7da8ee85c8cdd5b6a1c8d6cb4f03d389a6c676"
+    }
+  ],
+  "equivalent_argument": "Increasing the byID map capacity hint changes allocation only; all values and keys are identical and the planner uses byID for indexed lookups, never iteration.",
+  "property_test_blob_sha": "d43031958091c4d99d7dcee6373fb89e3f7ee2de",
+  "planner_and_property_tests_equivalent_to_published_commit": "e2a4518658cf9660938ca928b56ca1cb96bdf7c7"
+}

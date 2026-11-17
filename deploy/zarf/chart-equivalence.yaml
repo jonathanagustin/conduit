@@ -72,6 +72,10 @@ profiles:
       # The chart's default planning frontend, so the chart side can leave
       # planning.temporal entirely to its defaults.
       PLANNING_TEMPORAL_ADDRESS: planning-frontend.platform-system.svc:7233
+      # Deliberately non-default, so both processes must forward all three.
+      PACKAGING_TEMPORAL_ADDRESS: "[fd00::1]:7233"
+      PACKAGING_TEMPORAL_NAMESPACE: packaging-production
+      PACKAGING_TEMPORAL_TASK_QUEUE: packaging-reviewed
       MODEL_BASE_URL: https://models.example.test/v1
       MODEL_NAME: example-model
       MODEL_TIMEOUT: 90s
@@ -98,7 +102,9 @@ profiles:
       bundleSigningSecretName: platform-bundle-signing
       packagingWorkflow:
         enabled: true
-        address: "127.0.0.1:7233"
+        address: "[fd00::1]:7233"
+        namespace: packaging-production
+        taskQueue: packaging-reviewed
         worker:
           enabled: true
     spokeValues: *spoke
@@ -242,19 +248,19 @@ allow:
     reason: "Operator OIDC is a deploy variable that defaults to empty; the Hub treats an all-empty OIDC environment as disabled. The chart renders these only when operatorOIDC.enabled."
   - object: Deployment/platform-delivery
     path: "spec.template.spec.containers[delivery-control-plane].env[PACKAGING_TEMPORAL_ADDRESS]"
-    side: chart-only
-    profiles: [postgres]
-    reason: "KNOWN GAP (#828 follow-up): the package's Hub is given no Temporal frontend, so it cannot start packaging workflows; the packaging-worker component only executes workflows another client starts."
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "The package always renders this variable, empty in these profiles; an empty address disables the packaging client. The chart omits it when packagingWorkflow.enabled=false."
   - object: Deployment/platform-delivery
     path: "spec.template.spec.containers[delivery-control-plane].env[PACKAGING_TEMPORAL_NAMESPACE]"
-    side: chart-only
-    profiles: [postgres]
-    reason: "KNOWN GAP (#828 follow-up): the package's Hub is given no Temporal frontend, so it cannot start packaging workflows; the packaging-worker component only executes workflows another client starts."
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "The package always renders the shared namespace variable. It is inert while the address is empty; the chart omits it when packagingWorkflow.enabled=false."
   - object: Deployment/platform-delivery
     path: "spec.template.spec.containers[delivery-control-plane].env[PACKAGING_TEMPORAL_TASK_QUEUE]"
-    side: chart-only
-    profiles: [postgres]
-    reason: "KNOWN GAP (#828 follow-up): the package's Hub is given no Temporal frontend, so it cannot start packaging workflows; the packaging-worker component only executes workflows another client starts."
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "The package always renders the shared task queue variable. It is inert while the address is empty; the chart omits it when packagingWorkflow.enabled=false."
   - object: Deployment/platform-delivery
     path: "spec.template.spec.containers[delivery-control-plane].env[POSTGRES_DSN_FILE]"
     side: zarf-only
@@ -395,16 +401,6 @@ allow:
     side: differs
     profiles: [postgres]
     reason: "Follows the worker's own name label; see metadata.labels."
-  - object: Deployment/platform-packaging-worker
-    path: "spec.template.spec.containers[packaging-worker].env[PACKAGING_TEMPORAL_NAMESPACE]"
-    side: chart-only
-    profiles: [postgres]
-    reason: "The package exposes only the Temporal address as a variable; the worker's built-in namespace default equals the chart default."
-  - object: Deployment/platform-packaging-worker
-    path: "spec.template.spec.containers[packaging-worker].env[PACKAGING_TEMPORAL_TASK_QUEUE]"
-    side: chart-only
-    profiles: [postgres]
-    reason: "The package exposes only the Temporal address as a variable; the worker's built-in task queue default equals the chart default."
   - object: Deployment/platform-packaging-worker
     path: "spec.template.spec.volumes[database].secret.optional"
     side: chart-only

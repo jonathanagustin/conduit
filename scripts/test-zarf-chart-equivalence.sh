@@ -108,6 +108,22 @@ rejects 'packaging-worker guard must say why it refused' "$definition" 's/echo "
 rejects 'packaging-worker must carry a deploy-time profile guard' "$definition" '/Refuse the packaging worker beside a file-backed Hub/,+1d'
 rejects 'profile file selects the packaging worker beside a file-backed Hub' "$contract" '0,/^    repositoryKind: file$/s//    repositoryKind: file\n    packagingWorker: true/'
 
+# Packaging's Hub client and worker use one explicitly enabled configuration.
+rejects 'packaging Temporal must default to disabled with its established namespace and queue' \
+  "$definition" '/^  - name: PACKAGING_TEMPORAL_ADDRESS$/,/^  - name: PACKAGING_TEMPORAL_NAMESPACE$/s/default: ""/default: "127.0.0.1:7233"/'
+rejects 'file: Hub must forward the shared PACKAGING_TEMPORAL_ADDRESS' "$runtime" '/name: PACKAGING_TEMPORAL_ADDRESS,/d'
+rejects 'postgres: Hub and worker must share PACKAGING_TEMPORAL_TASK_QUEUE' \
+  deploy/zarf/manifests/packaging-worker.yaml 's/ZARF_VAR_PACKAGING_TEMPORAL_TASK_QUEUE/ZARF_VAR_PACKAGING_TEMPORAL_NAMESPACE/'
+rejects 'runtime packaging guard must refuse only a configured file-backed Hub' "$definition" 's/file:) ;;/file:*) ;;/'
+rejects 'packaging-worker address guard must refuse an empty frontend' \
+  "$definition" 's/test -n "${ZARF_VAR_PACKAGING_TEMPORAL_ADDRESS}"/test -z "${ZARF_VAR_PACKAGING_TEMPORAL_ADDRESS}"/'
+rejects 'PACKAGING_TEMPORAL_ADDRESS accepts a credential, URI or unsafe manifest value' \
+  "$definition" '/^  - name: PACKAGING_TEMPORAL_ADDRESS$/,/^  - name: PACKAGING_TEMPORAL_NAMESPACE$/s/pattern: .*/pattern: "^.*$"/'
+rejects 'PACKAGING_TEMPORAL_ADDRESS must preserve bracketed IPv6 endpoints and interface zones' \
+  "$definition" 's/%\[A-Za-z0-9_.-\]/%[0-9]/'
+rejects 'PACKAGING_TEMPORAL_ADDRESS must refuse ports outside 1 through 65535' \
+  "$definition" 's/6553\[0-5\]/6553[0-9]/'
+
 # The reviewed list itself.
 rejects 'Service/platform-delivery spec.type chart-only is not an allowed difference' "$contract" '/^  - object: Service\/platform-delivery$/{N;/spec.type/{N;N;N;d}}'
 rejects 'allowed difference no longer occurs and must be removed: Service/platform-delivery spec.clusterIP chart-only' \

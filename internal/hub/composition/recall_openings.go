@@ -27,7 +27,7 @@ import (
 // interface value; the emitter, the fan-out and the event vocabulary stay on
 // this side of it.
 func NewRecallOpenings(
-	store notificationports.Store, logger *slog.Logger,
+	store notificationports.Store, eligibility notificationports.RecipientEligibility, logger *slog.Logger,
 ) (catalogports.RecallOpenings, error) {
 	if store == nil {
 		return nil, nil
@@ -35,7 +35,7 @@ func NewRecallOpenings(
 	if logger == nil {
 		return nil, errors.New("a logger is required: the surface that announces a recall drops the error")
 	}
-	emitter, err := notifications.NewEmitter(store)
+	emitter, err := notifications.NewEmitter(store, eligibility)
 	if err != nil {
 		return nil, err
 	}

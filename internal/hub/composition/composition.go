@@ -64,7 +64,11 @@ func NewHub(
 		options.BundlePrivateKey = key
 	}
 	options = withSpaceLookup(repository, options, hubOptions.Spaces)
-	options, err := withAnnouncements(options, hubOptions.NotificationStore, slog.Default())
+	eligibility, err := NewNotificationRecipientEligibility(repository, options)
+	if err != nil {
+		return nil, err
+	}
+	options, err = withAnnouncements(options, hubOptions.NotificationStore, eligibility, slog.Default())
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +118,7 @@ func NewHub(
 	}
 	workspaces := assembleDevWorkspace(repository, options, os.Getenv)
 	handler = mountDevWorkspace(handler, repository, options, workspaces)
-	workspaceACP := assembleWorkspaceACP(repository, workspaces, hubOptions, os.Getenv)
+	workspaceACP := assembleWorkspaceACP(repository, workspaces, hubOptions, os.Getenv, options)
 	if hubOptions.AppGenerator == nil {
 		generator, err := appGenerator(os.Getenv)
 		if err != nil {

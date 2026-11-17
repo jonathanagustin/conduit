@@ -202,7 +202,7 @@ func planningHandlerWithOptions(
 ) http.Handler {
 	var stores sync.Map
 	var seq atomic.Uint64
-	governanceService := controlplane.NewGovernanceService(repository)
+	governanceService := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	type ownerServices struct {
 		sessions planninghttp.Sessions
@@ -221,7 +221,7 @@ func planningHandlerWithOptions(
 			httpSessions planninghttp.Sessions
 			runSessions  agentstream.Sessions
 		)
-		ownerCompute := sessionCompute(appgenCompute, appgenService, repository, principal, getenv)
+		ownerCompute := sessionCompute(appgenCompute, appgenService, repository, principal, getenv, options)
 		if temporalClient != nil {
 			wfService := planningworkflow.NewClientService(temporalClient, planningTaskQueue(getenv), actor, &seq).
 				WithCompute(ownerCompute)
@@ -273,12 +273,13 @@ func planningHandlerWithOptions(
 func sessionCompute(
 	appgenCompute planningapp.AppgenComputer, appgenService *appgenapp.Service,
 	repository controlplane.Repository, principal controlplane.Principal, getenv func(string) string,
+	handlerOptions ...controlplane.HandlerOptions,
 ) planningapp.AppgenComputer {
 	hook := appgenCompute
 	if hook == nil && appgenService != nil {
-		hook = appgenPlanningComputer(*appgenService, repository, principal, getenv)
+		hook = appgenPlanningComputer(*appgenService, repository, principal, getenv, handlerOptions...)
 	}
-	packaging := packagingPlanningComputer(repository, principal, getenv)
+	packaging := packagingPlanningComputer(repository, principal, getenv, handlerOptions...)
 	computer := func(ctx context.Context, session *planningdomain.Session) error {
 		if session == nil || session.Binding == nil {
 			return planningdomain.ErrComputeBeforeAccept

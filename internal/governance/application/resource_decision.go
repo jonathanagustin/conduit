@@ -74,17 +74,27 @@ type ResourceDecision struct {
 // became an administrator on the notification routes by naming an
 // administrator, and read a resource the REST routes refused it.
 func (decision ResourceDecision) Administrator(ctx context.Context, principal domain.Principal) bool {
-	for _, administrator := range decision.Policy.BootstrapAdministrators {
-		if strings.TrimSpace(administrator) == principal.Username {
-			return true
-		}
-	}
-	if decision.Policy.AllowLocalDeveloperFallback && len(decision.Policy.BootstrapAdministrators) == 0 &&
-		principal.Username == localDeveloper {
+	if decision.Policy.BootstrapAdministrator(principal.Username) {
 		return true
 	}
 	return decision.Authorizer.Allows(
 		ctx, domain.EffectivePrincipal(principal), platformRoot, domain.OperationManagePermissions)
+}
+
+// BootstrapAdministrator answers the deployment's standing username policy.
+// It applies to user identities only; a team whose name matches one of these
+// strings does not acquire that user's bootstrap authority.
+func (policy AdministratorPolicy) BootstrapAdministrator(username string) bool {
+	for _, administrator := range policy.BootstrapAdministrators {
+		if strings.TrimSpace(administrator) == username {
+			return true
+		}
+	}
+	if policy.AllowLocalDeveloperFallback && len(policy.BootstrapAdministrators) == 0 &&
+		username == localDeveloper {
+		return true
+	}
+	return false
 }
 
 // Allow checks permission and attempts to persist the original carrier's decision.

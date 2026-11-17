@@ -18,7 +18,7 @@ import (
 // entry gets into the queue: the fan-out writes it, not a test fixture.
 func recordEmailEvent(t *testing.T, ctx context.Context, store *Store, id string, channel domain.Channel) {
 	t.Helper()
-	emitter, err := application.NewEmitter(store)
+	emitter, err := application.NewEmitter(store, allowRecipients{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +192,7 @@ func TestConcurrentLeasesTakeDifferentDeliveries(t *testing.T) {
 	ctx := t.Context()
 	store := newStore(t, ctx)
 	resetStore(t, ctx, store)
-	emitter, err := application.NewEmitter(store)
+	emitter, err := application.NewEmitter(store, allowRecipients{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -345,7 +345,7 @@ func TestTheDispatcherDeliversARecordedEventThroughARealTransport(t *testing.T) 
 	// ordered, so a test that ran before the fixture's own timestamp would drain
 	// an empty queue and pass for the wrong reason.
 	dispatcher, err := application.NewDispatcher(store, transport, fixedClock{now: at().Add(time.Hour)},
-		application.DispatcherConfig{
+		application.DispatcherConfig{Eligibility: allowRecipients{},
 			LeaseDuration: 30 * time.Second, MaximumAttempts: 3,
 			BaseRetryDelay: time.Second, PollInterval: time.Second,
 		})
