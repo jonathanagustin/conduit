@@ -79,7 +79,8 @@ type HandlerOptions struct {
 	Announcements Announcements
 	// AfterPlanApproved sequences an approved Plan. Nil leaves the existing
 	// lifecycle path unchanged and does not approve, lease, or report state.
-	AfterPlanApproved func(context.Context, string) error
+	AfterPlanApproved   func(context.Context, string) error
+	AfterChangeApproved AfterChangeApproved
 }
 
 // bundleCatalogItem is the bundle index row. The envelope itself stays on
@@ -98,6 +99,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 	lifecycle := NewLifecycle(repository)
 	governance := NewGovernanceService(repository)
 	governance.SetAnnouncements(configuration.Announcements)
+	governance.SetAfterChangeApproved(configuration.AfterChangeApproved)
 	modules := NewModuleService(repository)
 	profiles := NewEnvironmentProfileService(repository)
 	retirements := NewCatalogRetirementService(repository)
@@ -1777,6 +1779,10 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		}
 		stored, plan, err := governance.Approve(request.Context(), request.PathValue("changeRequestID"), principal, body.Rationale)
 		if err != nil {
+			if stored.TargetKind == AssistantActionTarget && stored.Status == ChangeApproved && stored.Execution != nil {
+				writeJSON(w, http.StatusBadGateway, map[string]any{"error": "review recorded; packaging command was not acknowledged", "changeRequest": stored})
+				return
+			}
 			writeLifecycleError(w, err)
 			return
 		}

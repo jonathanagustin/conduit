@@ -87,13 +87,14 @@ func withAnnouncements(
 	return options, nil
 }
 
-// newGovernanceService keeps the same announcement ports on every Hub surface,
+// newGovernanceService keeps announcement and approved-action ports on every Hub surface,
 // including services called outside the legacy facade. A caller-supplied port
 // is preserved, and absent ports remain nil when no store is configured.
 func newGovernanceService(repository controlplane.Repository, options ...controlplane.HandlerOptions) *controlplane.GovernanceService {
 	service := controlplane.NewGovernanceService(repository)
 	if len(options) > 0 {
 		service.SetAnnouncements(options[0].Announcements)
+		service.SetAfterChangeApproved(options[0].AfterChangeApproved)
 	}
 	return service
 }

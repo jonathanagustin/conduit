@@ -489,6 +489,13 @@
       "why": "Issue #833 requires architecture admission before approval. No Environment runtime capability or discovered architecture currently exists. An explicit operator declaration is narrower than guessing from Hub hardware, labels, or Spoke enrollment; the Spoke independently checks its actual configured target.",
       "displacedBy": "a published or owner-approved Environment capability contract establishing package target architecture and its admission semantics.",
       "riskIfWrong": "This is a Conduit-native operator declaration, not cluster discovery or proof that all nodes share an architecture. A misdeclared target is still refused by the Spoke before execution. Clusters with mixed architectures and OCI index-to-platform resolution remain unsupported; the omission preserves existing Helm desired-state documents."
+    },
+    {
+      "id": "assistant.BoundPackagingActions",
+      "what": "Conduit-native assistant packaging cancel/rerun proposals bind the source digest, proposal revision, target installation/Product/Environment and tool/template versions under conduit.assistant-action/v1. Independent approval dispatches a shared audited packaging command and exposes command acknowledgement separately from observed run termination. Same-decision recovery uses a durable execution claim and deterministic successor workflow identity. Eval feedback and Change Request review have explicit native action rules.",
+      "why": "The generic assistant PLAN intent records had no executor and could not safely authorize a later worker mutation. Existing Conduit packaging controls establish the implementation and audit boundary; no Apollo assistant execution contract is present. Unsupported actions are removed from the assistant schema rather than advertised as inert writes.",
+      "displacedBy": "a published or authorized sanitized assistant action execution contract covering run binding, approval, command receipts and recovery.",
+      "riskIfWrong": "Moderate within Conduit: clients must adapt to the smaller action allowlist and unsupported writes now return TOOL_INVALID. Unattended dispatch requires current server-owned membership and refuses delegated or group-only author authority. Repeated cancellation requests are idempotent worker requests, not a claim of exactly-once external effects or completed termination."
     }
   ],
   "displaced": [

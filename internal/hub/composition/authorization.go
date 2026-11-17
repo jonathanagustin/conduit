@@ -521,7 +521,7 @@ func HubRouteAuthorization() []RouteAuthorization {
 		{Pattern: "POST /v1/packaging-runs/{runID}/model-proposal",
 			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; asks the configured local model CLI for one proposal, then the packaging gate, and does not approve"},
 		{Pattern: "POST /v1/assistant/tools",
-			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; runs one ontology read, governed-action proposal, or change-request diff and does not apply the action"},
+			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; runs one bounded tool, validates and audits it, and requires explicit confirmation for writes; an eligible human approval dispatches only the exact bound supported action"},
 		{Pattern: "POST /v1/assistant/turns",
 			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; asks the configured model for tool calls over a bounded number of rounds, validates and audits each one, and applies nothing a person has not confirmed; a threadId is read and appended only under the caller's own principal"},
 		{Pattern: "GET /v1/assistant/threads",

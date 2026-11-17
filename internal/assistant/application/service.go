@@ -151,6 +151,7 @@ type Result struct {
 	Applied              bool              `json:"applied,omitempty"`
 	ObjectID             string            `json:"objectId,omitempty"`
 	State                string            `json:"state,omitempty"`
+	Execution            *ExecutionReceipt `json:"execution,omitempty"`
 	Elicitation          *domain.WriteArgs `json:"elicitation,omitempty"`
 	Fields               []domain.Field    `json:"fields,omitempty"`
 }
@@ -202,6 +203,7 @@ type Service struct {
 	Cases    EvalCases
 	Authors  ChangeAuthor
 	Reviews  Reviews
+	Receipts ExecutionReceipts
 	// Threads stores conversations. Nil refuses a turn that names a thread.
 	Threads Threads
 	Now     func() time.Time
@@ -290,9 +292,8 @@ const (
 	ReasonNotExecutable = "action is not executable in this deployment: no service is wired to run it"
 	ReasonNoActionRule  = "no action rule governs this action, so it is refused"
 	ReasonNoGovernor    = "action rules are not configured"
-	// ReasonIntentOnly is what an opened change request means today. Nothing
-	// reads the action id back out of an approved request.
-	ReasonIntentOnly = "opened for a separate approver; the change request records the proposal and its approval, and approving it does not run the action"
+	// ReasonIntentOnly acknowledges a proposal without claiming execution.
+	ReasonIntentOnly = "opened for a separate approver; approval dispatches the exact reviewed packaging command"
 )
 
 func (service Service) write(ctx context.Context, actor Actor, args domain.WriteArgs, result Result, held bool) Result {
@@ -311,7 +312,7 @@ func (service Service) write(ctx context.Context, actor Actor, args domain.Write
 		return refuse(ReasonNotExecutable)
 	}
 	rule := ruleID(args.Action)
-	if rule == "" && !ruleExempt(args.Action) {
+	if rule == "" {
 		return refuse(ReasonNoActionRule)
 	}
 	if rule != "" && service.Governor == nil {
@@ -337,7 +338,7 @@ func (service Service) write(ctx context.Context, actor Actor, args domain.Write
 		}
 	}
 	if rule != "" {
-		decision, err := service.Governor.Evaluate(ctx, actor.Username, rule, domain.Resource("PackagingRun", firstNonEmpty(args.TargetID, args.Value)), actor.Roles())
+		decision, err := service.Governor.Evaluate(ctx, actor.Username, rule, writeResource(args), actor.Roles())
 		if err != nil {
 			result.OK = false
 			result.Reason = err.Error()
@@ -383,6 +384,14 @@ func (service Service) write(ctx context.Context, actor Actor, args domain.Write
 		result.State = status
 		result.Reason = "review recorded"
 		result.WriteOps = 1
+		if service.Receipts != nil {
+			receipt, err := service.Receipts.ReadExecution(ctx, args.TargetID)
+			if err != nil {
+				result.Reason = "review recorded; execution receipt is unavailable"
+			} else {
+				result.Execution = receipt
+			}
+		}
 		return result
 	case effectChangeRequest:
 		if service.Changes == nil {
@@ -408,6 +417,10 @@ func (service Service) write(ctx context.Context, actor Actor, args domain.Write
 		result.State = opened.Status
 		result.Reason = ReasonIntentOnly
 		result.WriteOps = 1
+		if opened.Status != "PENDING_APPROVALS" {
+			result.Allowed = false
+			result.Reason = "change request is " + opened.Status
+		}
 		return result
 	case effectEvalCase:
 		if service.Cases == nil {
@@ -443,47 +456,47 @@ const (
 	effectEvalCase
 )
 
-// effectOf names what runs for an action. start_packaging_run and
-// rerun_packaging_run are low risk, so they would apply directly, and this
-// service has no port that starts a packaging run.
+// effectOf names the real service behind every advertised write.
 func effectOf(action string) effect {
 	switch action {
 	case "approve_change", "reject_change":
 		return effectReview
 	case "add_eval_case":
 		return effectEvalCase
-	case "start_packaging_run", "rerun_packaging_run":
-		return effectNone
-	}
-	if domain.Risk(action) == "high" {
+	case "cancel_packaging_run", "rerun_packaging_run":
 		return effectChangeRequest
 	}
 	return effectNone
 }
 
-// ruleID maps a write to its ontology action rule. recall, propose_memory, and
-// select_course have no rule in the catalog and are refused.
+// ruleID maps every supported write to its server action rule.
 func ruleID(action string) string {
 	switch action {
 	case "approve_change":
-		return "approve_plan"
+		return "approve_change_request"
 	case "reject_change":
-		return "reject_plan"
-	case "promote":
-		return "promote_release_manual"
-	case "start_packaging_run", "rerun_packaging_run":
+		return "reject_change_request"
+	case "rerun_packaging_run":
 		return "rerun_packaging_run"
 	case "cancel_packaging_run":
 		return "cancel_packaging_run"
+	case "add_eval_case":
+		return "add_eval_case"
 	default:
 		return ""
 	}
 }
 
-// ruleExempt is the one write with no action rule that still runs: an eval case
-// is the operator's own feedback record, kept after an explicit Confirm.
-func ruleExempt(action string) bool {
-	return action == "add_eval_case"
+// writeResource preserves the kind the rule and audit are deciding about.
+func writeResource(args domain.WriteArgs) string {
+	switch args.Action {
+	case "approve_change", "reject_change":
+		return "change-request/" + args.TargetID
+	case "add_eval_case":
+		return "intelligence/evals"
+	default:
+		return domain.Resource("PackagingRun", args.TargetID)
+	}
 }
 
 func firstNonEmpty(values ...string) string {
@@ -607,4 +620,16 @@ func (service Service) now() time.Time {
 		return service.Now()
 	}
 	return time.Now()
+}
+
+// ExecutionReceipt separates command acknowledgement from observed termination.
+type ExecutionReceipt struct {
+	State         string `json:"state"`
+	Outcome       string `json:"outcome,omitempty"`
+	RunID         string `json:"runId,omitempty"`
+	ObservedPhase string `json:"observedPhase,omitempty"`
+	Error         string `json:"error,omitempty"`
+}
+type ExecutionReceipts interface {
+	ReadExecution(context.Context, string) (*ExecutionReceipt, error)
 }
