@@ -42,6 +42,8 @@ Limits that are the Hub API's, not omissions in the table:
 - The Space selector in the top bar sends `spaceId` to `GET /v1/environments`, the only index route that reads it, and narrows installations, plans and change requests to the environments that came back. Products, promotions, channels, packaging, bundles and audit are not Space-scoped.
 - Approval policies, teams and resource grants are read-only in the console. Creating a Space, publishing a Product Release, and the suppressions, labels, export pipelines, commands, modules and artifact scans surfaces are CLI-only.
 
+`src/console/operator/planning-flow.js` keeps the planning session id in the URL as `#s01-intake/<sessionId>` and reads the session and its events again on load. Stop aborts the stream in the browser. The Hub has no route that cancels a planning run or lists planning sessions, so Stop does not cancel the run on the Hub and there is no session list; the page says both. It lists the caller's app generations from `GET /v1/app-generations`.
+
 `scripts/simulate-console.sh release-write-journey.spec.ts` runs the propose, approve, blocked-promotion and Space checks in `src/test/live/` against a real Hub.
 
 

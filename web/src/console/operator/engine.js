@@ -50,7 +50,7 @@ import {
 import { runsMarkup } from "./packaging-runs.js";
 import {
   bindPlanning,
-  emptyPlanning,
+  syncPlanningScreen,
   planningMarkup,
 } from "./planning-flow.js";
 import { createConduitClient } from "@conduit/ontology-client";
@@ -72,6 +72,7 @@ import {
   mountPlanProposal,
   mountPromotion,
 } from "./delivery-journey.js";
+import { parseScreenHash, screenHash } from "./planning-session-link.js";
 import {
   classifyRenderers,
   screenBadge,
@@ -1294,7 +1295,7 @@ export function mountOperator(host, options) {
     } else {
       state.screen = scrId;
     }
-    const nextHash = "#" + (mapped ? state.screen : scrId);
+    const nextHash = screenHash(mapped ? state.screen : scrId, state);
     if (location.hash !== nextHash) history.replaceState(null, "", nextHash);
     if (!state.openTabs.includes(scrId)) {
       state.openTabs.splice(1, 0, scrId);
@@ -2991,7 +2992,7 @@ export function mountOperator(host, options) {
   // SCREEN 1: CHAT-FIRST INTAKE (Matched 1:1 to Conduit f_05_08_comms_det.png!)
   // =========================================================================
   function renderS01Intake(root) {
-    if (!state.planning) state.planning = emptyPlanning();
+    syncPlanningScreen(state, renderApp);
     root.innerHTML = planningMarkup(state.planning);
     if (root.dataset.planningBound !== "1") {
       root.dataset.planningBound = "1";
@@ -5186,7 +5187,8 @@ export function mountOperator(host, options) {
   };
   window.addEventListener("keydown", onKey);
   const onHash = () => {
-    const id = (location.hash || "").replace(/^#/, "");
+    // `#screen/param`: the param (a planning session id) is the screen's own.
+    const { screen: id, param } = parseScreenHash(location.hash);
     const mapped = areaFor(id);
     if (!mapped && !AREAS[id] && !SCREENS.some((s) => s.id === id)) return;
     closeEngineerWorkspace();
@@ -5196,13 +5198,13 @@ export function mountOperator(host, options) {
     } else if (AREAS[id]) {
       state.screen = id;
       state.areaTab = AREAS[id].tabs[0].id;
-    } else if (state.screen !== id) {
+    } else if (state.screen !== id || param) {
       state.screen = id;
     } else return;
     renderApp();
   };
   window.addEventListener("hashchange", onHash);
-  const initialHash = (location.hash || "").replace(/^#/, "");
+  const initialHash = parseScreenHash(location.hash).screen;
   if (SCREENS.some((s) => s.id === initialHash)) state.screen = initialHash;
   window.switchScreen = switchScreen;
   window.closeTab = closeTab;

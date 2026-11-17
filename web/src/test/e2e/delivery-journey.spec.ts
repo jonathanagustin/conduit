@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
-// The delivery journey's writes, against stubbed Hub routes. These establish what the console sends and paints GIVEN an
+// The delivery journey's writes and the planning deep link, against stubbed
+// Hub routes. These establish what the console sends and paints GIVEN an
 // answer; src/test/live/release-write-journey.spec.ts walks the same journey
 // against a real Hub.
 
@@ -431,4 +432,139 @@ test("a blocked promotion is painted as blocked, with the Hub's reasons", async 
     policy,
     evidence: [],
   });
+});
+
+const planningSession = {
+  id: "ps_linked",
+  status: "ready",
+  profile: { name: "onboard", version: "v1", hash: "h" },
+  intake: { repoUrl: "https://example.test/org/app", ref: "main" },
+  needsInput: [],
+  answers: [],
+  messages: [],
+  events: [],
+  plan: null,
+  binding: null,
+};
+
+async function stubPlanning(page: Page, found: boolean) {
+  await page.route("**/v1/app-generations", (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            id: "gen_1",
+            name: "orders",
+            gates: [{ name: "build", outcome: "pass", reason: "" }],
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("**/v1/planning-sessions/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (!found)
+      return route.fulfill({
+        status: 404,
+        json: {
+          code: "SESSION_NOT_FOUND",
+          error: "planning session was not found",
+        },
+      });
+    if (path.endsWith("/events"))
+      return route.fulfill({
+        json: {
+          items: [
+            {
+              id: "e1",
+              type: "message",
+              timestamp: "2026-01-01T00:00:00Z",
+              message: { role: "model", text: "Inspected the repository." },
+            },
+          ],
+        },
+      });
+    return route.fulfill({ json: planningSession });
+  });
+}
+
+test("a planning deep link rehydrates the session, and Stop aborts the stream", async ({
+  page,
+}) => {
+  await hydrate(page);
+  await stubHub(page, {
+    operator: "alice",
+    plans: [],
+    changes: [],
+    promotions: [],
+    writes: [],
+    answer: () => null,
+  });
+  await stubPlanning(page, true);
+  // A run that never finishes, so Stop has a stream to abort.
+  let runs = 0;
+  await page.route("**/v1/agent-runs", () => {
+    runs += 1;
+  });
+  await page.goto("/console/#s01-intake/ps_linked");
+  const flow = page.locator("#main-workspace [data-plan-flow]");
+  await expect(flow.locator("[data-plan-composer]")).toContainText("ps_linked");
+  await expect(flow).toContainText("Inspected the repository.");
+  await expect(page.getByLabel("Repository URL")).toBeDisabled();
+  await expect(page).toHaveURL(/#s01-intake\/ps_linked$/);
+  // The caller's generations, and no pretence of a session list.
+  await expect(flow.locator('[data-plan-generation="gen_1"]')).toContainText(
+    "gates passed",
+  );
+  await expect(flow.locator("[data-plan-sessions-note]")).toContainText(
+    "no endpoint that lists them",
+  );
+
+  const aborted = page.waitForEvent("requestfailed", (request) =>
+    request.url().endsWith("/v1/agent-runs"),
+  );
+  await page.getByLabel("Message", { exact: true }).fill("Continue");
+  await page.locator("[data-plan-send]").click();
+  await expect(page.locator("[data-plan-stop]")).toBeVisible();
+  await page.locator("[data-plan-stop]").click();
+  await aborted;
+  await expect(page.locator("[data-plan-stopped]")).toContainText(
+    "not cancelled on the Hub",
+  );
+  await expect(page.locator("[data-plan-stop]")).toHaveCount(0);
+  await expect(page.locator("[data-plan-error]")).toHaveCount(0);
+  await expect(page.locator("[data-plan-send]")).toBeEnabled();
+  expect(runs).toBe(1);
+
+  // The link survives leaving the screen and coming back.
+  await page.evaluate(() =>
+    (Reflect.get(window, "switchScreen") as (id: string) => void)("area-fleet"),
+  );
+  await expect(page).not.toHaveURL(/ps_linked/);
+  await page.evaluate(() =>
+    (Reflect.get(window, "switchScreen") as (id: string) => void)("s01-intake"),
+  );
+  await expect(page).toHaveURL(/#s01-intake\/ps_linked$/);
+});
+
+test("a link to a session the Hub no longer has says so", async ({ page }) => {
+  await hydrate(page);
+  await stubHub(page, {
+    operator: "alice",
+    plans: [],
+    changes: [],
+    promotions: [],
+    writes: [],
+    answer: () => null,
+  });
+  await stubPlanning(page, false);
+  await page.goto("/console/#s01-intake/ps_gone");
+  const lost = page.locator('#main-workspace [data-plan-link="lost"]');
+  await expect(lost).toContainText(
+    "was not found on this Hub (it may have restarted)",
+  );
+  await expect(page.locator("[data-plan-send]")).toHaveCount(0);
+  await lost.locator("[data-plan-link-clear]").click();
+  await expect(page.locator("[data-plan-send]")).toBeVisible();
+  await expect(page).toHaveURL(/#s01-intake$/);
 });
