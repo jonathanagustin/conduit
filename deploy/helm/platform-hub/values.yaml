@@ -99,6 +99,27 @@ operatorOIDC:
   signingAlgorithms:
     - RS256
   caFile: /etc/ssl/platform-ca/ca.pem
+  # Browser sign-in (docs/operations/operator-sign-in.md). The Hub becomes the
+  # OAuth client: it redirects people to the issuer above and keeps a
+  # server-side session. Requires operatorOIDC.enabled.
+  signIn:
+    enabled: false
+    # The https origin people reach the console at, with no path. It becomes
+    # the redirect address (<publicURL>/v1/auth/callback) and the only origin a
+    # session cookie is accepted from. It is never inferred from a request.
+    publicURL: ""
+    # An existing Secret holding the client secret. Leave secretName empty for
+    # a public client, which relies on PKCE alone. The secret is mounted as a
+    # file; it is never a value in this chart.
+    clientSecret:
+      secretName: ""
+      key: client-secret
+    # Longest a session may last, a Go duration between 5m and 24h. Empty is
+    # the Hub's default of 8h. A session also ends when its ID token expires.
+    sessionMaxLifetime: ""
+    # Scopes requested besides openid. Empty is the Hub's default
+    # (profile email).
+    loginScopes: []
 
 # Optional provider-neutral scanner process. Platform supplies the Grype JSON
 # normalizer at /platform-grype-scanner; the Environment supplies the scanner

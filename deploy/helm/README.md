@@ -211,6 +211,13 @@ low-cost AWS fallback. Values contain only public trust configuration, never a
 browser cookie, bearer token, client secret, or password. See
 `docs/architecture/identity-and-governance.md`.
 
+`operatorOIDC.signIn` turns on the Hub's own browser sign-in. It requires
+`operatorOIDC.enabled` and `signIn.publicURL`, the `https` origin people reach
+the console at; the redirect address is `<publicURL>/v1/auth/callback`. A
+confidential client names an existing Secret in `signIn.clientSecret.secretName`,
+which is mounted as a required file; leave it empty for a public client. See
+`docs/operations/operator-sign-in.md`.
+
 ## Bounded Rubix profile
 
 Current public Rubix documentation sharpens the boundary: Rubix App Platform

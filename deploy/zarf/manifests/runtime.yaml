@@ -85,6 +85,14 @@ spec:
             - { name: OPERATOR_OIDC_USERNAME_CLAIM, value: "###ZARF_VAR_OPERATOR_OIDC_USERNAME_CLAIM###" }
             - { name: OPERATOR_OIDC_GROUPS_CLAIM, value: "###ZARF_VAR_OPERATOR_OIDC_GROUPS_CLAIM###" }
             - { name: OPERATOR_OIDC_CA_FILE, value: "###ZARF_VAR_OPERATOR_OIDC_CA_FILE###" }
+            # Browser sign-in. The Hub runs it only when an issuer is set; with
+            # none, the public address is inert and the other two must be
+            # empty. The client secret is never a variable: it is read from
+            # the optional Secret mounted below. See
+            # docs/operations/operator-sign-in.md.
+            - { name: CONSOLE_PUBLIC_URL, value: "###ZARF_VAR_CONSOLE_PUBLIC_URL###" }
+            - { name: OPERATOR_OIDC_CLIENT_SECRET_FILE, value: "###ZARF_VAR_OPERATOR_OIDC_CLIENT_SECRET_FILE###" }
+            - { name: OPERATOR_SESSION_MAX_LIFETIME, value: "###ZARF_VAR_OPERATOR_SESSION_MAX_LIFETIME###" }
             # `file` by default, which is the baseline this package ships and
             # ignores POSTGRES_DSN_FILE. `postgres` reads the DSN from the
             # optional Secret mounted below.
@@ -139,6 +147,7 @@ spec:
             - { name: hub-tls, mountPath: /run/platform-tls, readOnly: true }
             - { name: bundle-signing, mountPath: /run/platform-signing, readOnly: true }
             - { name: database, mountPath: /run/conduit-database, readOnly: true }
+            - { name: operator-sso, mountPath: /run/conduit-sso, readOnly: true }
             - { name: conduit-model, mountPath: /run/conduit-model, readOnly: true }
             - { name: conduit-model-ca, mountPath: /run/conduit-model-ca, readOnly: true }
       volumes:
@@ -182,6 +191,16 @@ spec:
           configMap:
             name: uds-trust-bundle
             optional: true
+        # Optional so a Hub with no sign-in, or a public client, starts without
+        # it. With OPERATOR_OIDC_CLIENT_SECRET_FILE set, a missing Secret is a
+        # startup failure that names the file, not a silent fallback to a
+        # public client.
+        - name: operator-sso
+          secret:
+            secretName: "###ZARF_VAR_OPERATOR_OIDC_CLIENT_SECRET###"
+            optional: true
+            items:
+              - { key: client-secret, path: client-secret }
 ---
 apiVersion: v1
 kind: Service

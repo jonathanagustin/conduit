@@ -206,6 +206,11 @@ allow:
     profiles: [file, postgres, postgres-single]
     reason: "The package ships the Hub's built-in console bootstrap; CONSOLE_BOOTSTRAP_FILE unset selects consoleui.DefaultBootstrap. The chart always renders a tenant bootstrap ConfigMap."
   - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[CONSOLE_PUBLIC_URL]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "Browser sign-in is a deploy variable in the package: the public address is inert and the other two default to empty while OPERATOR_OIDC_ISSUER is empty. The chart renders these only when operatorOIDC.signIn.enabled."
+  - object: Deployment/platform-delivery
     path: "spec.template.spec.containers[delivery-control-plane].env[DATA_DIRECTORY]"
     side: chart-only
     profiles: [file]
@@ -256,6 +261,11 @@ allow:
     profiles: [file, postgres, postgres-single]
     reason: "Operator OIDC is a deploy variable that defaults to empty; the Hub treats an all-empty OIDC environment as disabled. The chart renders these only when operatorOIDC.enabled."
   - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[OPERATOR_OIDC_CLIENT_SECRET_FILE]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "Browser sign-in is a deploy variable in the package: the public address is inert and the other two default to empty while OPERATOR_OIDC_ISSUER is empty. The chart renders these only when operatorOIDC.signIn.enabled."
+  - object: Deployment/platform-delivery
     path: "spec.template.spec.containers[delivery-control-plane].env[OPERATOR_OIDC_GROUPS_CLAIM]"
     side: zarf-only
     profiles: [file, postgres, postgres-single]
@@ -270,6 +280,11 @@ allow:
     side: zarf-only
     profiles: [file, postgres, postgres-single]
     reason: "Operator OIDC is a deploy variable that defaults to empty; the Hub treats an all-empty OIDC environment as disabled. The chart renders these only when operatorOIDC.enabled."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[OPERATOR_SESSION_MAX_LIFETIME]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "Browser sign-in is a deploy variable in the package: the public address is inert and the other two default to empty while OPERATOR_OIDC_ISSUER is empty. The chart renders these only when operatorOIDC.signIn.enabled."
   - object: Deployment/platform-delivery
     path: "spec.template.spec.containers[delivery-control-plane].env[PACKAGING_TEMPORAL_ADDRESS]"
     side: chart-only
@@ -330,6 +345,11 @@ allow:
     side: zarf-only
     profiles: [file, postgres, postgres-single]
     reason: "UDS Core writes the issuer CA to the uds-trust-bundle ConfigMap; the package mounts it, optionally, where OPERATOR_OIDC_CA_FILE can point. The chart mounts its Agent CA ConfigMap at that path instead."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].volumeMounts[operator-sso]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "UDS Core writes the conduit-hub client secret to the conduit-hub-sso Secret; the package mounts it, optionally, where OPERATOR_OIDC_CLIENT_SECRET_FILE can point. The chart mounts a client secret only when operatorOIDC.signIn.clientSecret.secretName names one."
   - object: Deployment/platform-delivery
     path: "spec.template.spec.containers[delivery-control-plane].volumeMounts[server-tls]"
     side: chart-only
@@ -400,6 +420,11 @@ allow:
     side: zarf-only
     profiles: [file, postgres, postgres-single]
     reason: "Optional uds-trust-bundle ConfigMap written by UDS Core, absent on a plain Zarf cluster. The chart has no UDS trust-bundle mount."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.volumes[operator-sso]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "UDS Core writes the conduit-hub client secret to the conduit-hub-sso Secret; the package mounts it, optionally, where OPERATOR_OIDC_CLIENT_SECRET_FILE can point. The chart mounts a client secret only when operatorOIDC.signIn.clientSecret.secretName names one."
   - object: Deployment/platform-delivery
     path: "spec.template.spec.volumes[server-tls]"
     side: chart-only

@@ -698,6 +698,55 @@ abort "rateLimit values did not become the Hub's RATE_LIMIT_* variables: #{limit
   assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set-json", refused])
 end
 assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set-string", "extraEnv.RATE_LIMIT_AGENT_RPS=100000"])
+# Browser sign-in. Off by default and absent from the render; on, the public
+# address is required, the client secret is a required Secret mounted as a file
+# and never a value, and it cannot be turned on without an issuer.
+oidc = ["--set", "operatorOIDC.enabled=true", "--set-string", "operatorOIDC.issuer=https://sso.example.test/realms/uds",
+        "--set-string", "operatorOIDC.clientID=conduit-hub"]
+sign_in_names = %w[CONSOLE_PUBLIC_URL OPERATOR_OIDC_CLIENT_SECRET_FILE OPERATOR_SESSION_MAX_LIFETIME OPERATOR_OIDC_LOGIN_SCOPES]
+hub_pod = lambda do |extra|
+  render!(helm, "platform-hub", charts.fetch(:hub), hub_values, extra)
+    .find { |item| item["kind"] == "Deployment" }.dig("spec", "template", "spec")
+end
+[[], oidc].each do |extra|
+  pod = hub_pod.call(extra)
+  abort "sign-in settings rendered while operatorOIDC.signIn is off" if
+    pod.dig("containers", 0, "env").any? { |item| sign_in_names.include?(item["name"]) } ||
+    pod.fetch("volumes").any? { |item| item["name"] == "operator-sso" }
+end
+confidential = hub_pod.call(oidc + [
+  "--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=https://conduit.example.test",
+  "--set", "operatorOIDC.signIn.clientSecret.secretName=conduit-hub-sso", "--set-string", "operatorOIDC.signIn.sessionMaxLifetime=4h",
+  "--set", "operatorOIDC.signIn.loginScopes={profile,groups}"
+])
+abort "confidential sign-in did not render exactly" unless
+  confidential.dig("containers", 0, "env").select { |item| sign_in_names.include?(item["name"]) } == [
+    {"name" => "CONSOLE_PUBLIC_URL", "value" => "https://conduit.example.test"},
+    {"name" => "OPERATOR_OIDC_CLIENT_SECRET_FILE", "value" => "/run/conduit-sso/client-secret"},
+    {"name" => "OPERATOR_SESSION_MAX_LIFETIME", "value" => "4h"},
+    {"name" => "OPERATOR_OIDC_LOGIN_SCOPES", "value" => "profile groups"}
+  ]
+abort "the OIDC client secret must be a required Secret mounted read-only, by key" unless
+  confidential.fetch("volumes").find { |item| item["name"] == "operator-sso" } ==
+    {"name" => "operator-sso", "secret" => {"secretName" => "conduit-hub-sso", "optional" => false, "items" => [{"key" => "client-secret", "path" => "client-secret"}]}} &&
+  confidential.dig("containers", 0, "volumeMounts").include?({"name" => "operator-sso", "mountPath" => "/run/conduit-sso", "readOnly" => true})
+public_client = hub_pod.call(oidc + ["--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=https://conduit.example.test"])
+abort "a public client must render the public address and no secret" unless
+  public_client.dig("containers", 0, "env").select { |item| sign_in_names.include?(item["name"]) } == [{"name" => "CONSOLE_PUBLIC_URL", "value" => "https://conduit.example.test"}] &&
+  public_client.fetch("volumes").none? { |item| item["name"] == "operator-sso" }
+[
+  ["--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=https://conduit.example.test"],
+  oidc + ["--set", "operatorOIDC.signIn.enabled=true"],
+  oidc + ["--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=http://conduit.example.test"],
+  oidc + ["--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=https://conduit.example.test/console"],
+  oidc + ["--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=https://conduit.example.test",
+          "--set-string", "operatorOIDC.signIn.clientSecret.value=literal"],
+].each { |extra| assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values] + extra) }
+# The template refuses the first two on its own, without the schema.
+[
+  ["--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=https://conduit.example.test"],
+  oidc + ["--set", "operatorOIDC.signIn.enabled=true"],
+].each { |extra| assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--skip-schema-validation"] + extra) }
 
 # Notification credentials reach the Hub only as Secret references. An env
 # entry carrying a literal value for a credential would put it in the release

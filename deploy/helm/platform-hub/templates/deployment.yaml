@@ -120,6 +120,20 @@ spec:
             - { name: {{ $name }}, value: {{ . | quote }} }
             {{- end }}
             {{- end }}
+            {{- if .Values.operatorOIDC.signIn.enabled }}
+            - { name: CONSOLE_PUBLIC_URL, value: {{ required "operatorOIDC.signIn.publicURL is required when operatorOIDC.signIn.enabled" .Values.operatorOIDC.signIn.publicURL | quote }} }
+            {{- with .Values.operatorOIDC.signIn.clientSecret.secretName }}
+            - { name: OPERATOR_OIDC_CLIENT_SECRET_FILE, value: /run/conduit-sso/{{ $.Values.operatorOIDC.signIn.clientSecret.key }} }
+            {{- end }}
+            {{- with .Values.operatorOIDC.signIn.sessionMaxLifetime }}
+            - { name: OPERATOR_SESSION_MAX_LIFETIME, value: {{ . | quote }} }
+            {{- end }}
+            {{- with .Values.operatorOIDC.signIn.loginScopes }}
+            - { name: OPERATOR_OIDC_LOGIN_SCOPES, value: {{ join " " . | quote }} }
+            {{- end }}
+            {{- end }}
+            {{- else if .Values.operatorOIDC.signIn.enabled }}
+            {{- fail "operatorOIDC.signIn.enabled requires operatorOIDC.enabled" }}
             {{- end }}
             {{- if .Values.artifactScanner.command }}
             - { name: EXTERNAL_ARTIFACT_SCANNER, value: {{ .Values.artifactScanner.command | quote }} }
@@ -269,6 +283,9 @@ spec:
             - { name: database, mountPath: /run/conduit-database, readOnly: true }
             {{- end }}
             - { name: server-tls, mountPath: /run/platform-tls, readOnly: true }
+            {{- if and .Values.operatorOIDC.enabled .Values.operatorOIDC.signIn.enabled .Values.operatorOIDC.signIn.clientSecret.secretName }}
+            - { name: operator-sso, mountPath: /run/conduit-sso, readOnly: true }
+            {{- end }}
             - { name: external-ca, mountPath: /etc/ssl/platform-ca, readOnly: true }
             - { name: bundle-signing, mountPath: /run/platform-signing, readOnly: true }
             - { name: console-bootstrap, mountPath: /etc/conduit/console, readOnly: true }
@@ -325,6 +342,17 @@ spec:
             items:
               - key: {{ .Values.repository.postgres.dsnKey }}
                 path: {{ .Values.repository.postgres.dsnKey }}
+        {{- end }}
+        {{- if and .Values.operatorOIDC.enabled .Values.operatorOIDC.signIn.enabled .Values.operatorOIDC.signIn.clientSecret.secretName }}
+        # Named explicitly, so not optional: a Hub told to sign in as a
+        # confidential client must not start as anything else.
+        - name: operator-sso
+          secret:
+            secretName: {{ .Values.operatorOIDC.signIn.clientSecret.secretName }}
+            optional: false
+            items:
+              - key: {{ .Values.operatorOIDC.signIn.clientSecret.key }}
+                path: {{ .Values.operatorOIDC.signIn.clientSecret.key }}
         {{- end }}
         - name: server-tls
           secret:

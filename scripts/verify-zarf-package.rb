@@ -95,6 +95,20 @@ abort "Zarf package names an insecure opt-in other than the model plaintext one:
   variable = definition.fetch("variables").find { |item| item["name"] == name }
   abort "#{name} must default to empty so a plain install does not require Keycloak" unless variable && variable["default"] == ""
 end
+# Browser sign-in. The two settings that would make a Hub with no issuer refuse
+# to start default to empty; the client secret reaches the Hub only as a file
+# from an optional Secret, never as a variable's value.
+%w[OPERATOR_OIDC_CLIENT_SECRET_FILE OPERATOR_SESSION_MAX_LIFETIME].each do |name|
+  abort "Hub must accept #{name} from a Zarf variable" unless manifest_text.include?("name: #{name}") && manifest_text.include?("###ZARF_VAR_#{name}###")
+  variable = definition.fetch("variables").find { |item| item["name"] == name }
+  abort "#{name} must default to empty so a plain install does not require Keycloak" unless variable && variable["default"] == ""
+  abort "#{name} must carry a pattern" if variable["pattern"].to_s.empty?
+end
+abort "Hub must be told the console's public address for sign-in" unless
+  manifest_text.include?('{ name: CONSOLE_PUBLIC_URL, value: "###ZARF_VAR_CONSOLE_PUBLIC_URL###" }')
+abort "the OIDC client secret must never be a variable's value" if
+  definition.fetch("variables").any? { |item| item["name"].match?(/CLIENT_SECRET(_VALUE)?\z/) && item["name"] != "OPERATOR_OIDC_CLIENT_SECRET" } ||
+  manifest_text.match?(/name:\s*OPERATOR_OIDC_CLIENT_SECRET\s*,/)
 abort "Zarf package must require the persistent Bundle signing key" unless manifest_text.include?("BUNDLE_SIGNING_KEY_FILE")
 abort "Zarf package must use static mTLS in the disconnected baseline" unless %w[
   AGENT_CLIENT_CA_FILE TLS_CERT_FILE TLS_KEY_FILE
@@ -230,6 +244,13 @@ abort "Hub DSN Secret must be mounted read-only where POSTGRES_DSN_FILE points" 
 abort "Hub Service must label itself for the UDS monitor" unless service&.dig("metadata", "labels", "app.kubernetes.io/name") == "platform-delivery"
 abort "Hub Service must name the metrics port" unless service&.dig("spec", "ports")&.any? { |port| port["name"] == "metrics" && port["port"] == 9090 }
 abort "Hub container must declare the metrics port" unless hub_container&.dig("ports")&.any? { |port| port["name"] == "metrics" && port["containerPort"] == 9090 }
+operator_sso = (hub.dig("spec", "template", "spec", "volumes") || []).find { |item| item["name"] == "operator-sso" }
+abort "Hub must mount the OIDC client secret as an optional Secret, by key" unless
+  operator_sso&.dig("secret", "secretName") == "###ZARF_VAR_OPERATOR_OIDC_CLIENT_SECRET###" && operator_sso.dig("secret", "optional") &&
+  operator_sso.dig("secret", "items") == [{ "key" => "client-secret", "path" => "client-secret" }]
+operator_sso_mount = (hub.dig("spec", "template", "spec", "containers", 0, "volumeMounts") || []).find { |item| item["name"] == "operator-sso" }
+abort "Hub must mount the OIDC client secret read-only where OPERATOR_OIDC_CLIENT_SECRET_FILE points" unless
+  operator_sso_mount == { "name" => "operator-sso", "mountPath" => "/run/conduit-sso", "readOnly" => true }
 oidc_ca = (hub.dig("spec", "template", "spec", "volumes") || []).find { |item| item["name"] == "oidc-ca" }
 abort "Hub must mount the issuer CA bundle as an optional ConfigMap" unless oidc_ca&.dig("configMap", "name") == "uds-trust-bundle" && oidc_ca.dig("configMap", "optional")
 
@@ -316,7 +337,13 @@ end
 sso = uds_package.dig("spec", "sso") || []
 client = sso.find { |item| item["clientId"] == "conduit-hub" }
 abort "UDS Package must register the Hub SSO client" unless client
-abort "UDS Package must set the console redirect URI" unless client["redirectUris"] == ["###ZARF_VAR_CONSOLE_PUBLIC_URL###/console/*"]
+# The Hub is the OAuth client (docs/operations/operator-sign-in.md). Its one
+# callback is registered exactly, with no wildcard, and the secret UDS Core
+# generates is written under the key the Hub's mount reads.
+abort "UDS Package must register exactly the Hub's sign-in callback" unless client["redirectUris"] == ["###ZARF_VAR_CONSOLE_PUBLIC_URL###/v1/auth/callback"]
+abort "UDS Package must register a confidential client with the standard flow" unless client["publicClient"] == false && client["standardFlowEnabled"] == true
+abort "UDS Package must write the client secret under the key the Hub mounts" unless
+  client.dig("secretConfig", "name") == "conduit-hub-sso" && client.dig("secretConfig", "template") == { "client-secret" => "clientField(secret)" }
 abort "UDS Package must not put authservice in front of the Agent mTLS port" if client["enableAuthserviceSelector"]
 groups_mapper = (client["protocolMappers"] || []).find { |item| item["protocolMapper"] == "oidc-group-membership-mapper" && item.dig("config", "claim.name") == "groups" }
 abort "UDS Package must map Keycloak groups into the token" unless groups_mapper

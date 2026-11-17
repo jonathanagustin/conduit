@@ -81,7 +81,7 @@ variables:
     default: ""
     pattern: "^$|^[1-9][0-9]{0,6}$"
   - name: CONSOLE_PUBLIC_URL
-    description: Browser origin of the Hub console. Used only by the optional uds component as the SSO redirect prefix.
+    description: Browser origin of the Hub console. The Hub builds its sign-in redirect address from it and accepts a session cookie only from it, so it must be the address people actually use. Inert while OPERATOR_OIDC_ISSUER is empty. The optional uds component registers the same address with Keycloak.
     default: https://conduit.uds.dev
     pattern: "^https://[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]{1,5})?$"
   - name: OPERATOR_OIDC_ISSUER
@@ -99,6 +99,18 @@ variables:
   - name: OPERATOR_OIDC_CA_FILE
     description: CA bundle used to verify the issuer. Leave empty when OPERATOR_OIDC_ISSUER is empty.
     default: ""
+  - name: OPERATOR_OIDC_CLIENT_SECRET
+    description: Existing Secret whose client-secret key is the OIDC client secret for browser sign-in. The optional uds component has UDS Core create it. Read only when OPERATOR_OIDC_CLIENT_SECRET_FILE is set.
+    default: conduit-hub-sso
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  - name: OPERATOR_OIDC_CLIENT_SECRET_FILE
+    description: Set to /run/conduit-sso/client-secret to sign in as the confidential client in OPERATOR_OIDC_CLIENT_SECRET. Leave empty for a public client, which relies on PKCE alone, or when OPERATOR_OIDC_ISSUER is empty.
+    default: ""
+    pattern: "^(/run/conduit-sso/client-secret)?$"
+  - name: OPERATOR_SESSION_MAX_LIFETIME
+    description: Longest a browser session may last, as a Go duration between 5m and 24h. A session also ends when its ID token expires. Leave empty for the default of 8h, and when OPERATOR_OIDC_ISSUER is empty.
+    default: ""
+    pattern: "^([0-9]{1,4}h)?([0-9]{1,4}m)?([0-9]{1,5}s)?$"
   - name: POSTGRES_NAMESPACE
     description: Namespace of the operator-supplied Postgres. Used only by the optional uds component.
     default: postgres
