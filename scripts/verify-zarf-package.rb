@@ -2,66 +2,82 @@
 # frozen_string_literal: true
 
 require "yaml"
+require "json"
+require "open3"
+require "tmpdir"
 require_relative "lib/safe_yaml"
+require_relative "lib/zarf_runtime_values"
 
 root = File.expand_path("..", __dir__)
-definition_path = File.join(root, "deploy/zarf/zarf.yaml")
-manifest_path = File.join(root, "deploy/zarf/manifests/runtime.yaml")
-uds_path = File.join(root, "deploy/zarf/manifests/uds-package.yaml")
-bundle_path = File.join(root, "deploy/zarf/uds-bundle.yaml")
-definition_text = File.read(definition_path)
-manifest_text = File.read(manifest_path)
-uds_text = File.read(uds_path)
-definition = YAML.safe_load(definition_text)
+zarf_directory = File.join(root, "deploy/zarf")
+manifest_path = File.join(zarf_directory, "manifests/runtime.yaml")
+uds_path = File.join(zarf_directory, "manifests/uds-package.yaml")
+bundle_path = File.join(zarf_directory, "uds-bundle.yaml")
+version = File.read(File.join(root, "VERSION")).strip
+bindings = {"HUB_IMAGE" => "###ZARF_PKG_TMPL_HUB_IMAGE###", "SPOKE_AGENT_IMAGE" => "###ZARF_PKG_TMPL_SPOKE_AGENT_IMAGE###"}
+definition = ConduitZarfRuntimeValues.definition(zarf_directory, bindings, "###ZARF_PKG_TMPL_PLATFORM_VERSION###")
+schema = JSON.parse(File.read(File.join(zarf_directory, "values.schema.json")))
+defaults = YAML.safe_load_file(File.join(zarf_directory, "values.yaml"))
+properties = schema.fetch("properties")
+abort "native deploy values must reject unknown keys" unless schema["additionalProperties"] == false
+abort "Environment and Agent IDs must remain required" unless schema.fetch("required").sort == %w[AGENT_ID ENVIRONMENT_ID]
+variables = properties.reject { |name, _| name == "rendered" }.map do |name, property|
+  string = (property["anyOf"] || []).find { |item| item["type"] == "string" } || property
+  pattern = string["pattern"]
+  pattern ||= "^(#{string.fetch('enum').map { |value| Regexp.escape(value) }.join('|')})$" if string["enum"]
+  item = {"name" => name, "pattern" => pattern}
+  item["default"] = defaults.fetch(name).to_s if defaults.key?(name)
+  item
+end
+# Distinct symbolic bindings preserve the structural security assertions below.
+# They are test sentinels, not legacy package variables. Native parity separately
+# compares real Zarf output; unsupported template expressions fail this helper.
+symbols = variables.to_h { |item| [item.fetch("name"), "###ZARF_VAR_#{item.fetch('name')}###"] }
+properties.fetch("rendered").fetch("properties").each_key { |name| symbols[name] = "###ZARF_VAR_#{name}###" }
+image_symbols = bindings.to_h { |name, _| [name, "###ZARF_CONST_#{name}###"] }
+render = ->(text, metrics = false) { ConduitZarfRuntimeValues.render(text, symbols.merge("UDS_METRICS" => metrics), image_symbols) }
+["zarf.tpl.yaml", "manifests/runtime.yaml", "manifests/packaging-worker.yaml", "manifests/uds-package.yaml"].each do |path|
+  abort "native runtime source retains a legacy placeholder: #{path}" if File.read(File.join(zarf_directory, path)).include?("###ZARF_")
+end
+manifest_text = render.call(File.read(manifest_path))
+uds_text = render.call(File.read(uds_path))
+metrics_text = render.call(File.read(uds_path), true)
 manifests = ConduitSafeYAML.stream(manifest_text)
 uds_package = YAML.safe_load(uds_text)
 bundle = YAML.safe_load(File.read(bundle_path))
-version = File.read(File.join(root, "VERSION")).strip
 
-abort "Zarf package API must be pinned" unless definition["apiVersion"] == "zarf.dev/v1alpha1"
+abort "Zarf package API must be pinned" unless definition["apiVersion"] == "zarf.dev/v1beta1"
 abort "Zarf package version must come from the release" unless definition.dig("metadata", "version") == "###ZARF_PKG_TMPL_PLATFORM_VERSION###"
-abort "Zarf package components drifted" unless definition.fetch("components").map { |item| [item["name"], item["required"], item["default"]] } == [["runtime", true, nil], ["packaging-worker", false, nil], ["uds-disabled", false, true], ["uds", false, false], ["uds-metrics", false, false], ["uds-observability", false, false]]
-worker = definition.fetch("components").find { |item| item["name"] == "packaging-worker" }
-abort "optional packaging worker must reuse the Hub image" unless worker&.dig("images") == ["###ZARF_PKG_TMPL_HUB_IMAGE###"]
-abort "optional packaging worker must not be required" if worker["required"]
-uds_component = definition.fetch("components").find { |item| item["name"] == "uds" }
-abort "UDS component must stay optional and unselected by a plain install" if uds_component["required"] || uds_component["default"]
+components = definition.fetch("components")
+abort "Zarf package components drifted" unless components.map { |item| [item["name"], item.fetch("optional", false)] } == [["runtime", false], ["packaging-worker", true], ["uds", true], ["uds-observability", true]]
+abort "native package must not retain deprecated variable/constant declarations" if definition.key?("variables") || definition.key?("constants")
+abort "native components must not retain deprecated selection fields" if components.any? { |item| (item.keys & %w[required default group healthChecks]).any? }
+worker = components.find { |item| item["name"] == "packaging-worker" }
+abort "optional packaging worker must reuse the Hub image" unless worker["images"] == [{"name" => bindings.fetch("HUB_IMAGE"), "source" => "registry"}]
+uds_component = components.find { |item| item["name"] == "uds" }
 abort "UDS component must not carry images" if uds_component["images"]
-abort "UDS component must apply only the Package CR" unless uds_component.dig("manifests", 0, "files") == ["manifests/uds-package.yaml"]
-uds_metrics_component = definition.fetch("components").find { |item| item["name"] == "uds-metrics" }
-abort "UDS metrics component must stay optional and unselected by a plain install" if uds_metrics_component["required"] || uds_metrics_component["default"]
-abort "UDS metrics component must not carry images" if uds_metrics_component["images"]
-abort "UDS metrics component must apply only the Package CR that carries the monitor" unless
-  uds_metrics_component["manifests"].map { |item| item["files"] } == [["manifests/uds-package-metrics.yaml"]]
-runtime_files = definition.dig("components", 0, "manifests", 0, "files")
+abort "UDS component must apply only the templated Package CR" unless uds_component.dig("manifests", 0, "files") == ["manifests/uds-package.yaml"] && uds_component.dig("manifests", 0, "enableTemplating") == true
+runtime_files = components.first.dig("manifests", 0, "files")
 abort "runtime component must not apply the UDS Package CR" if runtime_files.any? { |file| file.include?("uds-package") }
-
-images = definition.dig("components", 0, "images")
-abort "Zarf package must contain exactly Hub and Agent images" unless images&.length == 2
-abort "Hub image must be supplied by the registry descriptor" unless images.include?("###ZARF_PKG_TMPL_HUB_IMAGE###")
-abort "Agent image must be supplied by the registry descriptor" unless images.include?("###ZARF_PKG_TMPL_SPOKE_AGENT_IMAGE###")
-images.grep_v(/###ZARF_PKG_TMPL_/).each do |image|
-  abort "Zarf image is not pinned by digest: #{image}" unless image.match?(/:[^@]+@sha256:[a-f0-9]{64}\z/)
+images = components.first.fetch("images")
+abort "runtime must package exactly the sealed Hub and Agent registry images" unless images == bindings.values.map { |value| {"name" => value, "source" => "registry"} }
+guard = (components.first.dig("actions", "onCreate", "before") || []).find { |action| action["description"] == "Require immutable packaged runtime images" }
+abort "runtime creation must guard both immutable image bindings" unless guard && !guard["enableTemplating"] &&
+  %w[HUB_IMAGE SPOKE_AGENT_IMAGE].all? { |name| guard.fetch("cmd").include?(%([[ printf "%x" .#{name} ]])) && guard.fetch("cmd").include?("#{name} must be digest pinned") } &&
+  guard.fetch("cmd").scan("grep -Eq '^.+@sha256:[a-f0-9]{64}$'").length == 2
+{"conduit.dev/hub-image" => "HUB_IMAGE", "conduit.dev/spoke-agent-image" => "SPOKE_AGENT_IMAGE"}.each do |annotation, name|
+  abort "runtime image annotation differs from its packaged image" unless definition.dig("metadata", "annotations", annotation) == bindings.fetch(name)
 end
-
-# Every image a selected component can start is in that component's package
-# layer by digest, or is declared external (#828). The first half is checked
-# against every manifest a component applies; the second against the README
-# table an operator reads, and against the Go default it describes.
-packaged = {"###ZARF_CONST_HUB_IMAGE###" => "###ZARF_PKG_TMPL_HUB_IMAGE###", "###ZARF_CONST_SPOKE_AGENT_IMAGE###" => "###ZARF_PKG_TMPL_SPOKE_AGENT_IMAGE###"}
-definition.fetch("components").each do |component|
+packaged = image_symbols.to_h { |name, symbol| [symbol, bindings.fetch(name)] }
+components.each do |component|
   started = (component["manifests"] || []).flat_map { |item| item.fetch("files") }.flat_map do |file|
-    File.read(File.join(root, "deploy/zarf", file)).scan(/^\s*image:\s*(.+?)\s*$/).flatten.map { |image| image.delete(%q("')) }
+    text = File.read(File.join(zarf_directory, file))
+    text = render.call(text) unless component["name"] == "uds-observability"
+    text.scan(/^\s*image:\s*(.+?)\s*$/).flatten.map { |image| image.delete(%q("')) }
   end.uniq
   started.each do |image|
-    abort "#{component['name']} starts an image that is not a packaged digest constant: #{image}" unless packaged.key?(image)
-    abort "#{component['name']} starts #{image} without carrying it in its images" unless (component["images"] || []).include?(packaged.fetch(image))
+    abort "#{component['name']} starts an image without its sealed packaged binding: #{image}" unless packaged.key?(image) && (component["images"] || []).any? { |item| item["name"] == packaged.fetch(image) }
   end
-end
-packaged.each_key do |constant|
-  name = constant[/ZARF_CONST_([A-Z_]+)/, 1]
-  abort "#{name} must be a digest-constrained package constant" unless
-    definition.fetch("constants").any? { |item| item["name"] == name && item["pattern"] == "^.+@sha256:[a-f0-9]{64}$" }
 end
 readme = File.read(File.join(root, "deploy/zarf/README.md"), encoding: "UTF-8")
 external = readme[/^## Declared external dependencies\n(.*?)(?=^## )/m, 1]
@@ -92,7 +108,7 @@ abort "Zarf package names an insecure opt-in other than the model plaintext one:
   insecure_names == ["CONDUIT_MODEL_ALLOW_INSECURE_HTTP"]
 %w[OPERATOR_OIDC_ISSUER OPERATOR_OIDC_CLIENT_ID OPERATOR_OIDC_USERNAME_CLAIM OPERATOR_OIDC_GROUPS_CLAIM OPERATOR_OIDC_CA_FILE].each do |name|
   abort "Hub must accept #{name} from a Zarf variable" unless manifest_text.include?("name: #{name}") && manifest_text.include?("###ZARF_VAR_#{name}###")
-  variable = definition.fetch("variables").find { |item| item["name"] == name }
+  variable = variables.find { |item| item["name"] == name }
   abort "#{name} must default to empty so a plain install does not require Keycloak" unless variable && variable["default"] == ""
 end
 # Browser sign-in. The two settings that would make a Hub with no issuer refuse
@@ -100,14 +116,14 @@ end
 # from an optional Secret, never as a variable's value.
 %w[OPERATOR_OIDC_CLIENT_SECRET_FILE OPERATOR_SESSION_MAX_LIFETIME].each do |name|
   abort "Hub must accept #{name} from a Zarf variable" unless manifest_text.include?("name: #{name}") && manifest_text.include?("###ZARF_VAR_#{name}###")
-  variable = definition.fetch("variables").find { |item| item["name"] == name }
+  variable = variables.find { |item| item["name"] == name }
   abort "#{name} must default to empty so a plain install does not require Keycloak" unless variable && variable["default"] == ""
   abort "#{name} must carry a pattern" if variable["pattern"].to_s.empty?
 end
 abort "Hub must be told the console's public address for sign-in" unless
   manifest_text.include?('{ name: CONSOLE_PUBLIC_URL, value: "###ZARF_VAR_CONSOLE_PUBLIC_URL###" }')
 abort "the OIDC client secret must never be a variable's value" if
-  definition.fetch("variables").any? { |item| item["name"].match?(/CLIENT_SECRET(_VALUE)?\z/) && item["name"] != "OPERATOR_OIDC_CLIENT_SECRET" } ||
+  variables.any? { |item| item["name"].match?(/CLIENT_SECRET(_VALUE)?\z/) && item["name"] != "OPERATOR_OIDC_CLIENT_SECRET" } ||
   manifest_text.match?(/name:\s*OPERATOR_OIDC_CLIENT_SECRET\s*,/)
 abort "Zarf package must require the persistent Bundle signing key" unless manifest_text.include?("BUNDLE_SIGNING_KEY_FILE")
 abort "Zarf package must use static mTLS in the disconnected baseline" unless %w[
@@ -132,7 +148,7 @@ hub_env_text = manifest_text.scan(/^\s+- \{ name: ([A-Z_]+), value: (.*?) \}$/).
 abort "Hub must be told the derived replica count, not a literal" unless hub_env_text["HUB_REPLICA_COUNT"] == '"###ZARF_VAR_HUB_REPLICAS' + '###"'
 {"ADDRESS" => ["", "^$|^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?:[0-9]{1,5}$"], "NAMESPACE" => ["default", nil], "TASK_QUEUE" => ["planning-sessions", nil]}.each do |suffix, (default, pattern)|
   abort "Hub must accept CONDUIT_TEMPORAL_#{suffix} from PLANNING_TEMPORAL_#{suffix}" unless hub_env_text["CONDUIT_TEMPORAL_#{suffix}"] == %("###ZARF_VAR_PLANNING_TEMPORAL_#{suffix}) + '###"'
-  variable = definition.fetch("variables").find { |item| item["name"] == "PLANNING_TEMPORAL_#{suffix}" }
+  variable = variables.find { |item| item["name"] == "PLANNING_TEMPORAL_#{suffix}" }
   abort "PLANNING_TEMPORAL_#{suffix} must default to #{default.inspect}" unless variable && variable["default"] == default && (pattern.nil? || variable["pattern"] == pattern)
 end
 abort "Hub must treat the planning frontend as shared between replicas" unless hub_env_text["CONDUIT_TEMPORAL_SHARED"] == '"true"'
@@ -157,7 +173,7 @@ end
 abort "Zarf runtime namespace must opt into labeled image mutation" unless manifests.find { |item| item["kind"] == "Namespace" }&.dig("metadata", "labels", "zarf.dev/agent") == "mutate"
 pvc = manifests.find { |item| item["kind"] == "PersistentVolumeClaim" }
 abort "Zarf removal must retain durable Hub state" unless pvc&.dig("metadata", "annotations", "helm.sh/resource-policy") == "keep"
-health_checks = definition.dig("components", 0, "healthChecks") || []
+health_checks = (definition.dig("components", 0, "actions", "onDeploy", "onSuccess") || []).filter_map { |action| action.dig("wait", "cluster") }
 abort "Zarf package must health-check both runtime deployments" unless health_checks.map { |item| item["name"] }.sort == %w[platform-delivery platform-spoke-agent]
 service = manifests.find { |item| item["kind"] == "Service" && item.dig("metadata", "name") == "platform-delivery" }
 # Metrics in this package (#838). The Hub serves /metrics only when
@@ -167,7 +183,7 @@ service = manifests.find { |item| item["kind"] == "Service" && item.dig("metadat
 hub_env = hub_container.fetch("env").to_h { |item| [item["name"], item["value"]] }
 {"REPOSITORY_KIND" => ["file", "^(file|postgres)$"], "METRICS_ADDRESS" => ["", "^(:9090)?$"]}.each do |name, (default, pattern)|
   abort "Hub must accept #{name} from a Zarf variable" unless hub_env[name] == "###ZARF_VAR_#{name}###"
-  variable = definition.fetch("variables").find { |item| item["name"] == name }
+  variable = variables.find { |item| item["name"] == name }
   abort "#{name} must default to #{default.inspect} and be constrained to #{pattern}" unless
     variable && variable["default"] == default && variable["pattern"] == pattern
 end
@@ -178,21 +194,21 @@ end
   {"RPS" => "^$|^[0-9]{1,7}(\\.[0-9]{1,3})?$", "BURST" => "^$|^[1-9][0-9]{0,6}$"}.each do |kind, pattern|
     name = "RATE_LIMIT_#{limited}_#{kind}"
     abort "Hub must accept #{name} from a Zarf variable" unless hub_env[name] == "###ZARF_VAR_#{name}###"
-    variable = definition.fetch("variables").find { |item| item["name"] == name }
+    variable = variables.find { |item| item["name"] == name }
     abort "#{name} must default to empty and be constrained to #{pattern}" unless
       variable && variable["default"] == "" && variable["pattern"] == pattern
     abort "#{name} pattern admits a non-number" if %w[off none -1 1e9 unlimited].any? { |value| value.match?(Regexp.new(pattern)) }
   end
 end
 abort "no Zarf variable may disable the request limiter" if
-  definition.fetch("variables").any? { |item| item["name"].match?(/RATE_LIMIT.*(DISABLE|ENABLE|OFF)/) }
+  variables.any? { |item| item["name"].match?(/RATE_LIMIT.*(DISABLE|ENABLE|OFF)/) }
 # Alert rules and the dashboard (#839): an optional component, off by default,
 # whose manifest is generated from deploy/observability and holds exactly a
 # PrometheusRule and a dashboard ConfigMap. scripts/verify-observability-assets.rb
 # holds the manifest to its sources; this holds the component to the manifest.
 observability_component = definition.fetch("components").find { |item| item["name"] == "uds-observability" }
 abort "uds-observability must be an optional component that is off by default" unless
-  observability_component && observability_component["required"] == false && observability_component["default"] == false
+  observability_component && observability_component["optional"] == true
 abort "uds-observability must apply only the generated observability manifest" unless
   observability_component.fetch("manifests") == [{"name" => "observability", "namespace" => "platform-system", "files" => ["manifests/observability.yaml"]}]
 observability_documents = YAML.load_stream(File.read(File.join(root, "deploy/zarf/manifests/observability.yaml"))).compact
@@ -223,7 +239,7 @@ abort "the observability manifest must not carry a Zarf variable; it is generate
   "CONDUIT_MODEL_ALLOW_INSECURE_HTTP" => ["MODEL_ALLOW_INSECURE_HTTP", "false", "^(true|false)$"]
 }.each do |name, (variable_name, default, pattern)|
   abort "Hub must accept #{name} from the Zarf variable #{variable_name} and never a literal" unless hub_env[name] == "###ZARF_VAR_#{variable_name}###"
-  variable = definition.fetch("variables").find { |item| item["name"] == variable_name }
+  variable = variables.find { |item| item["name"] == variable_name }
   abort "#{variable_name} must default to #{default.inspect} and be constrained to #{pattern}" unless
     variable && variable["default"] == default && variable["pattern"] == pattern
 end
@@ -324,21 +340,21 @@ required_egress.each do |purpose, expected|
 end
 # A placeholder with no declared variable is deployed as its literal text: a
 # NetworkPolicy naming the namespace "###ZARF_VAR_...###" selects nothing.
-declared_variables = definition.fetch("variables").map { |item| item["name"] }
+declared_variables = variables.map { |item| item["name"] }
 undeclared = uds_text.scan(/###ZARF_VAR_([A-Z0-9_]+)###/).flatten.uniq - declared_variables
 abort "UDS Package uses undeclared Zarf variables: #{undeclared.join(', ')}" unless undeclared.empty?
 # The model egress is granted only when configured. A Zarf variable cannot
 # drop a list entry, so "not configured" is a default that names no namespace
 # and no workload: the rendered policy then selects nothing.
 %w[MODEL_SERVICE_NAMESPACE MODEL_SERVICE_NAME_LABEL].each do |name|
-  variable = definition.fetch("variables").find { |item| item["name"] == name }
+  variable = variables.find { |item| item["name"] == name }
   abort "#{name} must default to the sentinel that selects nothing, so no model egress is granted until an operator sets it" unless
     variable && variable["default"] == "conduit-model-unconfigured"
 end
 abort "only the Hub may be granted egress to the model endpoint" unless
   allows.count { |item| item.to_s.include?("ZARF_VAR_MODEL_SERVICE_") } == 1
 %w[OIDC_ISSUER_NAMESPACE OIDC_ISSUER_NAME_LABEL CHART_REGISTRY_NAMESPACE CHART_REGISTRY_LABEL_KEY CHART_REGISTRY_LABEL_VALUE TEMPORAL_NAMESPACE TEMPORAL_NAME_LABEL MODEL_SERVICE_NAMESPACE MODEL_SERVICE_NAME_LABEL].each do |name|
-  variable = definition.fetch("variables").find { |item| item["name"] == name }
+  variable = variables.find { |item| item["name"] == name }
   abort "#{name} must have a non-empty default and a pattern, so an unset variable cannot render an empty selector" unless
     variable && !variable["default"].to_s.empty? && !variable["pattern"].to_s.empty?
 end
@@ -361,7 +377,6 @@ abort "UDS Package must write the issuer CA bundle for operator OIDC" unless uds
 # monitor lives only in the variant an operator selects together with a
 # working metrics configuration.
 abort "default UDS Package must not register a monitor the file-backed Hub cannot serve" if uds_package["spec"].key?("monitor")
-metrics_text = File.read(File.join(root, "deploy/zarf/manifests/uds-package-metrics.yaml"))
 metrics_package = YAML.safe_load(metrics_text)
 monitor = metrics_package.dig("spec", "monitor") || []
 abort "UDS metrics Package must declare exactly the Hub ServiceMonitor" unless monitor == [{
@@ -412,14 +427,14 @@ abort "uds-config.yaml sets variables the package does not declare: #{unknown.jo
 required_config = %w[ENVIRONMENT_ID AGENT_ID BOOTSTRAP_ADMINISTRATORS REPOSITORY_KIND PACKAGING_POSTGRES_SECRET PLANNING_TEMPORAL_ADDRESS
                      PACKAGING_TEMPORAL_ADDRESS PACKAGING_TEMPORAL_NAMESPACE PACKAGING_TEMPORAL_TASK_QUEUE
                      OPERATOR_OIDC_ISSUER OPERATOR_OIDC_CLIENT_ID OPERATOR_OIDC_USERNAME_CLAIM OPERATOR_OIDC_GROUPS_CLAIM OPERATOR_OIDC_CA_FILE]
-without_default = definition.fetch("variables").reject { |item| item.key?("default") }.map { |item| item["name"] }
+without_default = variables.reject { |item| item.key?("default") }.map { |item| item["name"] }
 missing = (required_config | without_default) - configured.keys
 abort "uds-config.yaml must carry the deployment variables: #{missing.join(', ')}" unless missing.empty?
 abort "uds-config.yaml must select the production profile" unless configured["REPOSITORY_KIND"] == "postgres"
 abort "uds-config.yaml must name the planning frontend the second Hub replica depends on" if configured["PLANNING_TEMPORAL_ADDRESS"].to_s.empty?
 configured.each do |name, value|
   abort "uds-config.yaml #{name} must be a plain string" unless value.is_a?(String)
-  pattern = definition.fetch("variables").find { |item| item["name"] == name }["pattern"]
+  pattern = variables.find { |item| item["name"] == name }["pattern"]
   abort "uds-config.yaml #{name} does not match the pattern the package enforces at deploy" if pattern && !value.match?(Regexp.new(pattern))
 end
 # No secret may sit in a file that is read as plain text and reaches Pod specs.
@@ -466,7 +481,7 @@ lifecycle_run = lifecycle_workflow.fetch("jobs").values.flat_map { |job| job.fet
 abort "UDS package lifecycle must run the lifecycle script and keep its verdict" unless
   lifecycle_run.include?("set -o pipefail") && lifecycle_run.include?("./scripts/test-zarf-package-lifecycle.sh")
 lifecycle_script = File.read(File.join(root, "scripts/test-zarf-package-lifecycle.sh"), encoding: "UTF-8")
-deploy_function = lifecycle_script[/^deploy\(\) \{.*?^\}/m].to_s
+deploy_function = File.read(File.join(root, "scripts/lib/zarf-lifecycle-deploy.sh"), encoding: "UTF-8")
 abort "lifecycle deployments must verify the signature against the release's own identity" unless
   ["--verify=always", '--certificate-identity "$(identity "${release}")"', '--certificate-oidc-issuer "${issuer}"'].all? { |flag| deploy_function.include?(flag) }
 abort "lifecycle lane must assert the Hub state claim survives upgrade and removal" unless
@@ -474,7 +489,7 @@ abort "lifecycle lane must assert the Hub state claim survives upgrade and remov
 
 example = File.join(root, "internal/packagingworkflow/fixtures/example-package")
 example_definition = YAML.safe_load(File.read(File.join(example, "zarf.yaml")))
-abort "generated package API must be pinned" unless example_definition["apiVersion"] == "zarf.dev/v1alpha1"
+abort "generated package API must be pinned" unless example_definition["apiVersion"] == "zarf.dev/v1beta1"
 abort "generated package must install the UDS Package manifest" unless example_definition.dig("components", 0, "manifests", 0, "files") == ["uds-package.yaml"]
 package_text = File.read(File.join(example, "uds-package.yaml"))
 abort "generated package CR must be uds.dev/v1alpha1 Package" unless package_text.include?("apiVersion: uds.dev/v1alpha1") && package_text.include?("kind: Package")
@@ -485,11 +500,16 @@ end
 zarf = ENV["ZARF_BIN"]
 if ENV.key?("ZARF_BIN")
   abort "ZARF_BIN must name a Zarf executable" if zarf.to_s.empty?
-  args = [zarf, "dev", "lint", File.join(root, "deploy/zarf"), "--architecture", "amd64", "--set", "PLATFORM_VERSION=0.0.0",
-          "--set", "HUB_IMAGE=ghcr.io/example/platform-hub:0.0.0@sha256:#{'a' * 64}",
-          "--set", "SPOKE_AGENT_IMAGE=ghcr.io/example/platform-spoke-agent:0.0.0@sha256:#{'b' * 64}"]
-  abort "Zarf CLI lint failed" unless system(*args)
-  abort "generated package lint failed" unless system(zarf, "dev", "lint", example, "--architecture", "amd64")
+  Dir.mktmpdir("conduit-runtime-lint-") do |work|
+    output, error, result = Open3.capture3({"ZARF_BIN" => zarf}, "bash", File.join(root, "scripts/render-zarf-runtime.sh"), File.join(work, "package"), "0.0.0",
+      "ghcr.io/example/platform-hub:0.0.0@sha256:#{'a' * 64}", "ghcr.io/example/platform-spoke-agent:0.0.0@sha256:#{'b' * 64}")
+    abort "Zarf template compilation failed: #{output}#{error}" unless result.success?
+    [[File.join(work, "package/zarf.gen.yaml"), "Zarf CLI"], [example, "generated package"]].each do |path, label|
+      output, error, result = Open3.capture3(zarf, "dev", "lint", path, "--architecture", "amd64")
+      abort "#{label} lint failed: #{output}#{error}" unless result.success?
+      abort "#{label} lint emitted a deprecation warning: #{output}#{error}" if (output + error).match?(/deprecat/i)
+    end
+  end
 end
 
-puts "Zarf offline-bundle package contract verified"
+puts "Zarf package structure and source-binding contract verified; native lint checked when ZARF_BIN is supplied"

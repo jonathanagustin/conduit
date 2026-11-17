@@ -124,3 +124,14 @@ and removes an incomplete output after a failed compilation. Its native positive
 case and those refusal cases pass. Generated `zarf.gen.yaml` is ignored; the
 reviewed source is `zarf.tpl.yaml`. These checks do not establish a successful
 full package gate or complete CI for this work-in-progress migration.
+
+The package-contract gate now reads beta image objects and optional components
+directly and derives deploy declarations from the actual values schema/defaults.
+Distinct symbolic bindings retain the structural security assertions; they are
+test sentinels, not legacy declarations. The native parity gate independently
+checks real templating. Lint compiles into a fresh directory, checks both owned
+package targets and rejects deprecation warnings. Empty/failed tool and warning
+controls pass. Wrong model bindings, mismatched sealed images, a removed image
+guard and broadened plaintext admission each make the structural gate fail;
+the restored baseline passes. This validates structure and native lint, not the
+legacy UDS bundle's deploy-value forwarding.
