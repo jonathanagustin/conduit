@@ -573,6 +573,22 @@ func TestTheDailyBudgetRefusesAtTheLimitAndResetsAtUTCMidnight(t *testing.T) {
 	}
 }
 
+func TestATokenBudgetSpentExactlyRefusesTheNextCall(t *testing.T) {
+	fx := newFixture(modelgovernor.Config{DailyTokenBudget: 100})
+	if _, err := fx.governor.Do(as("ada"), assistantCall, nil, func(context.Context) (modelgovernor.Result, error) {
+		return modelgovernor.Result{PromptTokens: tokens(70), CompletionTokens: tokens(30)}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := fx.governor.Do(as("ada"), assistantCall, nil, func(context.Context) (modelgovernor.Result, error) {
+		t.Fatal("a call was made with exactly the budget spent")
+		return modelgovernor.Result{}, nil
+	})
+	if !errors.Is(err, modelgovernor.ErrBudgetExceeded) {
+		t.Fatalf("err = %v with 100 of 100 tokens used", err)
+	}
+}
+
 func TestACallBudgetBindsWhenNoTokensAreReported(t *testing.T) {
 	fx := newFixture(modelgovernor.Config{DailyCallBudget: 2, DailyTokenBudget: 1000})
 	for range 2 {

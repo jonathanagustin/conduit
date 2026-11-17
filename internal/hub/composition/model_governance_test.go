@@ -211,6 +211,25 @@ func TestEveryAssistantModelCallIsAuditedIncludingATextOnlyReply(t *testing.T) {
 	}
 }
 
+func TestAThreadTurnsModelCallsAreFiledUnderTheThread(t *testing.T) {
+	handler, repository := governedHub(t, &scriptedEndpoint{replies: []string{`{"text":"Hello."}`}}, nil, Options{}, nil)
+	created := planningRequest(t, handler, "ada", http.MethodPost, "/v1/assistant/threads", `{"title":"a thread"}`)
+	var thread struct {
+		ID string `json:"id"`
+	}
+	if created.Code != http.StatusCreated || json.Unmarshal(created.Body.Bytes(), &thread) != nil || thread.ID == "" {
+		t.Fatalf("create = %d %s", created.Code, created.Body.String())
+	}
+	body, _ := json.Marshal(map[string]string{"mode": "explore", "message": "hi", "threadId": thread.ID})
+	if response := planningRequest(t, handler, "ada", http.MethodPost, "/v1/assistant/turns", string(body)); response.Code != http.StatusOK {
+		t.Fatalf("turn = %d %s", response.Code, response.Body.String())
+	}
+	events := auditEvents(t, repository, modelgovernor.ActionModelCall)
+	if len(events) != 1 || events[0].Context["sessionId"] != "assistant-thread/"+thread.ID {
+		t.Fatalf("events = %+v", events)
+	}
+}
+
 func TestTokensAreNullWhenTheProviderReportsNoUsage(t *testing.T) {
 	endpoint := &scriptedEndpoint{replies: []string{`{"text":"a reply of some length, with no usage object"}`}}
 	handler, _ := governedHub(t, endpoint, nil, Options{}, nil)

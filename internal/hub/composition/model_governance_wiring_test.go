@@ -32,9 +32,9 @@ func auditingGovernor(repository controlplane.Repository) *modelgovernor.Governo
 // callEveryCapability builds each capability's model transport the way NewHub
 // does and makes one call through it. The replies do not have to parse: the
 // call is what is under test, not what the capability makes of the answer.
-func callEveryCapability(t *testing.T, governor *modelgovernor.Governor) {
+func callEveryCapability(t *testing.T, repository controlplane.Repository, transport string) {
 	t.Helper()
-	done := assemblingWith(governor)
+	done := assemblingWith(auditingGovernor(repository))
 	assistant, err := assistantModel(os.Getenv)
 	if err != nil {
 		t.Fatal(err)
@@ -61,19 +61,41 @@ func callEveryCapability(t *testing.T, governor *modelgovernor.Governor) {
 		t.Fatalf("a capability has no model: %v %v %v %v %v %v", assistant, generator, proposer, writer, evals, plans)
 	}
 	// No context below carries a governor: each transport must have kept the
-	// one it was built under.
+	// one it was built under. Each call must add events of its own capability.
 	ctx := context.Background()
-	_, _, _ = assistant.Complete(ctx, "hello")
-	_, _, _ = generator.Generate(ctx, appdomain.Request{Name: "app", Description: "an app"})
-	_, _, _ = proposer.Propose(ctx, packagingdomain.PackagingContext{RunID: "run", GateRules: packagingdomain.MemoryGateRule})
-	_, _, _ = writer.ProposePackage(ctx, packagingdomain.PackagingContext{RunID: "run"})
-	_, _ = evals.Propose(ctx, "memory", "512Mi")
 	planning := plans.(planner.Planner)
 	checkout := t.TempDir()
 	planning.Clone = func(context.Context, string, string) (repoclone.Checkout, func(), error) {
 		return repoclone.Checkout{Dir: checkout, SHA: "0123456789abcdef0123456789abcdef01234567"}, nil, nil
 	}
-	_, _ = planning.Turn(ctx, &planningdomain.Session{ID: "session", Intake: planningdomain.Intake{RepoURL: "https://example.test/repo.git", Ref: "main"}}, "plan it")
+	seen := 0
+	for _, step := range []struct {
+		name, capability string
+		call             func()
+	}{
+		{"assistant", "assistant", func() { _, _, _ = assistant.Complete(ctx, "hello") }},
+		{"app generator", "appgen", func() { _, _, _ = generator.Generate(ctx, appdomain.Request{Name: "app", Description: "an app"}) }},
+		{"packaging proposer", "packaging", func() {
+			_, _, _ = proposer.Propose(ctx, packagingdomain.PackagingContext{RunID: "run", GateRules: packagingdomain.MemoryGateRule})
+		}},
+		{"package writer", "packaging", func() { _, _, _ = writer.ProposePackage(ctx, packagingdomain.PackagingContext{RunID: "run"}) }},
+		{"live eval", "intelligence", func() { _, _ = evals.Propose(ctx, "memory", "512Mi") }},
+		{"planner", "planning", func() {
+			_, _ = planning.Turn(ctx, &planningdomain.Session{ID: "session", Intake: planningdomain.Intake{RepoURL: "https://example.test/repo.git", Ref: "main"}}, "plan it")
+		}},
+	} {
+		step.call()
+		events := auditEvents(t, repository, modelgovernor.ActionModelCall)
+		if len(events) <= seen {
+			t.Fatalf("the %s made a model call that was not audited", step.name)
+		}
+		for _, event := range events[seen:] {
+			if event.Context["capability"] != step.capability || event.Context["transport"] != transport {
+				t.Fatalf("the %s call was audited as %v over %v", step.name, event.Context["capability"], event.Context["transport"])
+			}
+		}
+		seen = len(events)
+	}
 }
 
 func capabilitiesAudited(t *testing.T, repository controlplane.Repository, transport string) []string {
@@ -104,7 +126,7 @@ func TestEveryCapabilityIsGovernedOverHTTP(t *testing.T) {
 	t.Setenv("CONDUIT_MODEL_BASE_URL", server)
 	t.Setenv("CONDUIT_MODEL_NAME", "asked-model")
 	repository := controlplane.NewMemoryRepository()
-	callEveryCapability(t, auditingGovernor(repository))
+	callEveryCapability(t, repository, "http")
 	if got := strings.Join(capabilitiesAudited(t, repository, "http"), " "); got != everyCapability {
 		t.Fatalf("capabilities audited over http = %q, want %q", got, everyCapability)
 	}
@@ -120,7 +142,7 @@ func TestEveryCapabilityIsGovernedOverTheModelCommand(t *testing.T) {
 	}
 	t.Setenv("CONDUIT_MODEL_CMD", script)
 	repository := controlplane.NewMemoryRepository()
-	callEveryCapability(t, auditingGovernor(repository))
+	callEveryCapability(t, repository, "cli")
 	if got := strings.Join(capabilitiesAudited(t, repository, "cli"), " "); got != everyCapability {
 		t.Fatalf("capabilities audited over cli = %q, want %q", got, everyCapability)
 	}

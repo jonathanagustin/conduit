@@ -242,6 +242,21 @@ func exportOf(t *testing.T, fx fixture, run string, tamper func([]modelgovernor.
 	return export
 }
 
+func TestARedactedResponseIsVouchedForByTheAuditEventToo(t *testing.T) {
+	fx := newFixture(transcriptConfig(), withRedaction)
+	ctx := as("ada")
+	exchange(t, fx, ctx, "a clean prompt", "password is hunter2")
+	records, _ := fx.transcripts.Run(context.Background(), modelgovernor.RunFrom(ctx).ID(), fx.clock.Now())
+	if len(records) != 1 {
+		t.Fatalf("records = %+v", records)
+	}
+	record, event := records[0], fx.audit.Events()[0]
+	if string(record.Response) != "password is [REDACTED]" || event.ResponseSHA256 != modelgovernor.Digest([]byte("password is hunter2")) ||
+		event.StoredResponseSHA256 != modelgovernor.Digest(record.Response) || event.StoredPromptSHA256 != "" {
+		t.Fatalf("record %q, audit received %s stored %q / prompt stored %q", record.Response, event.ResponseSHA256, event.StoredResponseSHA256, event.StoredPromptSHA256)
+	}
+}
+
 func TestAnExportVerifiesAgainstTheAuditEventsAndDetectsTampering(t *testing.T) {
 	fx := newFixture(transcriptConfig(), withRedaction)
 	ctx := as("ada")
@@ -281,6 +296,18 @@ func TestAnExportVerifiesAgainstTheAuditEventsAndDetectsTampering(t *testing.T) 
 		"an audit event was removed from the middle": func(events []modelgovernor.CallAudit, _ []modelgovernor.TranscriptRecord) {
 			events[0] = events[1]
 			events[1].Round = 99
+		},
+		// Record and event agree with each other; only the chain digest, which
+		// was computed over the original prompt, gives the edit away.
+		"an event and its record were rewritten together": func(events []modelgovernor.CallAudit, records []modelgovernor.TranscriptRecord) {
+			records[1].Prompt = []byte("round 2")
+			forged := modelgovernor.Digest(records[1].Prompt)
+			records[1].SentPromptSHA256, records[1].StoredPromptSHA256, events[1].PromptSHA256 = forged, forged, forged
+		},
+		// The event's own chain digest recomputes; it no longer links back.
+		"an event was re-chained from nothing": func(events []modelgovernor.CallAudit, _ []modelgovernor.TranscriptRecord) {
+			events[1].PreviousChainSHA256 = ""
+			events[1].ChainSHA256 = modelgovernor.ChainDigest("", events[1].Round, events[1].PromptSHA256, events[1].ResponseSHA256)
 		},
 		"a record was moved to another round": func(_ []modelgovernor.CallAudit, records []modelgovernor.TranscriptRecord) {
 			records[1].Round = 7
