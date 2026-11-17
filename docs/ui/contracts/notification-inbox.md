@@ -109,6 +109,15 @@ preference immediately before the write and refuses to save when the stored
 `revision` differs from the one it loaded. That narrows a lost update to the
 interval between the two requests; it does not close it.
 
+The controller binds a Save to the resource, channel, loaded revision, draft,
+and operator identity reviewed when the button was pressed. Changing that
+scope, editing the draft, navigating away, or disposing the console cancels
+the pending request. A late reply cannot update a replacement editor, even if
+the transport ignores cancellation. Edits made during a save remain unsaved
+until another explicit Save. If the write had already started, cancellation
+cannot establish whether it committed: the editor asks for a reload and never
+replays the write automatically.
+
 **Save is disabled when the session says the write would be refused.** Reading
 or writing a preference needs `resource:read` on its resource. The editor asks
 `GET /v1/session?resourceRid=…` for that resource and disables Save with the

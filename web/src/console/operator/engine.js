@@ -5288,6 +5288,7 @@ export function mountOperator(host, options) {
   renderApp();
   return () => {
     engineerFocus.dispose();
+    notifications.dispose();
     liveHub.stop();
     mountAuditEvents.dispose();
     removeInlineActions();
