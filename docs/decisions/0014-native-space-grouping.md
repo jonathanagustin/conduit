@@ -162,3 +162,29 @@ Space, reject inaccessible-Space and read-only callers without recording an
 assignment/publication, preserve conflicts, and reject delegated bootstrap
 inheritance. Profile tests cover persistence, override/clear precedence and
 invalid native identities. No deployment or registry publication is performed.
+
+## Native console index selection slice
+
+The native `spaceId` REST constraint narrows seven existing indexes:
+Environments, Products, Plans, Fleet installations, change requests, promotions
+and Bundles. Plans/installations/change requests use their explicit Environment;
+releases/promotions use their Product; Bundles use only their own stored binding.
+No membership is inferred from deployment observations, names or Bundle contents.
+After validating visibility of the selected Space, trusted composition loads
+private membership once for the request. Existing record-read decisions still
+govern every row, including author/reviewer access to Plans and change requests
+without a grant to read the whole Environment. Selection conveys no permission.
+Search, counts, Fleet facets and pagination use the scoped inputs.
+
+Scoped exact-id reads used for page expansion and linked selections enforce the
+same constraint. The Space ID is an additional cursor filter; omitted selection
+preserves the prior unscoped fingerprint. An unavailable or malformed remembered
+selection fails visibly instead of widening to All Spaces. These are extensions
+of `spaces.SelectionPublication`, not private Apollo protocol compatibility.
+
+This slice does not scope Packaging's Connect transport, channel boards,
+workspaces, upgrades, multi-Environment rollouts or mixed-resource audit. Their
+relationships/transport and, for audit, SQL paging and projection proofs need
+separate changes. Platform governance directories and provider configuration
+remain global. The selector discloses these boundaries; #823 remains broader
+than this slice.

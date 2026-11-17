@@ -37,7 +37,6 @@ import { freshnessPill, reportTime } from "./freshness.js";
 import { channelTable } from "./channel-board.js";
 import {
   activeSpaceId,
-  applySpaceScope,
   mountSpaceSelector,
   readSpaceSelection,
   spaceScopedPath,
@@ -653,7 +652,10 @@ export function createLiveHub({
         options.dataKey === viewDataKey(viewRequest()));
     const read = (path) => {
       if (!current()) throw new DOMException("Hub view changed", "AbortError");
-      return readJSON(path, options.signal);
+      return readJSON(
+        spaceScopedPath(path, activeSpaceId(state.spaceId)),
+        options.signal,
+      );
     };
     const required = options.screen ? screenReads(options.screen) : null;
     const wants = (index) => !required || required.has(index);
@@ -661,7 +663,10 @@ export function createLiveHub({
     const pages = async (path, key, index) => {
       if (options.screen && INDEX_DEFINITIONS[index]) {
         const extra = Object.fromEntries(
-          new URL(path, "http://hub.local").searchParams,
+          new URL(
+            spaceScopedPath(path, activeSpaceId(state.spaceId)),
+            "http://hub.local",
+          ).searchParams,
         );
         const url = indexRequest(index, options.query, extra);
         try {
@@ -766,9 +771,10 @@ export function createLiveHub({
       next.spaces = listed.spaces;
     } catch {
       next.spaces = [];
-      next.spaceNote = "Hub did not return Spaces; nothing is Space-scoped.";
+      next.spaceNote =
+        "Hub did not return Spaces. The selected Space remains required for scoped reads.";
     }
-    const spaceId = activeSpaceId(state.spaceId, next.spaces);
+    const spaceId = activeSpaceId(state.spaceId);
     if (wants("environments"))
       try {
         next.environments = await pages(
@@ -1033,10 +1039,7 @@ export function createLiveHub({
         (id) => `/v1/change-requests/${encodeURIComponent(id)}`,
       );
     }
-    // Only when the Hub answered the Space-scoped environment read: an
-    // unanswered read must not empty every list as if the Space were empty.
-    if (spaceId && !next.note && !options.screen)
-      applySpaceScope(next, spaceId);
+    if (spaceId) next.spaceScope = { spaceId };
 
     if (options.signal?.aborted || !current())
       throw new DOMException("Hub read aborted", "AbortError");

@@ -52,7 +52,9 @@ type EntityConfigurationAdapter func(
 
 type HandlerOptions struct {
 	RequireSpaceSelection func(context.Context, Principal, string) error
-	ReserveProductSpace   func(context.Context, Principal, string, string) error
+	// LoadSpaceIndexMembership reads private anchors after RequireSpaceSelection succeeds.
+	LoadSpaceIndexMembership func(context.Context, Principal, string) (SpaceIndexMembership, error)
+	ReserveProductSpace      func(context.Context, Principal, string, string) error
 	// SessionResourceScope resolves requested capability metadata only. It does
 	// not participate in route authorization or change the returned resource key.
 	SessionResourceScope func(context.Context, string) (string, bool, error)
@@ -568,7 +570,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !ok {
 			return
 		}
-		spaceID, selected := selectedSpace(w, request, principal, configuration)
+		space, selected := selectedIndexSpace(w, request, principal, configuration)
 		if !selected {
 			return
 		}
@@ -582,15 +584,8 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		for _, record := range records {
 			if administrator ||
 				governance.AuthorizeResourceOperation(request.Context(), principal, configuration, environmentRID(record.Environment.ID), OperationReadResource) {
-				if spaceID != "" {
-					assigned, err := configuration.SpaceIDLookup(request.Context(), principal, "ENVIRONMENT", record.Environment.ID)
-					if err != nil {
-						writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "native Space assignment could not be read"})
-						return
-					}
-					if assigned != spaceID {
-						continue
-					}
+				if !space.environment(record.Environment.ID) {
+					continue
 				}
 				visible = append(visible, record)
 			}
@@ -609,7 +604,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 			return
 		}
-		page, err := paginateEnvironmentCatalog(visible, request.URL.Query().Get("search"), cursor, limit)
+		page, err := paginateEnvironmentCatalogInSpace(visible, request.URL.Query().Get("search"), cursor, limit, space.id)
 		if err != nil {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 			return
@@ -625,6 +620,13 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		principal, ok := requireOperatorPrincipal(w, request, governance, configuration)
 		environment := request.PathValue("environmentID")
 		if !ok || !requireResourceOperation(w, request, governance, principal, configuration, environmentRID(environment), OperationReadResource) {
+			return
+		}
+		space, selected := selectedIndexSpace(w, request, principal, configuration)
+		if !selected {
+			return
+		}
+		if !requireIndexSpaceMatch(w, space.environment(environment)) {
 			return
 		}
 		records, err := ListEnvironmentCatalog(request.Context(), repository)
@@ -647,6 +649,13 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !ok || !requireResourceOperation(w, request, governance, principal, configuration, environmentRID(environment), OperationReadResource) {
 			return
 		}
+		space, selected := selectedIndexSpace(w, request, principal, configuration)
+		if !selected {
+			return
+		}
+		if !requireIndexSpaceMatch(w, space.environment(environment)) {
+			return
+		}
 		plans, err := repository.ListPlans(request.Context(), environment)
 		if err != nil {
 			writeLifecycleError(w, err)
@@ -664,11 +673,22 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !ok {
 			return
 		}
+		space, selected := selectedIndexSpace(w, request, principal, configuration)
+		if !selected {
+			return
+		}
 		visible, err := listAuthorizedProductCatalog(request.Context(), repository, governance, principal, configuration)
 		if err != nil {
 			writeLifecycleError(w, err)
 			return
 		}
+		filtered := visible[:0]
+		for _, record := range visible {
+			if space.product(record.Product) {
+				filtered = append(filtered, record)
+			}
+		}
+		visible = filtered
 		view := request.URL.Query().Get("view")
 		if view != "" && view != "full" && view != "summary" {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "view must be full or summary"})
@@ -683,7 +703,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 			return
 		}
-		page, err := paginateProductCatalog(visible, request.URL.Query().Get("search"), cursor, limit)
+		page, err := paginateProductCatalogInSpace(visible, request.URL.Query().Get("search"), cursor, limit, space.id)
 		if err != nil {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 			return
@@ -698,6 +718,13 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		principal, ok := requireOperatorPrincipal(w, request, governance, configuration)
 		product := request.PathValue("product")
 		if !ok || !requireResourceOperation(w, request, governance, principal, configuration, productRID(product), OperationReadResource) {
+			return
+		}
+		space, selected := selectedIndexSpace(w, request, principal, configuration)
+		if !selected {
+			return
+		}
+		if !requireIndexSpaceMatch(w, space.product(product)) {
 			return
 		}
 		records, err := ListProductCatalog(request.Context(), repository)
@@ -717,6 +744,13 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		principal, ok := requireOperatorPrincipal(w, request, governance, configuration)
 		product := request.PathValue("product")
 		if !ok || !requireResourceOperation(w, request, governance, principal, configuration, productRID(product), OperationReadResource) {
+			return
+		}
+		space, selected := selectedIndexSpace(w, request, principal, configuration)
+		if !selected {
+			return
+		}
+		if !requireIndexSpaceMatch(w, space.product(product)) {
 			return
 		}
 		records, err := ListProductCatalog(request.Context(), repository)
@@ -1058,6 +1092,10 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !ok || !requirePlatformOperation(w, request, governance, principal, configuration, OperationReadResource) {
 			return
 		}
+		space, selected := selectedIndexSpace(w, request, principal, configuration)
+		if !selected {
+			return
+		}
 		stored, err := repository.ListBundles(request.Context(), "")
 		if err != nil {
 			writeLifecycleError(w, err)
@@ -1065,6 +1103,9 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		}
 		items := make([]bundleCatalogItem, 0, len(stored))
 		for _, bundle := range stored {
+			if !space.bundle(bundle.Manifest.ID) {
+				continue
+			}
 			items = append(items, bundleCatalogItem{
 				ID: bundle.Manifest.ID, PipelineID: bundle.Manifest.PipelineID, ManifestDigest: bundle.ManifestDigest,
 			})
@@ -1074,6 +1115,13 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 	mux.HandleFunc("GET /v1/bundles/{bundleID}", func(w http.ResponseWriter, request *http.Request) {
 		principal, ok := requireOperatorPrincipal(w, request, governance, configuration)
 		if !ok || !requirePlatformOperation(w, request, governance, principal, configuration, OperationReadResource) {
+			return
+		}
+		space, selected := selectedIndexSpace(w, request, principal, configuration)
+		if !selected {
+			return
+		}
+		if !requireIndexSpaceMatch(w, space.bundle(request.PathValue("bundleID"))) {
 			return
 		}
 		bundle, err := repository.GetBundle(request.Context(), request.PathValue("bundleID"))
@@ -1727,6 +1775,10 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !ok {
 			return
 		}
+		space, selected := selectedIndexSpace(w, request, principal, configuration)
+		if !selected {
+			return
+		}
 		query := request.URL.Query()
 		cursor, limit, err := parsePageQuery(query, defaultPageLimit, maxPageLimit)
 		if err != nil {
@@ -1740,13 +1792,13 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		}
 		visible := requests[:0]
 		for _, changeRequest := range requests {
-			if canReadChangeRequest(request.Context(), governance, principal, configuration, changeRequest) {
+			if canReadChangeRequest(request.Context(), governance, principal, configuration, changeRequest) && space.environment(changeRequest.Environment) {
 				visible = append(visible, changeRequest)
 			}
 		}
-		page, err := paginateChangeRequests(visible, ChangeRequestQuery{
+		page, err := paginateChangeRequestsInSpace(visible, ChangeRequestQuery{
 			Environment: query.Get("environment"), Status: query.Get("status"), Search: query.Get("search"),
-		}, cursor, limit)
+		}, cursor, limit, space.id)
 		if err != nil {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 			return
@@ -1765,6 +1817,13 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		}
 		if !canReadChangeRequest(request.Context(), governance, principal, configuration, stored) {
 			writeLifecycleError(w, ErrForbidden)
+			return
+		}
+		space, selected := selectedIndexSpace(w, request, principal, configuration)
+		if !selected {
+			return
+		}
+		if !requireIndexSpaceMatch(w, space.environment(stored.Environment)) {
 			return
 		}
 		writeJSON(w, http.StatusOK, annotateSatisfiability(request.Context(), repository, stored))
@@ -2035,11 +2094,22 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			writeLifecycleError(w, err)
 			return
 		}
+		space, selected := selectedIndexSpace(w, request, principal, configuration)
+		if !selected {
+			return
+		}
+		if !requireIndexSpaceMatch(w, space.product(record.Product)) {
+			return
+		}
 		writeJSON(w, http.StatusOK, record)
 	})
 	mux.HandleFunc("GET /v1/promotions", func(w http.ResponseWriter, request *http.Request) {
 		principal, ok := requireOperatorPrincipal(w, request, governance, configuration)
 		if !ok || !requirePlatformOperation(w, request, governance, principal, configuration, OperationReadResource) {
+			return
+		}
+		space, selected := selectedIndexSpace(w, request, principal, configuration)
+		if !selected {
 			return
 		}
 		query := request.URL.Query()
@@ -2053,9 +2123,15 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			writeLifecycleError(w, err)
 			return
 		}
-		page, err := paginatePromotions(records, PromotionQuery{
+		visible := records[:0]
+		for _, record := range records {
+			if space.product(record.Product) {
+				visible = append(visible, record)
+			}
+		}
+		page, err := paginatePromotionsInSpace(visible, PromotionQuery{
 			Product: query.Get("product"), Status: query.Get("status"), Search: query.Get("search"),
-		}, cursor, limit)
+		}, cursor, limit, space.id)
 		if err != nil {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 			return
@@ -2071,6 +2147,10 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 	mux.HandleFunc("GET /v1/plans", func(w http.ResponseWriter, request *http.Request) {
 		principal, ok := requireOperatorPrincipal(w, request, governance, configuration)
 		if !ok {
+			return
+		}
+		space, selected := selectedIndexSpace(w, request, principal, configuration)
+		if !selected {
 			return
 		}
 		query := request.URL.Query()
@@ -2093,12 +2173,12 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 			return
 		}
-		page, err := readAuthorizedPlanPage(request.Context(), repository, governance, principal, configuration, PlanQuery{
+		page, err := readAuthorizedPlanPageInSpace(request.Context(), repository, governance, principal, configuration, PlanQuery{
 			Environment:    strings.TrimSpace(query.Get("environment")),
 			Status:         strings.TrimSpace(query.Get("status")),
 			InstallationID: strings.TrimSpace(query.Get("installationId")),
 			Search:         query.Get("search"), View: view,
-		}, cursor, limit)
+		}, cursor, limit, space)
 		if err != nil {
 			var pagination planIndexPageError
 			if errors.As(err, &pagination) {
@@ -2135,6 +2215,13 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 				return
 			}
 		} else if !requireResourceOperation(w, request, governance, principal, configuration, environmentRID(record.Plan.Environment), OperationReadResource) {
+			return
+		}
+		space, selected := selectedIndexSpace(w, request, principal, configuration)
+		if !selected {
+			return
+		}
+		if !requireIndexSpaceMatch(w, space.environment(record.Plan.Environment)) {
 			return
 		}
 		writeJSON(w, http.StatusOK, redactLeaseToken(record))
@@ -2542,6 +2629,10 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !ok {
 			return
 		}
+		space, selected := selectedIndexSpace(w, request, principal, configuration)
+		if !selected {
+			return
+		}
 		query := request.URL.Query()
 		maxAge := time.Duration(0)
 		if raw := query.Get("maxAgeSeconds"); raw != "" {
@@ -2562,17 +2653,11 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			Rollout: query.Get("rolloutStatus"), Config: query.Get("configStatus"),
 			Lifecycle: query.Get("lifecycle"), Search: query.Get("search"), MaxAge: maxAge,
 		}
-		projection, err := BuildFleetProjection(request.Context(), repository, fleetQuery, time.Now())
-		if err != nil {
-			writeLifecycleError(w, err)
-			return
-		}
+
 		administrator := isGovernanceAdministrator(request.Context(), governance, principal, configuration)
-		// The authorization predicate is controlplane's -- who the caller is,
-		// and what OperationReadResource on an Environment means -- while the
-		// walk that applies it to rows and facet contributions belongs to the
-		// reporting domain (RetainReadable). Memoised because the answer depends
-		// only on the Environment and both walks ask about the same handful.
+		// Apply the existing Environment authority and private membership before
+		// Reporting builds search results, summaries or near-miss facets. Memoise
+		// the authority decision shared by Plans and observed reports.
 		readable := map[string]bool{}
 		mayRead := func(environment string) bool {
 			if administrator {
@@ -2586,8 +2671,14 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			}
 			return allowed
 		}
-		projection.RetainReadable(mayRead)
-		projection, err = paginateFleetProjection(projection, fleetQuery, cursor, limit)
+		projection, err := buildFleetProjection(request.Context(), repository, fleetQuery, time.Now(), func(environment string) bool {
+			return space.environment(environment) && mayRead(environment)
+		})
+		if err != nil {
+			writeLifecycleError(w, err)
+			return
+		}
+		projection, err = paginateFleetProjectionInSpace(projection, fleetQuery, cursor, limit, space.id)
 		if err != nil {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 			return
