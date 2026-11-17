@@ -100,6 +100,7 @@ type Hub = {
   operator: string;
   /** What /v1/session lists at platform/root; read and operate when absent. */
   globalOperations?: string[];
+  resourceOperations?: string[];
   plans: Record<string, unknown>[];
   changes: Record<string, unknown>[];
   promotions: Record<string, unknown>[];
@@ -148,6 +149,15 @@ async function stubHub(page: Page, hub: Hub) {
         actor: { username: hub.operator },
         effective: { username: hub.operator },
         applications: APPLICATIONS,
+        resources:
+          hub.resourceOperations === undefined
+            ? []
+            : [
+                {
+                  resourceRid: "environment/dev",
+                  operations: hub.resourceOperations,
+                },
+              ],
         globalOperations: hub.globalOperations ?? [
           "resource:read",
           "resource:operate",
@@ -440,6 +450,36 @@ test("a blocked promotion is painted as blocked, with the Hub's reasons", async 
     policy,
     evidence: [],
   });
+});
+
+test("editing a proposal cannot re-enable a capability-denied write", async ({
+  page,
+}) => {
+  const hub: Hub = {
+    operator: "alice",
+    resourceOperations: ["resource:read"],
+    plans: [basePlan],
+    changes: [],
+    promotions: [],
+    writes: [],
+    answer: () => null,
+  };
+  await hydrate(page);
+  await stubHub(page, hub);
+  await page.goto("/console/");
+  await openArea(page, "Releases", "Environments");
+  const panel = page.locator('#main-workspace [data-dj-panel="propose"]');
+  const review = panel.locator("[data-dj-review]");
+  const reason =
+    "Your session does not hold change:propose on environment/dev.";
+  await expect(panel.locator("[data-dj-capability]")).toHaveText(reason);
+  await expect(review).toBeDisabled();
+  await panel.locator('[data-dj-field="generation"]').fill("gen-2");
+  await panel.locator('[data-dj-field="rationale"]').fill("reviewed change");
+  await expect(review).toBeDisabled();
+  await expect(review).toHaveAttribute("title", reason);
+  await expect(panel.locator("[data-dj-confirm]")).toHaveCount(0);
+  expect(hub.writes).toHaveLength(0);
 });
 
 test("a session without resource:operate is not offered a promotion, and is told why", async ({
