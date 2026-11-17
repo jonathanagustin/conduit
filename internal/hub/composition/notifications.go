@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	assistantapp "github.com/jonathanagustin/conduit/internal/assistant/application"
+	intelapp "github.com/jonathanagustin/conduit/internal/intelligence/application"
 	"net/http"
 	"strings"
 	"sync"
@@ -64,6 +65,9 @@ type Options struct {
 	// memory, which is correct only for a single replica: two replicas would
 	// each hold their own deny-list. The revocation check runs either way.
 	AgentCredentials identityports.AgentCredentialStore
+	// IntelligenceCases persists operator-added eval cases. Nil keeps them in
+	// this process's memory: lost on restart, not shared by replicas.
+	IntelligenceCases intelapp.CaseStore
 	// ProductAssets persists native download declarations. Nil mounts no asset routes.
 	ProductAssets assetports.Store
 	// Spaces persists native grouping identities and anchors. Nil mounts no Space routes.

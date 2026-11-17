@@ -30,7 +30,7 @@ func (cases intelCases) Add(scenario, bound, value, expected string) (string, er
 	if cases.service == nil {
 		return "", fmt.Errorf("eval cases are not configured")
 	}
-	added, err := cases.service.AddCase(scenario, bound, value, expected)
+	added, err := cases.service.AddCase(context.Background(), scenario, bound, value, expected)
 	if err != nil {
 		return "", err
 	}

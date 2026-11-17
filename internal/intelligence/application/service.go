@@ -93,9 +93,11 @@ type Service struct {
 	Opener      Opener
 	Audit       Auditor
 	Proposer    Proposer
-	mu          sync.Mutex
-	cases       []Case
-	last        []CaseResult
+	// Stored keeps operator-added cases. New sets an in-memory store; the Hub
+	// replaces it with a durable one when it has a database.
+	Stored CaseStore
+	mu     sync.Mutex
+	last   []CaseResult
 }
 
 func New(adapterName, timeout string) *Service {
@@ -105,15 +107,7 @@ func New(adapterName, timeout string) *Service {
 	if strings.TrimSpace(timeout) == "" {
 		timeout = "45s"
 	}
-	return &Service{
-		AdapterName: adapterName,
-		Timeout:     timeout,
-		cases: []Case{
-			{ID: "mem-512", Scenario: "A 512Mi limit is within the ceiling", BoundObject: "sample-app-1", Value: "512Mi", ExpectedOutcome: "PASS", Source: "gate rule"},
-			{ID: "mem-8gi", Scenario: "An 8Gi limit exceeds the ceiling", BoundObject: "sample-app-blocked", Value: "8Gi", ExpectedOutcome: "FAIL_REQUIRED", Source: "gate rule"},
-			{ID: "mem-blank", Scenario: "A missing size is not a memory limit", BoundObject: "sample-app-1", Value: "", ExpectedOutcome: "FAIL_REQUIRED", Source: "gate rule"},
-		},
-	}
+	return &Service{AdapterName: adapterName, Timeout: timeout, Stored: NewMemoryCases()}
 }
 
 func (service *Service) Logic() Config {
@@ -124,15 +118,23 @@ func (service *Service) Logic() Config {
 	return Config{Adapter: service.AdapterName, Timeout: service.Timeout, GateRule: domain.MemoryGateRule, Label: label}
 }
 
-func (service *Service) Cases() []Case {
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	out := make([]Case, len(service.cases))
-	copy(out, service.cases)
-	return out
+// Cases is the built-in cases followed by the stored ones, in the order they
+// were added.
+func (service *Service) Cases(ctx context.Context) ([]Case, error) {
+	out := builtinCases()
+	if service.Stored == nil {
+		return out, nil
+	}
+	stored, err := service.Stored.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return append(out, stored...), nil
 }
 
-func (service *Service) AddCase(scenario, bound, value, expected string) (Case, error) {
+// AddCase stores an operator-added case. The id is derived from the content,
+// so adding the same case twice returns the first one.
+func (service *Service) AddCase(ctx context.Context, scenario, bound, value, expected string) (Case, error) {
 	scenario = strings.TrimSpace(scenario)
 	expected = strings.TrimSpace(expected)
 	if scenario == "" || expected == "" {
@@ -144,28 +146,26 @@ func (service *Service) AddCase(scenario, bound, value, expected string) (Case, 
 		return Case{}, err
 	}
 	added := Case{ID: "case-" + domain.DigestText(identity)[:16], Scenario: scenario, BoundObject: bound, Value: value, ExpectedOutcome: expected, Source: "operator feedback"}
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	for _, existing := range service.cases {
-		if existing.ID == added.ID {
-			return existing, nil
-		}
+	if service.Stored == nil {
+		return Case{}, errorString("evaluation cases are not configured")
 	}
-	if len(service.cases) >= 256 {
-		return Case{}, errorString("evaluation case limit reached")
-	}
-	service.cases = append(service.cases, added)
-	return added, nil
+	return service.Stored.Add(ctx, added, StoredCaseLimit())
 }
 
-var errCase = errorString("scenario and expected outcome are required")
+// ErrCaseInvalid is a case with no scenario or no expected outcome.
+var ErrCaseInvalid error = errorString("scenario and expected outcome are required")
+
+var errCase = ErrCaseInvalid
 
 type errorString string
 
 func (e errorString) Error() string { return string(e) }
 
 func (service *Service) Run(ctx context.Context, actor string) ([]CaseResult, string, error) {
-	cases := service.Cases()
+	cases, err := service.Cases(ctx)
+	if err != nil {
+		return nil, "", err
+	}
 	results := make([]CaseResult, 0, len(cases))
 	for _, item := range cases {
 		columns := []Column{scoreColumn("recorded", labelNoModel, item)}

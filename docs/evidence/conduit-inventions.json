@@ -517,6 +517,13 @@
       "why": "#848: the Agent delegated registry and secret material to an Environment-owned executable and no implementation shipped, so every tenant had to write one. The Agent's side of the contract (internal/agent/material.go) is Conduit's own and fixes only the request; nothing recovered establishes how Apollo resolves a provider reference inside an Environment. A Kubernetes-native provider needs no dependency and composes with External Secrets Operator or any other controller that materialises a Secret.",
       "displacedBy": "A published or sanitized Apollo agent secret-provider contract defining how an Environment resolves registry credentials and installation secrets.",
       "riskIfWrong": "The reference grammar, the ownership metadata and the exit statuses are this implementation's and would change. The preparer keeps no history, so a rollback restores from whatever the previous reference names now; it declines image pre-pull rather than claiming it; and it acts with the Agent's ServiceAccount, so it adds no isolation between the Agent and the material it handles. ESO and Vault integration is by composition and has not been exercised."
+    },
+    {
+      "id": "modeleval.Harness",
+      "what": "The conduit-eval command and its files under docs/evidence/model-evals: the corpus schema (cases, capabilities, assertion kinds), transcripts keyed by the sha256 of the prompt bytes, the score report keyed by model id, prompt digest set and skill digest, the five score dimensions, and the replay gate rule (no unrecorded prompt, no score below the committed baseline).",
+      "why": "#814 requires an offline-first way to detect prompt and skill changes and to score a model on the planning and packaging prompts. No Apollo evaluation contract is recovered; the planning and packaging prompts are Conduit's own, so their evaluation format is too. The harness drives the product's planner and package writer rather than a copy of their prompts.",
+      "displacedBy": "A published or sanitized Apollo model evaluation contract defining cases, scoring and gating.",
+      "riskIfWrong": "The corpus, transcript and score formats and the dimension names would be replaced and every baseline re-recorded. The committed baseline is a canned offline agent's, so no decision about model quality rests on these files today; the risk is a gate that pins prompt digests under names that later read as quality scores."
     }
   ],
   "displaced": [

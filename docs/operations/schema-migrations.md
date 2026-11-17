@@ -121,6 +121,7 @@ accurate and does not have to be idempotent.
 | `appgen` | `internal/appgen/adapters/postgres` | app generation results, one row per generation, with the owning operator as a column |
 | `agent-credentials` | `internal/identity/adapters/revocationpostgres` | the Agent deny-list (revocations by certificate serial, Agent identity or Environment) and the last client-certificate expiry seen per Agent. See [`key-rotation.md`](key-rotation.md) |
 | `operator-sessions` | `internal/identity/adapters/sessionpostgres` | signed-in browser sessions keyed by the SHA-256 of the session cookie, and sign-in attempts in flight; applied by every PostgreSQL Hub and used only when interactive sign-in is configured. See [`operator-sign-in.md`](operator-sign-in.md) |
+| `intelligence-eval-cases` | `internal/intelligence/adapters/casepostgres` | operator-added intelligence eval cases, in insertion order; one global list bounded by the application at 256 cases including the three built-in ones |
 
 One ledger table with a `component` column rather than one table per component:
 several owners can be pointed at the same database, and a single place to look

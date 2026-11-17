@@ -257,7 +257,7 @@ jobs:
           printf '%s\n' "$changed" | sed 's/^/  /' >&2
           matches() { printf '%s\n' "$changed" | grep -E "$1" || true; }
           go=false; cli=false; console=false; checks=false
-          if [ -n "$(matches '\.go$|(^|/)go\.(mod|sum)$|(^|/)go\.work($|\.)|(^|/)mise\.(toml|lock)$|^scripts/|^internal/|^cmd/|^api/|^tools/|^solver/|(^|/)go\.work\.sum$|^\.github/workflows/platform-ci\.yml$')" ]; then
+          if [ -n "$(matches '\.go$|(^|/)go\.(mod|sum)$|(^|/)go\.work($|\.)|(^|/)mise\.(toml|lock)$|^scripts/|^internal/|^cmd/|^api/|^tools/|^solver/|^skills/|^docs/evidence/model-evals/|(^|/)go\.work\.sum$|^\.github/workflows/platform-ci\.yml$')" ]; then
             go=true
             cli=true
           fi
@@ -401,6 +401,15 @@ jobs:
               )
           PY
           python3 scripts/test-packaging-gates.py
+      # Replays the committed model-eval transcripts through the planning and
+      # packaging prompts exactly as this commit builds them. It fails when a
+      # prompt's sha256 has no recording (a prompt, skill or fixture changed
+      # without re-recording) or a score is below the committed baseline. The
+      # committed transcripts are the offline agent's, so a pass says nothing
+      # about a real model: docs/operations/model-evals.md.
+      - name: Validate model-eval replay
+        if: needs.scope.outputs.go == 'true'
+        run: go run ./cmd/conduit-eval replay
       - name: Validate PostgreSQL repository
         if: needs.scope.outputs.go == 'true'
         run: ./scripts/test-postgres-repository.sh

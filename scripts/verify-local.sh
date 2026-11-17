@@ -215,6 +215,7 @@ gate 'Validate mutation harness' ./scripts/verify-mutant-killed.test.sh
 gate 'Validate packaging regression gates' python3 scripts/test-packaging-gates.py
 gate 'Validate packaging endpoints' ./scripts/verify-packaging-endpoints.sh
 gate 'Validate mutation scores' bash -c 'node scripts/mutation-report-score.test.mjs && ./scripts/test-mutation-sweep.sh && ./scripts/verify-mutation-scores.test.sh && node scripts/verify-mutation-scores.mjs'
+gate 'Validate model-eval replay' go run ./cmd/conduit-eval replay
 gate 'Validate PostgreSQL repository' ./scripts/test-postgres-repository.sh
 gate 'Vet' go vet ./...
 gate 'Validate standalone CLI release targets' ./scripts/verify-cli-release-targets.sh

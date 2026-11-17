@@ -37,6 +37,8 @@ import (
 	"github.com/jonathanagustin/conduit/internal/identity/adapters/signinhttp"
 	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
 	identityports "github.com/jonathanagustin/conduit/internal/identity/ports"
+	intelligencecases "github.com/jonathanagustin/conduit/internal/intelligence/adapters/casepostgres"
+	intelligenceapp "github.com/jonathanagustin/conduit/internal/intelligence/application"
 	modelgovernancepg "github.com/jonathanagustin/conduit/internal/modelgovernor/adapters/postgres"
 	notificationspostgres "github.com/jonathanagustin/conduit/internal/notifications/adapters/postgres"
 	notificationsapplication "github.com/jonathanagustin/conduit/internal/notifications/application"
@@ -304,6 +306,7 @@ func main() {
 			AppgenStore:          appGenerationsFor(notifications),
 			AgentCredentials:     agentCredentialsFor(notifications),
 			ModelGovernance:      modelGovernance,
+			IntelligenceCases:    intelligenceCasesFor(notifications),
 			PackagingStatus:      packagingReader,
 			PackagingControls:    packagingReader,
 		}), handlerOptions, requestLimiter),
@@ -468,6 +471,15 @@ func modelCallMetrics() []metricsapplication.ModelCallSeries {
 	return series
 }
 
+// intelligenceCasesFor returns the durable eval case store when one was
+// opened, and an untyped nil otherwise, for the reason above.
+func intelligenceCasesFor(component notificationComponent) intelligenceapp.CaseStore {
+	if component.IntelligenceCases == nil {
+		return nil
+	}
+	return component.IntelligenceCases
+}
+
 type notificationComponent struct {
 	Store      notificationports.Store
 	Contacts   notificationports.Contacts
@@ -488,6 +500,8 @@ type notificationComponent struct {
 	OperatorSessions *sessionpostgres.Store
 	// ModelGovernance is model usage and AI transcripts, on the same DSN.
 	ModelGovernance *modelgovernancepg.Store
+	// IntelligenceCases is operator-added eval cases, on the same DSN.
+	IntelligenceCases *intelligencecases.Store
 }
 
 // operatorSessionsFor returns the durable session store when one was opened,
@@ -631,6 +645,23 @@ func configureReconciliation(
 		_ = notificationStore.Close()
 		closeReconciliationStore()
 	}
+	// Operator-added eval cases share the same database and ledger, so a case
+	// survives a Hub restart and every replica scores the same list.
+	intelligenceCaseStore, err := intelligencecases.New(ctx, dataSourceName)
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, nil, notificationComponent{}, errors.New("initialize PostgreSQL intelligence eval case component failed")
+	}
+	closeStore = func() {
+		_ = intelligenceCaseStore.Close()
+		_ = modelGovernanceStore.Close()
+		_ = operatorSessionStore.Close()
+		_ = agentCredentialStore.Close()
+		_ = appGenerationStore.Close()
+		_ = assistantThreadStore.Close()
+		_ = notificationStore.Close()
+		closeReconciliationStore()
+	}
 	emitter, err := notificationsapplication.NewEmitter(notificationStore)
 	if err != nil {
 		closeStore()
@@ -707,12 +738,13 @@ func configureReconciliation(
 	}
 	return bridge, closeStore, supervisor, readStats, notificationComponent{
 		Store: notificationStore, Contacts: notificationStore, Deliveries: deliveries,
-		AssistantThreads: assistantThreadStore,
-		AppGenerations:   appGenerationStore,
-		Metrics:          notificationDeliveryMetrics(notificationStore, transport, deliveryRecorder),
-		AgentCredentials: agentCredentialStore,
-		OperatorSessions: operatorSessionStore,
-		ModelGovernance:  modelGovernanceStore,
+		AssistantThreads:  assistantThreadStore,
+		AppGenerations:    appGenerationStore,
+		Metrics:           notificationDeliveryMetrics(notificationStore, transport, deliveryRecorder),
+		AgentCredentials:  agentCredentialStore,
+		OperatorSessions:  operatorSessionStore,
+		ModelGovernance:   modelGovernanceStore,
+		IntelligenceCases: intelligenceCaseStore,
 	}, nil
 }
 

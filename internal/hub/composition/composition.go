@@ -149,6 +149,9 @@ func NewHub(
 	handler = mountAttachments(handler, repository, options, hubOptions.Attachments)
 	handler = mountAppGenerationWithService(handler, repository, options, appgenService)
 	intelService := newIntelligenceService(repository, options)
+	if hubOptions.IntelligenceCases != nil {
+		intelService.Stored = hubOptions.IntelligenceCases
+	}
 	handler = mountTimeline(mountUpgrades(mountOfflineBundles(mountSiteCheckIn(mountBlackouts(mountWaves(mountDriftFix(mountChannels(mountIntelligence(mountAssistant(mountOntology(mountPackaging(handler, repository, options, hubOptions), repository, options, hubOptions, workspaces), repository, options, hubOptions, assistant, intelCases{service: intelService}), repository, options, hubOptions, intelService), repository, options), repository, options), repository, options), repository, options), options), repository, options), repository, options), repository, options)
 	handler, err = mountPlanningWithAppgenService(handler, repository, options, appgenService, os.Getenv)
 	if err != nil {
