@@ -125,6 +125,15 @@ func TestDownloadPublicationSpaceSelectionCannotMoveGrouping(t *testing.T) {
 		t.Fatal(saved, e)
 	}
 	m.Version = "1.2.4"
+	for _, query := range []string{"%zz", first.ID + "%zz", first.ID + ";ignored"} {
+		response = spaceRequest(handler, "admin", http.MethodPost, endpoint+query, assetBody(t, m))
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("malformed selection accepted: %d %s", response.Code, response.Body)
+		}
+		if _, err := store.Get(t.Context(), m.Coordinate()); !errors.Is(err, assets.ErrNotFound) {
+			t.Fatalf("malformed selection prepared metadata: %v", err)
+		}
+	}
 	response = spaceRequest(handler, "admin", http.MethodPost, endpoint+"invalid", assetBody(t, m))
 	if response.Code != http.StatusBadRequest {
 		t.Fatal(response.Code, response.Body)

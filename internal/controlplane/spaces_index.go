@@ -67,3 +67,14 @@ func requireIndexSpaceMatch(w http.ResponseWriter, match bool) bool {
 	}
 	return match
 }
+
+// ResolveSpaceEnvironmentFilter validates optional Space selection and returns
+// an Environment grouping predicate. Callers must still authorize every resource;
+// membership alone grants no read authority. Errors are written to the response.
+func ResolveSpaceEnvironmentFilter(w http.ResponseWriter, r *http.Request, principal Principal, options HandlerOptions) (func(string) bool, bool) {
+	space, ok := selectedIndexSpace(w, r, principal, options)
+	if !ok {
+		return nil, false
+	}
+	return space.environment, true
+}
