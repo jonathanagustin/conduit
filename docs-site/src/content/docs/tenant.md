@@ -23,6 +23,14 @@ requires an admitted publisher policy; it must not fall through to Helm. A
 generated package definition is not evidence that its application workload was
 built, signed, published or installed.
 
+For a package target, declare `environment.packageArchitecture` as `amd64` or
+`arm64` in the native desired-state document. This is an operator declaration,
+not discovered cluster inventory. A package Release must name exactly one
+matching architecture and an immutable platform-manifest digest; multiarchitecture
+declarations and OCI indexes are refused. The Spoke checks its own architecture
+again before execution. The console's artifact coordinates are declared input,
+not proof of installation.
+
 Register the target namespaces and dependencies, review values and secret
 requirements, and ensure the Spoke can prepare the referenced material without
 placing secret values in a Plan or repository. External provider hooks and

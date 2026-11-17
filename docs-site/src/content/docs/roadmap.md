@@ -6,7 +6,7 @@ sidebar:
   order: 5
 ---
 
-Generated from the same reviewed issue evidence as [Readiness](/conduit/readiness/), observed at `2026-11-17T05:04:04Z`. GitHub issues are the current tracker; this is a dated index, not a project board or a release promise.
+Generated from the same reviewed issue evidence as [Readiness](/conduit/readiness/), observed at `2026-11-17T05:28:21Z`. GitHub issues are the current tracker; this is a dated index, not a project board or a release promise.
 
 ## AI execution and assurance
 
@@ -18,7 +18,7 @@ Generated from the same reviewed issue evidence as [Readiness](/conduit/readines
 
 ## Packaging and cluster acceptance
 
-[#828](https://github.com/jonathanagustin/conduit/issues/828), [#829](https://github.com/jonathanagustin/conduit/issues/829), [#830](https://github.com/jonathanagustin/conduit/issues/830), [#831](https://github.com/jonathanagustin/conduit/issues/831), [#832](https://github.com/jonathanagustin/conduit/issues/832), [#833](https://github.com/jonathanagustin/conduit/issues/833), [#834](https://github.com/jonathanagustin/conduit/issues/834), [#835](https://github.com/jonathanagustin/conduit/issues/835), [#836](https://github.com/jonathanagustin/conduit/issues/836), [#837](https://github.com/jonathanagustin/conduit/issues/837), [#838](https://github.com/jonathanagustin/conduit/issues/838), [#844](https://github.com/jonathanagustin/conduit/issues/844), [#615](https://github.com/jonathanagustin/conduit/issues/615), [#619](https://github.com/jonathanagustin/conduit/issues/619), [#639](https://github.com/jonathanagustin/conduit/issues/639).
+[#828](https://github.com/jonathanagustin/conduit/issues/828), [#829](https://github.com/jonathanagustin/conduit/issues/829), [#830](https://github.com/jonathanagustin/conduit/issues/830), [#831](https://github.com/jonathanagustin/conduit/issues/831), [#832](https://github.com/jonathanagustin/conduit/issues/832), [#834](https://github.com/jonathanagustin/conduit/issues/834), [#835](https://github.com/jonathanagustin/conduit/issues/835), [#836](https://github.com/jonathanagustin/conduit/issues/836), [#837](https://github.com/jonathanagustin/conduit/issues/837), [#838](https://github.com/jonathanagustin/conduit/issues/838), [#844](https://github.com/jonathanagustin/conduit/issues/844), [#615](https://github.com/jonathanagustin/conduit/issues/615), [#619](https://github.com/jonathanagustin/conduit/issues/619), [#639](https://github.com/jonathanagustin/conduit/issues/639).
 
 ## Typed contract migration
 

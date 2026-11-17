@@ -61,9 +61,25 @@ the actual deployment. `platform-delivery verify-schema` reports bounded schema
 differences; it is not an automatic migration rollback. The migration ledger is
 forward-only. Restoring a database does not restore a missing signing Secret.
 
-Audit export and scheduled checkpoint facilities remain version-dependent.
-Live-ledger pruning requires an accepted archive and expiry-receipt design;
-deleting a prefix or resetting digests is not a retention procedure.
+The merged baseline includes verified JSONL export, offline archive checking and
+an opt-in scheduled checkpoint verifier. With a read-only database identity and
+an independently retained checkpoint, for example:
+
+```bash
+platform-delivery verify-authorization-audit \
+  --checkpoint-file=/trusted/audit-checkpoint.json \
+  --export-file=/archives/audit-new.jsonl > candidate-checkpoint.json
+platform-delivery verify-authorization-audit \
+  --archive-file=/archives/audit-new.jsonl \
+  --checkpoint-file=/trusted/audit-checkpoint.json > verified-checkpoint.json
+cmp candidate-checkpoint.json verified-checkpoint.json
+```
+
+The export destination must be new. Preserve successful matching receipts under
+independent custody before extending the trusted prefix. The chart's optional
+checkpoint job does not archive data or retain a new checkpoint for the
+operator. Live-ledger pruning requires an accepted archive and expiry-receipt
+design; deleting a prefix or resetting digests is not a retention procedure.
 
 ## Incident response
 
