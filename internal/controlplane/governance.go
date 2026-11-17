@@ -39,6 +39,7 @@ type GovernanceRepository interface {
 	UpdateChangeRequestAndPlan(context.Context, string, bool, func(*ChangeRequest, *PlanRecord) error) (ChangeRequest, PlanRecord, error)
 	AppendAuthorizationAudit(context.Context, AuthorizationAuditEvent) (AuthorizationAuditEvent, error)
 	ListAuthorizationAudit(context.Context, string) ([]AuthorizationAuditEvent, error)
+	PageAuthorizationAudit(context.Context, AuthorizationAuditPageQuery) (AuthorizationAuditPage, error)
 }
 
 type EntityChange struct {

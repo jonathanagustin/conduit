@@ -16,6 +16,19 @@ back, retry, and shared links address the same result window.
 | Promotions | `GET /v1/promotions` | `product`, `status`, `search` | default 100, maximum 200 |
 | Packaging runs | `GET /v1/packaging-runs` | `phase`, `outcome`, `planId`, `search` | `summary`: default 100, maximum 200; `full` or omitted: maximum 20. Rows are ordered by run id. |
 | Packaging-run events | `GET /v1/packaging-runs/{runID}/events` | the run id; `view` and `limit` only | same view and limit rules. Events are ordered by sequence. A step that has not been reached is absent, not a pass. |
+| Authorization audit | `GET /v1/authorization-audit` | `resourceRid`, `since`, `until`, `view` (`events` or omitted, or `chain`) | default 100, maximum 200. Oldest first. Forward-only: `previousCursor` is never issued. |
+
+The authorization audit is the one index bounded in the repository query
+rather than after a full read, because the log is retained indefinitely.
+`since` (inclusive) and `until` (exclusive) are RFC 3339 timestamps compared
+with each event's `createdAt`; PostgreSQL compares them at microsecond
+resolution. PostgreSQL pages by chain sequence, which is the hash-chain order;
+the memory and file stores have no chain and page by event time and then ID.
+A `view=chain` cursor also carries the projection checkpoint its page continues
+from, so concatenated pages verify from genesis exactly as one read would. A
+request with no `limit` returns the first 100 events and a `nextCursor`; before
+issue #841 it returned the whole log. An unparseable `since`, `until` or `view`
+returns `422`.
 
 Every page returns `pageSize`, `limit`, `hasPrevious`, and optional
 `nextCursor` and `previousCursor`. Index envelopes also return the authorized,
