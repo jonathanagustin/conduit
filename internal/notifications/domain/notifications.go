@@ -172,9 +172,9 @@ func EventTypes() []EventType {
 // message says "never emits" of an unknown type, which implied the known ones
 // are emitted. Seven of ten were not. This set is the second question, kept
 // apart from the first because the vocabulary is Apollo's and the emit sites
-// are Conduit's: a type stays subscribable whether or not anything raises it,
-// since the console's checkbox list is held to the vocabulary and a preference
-// naming an unraised type is a statement about the future, not an error.
+// are Conduit's. Known unraised types remain readable on legacy preferences,
+// but new explicit selections are refused by ValidateSelection. Forward
+// consent remains available through AllFutureTypes.
 //
 // Each entry has an adapter that raises it:
 //   - PLAN_FAILURES: delivery/reconciliation (proposal exhausted) and
@@ -198,8 +198,7 @@ var raisedTypes = map[EventType]struct{}{
 	EventRoleChange:                   {},
 }
 
-// Raised reports whether any emit site in this build raises the type. False for
-// a known type means a preference naming it is stored and matches nothing yet.
+// Raised reports whether any emit site in this build raises the type.
 func (eventType EventType) Raised() bool {
 	_, raised := raisedTypes[eventType]
 	return raised
@@ -444,6 +443,21 @@ func (preference Preference) Validate() error {
 		if !eventType.Valid() {
 			return fmt.Errorf("notification preference names event type %q, which this build never emits", eventType)
 		}
+	}
+	return nil
+}
+
+// ValidateSelection applies Conduit's write policy without invalidating stored
+// preferences from earlier builds. A named selection must have an emit site;
+// otherwise a successful save would promise notifications that cannot arrive.
+// AllFutureTypes retains its open-ended meaning and ignores the named list.
+// This policy is part of the registered notifications.HTTPSurface extension.
+func (preference Preference) ValidateSelection() error {
+	if preference.AllFutureTypes {
+		return nil
+	}
+	if unavailable := NotYetRaised(preference.Types); len(unavailable) != 0 {
+		return fmt.Errorf("notification event type %q is not yet emitted by this Hub; remove it or opt into all future types", unavailable[0])
 	}
 	return nil
 }

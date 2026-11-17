@@ -415,6 +415,7 @@ func moduleOverrideBoundary(ctx context.Context, repository Repository, operatio
 
 func (a *moduleOverrideAuthority) CreateReview(ctx context.Context, p override.Proposal) (overrideports.ReviewAck, error) {
 	var ack overrideports.ReviewAck
+	var opening ChangeRequest
 	err := moduleOverrideBoundary(ctx, a.repository, func(repository Repository) error {
 		working := *a
 		working.repository = repository
@@ -458,8 +459,14 @@ func (a *moduleOverrideAuthority) CreateReview(ctx context.Context, p override.P
 			return err
 		}
 		ack = overrideports.ReviewAck{ReviewID: stored.ID, ProposalID: p.ID, Status: stored.Status}
+		opening = stored
 		return nil
 	})
+	if err == nil {
+		service := NewGovernanceService(a.repository)
+		service.SetAnnouncements(a.options.Announcements)
+		service.announceAwaitingApproval(ctx, opening)
+	}
 	return ack, err
 }
 

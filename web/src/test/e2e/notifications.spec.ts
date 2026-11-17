@@ -111,11 +111,17 @@ test("a failed inbox read is a failure with the Hub's message, then retries", as
   await expect(page.locator("[data-inbox-row]")).toHaveCount(2);
 });
 
-test("a preference is saved explicitly and reports types nothing raises", async ({
+test("preferences disclose unavailable types before saving and allow removal of legacy selections", async ({
   page,
 }) => {
   const rid = "product/payments";
   const writes: unknown[] = [];
+  const unavailable = [
+    "BLUE_GREEN_UPGRADE_FAILED",
+    "INSTALLED_PRODUCT_RELEASE_VULNERABILITY_UPDATE",
+    "LATEST_PRODUCT_RELEASE_VULNERABILITY_UPDATE",
+    "RBAC_CHANGE",
+  ];
   let stored: Record<string, unknown> | null = null;
   let refuse = false;
   await stubHub(page, (request, url) => {
@@ -134,7 +140,13 @@ test("a preference is saved explicitly and reports types nothing raises", async 
     if (request.method() === "GET")
       return stored
         ? { json: stored }
-        : { status: 404, json: { error: "no notification preference" } };
+        : {
+            status: 404,
+            json: {
+              error: "no notification preference",
+              typesNotYetEmitted: unavailable,
+            },
+          };
     const body = request.postDataJSON();
     writes.push(body);
     if (refuse)
@@ -148,7 +160,7 @@ test("a preference is saved explicitly and reports types nothing raises", async 
       ...body,
       revision: 1,
       updatedAt: "2026-11-17T00:00:00Z",
-      typesNotYetEmitted: ["PRODUCT_RECALLS"],
+      typesNotYetEmitted: unavailable,
     };
     return { json: stored };
   });
@@ -165,6 +177,11 @@ test("a preference is saved explicitly and reports types nothing raises", async 
   await expect(page.locator("[data-save-reason]")).toContainText(
     "can never deliver",
   );
+  const silent = page.locator('[data-type-not-emitted="RBAC_CHANGE"]');
+  await expect(silent).toContainText("Not yet emitted by this Hub");
+  await expect(silent.locator('input[type="checkbox"]')).toBeDisabled();
+  await expect(silent.locator('input[type="checkbox"]')).not.toBeChecked();
+  await expect(page.locator('[data-ntf-type="RBAC_CHANGE"]')).toHaveCount(0);
   await page.locator('[data-ntf-type="PLAN_FAILURES"]').check();
   await page.locator('[data-ntf-type="PRODUCT_RECALLS"]').check();
   await expect(save).toBeEnabled();
@@ -187,12 +204,23 @@ test("a preference is saved explicitly and reports types nothing raises", async 
     types: ["PLAN_FAILURES", "PRODUCT_RECALLS"],
     allFutureTypes: false,
   });
-  const silent = page.locator('[data-type-not-emitted="PRODUCT_RECALLS"]');
-  await expect(silent).toContainText("Not yet emitted by this Hub");
+  stored = Object.assign({}, stored, { types: ["PLAN_FAILURES", "RBAC_CHANGE"] });
+  await page.getByRole("button", { name: "Load preference" }).click();
   await expect(silent.locator('input[type="checkbox"]')).toBeDisabled();
-  await expect(page.locator('[data-ntf-type="PRODUCT_RECALLS"]')).toHaveCount(
-    0,
+  await expect(silent.locator('input[type="checkbox"]')).toBeChecked();
+  await expect(save).toBeDisabled();
+  await expect(page.locator("[data-save-reason]")).toContainText(
+    "Remove the selected types",
   );
+  await silent.getByRole("button", { name: "Remove" }).click();
+  await expect(silent.locator('input[type="checkbox"]')).not.toBeChecked();
+  await expect(save).toBeEnabled();
+  await save.click();
+  await expect(page.locator("[data-preference-saved]")).toBeVisible();
+  expect(writes.at(-1)).toMatchObject({
+    types: ["PLAN_FAILURES"],
+    allFutureTypes: false,
+  });
   await expect(page.locator('[data-ntf-type="PLAN_FAILURES"]')).toBeChecked();
   await expect(save).toBeDisabled();
 });
@@ -221,6 +249,7 @@ test("Save is disabled with the reason when the session lacks the grant", async 
           resourceRid: rid,
           channel: "IN_APP",
           types: ["PLAN_FAILURES"],
+          typesNotYetEmitted: [],
           revision: 4,
         },
       };

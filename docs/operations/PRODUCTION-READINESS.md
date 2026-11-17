@@ -252,21 +252,34 @@ carried to the residual list as item 5.
    registered as `governance.NotificationEventSelection` and
    `catalog.PromotionFailureSelection`.
 
-   What this does **not** close. Four declared types are still raised by
+   **Composition coverage and unavailable choices (#840).** The assistant,
+   model proposals, intelligence courses, workspace submissions and ACP,
+   blackouts, drift fixes, waves and offline bundles receive the same
+   announcement ports as the main API. Requests written directly by governed
+   maintenance and module-override operations announce after their transaction
+   commits. A failed transaction emits nothing; repeating the same review
+   round retains the notification's deterministic identity.
+
+   Four declared types are still raised by
    nothing — `LATEST_PRODUCT_RELEASE_VULNERABILITY_UPDATE`,
    `INSTALLED_PRODUCT_RELEASE_VULNERABILITY_UPDATE`, `BLUE_GREEN_UPGRADE_FAILED`
-   and `RBAC_CHANGE` — because Conduit has no event for any of them. They stay
-   subscribable, since the console's checkbox list is held to the vocabulary,
-   and a preference response now names them in `typesNotYetEmitted`;
+   and `RBAC_CHANGE` — because Conduit has no event for any of them. Explicit
+   selections of those types are refused when saving preferences. The
+   preference response names the complete unavailable set in
+   `typesNotYetEmitted`, including when no preference exists yet;
    `domain.EventType.Raised` is the predicate and
    `TestRaisedTypesHaveAnEmitSite` holds it to the adapters. "A Release becoming
-   available" still emits nothing. The change-request and grant announcements
-   are wired to the facade's own Governance service only: a request opened by a
-   surface that builds its own — the assistant, model proposals, intelligence
-   courses, workspace ACP, dev-workspace submissions, blackouts, drift fixes,
-   waves and offline bundles — is stored waiting and still tells nobody. And an
-   approver is told by subscribing to the Environment, not by being eligible to
-   approve: nothing resolves a reviewer requirement to recipients.
+   available" still emits nothing. The console disables unavailable choices
+   before a first save and shows legacy saved choices with a Remove control.
+   Opting into all future types remains forward consent rather than a promise
+   that these four have emitters. Existing stored preferences remain readable.
+   An approver is told by subscribing to the Environment, not by being eligible
+   to approve: nothing resolves a reviewer requirement to recipients. Requests
+   with no Environment are logged without an event on an invented resource.
+   Emission remains best effort after the primary write: failures are logged,
+   without a transactional outbox guaranteeing a later retry
+   ([#869](https://github.com/jonathanagustin/conduit/issues/869)). File-backed Hubs
+   with no notification store emit no notifications.
 
 2. **Observability is partial.** Metrics now exist and the wedge signal is
    exported: `conduit_reconciliation_pending`, `_leased`, `_exhausted` and

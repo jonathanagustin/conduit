@@ -19,7 +19,7 @@ import (
 func mountPackaging(
 	legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, hub Options,
 ) http.Handler {
-	service := controlplane.NewGovernanceService(repository)
+	service := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	cfg := packaginghttp.Config{
 		Reader: hub.PackagingStatus,

@@ -18,7 +18,7 @@ func mountSpaces(legacy http.Handler, repository controlplane.Repository, option
 	if store == nil {
 		return legacy, nil
 	}
-	service := controlplane.NewGovernanceService(repository)
+	service := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	if err := spacehttp.Register(mux, func(r *http.Request) (*spaceapp.Service, error) {
 		if _, err := operatorFrom(r.Context()); err != nil {
@@ -116,7 +116,7 @@ func withSpaceLookup(repository controlplane.Repository, options controlplane.Ha
 		return options
 	}
 	authorizationOptions := options
-	service := controlplane.NewGovernanceService(repository)
+	service := newGovernanceService(repository, options)
 	options.SpaceIDLookup = func(ctx context.Context, carrier controlplane.Principal, kind, id string) (string, error) {
 		resource := spaces.Resource{Kind: kind, ID: id}
 		if err := resource.Validate(); err != nil {

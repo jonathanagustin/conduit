@@ -67,25 +67,28 @@ happened". A 403 renders as a refusal. A 404 on a preference is
 this" — so it renders as a state.
 
 **The event-type vocabulary is open, and the console does not close it.** The
-checkbox list is the set this Hub accepts, held to the `domain.EventType`
+checkbox list is the vocabulary this Hub knows, held to the `domain.EventType`
 consts by `scripts/verify-console-contract.mjs` in both directions. Growth
 beyond it is what `allFutureTypes` is for. An inbox entry whose type this build
 has never heard of still renders, because a row shows the string the Hub sent,
-and a stored preference naming such a type is carried through a save unchanged
-and reported rather than silently dropped.
+and the browser carries a stored unknown selection into the proposed edit
+unchanged rather than silently dropping it. Hub write validation remains
+authoritative; a type unknown to the server is refused with 422.
 
 **A known type is not necessarily a raised one.** `GET` and `PUT
 /v1/notifications/preferences` answer with an additional
-`typesNotYetEmitted` array naming those of the preference's `types` that no
-emit site in this build raises (`domain.EventType.Raised`). The field is absent
-when every named type is raised. Such a type is still accepted and stored — the
-checkbox list is the vocabulary, not the set of live emitters — so the field is
-how a subscriber learns that silence on that type means "nothing raises it",
-not "nothing happened". The console renders each such type apart from the
-working checkboxes: disabled, labelled "Not yet emitted by this Hub", with a
-Remove control so it is not a subscription the operator cannot leave. Because
-the field covers only types already saved, an unsaved box can still name a type
-nothing raises, and the editor says that the answer appears after a save.
+`typesNotYetEmitted` array naming the complete known set that no emit site in
+this build raises (`domain.EventType.Raised`). A missing preference's 404
+response also carries it, so the editor can disable those choices before a
+first save. Saving an explicit selection of an unavailable type returns 422;
+legacy stored preferences remain readable so they can be repaired. The console
+renders each unavailable type disabled and labelled "Not yet emitted by this
+Hub", with a Remove control for a saved selection. Opting into all future types
+keeps its forward-consent meaning and does not imply an emitter exists today.
+An older Hub response without availability metadata disables preference edits
+and explains that the Hub must report its supported emitters first.
+This availability and write policy is a Conduit extension; the captured Apollo
+vocabulary does not establish server-side emitter availability.
 
 **An edit the Hub would refuse is refused first.**
 `domain.Preference.Validate` rejects a preference that enables no types and has

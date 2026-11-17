@@ -82,7 +82,7 @@ func liveIdentityError(err error) error {
 // CONDUIT-INVENTED: liveevents.GovernedSSE
 // Displaced-by: A published or owner-approved sanitized event-stream contract establishing transport, cursor binding, stream eligibility, source coverage and resource authorization semantics.
 func mountLiveEvents(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, hub Options) (http.Handler, error) {
-	governanceService := controlplane.NewGovernanceService(repository)
+	governanceService := newGovernanceService(repository, options)
 	resolve := func(ctx context.Context) (nativeauth.State, error) {
 		return liveOperatorState(ctx, governanceService, options)
 	}

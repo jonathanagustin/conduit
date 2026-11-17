@@ -300,7 +300,9 @@ func (api *api) readPreference(writer http.ResponseWriter, request *http.Request
 	preference, err := api.config.Preferences.Get(request.Context(), resourceRID, owner, channel)
 	switch {
 	case errors.Is(err, application.ErrNoPreference):
-		writeError(writer, http.StatusNotFound, err)
+		writeJSON(writer, http.StatusNotFound, map[string]any{
+			"error": err.Error(), "typesNotYetEmitted": domain.NotYetRaised(domain.EventTypes()),
+		})
 		return
 	case err != nil:
 		writeError(writer, http.StatusInternalServerError, err)
@@ -362,23 +364,16 @@ func (api *api) writePreference(writer http.ResponseWriter, request *http.Reques
 	writeJSON(writer, http.StatusOK, describedPreference(stored))
 }
 
-// preferenceResponse is a stored preference plus the one thing about it the
-// record cannot say: which of the types it names nothing in this build raises.
-//
-// Additive on purpose. Refusing such a type at the write would have been the
-// other way to be honest, and it would have broken a contract: the console's
-// checkbox list is held to the whole vocabulary, so a refusal would turn boxes
-// the console offers into a 422, and would start rejecting preferences already
-// stored. So the preference is accepted and the response says which of its
-// types will not fire yet. Absent when every named type is raised, and absent
-// under allFutureTypes with no named types, which names none.
+// preferenceResponse reports the full build coverage, including types not
+// selected on this preference, so an editor can refuse unavailable choices
+// before a save. Legacy saved selections stay readable and removable.
 type preferenceResponse struct {
 	domain.Preference
-	TypesNotYetEmitted []domain.EventType `json:"typesNotYetEmitted,omitempty"`
+	TypesNotYetEmitted []domain.EventType `json:"typesNotYetEmitted"`
 }
 
 func describedPreference(preference domain.Preference) preferenceResponse {
-	return preferenceResponse{Preference: preference, TypesNotYetEmitted: domain.NotYetRaised(preference.Types)}
+	return preferenceResponse{Preference: preference, TypesNotYetEmitted: domain.NotYetRaised(domain.EventTypes())}
 }
 
 // maximumPreferenceBytes bounds a body whose largest legitimate form is a list

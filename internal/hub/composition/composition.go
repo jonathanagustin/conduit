@@ -114,7 +114,7 @@ func NewHub(
 	}
 	workspaces := assembleDevWorkspace(repository, options, os.Getenv)
 	handler = mountDevWorkspace(handler, repository, options, workspaces)
-	workspaceACP := assembleWorkspaceACP(repository, workspaces, hubOptions, os.Getenv)
+	workspaceACP := assembleWorkspaceACP(repository, workspaces, hubOptions, os.Getenv, options)
 	if hubOptions.AppGenerator == nil {
 		generator, err := appGenerator(os.Getenv)
 		if err != nil {

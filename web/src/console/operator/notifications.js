@@ -236,11 +236,16 @@ export function preferencePayload(resourceRid, channel, draft) {
 }
 
 /** Why the Hub would refuse this edit; empty when it would not. */
-export function preferenceProblem(resourceRid, draft) {
+export function preferenceProblem(resourceRid, draft, unavailable = []) {
   if (!String(resourceRid ?? "").trim())
     return "Name the resource this preference is about.";
   if (!draft.types.length && !draft.allFutureTypes)
     return "Enable at least one type or opt into future types. A preference that selects nothing can never deliver, and the Hub refuses it.";
+  if (
+    !draft.allFutureTypes &&
+    draft.types.some((type) => unavailable.includes(type))
+  )
+    return "Remove the selected types this Hub does not emit, or opt into all future types.";
   return "";
 }
 
@@ -289,6 +294,7 @@ async function hubRequest(method, path, body) {
     return {
       ok: false,
       status: response.status,
+      body: json,
       message:
         typeof json?.error === "string" && json.error
           ? json.error
@@ -381,24 +387,24 @@ function inboxMarkup(model, newSince) {
 function preferenceEditor(model, decision) {
   const pref = model.pref;
   const draft = pref.draft;
-  const unraised = pref.notYetEmitted.filter((type) =>
-    draft.types.includes(type),
-  );
+  const unraised = pref.notYetEmitted;
   const carried = draft.types.filter((type) => !EVENT_TYPES.includes(type));
   const boxes = EVENT_TYPES.filter((type) => !unraised.includes(type))
     .map(
       (type) =>
-        `<label class="flex items-start gap-2 text-[12px]"><input type="checkbox" data-ntf-type="${esc(type)}" data-key="type-${esc(type)}" ${draft.types.includes(type) ? "checked" : ""}/><span>${esc(typeLabel(type))} <span class="code-id text-[10.5px] text-[#8b96a5]">${esc(type)}</span></span></label>`,
+        `<label class="flex items-start gap-2 text-[12px]"><input type="checkbox" data-ntf-type="${esc(type)}" data-key="type-${esc(type)}" ${draft.allFutureTypes || draft.types.includes(type) ? "checked" : ""} ${draft.allFutureTypes || !pref.availabilityKnown ? "disabled" : ""}/><span>${esc(typeLabel(type))} <span class="code-id text-[10.5px] text-[#8b96a5]">${esc(type)}</span></span></label>`,
     )
     .join("");
   const silent = unraised
     .map(
       (type) =>
-        `<li class="flex items-start gap-2 text-[12px]" data-type-not-emitted="${esc(type)}"><input type="checkbox" checked disabled aria-label="${esc(typeLabel(type))}, not yet emitted by this Hub"/><span>${esc(typeLabel(type))} <span class="code-id text-[10.5px] text-[#8b96a5]">${esc(type)}</span><br/><span class="text-[#eab854]">Not yet emitted by this Hub. It is stored on your preference, and nothing in this build raises it, so silence on it does not mean nothing happened.</span></span><button type="button" class="so-btn so-btn-sm" data-ntf-remove-type="${esc(type)}" data-key="remove-${esc(type)}">Remove</button></li>`,
+        `<li class="flex items-start gap-2 text-[12px]" data-type-not-emitted="${esc(type)}"><input type="checkbox" ${draft.types.includes(type) ? "checked" : ""} disabled aria-label="${esc(typeLabel(type))}, not yet emitted by this Hub"/><span>${esc(typeLabel(type))} <span class="code-id text-[10.5px] text-[#8b96a5]">${esc(type)}</span><br/><span class="text-[#eab854]">Not yet emitted by this Hub. ${draft.types.includes(type) ? "It remains selected on your preference; remove it before saving individual types. " : "It cannot be selected individually. "}Silence on it does not mean nothing happened.</span></span>${draft.types.includes(type) ? `<button type="button" class="so-btn so-btn-sm" data-ntf-remove-type="${esc(type)}" data-key="remove-${esc(type)}">Remove</button>` : ""}</li>`,
     )
     .join("");
   const diff = preferenceDiff(pref.stored, draft);
-  const problem = preferenceProblem(pref.resourceRid, draft);
+  const problem = !pref.availabilityKnown
+    ? "This Hub did not report notification availability. Reload after updating the Hub before editing preferences."
+    : preferenceProblem(pref.resourceRid, draft, unraised);
   const reason =
     decision.allowed === false
       ? decision.reason
@@ -432,8 +438,8 @@ function preferenceEditor(model, decision) {
         : `You are not subscribed to <span class="code-id">${esc(pref.resourceRid)}</span> on ${esc(model.inbox.channel)}. Saving creates the preference.`
     }</div>
     <fieldset class="space-y-1.5"><legend class="text-[11px] uppercase tracking-[0.08em] text-[#8b96a5] mb-1">Event types</legend>${boxes}</fieldset>
-    ${silent ? `<div><div class="text-[11px] uppercase tracking-[0.08em] text-[#8b96a5] mb-1">Stored types nothing raises yet</div><ul class="space-y-1.5">${silent}</ul></div>` : ""}
-    <p class="text-[11px] text-[#8b96a5]">The Hub reports a type as not yet emitted only for types already saved on this preference, so a box above can still name a type nothing raises; the answer appears after a save.</p>
+    ${silent ? `<div><div class="text-[11px] uppercase tracking-[0.08em] text-[#8b96a5] mb-1">Unavailable notification types</div><ul class="space-y-1.5">${silent}</ul></div>` : ""}
+    <p class="text-[11px] text-[#8b96a5]">Unavailable types remain visible as part of the known vocabulary. All future types includes types this Hub emits and consents to later implementations; it cannot make an unavailable type deliver today.</p>
     ${carried.length ? `<p class="text-[12px]" data-carried-types>Stored types this console does not know are carried through a save unchanged: <span class="code-id">${esc(carried.join(", "))}</span></p>` : ""}
     <label class="flex items-start gap-2 text-[12px]"><input type="checkbox" data-ntf-future data-key="future" ${draft.allFutureTypes ? "checked" : ""}/><span>All future types. Include types a later Hub adds.</span></label>
     <label class="block text-[12px]">Contact
@@ -624,6 +630,7 @@ export function initialNotifications(channel = DEFAULT_CHANNEL) {
       stored: null,
       draft: initialPreferenceDraft(null),
       notYetEmitted: [],
+      availabilityKnown: false,
       saving: false,
       error: "",
       saved: "",
@@ -791,13 +798,16 @@ export function createNotifications({ state, render, capabilities }) {
   const preferencePath = () =>
     `/v1/notifications/preferences?resourceRid=${encodeURIComponent(model.pref.resourceRid)}&channel=${encodeURIComponent(model.inbox.channel)}`;
 
-  function acceptPreference(stored) {
+  function acceptPreference(stored, coverage = stored) {
     const pref = model.pref;
     pref.status = "ready";
     pref.stored = stored;
     pref.draft = initialPreferenceDraft(stored);
-    pref.notYetEmitted = Array.isArray(stored?.typesNotYetEmitted)
-      ? stored.typesNotYetEmitted.filter((type) => typeof type === "string")
+    pref.availabilityKnown =
+      Array.isArray(coverage?.typesNotYetEmitted) &&
+      coverage.typesNotYetEmitted.every((type) => typeof type === "string");
+    pref.notYetEmitted = pref.availabilityKnown
+      ? coverage.typesNotYetEmitted
       : [];
   }
 
@@ -824,7 +834,7 @@ export function createNotifications({ state, render, capabilities }) {
         "The Hub's answer did not describe the preference for this resource.";
     } else if (result.ok) acceptPreference(result.body);
     // 404 is a state, not a failure: there is no preference yet.
-    else if (result.status === 404) acceptPreference(null);
+    else if (result.status === 404) acceptPreference(null, result.body);
     else {
       pref.status = result.status === 403 ? "refused" : "failed";
       pref.error = result.message;
@@ -835,7 +845,11 @@ export function createNotifications({ state, render, capabilities }) {
   async function savePreference() {
     const pref = model.pref;
     if (pref.saving || pref.status !== "ready") return;
-    if (preferenceProblem(pref.resourceRid, pref.draft)) return;
+    if (
+      !pref.availabilityKnown ||
+      preferenceProblem(pref.resourceRid, pref.draft, pref.notYetEmitted)
+    )
+      return;
     if (
       capabilities.canPerform("resource:read", pref.resourceRid).allowed ===
       false
