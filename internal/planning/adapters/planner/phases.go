@@ -221,13 +221,15 @@ func sessionContext(session *domain.Session, message string) string {
 		fmt.Fprintf(&b, "Operator message: %s\n", strings.TrimSpace(message))
 	}
 	if in := session.Inspection; in != nil {
-		fmt.Fprintf(&b, "Inspection: language=%s packageManager=%s kind=%s startCommand=%q ports=%v hasDockerfile=%t\n",
-			in.Language, in.PackageManager, in.Kind, in.StartCommand, in.Ports, in.HasDockerfile)
-		tree := in.Tree
-		if len(tree) > maxTreeInPrompt {
-			tree = tree[:maxTreeInPrompt]
+		inspection := *in
+		if len(inspection.Tree) > maxTreeInPrompt {
+			inspection.Tree = inspection.Tree[:maxTreeInPrompt]
 		}
-		fmt.Fprintf(&b, "Tree:\n%s\n", strings.Join(tree, "\n"))
+		// Filenames and inferred metadata originate in the repository too.
+		// JSON preserves filenames containing newlines without turning them
+		// into new prompt instructions or forged tool-result lines.
+		encoded, _ := json.Marshal(inspection)
+		b.WriteString(frameToolResults("inspect_repo: " + string(encoded)))
 	}
 	return b.String()
 }

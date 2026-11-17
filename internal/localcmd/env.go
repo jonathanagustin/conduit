@@ -35,6 +35,10 @@ var allowedEnv = map[string]bool{
 	"XAI_API_KEY": true, "GROK_API_KEY": true,
 	// Read by `packaging-workflow agent-exec`, the ready-made model command.
 	"CONDUIT_AGENT_PROVIDER": true, "CONDUIT_MODEL_TIMEOUT": true,
+	// A Hub may delegate through agent-exec before reaching the model CLI.
+	// Preserve the operator's policy so filtering that second child does
+	// not discard variables explicitly admitted for the first child.
+	EnvAllowVar: true,
 }
 
 // ChildEnv filters a parent environment (os.Environ form) down to the
