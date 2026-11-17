@@ -141,7 +141,7 @@ export function mountOperator(host, options) {
   host.innerHTML =
     '<!-- ===================================================================== -->\n  <!-- Conduit 44px top bar (kit v6.1 rhythm)                                -->\n  <!-- ===================================================================== -->\n  <header class="cnd-topbar shrink-0 bg-[var(--bg-1)] border-b border-[var(--border-subtle)] px-4 flex items-center justify-between gap-4 z-40">\n    <!-- Left: Bold Product Wordmark + Divider + Wide-Tracked Operational Context -->\n    <div class="flex items-center gap-3 min-w-0 shrink-0">\n      <button id="btn-mobile-menu" data-onclick="toggleMobileNav()" class="so-btn so-btn-sm lg:hidden" aria-label="Toggle navigation">\n        <span data-ic="menu"></span>\n      </button>\n      <span data-onclick="switchScreen(\'s13-fleet-overview\')" class="cnd-brand font-bold text-[17px] tracking-[-0.02em] text-[var(--text-1)] cursor-pointer select-none">' +
     brandMarkMarkup(20) +
-    '<span>Conduit</span></span>\n      <span class="h-4 w-[1px] bg-[var(--bg-2)]"></span>\n      <span id="topbar-subtitle" class="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[var(--text-2)] hidden sm:inline truncate">FLEET COMMAND CENTER</span>\n    </div>\n\n    <!-- Center: Iconic Conduit Icon + 20px Bold Numeral + Two-Line Label KPI Strip -->\n    <div id="header-kpi-strip" class="topbar-kpi-strip hidden lg:flex items-center gap-4 shrink-0">\n    </div>\n\n    <!-- Right: Search (Cmd+K) + LIVE Badge + Ontology Button + Avatar -->\n    <div class="flex items-center gap-2 shrink-0">\n      <div class="omnibar-trigger hidden md:flex items-center relative">\n        <span class="omnibar-icon" data-ic="search" aria-hidden="true"></span>\n        <button id="global-search-input" type="button" data-onclick="openCmdOmnibar()" aria-label="Search views" aria-haspopup="dialog"\n          class="so-input w-full pl-7 pr-9 text-[11px] text-left">Jump to view...</button>\n        <kbd class="code-id absolute right-1.5 px-1.5 py-0.5 text-[9px] text-[var(--text-2)] bg-[var(--bg-1)] border border-[var(--border-subtle)] rounded-[3px]">&#8984;K</kbd>\n      </div>\n\n      <span class="hidden xl:inline-flex items-center h-[26px] px-2 rounded-[4px] bg-[var(--bg-2)] border border-[var(--warn-border)] text-[9.5px] font-semibold code-id text-[var(--warn-text)]" id="example-data-badge" title="Example data">EXAMPLE DATA</span>\n\n      <button type="button" id="theme-toggle" data-onclick="toggleTheme()" class="so-btn !h-[26px]">Light</button>\n\n      <button type="button" id="settings-toggle" data-onclick="toggleSettingsDialog()" class="so-btn !h-[26px] !px-2" title="Settings (Ctrl/Cmd + ,)" aria-label="Settings">&#9881;</button>\n\n      <button data-onclick="switchScreen(\'s19-ontology\')" class="so-btn !h-[26px]">\n        <span data-ic="globe"></span>\n        <span class="hidden sm:inline">Ontology</span>\n      </button>\n\n      <button data-onclick="toggleChatRail()" class="so-btn !h-[26px] !px-2" title="Toggle right chat panel">\n        <span data-ic="panelRight"></span>\n      </button>\n\n      <span id="live-events-controls" class="inline-flex items-center gap-2"></span>\n      <div class="h-[26px] px-2.5 rounded-[4px] bg-[var(--bg-1)] border border-[var(--border-subtle)] flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-1)]" id="operator-chip" role="img" title="Operator identity unavailable" aria-label="Operator identity unavailable">\n        <span id="operator-initials" class="w-4 h-4 rounded-full bg-[var(--info-fill)] text-[var(--info-text)] text-[9.5px] font-semibold flex items-center justify-center">?</span>\n        <span id="operator-name" class="hidden sm:inline max-w-[180px] truncate">Identity unavailable</span>\n      </div>\n    </div>\n  </header>\n\n  <!-- ===================================================================== -->\n  <!-- THREE-PANE BODY: Conduit LEFT SIDEBAR + TABBED WORKSPACE + PLAIN CHAT  -->\n  <!-- ===================================================================== -->\n  <div class="flex-1 min-h-0 min-w-0 flex relative overflow-hidden">\n\n    <div id="mobile-nav-backdrop" data-onclick="closeMobileNav()"></div>\n\n    <!-- PANE 1 (LEFT SIDEBAR, 206px — ONLY on Hub screens, calm & spacious like Conduit f_01_18_cc!) -->\n    <aside id="left-nav" class="w-[var(--w-rail)] shrink-0 bg-[var(--bg-1)] border-r border-[var(--border-subtle)] flex flex-col justify-between min-h-0 select-none">\n      <div id="left-nav-sections" class="px-2.5 pt-3.5 space-y-5"></div>\n      <!-- Minimal Conduit Bottom-Left Two-Dot Collapse Indicator (No text, no box!) -->\n      <div class="px-4 py-3 shrink-0 flex flex-col items-start gap-1.5">\n        <button data-onclick="toggleLeftRailCollapse()" role="switch" aria-checked="true" class="kit-rail-switch inline-flex items-center gap-1.5 py-1 opacity-85 hover:opacity-100" title="Expand / collapse sidebar" aria-label="Expand or collapse sidebar">\n          <span class="w-[6px] h-[6px] rounded-full bg-[var(--ok-border)] shadow-[0_0_5px_var(--ok-border)]"></span>\n          <span class="w-[6px] h-[6px] rounded-full bg-[var(--ok-fill)]"></span>\n        </button>\n        <div id="left-nav-sites" class="text-[10px] text-[var(--text-2)]"></div>\n      </div>\n    </aside>\n\n    <!-- PANE 2 (WORKSPACE — Flush below <header> on Hub screens; clean breadcrumb sub-bar on Dedicated App screens!) -->\n    <section class="flex-1 min-w-0 min-h-0 flex flex-col bg-[var(--bg-1)] overflow-hidden">\n      <div id="app-breadcrumb-bar" class="hidden h-[34px] shrink-0 bg-[var(--bg-1)] border-b border-[var(--border-subtle)] px-4 items-center justify-between gap-3 z-30"></div>\n      <main id="main-workspace" class="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden cnd-workspace"></main>\n    </section>\n\n    <!-- PANE 3 (PLAIN NEUTRAL CHAT DRAWER — Closed by default like Conduit, toggleable from top bar!) -->\n    <aside id="right-chat-rail" class="hidden w-[248px] shrink-0 bg-[var(--bg-1)] border-l border-[var(--border-subtle)] flex-col min-h-0"></aside>\n  </div>\n\n  <div id="so-portal-tooltip" class="so-tooltip-bubble hidden"></div>\n  <div id="conduit-modal-root"></div>';
+    '<span>Conduit</span></span>\n      <span class="h-4 w-[1px] bg-[var(--bg-2)]"></span>\n      <span id="topbar-subtitle" class="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[var(--text-2)] hidden sm:inline truncate">FLEET COMMAND CENTER</span>\n    </div>\n\n    <!-- Center: Iconic Conduit Icon + 20px Bold Numeral + Two-Line Label KPI Strip -->\n    <div id="header-kpi-strip" class="topbar-kpi-strip hidden lg:flex items-center gap-4 shrink-0">\n    </div>\n\n    <!-- Right: Search (Cmd+K) + LIVE Badge + Ontology Button + Avatar -->\n    <div class="flex items-center gap-2 shrink-0">\n      <div class="omnibar-trigger hidden md:flex items-center relative">\n        <span class="omnibar-icon" data-ic="search" aria-hidden="true"></span>\n        <button id="global-search-input" type="button" data-onclick="openCmdOmnibar()" aria-label="Search views" aria-haspopup="dialog"\n          class="so-input w-full pl-7 pr-9 text-[11px] text-left">Jump to view...</button>\n        <kbd class="code-id absolute right-1.5 px-1.5 py-0.5 text-[9px] text-[var(--text-2)] bg-[var(--bg-1)] border border-[var(--border-subtle)] rounded-[3px]">&#8984;K</kbd>\n      </div>\n\n      <span class="hidden xl:inline-flex items-center h-[26px] px-2 rounded-[4px] bg-[var(--bg-2)] border border-[var(--warn-border)] text-[9.5px] font-semibold code-id text-[var(--warn-text)]" id="example-data-badge" title="Example data">EXAMPLE DATA</span>\n\n      <button type="button" id="theme-toggle" data-onclick="toggleTheme()" class="so-btn !h-[26px]">Light</button>\n\n      <button type="button" id="settings-toggle" data-onclick="toggleSettingsDialog()" class="so-btn !h-[26px] !px-2" title="Settings (Ctrl/Cmd + ,)" aria-label="Settings">&#9881;</button>\n\n      <button data-onclick="switchScreen(\'s19-ontology\')" class="so-btn !h-[26px]">\n        <span data-ic="globe"></span>\n        <span class="hidden sm:inline">Ontology</span>\n      </button>\n\n      <button data-onclick="toggleChatRail()" class="so-btn !h-[26px] !px-2" title="Toggle right chat panel">\n        <span data-ic="panelRight"></span>\n      </button>\n\n      <span id="live-events-controls" class="inline-flex items-center gap-2"></span>\n      <div class="h-[26px] px-2.5 rounded-[4px] bg-[var(--bg-1)] border border-[var(--border-subtle)] flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-1)]" id="operator-chip" role="img" title="Operator identity unavailable" aria-label="Operator identity unavailable">\n        <span id="operator-initials" class="w-4 h-4 rounded-full bg-[var(--info-fill)] text-[var(--info-text)] text-[9.5px] font-semibold flex items-center justify-center">?</span>\n        <span id="operator-name" class="hidden sm:inline max-w-[180px] truncate">Identity unavailable</span>\n      </div>\n    </div>\n  </header>\n\n  <!-- ===================================================================== -->\n  <!-- THREE-PANE BODY: Conduit LEFT SIDEBAR + TABBED WORKSPACE + PLAIN CHAT  -->\n  <!-- ===================================================================== -->\n  <div class="flex-1 min-h-0 min-w-0 flex relative overflow-hidden">\n\n    <div id="mobile-nav-backdrop" data-onclick="closeMobileNav()"></div>\n\n    <!-- PANE 1 (LEFT SIDEBAR, 206px — ONLY on Hub screens, calm & spacious like Conduit f_01_18_cc!) -->\n    <aside id="left-nav" class="w-[var(--w-rail)] shrink-0 bg-[var(--bg-1)] border-r border-[var(--border-subtle)] flex flex-col justify-between min-h-0 select-none">\n      <div id="left-nav-sections" class="px-2.5 pt-3.5 space-y-5 overflow-y-auto"></div>\n      <!-- Minimal Conduit Bottom-Left Two-Dot Collapse Indicator (No text, no box!) -->\n      <div class="px-4 py-3 shrink-0 flex flex-col items-start gap-1.5">\n        <button data-onclick="toggleLeftRailCollapse()" role="switch" aria-checked="true" class="kit-rail-switch inline-flex items-center gap-1.5 py-1 opacity-85 hover:opacity-100" title="Expand / collapse sidebar" aria-label="Expand or collapse sidebar">\n          <span class="w-[6px] h-[6px] rounded-full bg-[var(--ok-border)] shadow-[0_0_5px_var(--ok-border)]"></span>\n          <span class="w-[6px] h-[6px] rounded-full bg-[var(--ok-fill)]"></span>\n        </button>\n        <div id="left-nav-sites" class="text-[10px] text-[var(--text-2)]"></div>\n      </div>\n    </aside>\n\n    <!-- PANE 2 (WORKSPACE — Flush below <header> on Hub screens; clean breadcrumb sub-bar on Dedicated App screens!) -->\n    <section class="flex-1 min-w-0 min-h-0 flex flex-col bg-[var(--bg-1)] overflow-hidden">\n      <div id="app-breadcrumb-bar" class="hidden h-[34px] shrink-0 bg-[var(--bg-1)] border-b border-[var(--border-subtle)] px-4 items-center justify-between gap-3 z-30"></div>\n      <main id="main-workspace" class="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden cnd-workspace"></main>\n    </section>\n\n    <!-- PANE 3 (PLAIN NEUTRAL CHAT DRAWER — Closed by default like Conduit, toggleable from top bar!) -->\n    <aside id="right-chat-rail" class="hidden w-[248px] shrink-0 bg-[var(--bg-1)] border-l border-[var(--border-subtle)] flex-col min-h-0"></aside>\n  </div>\n\n  <div id="so-portal-tooltip" class="so-tooltip-bubble hidden"></div>\n  <div id="conduit-modal-root"></div>';
 
   const ICONS = {
     extLink:
@@ -1544,6 +1544,35 @@ export function mountOperator(host, options) {
         ?.focus();
     }
   }
+  // Retain unchanged tab targets during read-model refreshes. Replacing a
+  // button between pointer down and up loses its click even if focus is restored.
+  function paintAreaShell(root, areaId, tabsMarkup, markup) {
+    const current = root.firstElementChild;
+    const nav = current?.querySelector(":scope > .kit-subnav");
+    const keepTabs =
+      current?.getAttribute("data-area-screen") === areaId &&
+      nav &&
+      shellMarkup.get(nav) === tabsMarkup;
+    if (keepTabs) {
+      const template = document.createElement("template");
+      template.innerHTML = markup;
+      const next = template.content.firstElementChild;
+      const nextNav = next.querySelector(":scope > .kit-subnav");
+      for (const node of [...current.childNodes])
+        if (node !== nav) node.remove();
+      let afterTabs = false;
+      for (const node of [...next.childNodes]) {
+        if (node === nextNav) afterTabs = true;
+        else if (afterTabs) current.append(node);
+        else current.insertBefore(node, nav);
+      }
+    } else root.innerHTML = markup;
+    const renderedNav = root.firstElementChild?.querySelector(
+      ":scope > .kit-subnav",
+    );
+    if (renderedNav) shellMarkup.set(renderedNav, tabsMarkup);
+  }
+
   function renderLeftRail() {
     document.querySelectorAll("[data-ic]").forEach((el) => {
       paintShellMarkup(el, ic(el.getAttribute("data-ic")));
@@ -1573,6 +1602,10 @@ export function mountOperator(host, options) {
 
     // Dedicated App Screens hide left sidebar on >=1024px via .hub-hidden while keeping mobile drawer ready on <1024px!
     const hubHiddenCls = activeMeta.hasSidebar ? "" : " hub-hidden";
+    // A read refresh must not close a drawer the operator explicitly opened.
+    const mobileOpenCls = aside.classList.contains("mobile-open")
+      ? " mobile-open"
+      : "";
 
     const navItems = [
       { label: "Packaging", icon: "cube", id: "area-packaging" },
@@ -1640,7 +1673,8 @@ export function mountOperator(host, options) {
     if (iconRail) {
       aside.className =
         "is-rail-collapsed w-[var(--w-rail-collapsed)] shrink-0 bg-[var(--bg-1)] border-r border-[var(--border-subtle)] flex flex-col justify-between items-center py-2.5 select-none" +
-        hubHiddenCls;
+        hubHiddenCls +
+        mobileOpenCls;
       sectionsEl.className = "flex flex-col items-center gap-1.5 pt-1";
       paintShellMarkup(
         sectionsEl,
@@ -1665,8 +1699,9 @@ export function mountOperator(host, options) {
 
     aside.className =
       "w-[var(--w-rail)] shrink-0 bg-[var(--bg-1)] border-r border-[var(--border-subtle)] flex flex-col justify-between min-h-0 select-none" +
-      hubHiddenCls;
-    sectionsEl.className = "px-2.5 pt-3.5 space-y-5";
+      hubHiddenCls +
+      mobileOpenCls;
+    sectionsEl.className = "px-2.5 pt-3.5 space-y-5 overflow-y-auto";
 
     const renderAppGroup = (title, apps) => `
         <div>
@@ -5004,21 +5039,27 @@ export function mountOperator(host, options) {
       }),
     );
     const extra = areaSupplement(state.hub, state.screen, current.id);
-    root.innerHTML = `<div class="space-y-3">
+    const tabsMarkup = tabs
+      .map(
+        (tab) =>
+          `<button type="button" data-area-tab="${tab.id}" class="kit-tab ${tab.id === current.id ? "is-active" : ""}">${tab.label}</button>`,
+      )
+      .join("");
+    paintAreaShell(
+      root,
+      state.screen,
+      tabsMarkup,
+      `<div data-area-screen="${escAttr(state.screen)}" class="space-y-3">
       <div class="kit-crumb">${area.label} / ${current.label}</div>
-      <div class="kit-subnav">${tabs
-        .map(
-          (tab) =>
-            `<button type="button" data-area-tab="${tab.id}" class="kit-tab ${tab.id === current.id ? "is-active" : ""}">${tab.label}</button>`,
-        )
-        .join("")}</div>
+      <div class="kit-subnav">${tabsMarkup}</div>
       <div data-area-object-header>${header}</div>
       <div id="area-kit">${extra}</div>
       ${indexControlsMarkup(state.hub, current.screen, state.indexQuery, escAttr)}
       ${truncationMarkup(state.hub, current.screen, escAttr)}
       ${capabilities.grantMarkup(current.screen, escAttr)}
       <div id="area-body"></div>
-    </div>`;
+    </div>`,
+    );
     const renderer = classifyRenderers({
       "s02-workspaces": renderS02Workspaces,
       "s09-source": renderS09Source,
@@ -5158,11 +5199,11 @@ export function mountOperator(host, options) {
       });
     }
     root.querySelectorAll("[data-area-tab]").forEach((button) => {
-      button.addEventListener("click", () => {
+      button.onclick = () => {
         state.areaTab = button.getAttribute("data-area-tab");
         writeIndexLocation({ replace: false });
         renderApp();
-      });
+      };
     });
     const waves = wavesFromRecords(state.hub?.promotions);
     bindKit(root, waves.pucks.length ? { pucks: waves.pucks } : null);

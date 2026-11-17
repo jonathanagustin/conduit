@@ -858,17 +858,15 @@ async function keyboardReach(page: Page, target: Locator) {
         ? "Shift+Tab"
         : "Tab",
     );
-    const previous = await page.evaluateHandle(() => document.activeElement);
-    try {
-      await page.keyboard.press(key);
-      await page.waitForFunction(
-        (element) => document.activeElement !== element,
-        previous,
-        { timeout: 2000 },
-      );
-    } finally {
-      await previous.dispose();
-    }
+    await page.keyboard.press(key);
+    // Let the key's focus/layout update settle without requiring every key to
+    // move focus (a closing dialog may still be restoring its trigger).
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => resolve());
+        }),
+    );
   }
   await expect(target).toBeFocused();
 }
