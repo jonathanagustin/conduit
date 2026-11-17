@@ -39,6 +39,10 @@ type PromotionPage struct {
 }
 
 func paginateChangeRequests(records []ChangeRequest, query ChangeRequestQuery, cursor string, limit int) (ChangeRequestPage, error) {
+	return paginateChangeRequestsInSpace(records, query, cursor, limit, "")
+}
+
+func paginateChangeRequestsInSpace(records []ChangeRequest, query ChangeRequestQuery, cursor string, limit int, spaceID string) (ChangeRequestPage, error) {
 	query = normalizedChangeRequestQuery(query)
 	filtered := make([]ChangeRequest, 0, len(records))
 	for _, record := range records {
@@ -55,12 +59,16 @@ func paginateChangeRequests(records []ChangeRequest, query ChangeRequestQuery, c
 	}
 	sort.Slice(filtered, func(i, j int) bool { return changeRequestOrderKey(filtered[i]) < changeRequestOrderKey(filtered[j]) })
 	page, metadata, err := paginateOrdered(
-		filtered, changeRequestOrderKey, fingerprintJSON(query), cursor, limit, errInvalidChangeRequestCursor,
+		filtered, changeRequestOrderKey, fingerprintInSpace(query, spaceID), cursor, limit, errInvalidChangeRequestCursor,
 	)
 	return ChangeRequestPage{ChangeRequests: page, Total: len(filtered), PageMetadata: metadata}, err
 }
 
 func paginatePromotions(records []PromotionRecord, query PromotionQuery, cursor string, limit int) (PromotionPage, error) {
+	return paginatePromotionsInSpace(records, query, cursor, limit, "")
+}
+
+func paginatePromotionsInSpace(records []PromotionRecord, query PromotionQuery, cursor string, limit int, spaceID string) (PromotionPage, error) {
 	query = normalizedPromotionQuery(query)
 	filtered := make([]PromotionRecord, 0, len(records))
 	for _, record := range records {
@@ -77,7 +85,7 @@ func paginatePromotions(records []PromotionRecord, query PromotionQuery, cursor 
 	}
 	sort.Slice(filtered, func(i, j int) bool { return promotionOrderKey(filtered[i]) < promotionOrderKey(filtered[j]) })
 	page, metadata, err := paginateOrdered(
-		filtered, promotionOrderKey, fingerprintJSON(query), cursor, limit, errInvalidPromotionCursor,
+		filtered, promotionOrderKey, fingerprintInSpace(query, spaceID), cursor, limit, errInvalidPromotionCursor,
 	)
 	return PromotionPage{Promotions: page, Total: len(filtered), PageMetadata: metadata}, err
 }

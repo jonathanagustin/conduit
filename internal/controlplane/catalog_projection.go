@@ -199,6 +199,10 @@ func ListProductCatalog(ctx context.Context, repository Repository) ([]ProductCa
 func paginateEnvironmentCatalog(
 	records []EnvironmentCatalogRecord, search, cursor string, limit int,
 ) (EnvironmentCatalogPage, error) {
+	return paginateEnvironmentCatalogInSpace(records, search, cursor, limit, "")
+}
+
+func paginateEnvironmentCatalogInSpace(records []EnvironmentCatalogRecord, search, cursor string, limit int, spaceID string) (EnvironmentCatalogPage, error) {
 	normalized := normalizedSearch(search)
 	filtered := make([]EnvironmentCatalogRecord, 0, len(records))
 	for _, record := range records {
@@ -206,10 +210,10 @@ func paginateEnvironmentCatalog(
 			filtered = append(filtered, record)
 		}
 	}
-	fingerprint := fingerprintJSON(struct {
+	fingerprint := fingerprintInSpace(struct {
 		Kind   string `json:"kind"`
 		Search string `json:"search"`
-	}{"environments", normalized})
+	}{"environments", normalized}, spaceID)
 	page, metadata, err := paginateOrdered(
 		filtered, func(record EnvironmentCatalogRecord) string { return record.Environment.ID },
 		fingerprint, cursor, limit, errInvalidEnvironmentCursor,
@@ -221,6 +225,10 @@ func paginateEnvironmentCatalog(
 }
 
 func paginateProductCatalog(records []ProductCatalogRecord, search, cursor string, limit int) (ProductCatalogPage, error) {
+	return paginateProductCatalogInSpace(records, search, cursor, limit, "")
+}
+
+func paginateProductCatalogInSpace(records []ProductCatalogRecord, search, cursor string, limit int, spaceID string) (ProductCatalogPage, error) {
 	normalized := normalizedSearch(search)
 	filtered := make([]ProductCatalogRecord, 0, len(records))
 	for _, record := range records {
@@ -228,10 +236,10 @@ func paginateProductCatalog(records []ProductCatalogRecord, search, cursor strin
 			filtered = append(filtered, record)
 		}
 	}
-	fingerprint := fingerprintJSON(struct {
+	fingerprint := fingerprintInSpace(struct {
 		Kind   string `json:"kind"`
 		Search string `json:"search"`
-	}{"products", normalized})
+	}{"products", normalized}, spaceID)
 	page, metadata, err := paginateOrdered(
 		filtered, func(record ProductCatalogRecord) string { return record.Product },
 		fingerprint, cursor, limit, errInvalidProductCursor,

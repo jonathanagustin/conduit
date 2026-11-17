@@ -184,7 +184,7 @@
     },
     {
       "id": "spaces.SelectionPublication",
-      "what": "Native spaceId query selection before Environment pagination, optional profile/global CLI selection, and immutable Product grouping reservation before selected native Helm/Terraform publication.",
+      "what": "Native spaceId query selection before search, counts, facets and pagination for Environment/Product/Bundle-backed REST indexes and exact-id expansion; optional profile/global CLI selection; and immutable Product grouping reservation before selected native Helm/Terraform publication. Plans/installations/change requests inherit Environment membership and releases/promotions use Product membership without changing existing record authority.",
       "why": "Captured CLI notes establish explicit Space selection and guest use, but not the private transport or native assignment policy. Existing grants remain the resource authority. Conduit has no primary-organization inference: an explicit readable Space and canonical artifact/product/release permissions govern guest publication.",
       "displacedBy": "A published or sanitized Apollo Space selection and publication contract establishing transport, caller access, grouping reservation and failure behavior.",
       "riskIfWrong": "The query transport and reservation policy may require migration. Assignment intent may survive a later failed publication and never asserts an artifact exists. Explicit selection cannot move an immutable existing assignment. Forbidden selection and missing publication authority fail before reservation; store failure is not an empty page."

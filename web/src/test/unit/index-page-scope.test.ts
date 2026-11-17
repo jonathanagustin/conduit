@@ -177,9 +177,7 @@ it("resets the environment cursor when the actual Space selector changes", async
   expect(state.envDetailId).toBe("");
   expect(new URLSearchParams(state.indexQuery).has("environment")).toBe(false);
   expect(new URLSearchParams(state.indexQuery).get("space")).toBe(second);
-  expect(new URLSearchParams(state.indexQuery).get("plans.cursor")).toBe(
-    "keep-independent-plan-page",
-  );
+  expect(new URLSearchParams(state.indexQuery).has("plans.cursor")).toBe(false);
   expect(
     new URLSearchParams(state.indexQuery).has("installations.environment"),
   ).toBe(false);

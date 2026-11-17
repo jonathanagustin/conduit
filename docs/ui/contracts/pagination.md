@@ -94,11 +94,18 @@ or an out-of-range limit returns `422`.
   the exact query for retry.
 - Header metrics remain unknown when their inputs are unread, filtered or
   incomplete. A partial page is not reported as a complete Hub count.
-- The Space selector is also retained in the hash as `space`. The Hub's Space
-  filter applies to the Environment index. Other indexes use their displayed
-  server-side filters: a single Environment page is not used to infer Space
-  membership of unrelated pages. Changing Space resets the Environment cursor
-  and selected Environment. The selector explicitly lists this scope.
+- The Space selector is retained in the hash as `space`. Persisted Environment,
+  Product and Bundle anchors scope the Environment, Product, Plan, Fleet,
+  Change Request, Promotion and Bundle REST indexes before search, counts,
+  facets and pagination. Every row retains its existing read authority.
+  The Space ID is part of each scoped cursor fingerprint; omitted selection
+  preserves prior unscoped fingerprints. Changing Space resets affected cursors
+  and linked selections while preserving independent filters and planning state.
+  Page expansion and exact-id linked reads carry the same selection; a record
+  outside it returns not-found instead of rejoining the selected view.
+  Missing, denied or malformed remembered selections and failed Space reads
+  never implicitly clear selection. Packaging, channels, workspaces, rollouts,
+  upgrades and mixed-resource audit remain explicitly unscoped.
 - A linked Environment is authorized and loaded before its timeline or blackout
   reads. If it is unavailable, those dependent reads remain unloaded rather
   than describing the first Environment in the current page.
