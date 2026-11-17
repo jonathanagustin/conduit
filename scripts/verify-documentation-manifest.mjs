@@ -44,6 +44,7 @@ const seeds = [
 const expectedMinimumPages = 200;
 
 const write = process.argv.includes("--write");
+const requireNetwork = process.argv.includes("--require-network");
 
 function normalizePath(path) {
   const withoutQuery = path.split(/[?#]/, 1)[0];
@@ -168,6 +169,10 @@ try {
   // Offline, proxied, or rate-limited. Reporting drift requires a crawl; not
   // having one is not evidence that the corpus is current, and it is not
   // evidence that it is stale either. Say so and stop.
+  if (requireNetwork) {
+    console.error(`FAIL documentation manifest: crawl unavailable; no current-corpus PASS (${error.message})`);
+    process.exit(1);
+  }
   console.log(`documentation manifest: SKIP (could not reach the documentation site: ${error.message})`);
   process.exit(0);
 }

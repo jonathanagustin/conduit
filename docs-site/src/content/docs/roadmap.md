@@ -1,29 +1,39 @@
 ---
 title: Roadmap
-description: Open follow-on issues for the recorded packaging run, workspace isolation, UDS deployment, and executable validation.
+description: Open native product work from the reviewed issue snapshot, with explicit readiness and contract dependencies.
 sidebar:
   label: Roadmap
   order: 5
 ---
 
-These issues are the open follow-ons for the path this site describes. Each issue states its own acceptance criteria. This page does not add scope.
+Generated from the same reviewed issue evidence as [Readiness](/conduit/readiness/), observed at `2026-11-17T05:04:04Z`. GitHub issues are the current tracker; this is a dated index, not a project board or a release promise.
 
-| Issue | What remains |
-| --- | --- |
-| [#615](https://github.com/jonathanagustin/conduit/issues/615) | Record an end-to-end console run that packages an upstream app from a pinned commit, through Accept, an isolated workspace, a governed build, gates, a change request, and review, and pin the image digest. |
-| [#616](https://github.com/jonathanagustin/conduit/issues/616) | Run that work in a per-user isolated workspace container: a rootless builder, no host builder socket, default-deny egress except the git host and the local registry, and no cluster credentials. |
-| [#427](https://github.com/jonathanagustin/conduit/issues/427) | Deploy through Zarf and UDS, read reported state back, and map bundles. Packaging can emit `zarf.yaml` and a UDS `Package` resource; this issue is the adapter that converges an environment and reports health. |
-| [#619](https://github.com/jonathanagustin/conduit/issues/619) | Bring up UDS Core on k3d with single sign-on, two users so a second person can approve a change request, and portal tiles only when the package resource supports them. |
-| [#639](https://github.com/jonathanagustin/conduit/issues/639) | Executable application validation, upgrade and recovery drills, and receipt admission for the packaging matrix. Missing tools or scanner data stay unknown or blocked, never a pass. |
+## AI execution and assurance
 
-## How they fit together
+[#807](https://github.com/jonathanagustin/conduit/issues/807), [#809](https://github.com/jonathanagustin/conduit/issues/809), [#810](https://github.com/jonathanagustin/conduit/issues/810), [#813](https://github.com/jonathanagustin/conduit/issues/813), [#814](https://github.com/jonathanagustin/conduit/issues/814), [#815](https://github.com/jonathanagustin/conduit/issues/815), [#817](https://github.com/jonathanagustin/conduit/issues/817).
 
-[#615](https://github.com/jonathanagustin/conduit/issues/615) is the recorded packaging run. [#616](https://github.com/jonathanagustin/conduit/issues/616) is the isolation that run needs. [#619](https://github.com/jonathanagustin/conduit/issues/619) is the cluster and the two-person approval path. [#427](https://github.com/jonathanagustin/conduit/issues/427) deploys from the control plane onto that cluster and reads state back. [#639](https://github.com/jonathanagustin/conduit/issues/639) holds the validation that still needs an executable run, a durable receipt receiver, or a separately authorized environment.
+## Operator identity and console completeness
 
-None of these issues authorize a production deployment by being listed here.
+[#818](https://github.com/jonathanagustin/conduit/issues/818), [#820](https://github.com/jonathanagustin/conduit/issues/820), [#821](https://github.com/jonathanagustin/conduit/issues/821), [#823](https://github.com/jonathanagustin/conduit/issues/823), [#824](https://github.com/jonathanagustin/conduit/issues/824), [#825](https://github.com/jonathanagustin/conduit/issues/825), [#827](https://github.com/jonathanagustin/conduit/issues/827).
 
-## Design already recorded
+## Packaging and cluster acceptance
 
-- [How it works](/conduit/how-it-works/)
-- [Architecture](/conduit/architecture/)
-- [Decisions](https://github.com/jonathanagustin/conduit/tree/main/docs/decisions)
+[#828](https://github.com/jonathanagustin/conduit/issues/828), [#829](https://github.com/jonathanagustin/conduit/issues/829), [#830](https://github.com/jonathanagustin/conduit/issues/830), [#831](https://github.com/jonathanagustin/conduit/issues/831), [#832](https://github.com/jonathanagustin/conduit/issues/832), [#833](https://github.com/jonathanagustin/conduit/issues/833), [#834](https://github.com/jonathanagustin/conduit/issues/834), [#835](https://github.com/jonathanagustin/conduit/issues/835), [#836](https://github.com/jonathanagustin/conduit/issues/836), [#837](https://github.com/jonathanagustin/conduit/issues/837), [#838](https://github.com/jonathanagustin/conduit/issues/838), [#844](https://github.com/jonathanagustin/conduit/issues/844), [#615](https://github.com/jonathanagustin/conduit/issues/615), [#619](https://github.com/jonathanagustin/conduit/issues/619), [#639](https://github.com/jonathanagustin/conduit/issues/639).
+
+## Typed contract migration
+
+[#391](https://github.com/jonathanagustin/conduit/issues/391), [#392](https://github.com/jonathanagustin/conduit/issues/392), [#393](https://github.com/jonathanagustin/conduit/issues/393), [#394](https://github.com/jonathanagustin/conduit/issues/394).
+
+## Decisions and deployment evidence
+
+- Notification delivery: [#840](https://github.com/jonathanagustin/conduit/issues/840).
+- Observability: [#839](https://github.com/jonathanagustin/conduit/issues/839).
+- Migrations and version-skew evidence: [#843](https://github.com/jonathanagustin/conduit/issues/843), [#849](https://github.com/jonathanagustin/conduit/issues/849).
+- Backup, audit custody and retention: [#841](https://github.com/jonathanagustin/conduit/issues/841), [#865](https://github.com/jonathanagustin/conduit/issues/865).
+- Disconnected recall propagation: [#126](https://github.com/jonathanagustin/conduit/issues/126).
+- Stateful application rollback compatibility: [#134](https://github.com/jonathanagustin/conduit/issues/134).
+- Product-declared SLO monitors: [#131](https://github.com/jonathanagustin/conduit/issues/131).
+- Agent authority and credential lifecycle: [#846](https://github.com/jonathanagustin/conduit/issues/846), [#847](https://github.com/jonathanagustin/conduit/issues/847).
+- Artifact evidence trust: [#887](https://github.com/jonathanagustin/conduit/issues/887).
+
+A closed workspace-isolation task is not retained as an open follow-on. Recorded application packaging, cluster delivery and recovery evidence remain separate tasks. No issue, candidate branch or passing test authorizes publication or a tenant deployment.

@@ -2,18 +2,10 @@
 // Fails when the committed public-documentation corpus has gone stale, or when
 // the manifest no longer matches the capture that produced it.
 //
-// This is the offline half of the drift problem, and it exists because the
-// online half cannot be scheduled. `verify-documentation-manifest.mjs` re-crawls
-// palantir.com and is deliberately not wired into the ordinary build -- it is
-// flaky and rude to run on every commit -- so the plan was to give it a
-// scheduled job. A4 forbids that: repository-authored workflows run only after a
-// person dispatches them, and `docs/operations/manual-ci.md` names `schedule`
-// explicitly. So nothing ran it, which is how the corpus aged two weeks while
-// Apollo added a fifth Environment connection setting to a contract this
-// repository implements with four.
-//
-// The fix that does not need the decision overturned: stop trying to detect
-// drift on a timer, and make the AGE itself fail a gate that already runs. This
+// This is the offline half of the drift problem. ADR 0006 permits the bounded
+// weekly report-only crawl; it is deliberately not run on every commit. This
+// independent age check reaches no network and cannot substitute for that crawl.
+// It makes the AGE itself fail a gate that already runs. This
 // reaches no network, so it runs everywhere `verify-local.sh` does. It cannot
 // tell you the corpus has drifted -- only that nobody has checked recently
 // enough for "it has not drifted" to still mean anything.

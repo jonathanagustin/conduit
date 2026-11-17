@@ -13,19 +13,16 @@ name: Documentation drift
 # privilege, and NEVER publishes. It runs the crawl in report-only mode --
 # scripts/verify-documentation-manifest.mjs with no --write -- so a scheduled
 # run detects drift and fails, prompting a person to re-capture and review. The
-# --write refresh stays a human action, never an automated commit. The crawl
-# skips cleanly when the network is unavailable, so a transient outage does not
-# read as drift.
-#
-# Depends on scripts/verify-documentation-manifest.mjs, which lands with the
-# Apollo-documented-surface work (#29). Merge this after that, or a scheduled
-# run finds no script.
-# Schedule removed 2026-11-12: the weekly crawl had been failing every Monday
-# because the Palantir public docs corpus drifted, and the 45-day freshness
-# gate on trunk was already hard-failing. Re-enable a schedule only after a
-# reviewed corpus refresh. Until then this is dispatch-only.
+# --write refresh stays a human action, never an automated commit. Scheduled
+# verification requires the network: an unavailable corpus is an unknown
+# result that fails the check, rather than supplying a no-drift PASS.
+# Weekly is the lowest useful cadence for the 14-day native readiness review
+# window and 45-day public corpus window. The reviewed November refresh restores
+# this report-only check; failures request reviewed evidence, never an auto-commit.
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -33,12 +30,34 @@ concurrency:
 
 permissions:
   contents: read
+  issues: read
 
 defaults:
   run:
     working-directory: .
 
 jobs:
+  readiness:
+    name: Native readiness and reference drift
+    runs-on: ubuntu-26.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26.13.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+      - name: Verify generated native contracts and issue state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          go run ./tools/native-reference
+          node --test scripts/verify-readiness.test.mjs scripts/verify-documentation-manifest.test.mjs
+          node scripts/verify-readiness.mjs --online
   crawl:
     name: Documentation drift
     runs-on: ubuntu-26.04
@@ -53,4 +72,4 @@ jobs:
       # Report-only: no --write, so the crawl detects drift and fails but never
       # rewrites the committed corpus. Refreshing it is a reviewed human commit.
       - name: Re-crawl and report documentation drift
-        run: node scripts/verify-documentation-manifest.mjs
+        run: node scripts/verify-documentation-manifest.mjs --require-network
