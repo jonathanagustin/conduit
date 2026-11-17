@@ -138,9 +138,13 @@ When `CONDUIT_OFFLINE_BUNDLE=1` (or `Options.WorkspaceACPOfflineBundle = true`):
 1. `nodebridge.LoopbackOnlyHTTPClient(true)` resolves every target host before
    dialing and refuses any non-loopback IP address (`!ip.IsLoopback()`).
 2. `childEnv` in `web/src/server/agent.ts` strips external provider credentials
-   and proxy variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`,
-   `GITHUB_TOKEN`, `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, etc.) and sets
-   `CONDUIT_OFFLINE_BUNDLE=1` and `NO_PROXY=*`.
+   and proxy variables: `CODEX_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`,
+   `GEMINI_API_KEY`, `GITHUB_TOKEN`, `GH_TOKEN`, `HTTP_PROXY`, `HTTPS_PROXY`,
+   `ALL_PROXY`, `http_proxy`, `https_proxy`, and `all_proxy`. It sets
+   `CONDUIT_OFFLINE_BUNDLE=1`, `NO_PROXY=*`, and `no_proxy=*`. The real child-process
+   regression in `web/src/test/unit/bridge.test.ts` verifies that Gemini, OpenAI
+   and Codex fixture keys do not reach the agent. This explicit strip list is
+   not an allowlist of every possible credential variable.
 3. `startAgent` skips external ACP `authenticate` handshakes, and
    `createOfflineFetch` rejects any outbound HTTP/HTTPS call from the bridge to
    non-loopback hosts with `OFFLINE_BUNDLE_EGRESS_DENIED`.

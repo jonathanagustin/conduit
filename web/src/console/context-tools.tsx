@@ -71,12 +71,17 @@ const PlanTool = makeAssistantToolUI<Record<string, unknown>, unknown>({
 });
 
 const TONE: Record<ToolOutcome["tone"], string> = {
-  running: "border-[#28405c] bg-[#14202e] text-[#7cb4ff]",
-  ok: "border-[#1f4737] bg-[#10241d] text-[#34d399]",
-  refused: "border-[#5a2a2d] bg-[#2a1416] text-[#f5a3a6]",
-  failed: "border-[#5a2a2d] bg-[#2a1416] text-[#f5a3a6]",
-  confirm: "border-[#4f391b] bg-[#2a2012] text-[#eab854]",
-  input: "border-[#4f391b] bg-[#2a2012] text-[#eab854]",
+  running:
+    "border-[var(--info-border)] bg-[var(--info-fill)] text-[var(--info-text)]",
+  ok: "border-[var(--ok-border)] bg-[var(--ok-fill)] text-[var(--ok-text)]",
+  refused:
+    "border-[var(--err-border)] bg-[var(--err-fill)] text-[var(--err-text)]",
+  failed:
+    "border-[var(--err-border)] bg-[var(--err-fill)] text-[var(--err-text)]",
+  confirm:
+    "border-[var(--warn-border)] bg-[var(--warn-fill)] text-[var(--warn-text)]",
+  input:
+    "border-[var(--warn-border)] bg-[var(--warn-fill)] text-[var(--warn-text)]",
 };
 
 function shown(value: unknown): string {
@@ -89,7 +94,7 @@ function Arguments({ args }: { args: Record<string, unknown> }) {
   const entries = Object.entries(args);
   if (!entries.length)
     return (
-      <div data-tool-args className="text-[#8b96a5]">
+      <div data-tool-args className="text-[var(--text-2)]">
         No arguments
       </div>
     );
@@ -100,8 +105,8 @@ function Arguments({ args }: { args: Record<string, unknown> }) {
     >
       {entries.map(([name, value]) => (
         <div key={name} className="contents">
-          <dt className="text-[#8b96a5]">{name}</dt>
-          <dd className="break-all text-[#dce4ee]">{shown(value)}</dd>
+          <dt className="text-[var(--text-2)]">{name}</dt>
+          <dd className="break-all text-[var(--text-1)]">{shown(value)}</dd>
         </div>
       ))}
     </dl>
@@ -118,14 +123,14 @@ function ResultDetail({ result }: { result: HubResult }) {
   const line = (label: string, key: string) => {
     const value = result[key];
     return typeof value === "string" && value !== "" ? (
-      <div className="text-[#8b96a5]">
-        {label} <span className="font-mono text-white">{value}</span>
+      <div className="text-[var(--text-2)]">
+        {label} <span className="font-mono text-[var(--text-1)]">{value}</span>
       </div>
     ) : null;
   };
   return (
     <div data-tool-result className="space-y-1">
-      <div className="text-[#8b96a5]">
+      <div className="text-[var(--text-2)]">
         R:{shown(result["readOps"] ?? 0)} W:{shown(result["writeOps"] ?? 0)}
         {typeof result["label"] === "string" ? ` · ${result["label"]}` : ""}
       </div>
@@ -139,7 +144,7 @@ function ResultDetail({ result }: { result: HubResult }) {
             return (
               <span
                 key={shown(item["id"])}
-                className="rounded border border-[#28405c] px-1.5 text-[10.5px] text-[#7cb4ff]"
+                className="rounded border border-[var(--info-border)] px-1.5 text-[10.5px] text-[var(--info-text)]"
               >
                 {shown(item["label"] || item["id"] || "")}
                 {item["status"] ? ` · ${shown(item["status"])}` : ""}
@@ -218,7 +223,7 @@ function Elicitation({
         const change = (next: string) =>
           setValues((current) => ({ ...current, [name]: next }));
         return (
-          <label key={name} className="block text-[#8b96a5]">
+          <label key={name} className="block text-[var(--text-2)]">
             {shown(field["label"] || name)}
             {options.length ? (
               <select
@@ -296,16 +301,17 @@ export const HubToolCard: ToolCallMessagePartComponent = ({
       : toolOutcome(row);
   return (
     <div
+      data-console-tool-card
       data-assistant-tool={row.name}
       data-tool-call-id={row.id}
       data-tool-state={outcome.tone}
-      className="my-1.5 space-y-1.5 rounded-[6px] border border-[#1f2a35] bg-[#10161c] p-2.5 text-[11.5px] text-[#dce4ee]"
+      className="my-1.5 space-y-1.5 rounded-[6px] border border-[var(--border-subtle)] bg-[var(--bg-1)] p-2.5 text-[11.5px] text-[var(--text-1)]"
     >
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium">
           {row.name}
           {row.round ? (
-            <span className="text-[#8b96a5]"> · round {row.round}</span>
+            <span className="text-[var(--text-2)]"> · round {row.round}</span>
           ) : null}
         </span>
         <span
@@ -323,14 +329,14 @@ export const HubToolCard: ToolCallMessagePartComponent = ({
         <div
           key={index}
           data-tool-follow-up
-          className="space-y-1 border-t border-[#1f2a35] pt-1.5"
+          className="space-y-1 border-t border-[var(--border-subtle)] pt-1.5"
         >
-          <div className="text-[#8b96a5]">You submitted this call</div>
+          <div className="text-[var(--text-2)]">You submitted this call</div>
           <ResultDetail result={answer} />
         </div>
       ))}
       {outcome.tone === "refused" || outcome.tone === "failed" ? (
-        <div data-tool-refusal className="text-[#f5a3a6]">
+        <div data-tool-refusal className="text-[var(--err-text)]">
           {outcome.summary}
         </div>
       ) : null}

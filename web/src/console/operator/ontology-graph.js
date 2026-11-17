@@ -79,13 +79,13 @@ function layout(types) {
 }
 
 const COLORS = [
-  "#4c90f0",
-  "#34d399",
-  "#b4a2f8",
-  "#fbbf24",
-  "#7cb4ff",
-  "#f5a623",
-  "#15b371",
+  "var(--info-text)",
+  "var(--ok-text)",
+  "var(--info-text)",
+  "var(--warn-text)",
+  "var(--info-text)",
+  "var(--warn-text)",
+  "var(--ok-text)",
 ];
 
 export function createOntologyGraph(ctx) {
@@ -203,8 +203,8 @@ export function createOntologyGraph(ctx) {
         const from = byName.get(edge.from);
         const to = byName.get(edge.to);
         if (!from || !to) return "";
-        return `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" stroke="#2a3844" stroke-width="1.4"></line>
-          <text x="${(from.x + to.x) / 2}" y="${(from.y + to.y) / 2 - 6}" fill="#6d7885" font-size="9" text-anchor="middle">${esc(edge.label)}</text>`;
+        return `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" stroke="var(--border-subtle)" stroke-width="1.4"></line>
+          <text x="${(from.x + to.x) / 2}" y="${(from.y + to.y) / 2 - 6}" fill="var(--text-2)" font-size="9" text-anchor="middle">${esc(edge.label)}</text>`;
       })
       .join("");
     const nodes = types
@@ -212,8 +212,8 @@ export function createOntologyGraph(ctx) {
         const on = selected && selected.apiName === type.apiName;
         const color = COLORS[index % COLORS.length];
         return `<g data-onclick="selectOntologyType(${esc(JSON.stringify(type.apiName))})" style="cursor:pointer">
-          <circle cx="${type.x}" cy="${type.y}" r="${on ? 28 : 24}" fill="${on ? "#17253a" : "#12181d"}" stroke="${color}" stroke-width="${on ? 2.4 : 1.4}"></circle>
-          <text x="${type.x}" y="${type.y + 4}" fill="#f0f5fa" font-size="9" text-anchor="middle">${esc(type.displayName)}</text>
+          <circle cx="${type.x}" cy="${type.y}" r="${on ? 28 : 24}" fill="${on ? "var(--bg-1)" : "var(--bg-1)"}" stroke="${color}" stroke-width="${on ? 2.4 : 1.4}"></circle>
+          <text x="${type.x}" y="${type.y + 4}" fill="var(--text-1)" font-size="9" text-anchor="middle">${esc(type.displayName)}</text>
         </g>`;
       })
       .join("");
@@ -222,7 +222,7 @@ export function createOntologyGraph(ctx) {
         const cells = (selected?.properties || [])
           .slice(0, 4)
           .map((key) => `<td>${esc(diffValue(object[key], key))}</td>`);
-        return `<tr><td class="font-semibold text-[#5c9ce6]">${esc(object[selected?.primaryKey] ?? object.__primaryKey ?? "")}</td>${cells.join("")}</tr>`;
+        return `<tr><td class="font-semibold text-[var(--info-text)]">${esc(object[selected?.primaryKey] ?? object.__primaryKey ?? "")}</td>${cells.join("")}</tr>`;
       })
       .join("");
     const headers = ["Key", ...(selected?.properties || []).slice(0, 4)]
@@ -232,10 +232,10 @@ export function createOntologyGraph(ctx) {
       <div class="so-view-enter flex flex-col gap-3 min-h-0 h-full">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <div class="text-[15px] font-bold text-white">Ontology graph</div>
-            <div class="text-[11px] text-[#8b96a5] mt-0.5">${esc(selected?.description || "Object types linked by the catalog.")}</div>
+            <div class="text-[15px] font-bold text-[var(--text-1)]">Ontology graph</div>
+            <div class="text-[11px] text-[var(--text-2)] mt-0.5">${esc(selected?.description || "Object types linked by the catalog.")}</div>
           </div>
-          <span class="bp6-compound-tag"><span class="bp6-compound-left">Catalog</span><span class="bp6-compound-right" style="background:#1a2430;color:#7cb4ff">${esc(state.graphNote || "Loading")}</span></span>
+          <span class="bp6-compound-tag"><span class="bp6-compound-left">Catalog</span><span class="bp6-compound-right" style="background:var(--bg-2);color:var(--info-text)">${esc(state.graphNote || "Loading")}</span></span>
         </div>
         <div class="grid gap-3 min-h-0 flex-1" style="grid-template-columns:minmax(0,1.4fr) minmax(280px,0.8fr)">
           <div class="so-panel overflow-hidden min-h-[420px]">
@@ -245,14 +245,14 @@ export function createOntologyGraph(ctx) {
             </svg>
           </div>
           <div class="so-panel overflow-hidden flex flex-col min-h-0">
-            <div class="px-3 py-2 border-b border-[#1c242c] flex items-center justify-between">
-              <span class="text-[13px] font-semibold text-white">${esc(selected?.displayName || "Objects")}</span>
-              <span class="text-[10px] text-[#8b96a5]">${esc(selected?.primaryKey || "")}</span>
+            <div class="px-3 py-2 border-b border-[var(--border-subtle)] flex items-center justify-between">
+              <span class="text-[13px] font-semibold text-[var(--text-1)]">${esc(selected?.displayName || "Objects")}</span>
+              <span class="text-[10px] text-[var(--text-2)]">${esc(selected?.primaryKey || "")}</span>
             </div>
             <p role="status">${esc(state.graphObjectNote || "")}</p><div class="overflow-auto flex-1">
               <table class="so-table">
                 <thead><tr>${headers}</tr></thead>
-                <tbody>${rows || `<tr><td colspan="5" class="text-[#8b96a5]">${esc(state.graphObjectNote || "Object page unavailable.")}</td></tr>`}</tbody>
+                <tbody>${rows || `<tr><td colspan="5" class="text-[var(--text-2)]">${esc(state.graphObjectNote || "Object page unavailable.")}</td></tr>`}</tbody>
               </table>
             </div>
           </div>

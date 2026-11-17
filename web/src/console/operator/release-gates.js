@@ -18,13 +18,16 @@ function esc(value) {
 function compoundTag(left, right, tone = "blue") {
   const bg =
     {
-      blue: "background:rgba(24,48,82,0.6);color:#7cb4ff",
-      green: "background:rgba(20,62,43,0.6);color:#34d399",
-      amber: "background:rgba(68,45,16,0.6);color:#fbbf24",
-      red: "background:rgba(68,23,27,0.6);color:#f87171",
-      violet: "background:rgba(46,33,82,0.6);color:#b4a2f8",
-      muted: "background:#151d24;color:#dce4ee",
-    }[tone] || "background:#151d24;color:#dce4ee";
+      blue: "background:color-mix(in srgb, var(--info-fill) 60%, transparent);color:var(--info-text)",
+      green:
+        "background:color-mix(in srgb, var(--ok-fill) 60%, transparent);color:var(--ok-text)",
+      amber:
+        "background:color-mix(in srgb, var(--warn-fill) 60%, transparent);color:var(--warn-text)",
+      red: "background:color-mix(in srgb, var(--err-fill) 60%, transparent);color:var(--err-text)",
+      violet:
+        "background:color-mix(in srgb, var(--info-fill) 60%, transparent);color:var(--info-text)",
+      muted: "background:var(--bg-2);color:var(--text-1)",
+    }[tone] || "background:var(--bg-2);color:var(--text-1)";
   return `<span class="bp6-compound-tag"><span class="bp6-compound-left">${esc(left)}</span><span class="bp6-compound-right" style="${bg}">${esc(right)}</span></span>`;
 }
 
@@ -72,7 +75,12 @@ function sectionCard(title, body, opts = {}) {
 
 function slaClock(left, total) {
   const pct = Math.max(0, Math.min(100, Math.round((left / total) * 100)));
-  const color = left <= 14 ? "#e76a6e" : left <= 30 ? "#eab854" : "#34d399";
+  const color =
+    left <= 14
+      ? "var(--err-text)"
+      : left <= 30
+        ? "var(--warn-text)"
+        : "var(--ok-text)";
   return `<span class="bp6-sla" title="${left} of ${total} days remaining">
     <span class="bp6-sla-track"><span class="bp6-sla-fill" style="width:${pct}%;background:${color}"></span></span>
     <span class="tnum">${left}d left</span>
@@ -92,7 +100,7 @@ export function createReleaseGates(ctx) {
 
   function proposalExampleNotice() {
     return state.proposalExamples
-      ? `<div role="status" class="so-warn-card p-2 text-[12px] text-[#eab854]">Example data. Trace, review and evaluation controls only simulate results; they do not run a model, approve a change or apply a Plan.</div><button type="button" class="so-btn" data-onclick="setProposalExampleMode(false)">Exit proposal example mode</button>`
+      ? `<div role="status" class="so-warn-card p-2 text-[12px] text-[var(--warn-text)]">Example data. Trace, review and evaluation controls only simulate results; they do not run a model, approve a change or apply a Plan.</div><button type="button" class="so-btn" data-onclick="setProposalExampleMode(false)">Exit proposal example mode</button>`
       : `<div class="so-panel p-3 space-y-2"><p>No proposal simulation is running. Example traces and evaluations require an explicit choice.</p><button type="button" class="so-btn" data-onclick="setProposalExampleMode(true)">Show proposal example data</button></div>`;
   }
 
@@ -350,7 +358,7 @@ export function createReleaseGates(ctx) {
     root.innerHTML = `
       <div class="space-y-2.5 flex flex-col">
         ${ctx.rmApiStrip("EXAMPLE", "Recall configurator, suppression clock, registry probes", "ConduitArtifact")}
-        ${state.recallBanner ? `<div class="so-warn-card p-2.5 text-[11.5px] text-[#fbbf24]">${esc(state.recallBanner)}</div>` : ""}
+        ${state.recallBanner ? `<div class="so-warn-card p-2.5 text-[11.5px] text-[var(--warn-text)]">${esc(state.recallBanner)}</div>` : ""}
         ${sectionCard(
           "Issue a scoped recall",
           `
@@ -361,13 +369,13 @@ export function createReleaseGates(ctx) {
             )}
             <div class="so-grid-4 gap-2.5 mt-3">
               <label class="space-y-1">
-                <span class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Product</span>
+                <span class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-2)]">Product</span>
                 <select data-onchange="state.recallProduct=this.value" class="so-select code-id w-full">
                   ${products.map((name) => `<option value="${name}" ${state.recallProduct === name ? "selected" : ""}>${name}</option>`).join("")}
                 </select>
               </label>
               <label class="space-y-1">
-                <span class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Range mode</span>
+                <span class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-2)]">Range mode</span>
                 <select data-onchange="state.recallMode=this.value; renderMainWorkspace()" class="so-select w-full">
                   <option value="SINGLE" ${state.recallMode === "SINGLE" ? "selected" : ""}>Single release</option>
                   <option value="CLOSED_RANGE" ${state.recallMode === "CLOSED_RANGE" ? "selected" : ""}>Closed range [start, fixed)</option>
@@ -376,16 +384,16 @@ export function createReleaseGates(ctx) {
                 </select>
               </label>
               <label class="space-y-1">
-                <span class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Starting version</span>
+                <span class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-2)]">Starting version</span>
                 <input type="text" value="${esc(state.recallStart)}" data-oninput="state.recallStart=this.value" class="so-input code-id w-full" />
               </label>
               <label class="space-y-1">
-                <span class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">${endLabel}</span>
+                <span class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-2)]">${endLabel}</span>
                 <input type="text" value="${esc(state.recallEnd)}" ${endDisabled ? "disabled" : ""} data-oninput="state.recallEnd=this.value" class="so-input code-id w-full ${endDisabled ? "opacity-40" : ""}" />
               </label>
             </div>
             <label class="space-y-1 block mt-2.5">
-              <span class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Reason</span>
+              <span class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-2)]">Reason</span>
               <input type="text" value="${esc(state.recallNote)}" data-oninput="state.recallNote=this.value" class="so-input w-full" />
             </label>
             <div class="mt-3">${ctx.governedBtn({
@@ -409,11 +417,11 @@ export function createReleaseGates(ctx) {
               ${state.recalls
                 .map(
                   (row, idx) => `<tr>
-                <td class="code-id font-semibold text-[#f87171]">${esc(row.id)}</td>
-                <td class="code-id text-white">${esc(row.prod)}</td>
+                <td class="code-id font-semibold text-[var(--err-text)]">${esc(row.id)}</td>
+                <td class="code-id text-[var(--text-1)]">${esc(row.prod)}</td>
                 <td><span class="so-pill code-id">${esc(row.mode)}</span></td>
-                <td class="code-id text-[#eab854]">${esc(row.expr)}</td>
-                <td class="text-[#9aa5b4]">${esc(row.why)}</td>
+                <td class="code-id text-[var(--warn-text)]">${esc(row.expr)}</td>
+                <td class="text-[var(--text-2)]">${esc(row.why)}</td>
                 <td class="tnum font-semibold" style="text-align:right">${row.envs}</td>
                 <td>${ctx.pill(row.status, row.tone)}</td>
                 <td><button type="button" data-onclick="toggleRecall(${idx})" class="so-btn so-btn-sm">${row.status === "Reverted" ? "Re-activate" : "Revert"}</button></td>
@@ -435,11 +443,11 @@ export function createReleaseGates(ctx) {
                 .map(
                   (row, idx) => `<div class="so-card p-2.5 space-y-1.5">
                 <div class="flex flex-wrap items-center justify-between gap-1.5">
-                  <span class="flex flex-wrap items-center gap-1.5"><strong class="code-id text-white">${esc(row.cve)}</strong>${ctx.pill(row.sev, row.sTone)}<span class="code-id text-[10.5px] text-[#60a5fa]">${esc(row.pkg)}</span></span>
+                  <span class="flex flex-wrap items-center gap-1.5"><strong class="code-id text-[var(--text-1)]">${esc(row.cve)}</strong>${ctx.pill(row.sev, row.sTone)}<span class="code-id text-[10.5px] text-[var(--info-text)]">${esc(row.pkg)}</span></span>
                   ${slaClock(row.slaLeft, row.slaTotal)}
                 </div>
-                <div class="text-[11px] text-[#9aa5b4]">${esc(row.why)} Clock ${row.slaLeft}d of ${row.slaTotal}d.</div>
-                <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[#1b242d]">
+                <div class="text-[11px] text-[var(--text-2)]">${esc(row.why)} Clock ${row.slaLeft}d of ${row.slaTotal}d.</div>
+                <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[var(--border-subtle)]">
                   ${ctx.pill(row.approved ? "Approved" : "Pending approval", row.approved ? "green" : "amber")}
                   <button type="button" data-onclick="toggleSuppression(${idx})" class="so-btn so-btn-sm">${row.approved ? "Revoke" : "Approve"}</button>
                 </div>
@@ -451,7 +459,7 @@ export function createReleaseGates(ctx) {
           )}
           ${sectionCard(
             "Registry availability",
-            `<label class="inline-flex items-center gap-1.5 text-[11px] text-[#8b96a5] cursor-pointer mb-2">
+            `<label class="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-2)] cursor-pointer mb-2">
               <input type="checkbox" ${state.skipDisconnectedProbe ? "checked" : ""} data-onchange="state.skipDisconnectedProbe=this.checked; renderMainWorkspace()" />
               <span>Disconnected site: registry probe not expected</span>
             </label>
@@ -460,10 +468,10 @@ export function createReleaseGates(ctx) {
                 .map(
                   (row) => `<div class="so-card p-2.5 space-y-1">
                 <div class="flex flex-wrap items-center justify-between gap-1.5">
-                  <span class="code-id text-[11.5px] font-semibold text-white">${esc(row.uri)}</span>
+                  <span class="code-id text-[11.5px] font-semibold text-[var(--text-1)]">${esc(row.uri)}</span>
                   ${ctx.pill(row.probe, row.tone)}
                 </div>
-                <div class="flex flex-wrap justify-between gap-1 text-[11px] text-[#8b96a5]">
+                <div class="flex flex-wrap justify-between gap-1 text-[11px] text-[var(--text-2)]">
                   <span>${esc(row.scope)}</span>
                   <span class="code-id">${esc(row.detail)}</span>
                 </div>
@@ -492,7 +500,7 @@ export function createReleaseGates(ctx) {
   }
 
   function renderTerminal(root) {
-    root.innerHTML = `<div class="so-view-enter"><div class="so-panel p-4 text-[13px] text-white">session brokering not implemented</div></div>`;
+    root.innerHTML = `<div class="so-view-enter"><div class="so-panel p-4 text-[13px] text-[var(--text-1)]">session brokering not implemented</div></div>`;
     return;
     const granted = state.accessStatus === "Granted (30m)";
     const profiles = [
@@ -514,7 +522,7 @@ export function createReleaseGates(ctx) {
               `${compoundTag("TTL", "03h 58m", "green")} ${compoundTag("access", granted ? "Pod restart (30m)" : "Read-only", granted ? "amber" : "blue")}`,
             )}
             <div class="flex flex-wrap items-center gap-2 mt-3">
-              <span class="text-[11px] text-[#8b96a5]">Terminal profile</span>
+              <span class="text-[11px] text-[var(--text-2)]">Terminal profile</span>
               <select data-onchange="switchTerminalProfile(this.value)" class="so-select code-id min-w-0 max-w-full">
                 ${profiles.map(([val, label]) => `<option value="${val}" ${state.terminalProfile === val ? "selected" : ""}>${label}</option>`).join("")}
                 <option value="disconnected-forensics:2.0" disabled>disconnected-forensics:2.0 (registry not installed here)</option>
@@ -525,7 +533,7 @@ export function createReleaseGates(ctx) {
               <button type="button" data-onclick="runTerminalCommand('kubectl describe pod ingress-gateway-7d9c4b8f-x92lm')" class="so-btn so-btn-sm">kubectl describe pod</button>
               <button type="button" data-onclick="runTerminalCommand('kubectl delete pod ingress-gateway-7d9c4b8f-x92lm -n conduit-system')" class="so-btn so-btn-sm ${granted ? "so-btn-danger" : "so-btn-outline-danger"}">kubectl delete pod</button>
             </div>
-            <pre class="m-0 mt-3 p-3 rounded bg-[#060a0d] border border-[#1c2630] code-id text-[11px] text-[#dce4ee] overflow-auto leading-relaxed max-h-[240px]">${state.terminalLines.map(esc).join("\n")}</pre>
+            <pre class="m-0 mt-3 p-3 rounded bg-[var(--bg-0)] border border-[var(--border-subtle)] code-id text-[11px] text-[var(--text-1)] overflow-auto leading-relaxed max-h-[240px]">${state.terminalLines.map(esc).join("\n")}</pre>
             <div class="flex flex-wrap sm:flex-nowrap gap-2 mt-3">
               <input type="text" value="${esc(state.terminalDraft)}" data-oninput="state.terminalDraft=this.value" data-onkeydown="if(event.key==='Enter'){runTerminalCommand();}" placeholder="Diagnostic command for edge-west-02" class="so-input code-id flex-1 min-w-0" />
               <button type="button" data-onclick="runTerminalCommand()" class="so-btn so-btn-blue shrink-0">Run</button>
@@ -627,16 +635,16 @@ export function createReleaseGates(ctx) {
         ${
           state.traceBanner
             ? `<div class="so-opt-card p-2.5 flex flex-wrap items-center justify-between gap-2 text-[11.5px]">
-          <span class="code-id text-[#34d399]">${esc(state.traceBanner)}</span>
+          <span class="code-id text-[var(--ok-text)]">${esc(state.traceBanner)}</span>
           <button type="button" data-onclick="state.proposalTab='proposals'; switchScreen('pt02-proposals-evals')" class="so-btn so-btn-sm so-btn-emerald">Review in Proposals</button>
         </div>`
             : ""
         }
         <div class="so-tri-layout so-resp-stack flex-1 min-h-0 flex gap-3 items-stretch">
           <div class="so-resp-full so-panel w-[268px] shrink-0 flex flex-col overflow-hidden">
-            <div class="px-3 py-2.5 border-b border-[#1c242c] flex items-center justify-between gap-2 bg-[#0e1418]">
-              <span class="text-[12px] font-semibold text-white">1. Steps</span>
-              <label class="inline-flex items-center gap-1.5 text-[10.5px] text-[#34d399] cursor-pointer">
+            <div class="px-3 py-2.5 border-b border-[var(--border-subtle)] flex items-center justify-between gap-2 bg-[var(--bg-1)]">
+              <span class="text-[12px] font-semibold text-[var(--text-1)]">1. Steps</span>
+              <label class="inline-flex items-center gap-1.5 text-[10.5px] text-[var(--ok-text)] cursor-pointer">
                 <input type="checkbox" ${state.traceStaged ? "checked" : ""} data-onchange="state.traceStaged=this.checked; renderMainWorkspace()" />
                 <span>Stage writes</span>
               </label>
@@ -646,19 +654,19 @@ export function createReleaseGates(ctx) {
                 .map(
                   (
                     block,
-                  ) => `<div data-onclick="setTraceBlock('${block.id}')" class="so-card so-card-interactive p-2.5 cursor-pointer space-y-1 ${state.traceBlock === block.id ? "!border-[#5c9ce6] bg-[#15202b]" : ""}">
+                  ) => `<div data-onclick="setTraceBlock('${block.id}')" class="so-card so-card-interactive p-2.5 cursor-pointer space-y-1 ${state.traceBlock === block.id ? "!border-[var(--info-border)] bg-[var(--bg-2)]" : ""}">
                 <div class="flex flex-wrap items-center justify-between gap-1">
-                  <span class="font-semibold text-[11.5px] text-white">${block.step}</span>
+                  <span class="font-semibold text-[11.5px] text-[var(--text-1)]">${block.step}</span>
                   ${ctx.pill(block.badge, block.id === "action" ? "green" : "blue")}
                 </div>
-                <div class="code-id text-[10.5px] text-[#8b96a5]">${block.desc}</div>
+                <div class="code-id text-[10.5px] text-[var(--text-2)]">${block.desc}</div>
               </div>`,
                 )
                 .join("")}
             </div>
           </div>
           <div class="so-panel flex-1 min-w-0 flex flex-col overflow-hidden">
-            <div class="px-3.5 py-2.5 border-b border-[#1c242c] flex flex-wrap items-center justify-between gap-2 bg-[#0e1418]">
+            <div class="px-3.5 py-2.5 border-b border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 bg-[var(--bg-1)]">
               ${entityTitle("2. Tool trace", "", `${ctx.pill("612 tok · 840ms", "violet")} ${keyCombo("mod+enter")}`)}
               <select data-onchange="state.traceScope=this.value; renderMainWorkspace()" aria-label="Execution mode" class="so-select !h-[23px] text-[11px]">
                 <option value="Project" ${state.traceScope === "Project" ? "selected" : ""}>Project</option>
@@ -671,10 +679,10 @@ export function createReleaseGates(ctx) {
                 ${ctx.toolChip("check_cluster_headroom", 1, 0)}
                 ${ctx.agentChip("stage_change_request", 1, 1)}
               </div>
-              <pre class="m-0 p-3 rounded bg-[#080c0f] border border-[#1c242c] code-id text-[11px] text-[#dce4ee] overflow-x-auto leading-relaxed">${esc(traces[state.traceBlock] || traces.llm)}</pre>
+              <pre class="m-0 p-3 rounded bg-[var(--bg-0)] border border-[var(--border-subtle)] code-id text-[11px] text-[var(--text-1)] overflow-x-auto leading-relaxed">${esc(traces[state.traceBlock] || traces.llm)}</pre>
               <div class="so-opt-card p-3 space-y-1">
-                <div class="font-semibold text-[11px] text-[#34d399]">Guardrail check</div>
-                <div class="text-[11.5px] text-[#dce4ee]">The assistant cannot run kubectl or change the cluster. The output is checked against the action spec and held for a person to review.</div>
+                <div class="font-semibold text-[11px] text-[var(--ok-text)]">Guardrail check</div>
+                <div class="text-[11.5px] text-[var(--text-1)]">The assistant cannot run kubectl or change the cluster. The output is checked against the action spec and held for a person to review.</div>
               </div>
             </div>
           </div>
@@ -682,20 +690,20 @@ export function createReleaseGates(ctx) {
             <div class="space-y-2.5">
               ${entityTitle("3. Run", "Stages a proposal. It does not apply it.")}
               <label class="space-y-1 block">
-                <span class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Fixture</span>
+                <span class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-2)]">Fixture</span>
                 <select data-onchange="state.traceFixture=this.value; renderMainWorkspace()" class="so-select w-full">
                   <option value="oom" ${state.traceFixture === "oom" ? "selected" : ""}>PLN-2026-0416 (exit 137)</option>
                   <option value="cidr" ${state.traceFixture === "cidr" ? "selected" : ""}>edge-west-02 (CIDR drift)</option>
                   <option value="frame" ${state.traceFixture === "frame" ? "selected" : ""}>spoke-diode-hall-b (frame lag)</option>
                 </select>
               </label>
-              <div class="so-card p-2.5 space-y-1 text-[11px] text-[#8b96a5]">
-                <div>Version <strong class="code-id text-white">v2.3</strong></div>
-                <div>Eval pass <strong class="tnum text-[#34d399]">99.0% (24/24)</strong></div>
-                <div>Automation <strong class="code-id text-[#60a5fa]">auto-oom-triage</strong></div>
+              <div class="so-card p-2.5 space-y-1 text-[11px] text-[var(--text-2)]">
+                <div>Version <strong class="code-id text-[var(--text-1)]">v2.3</strong></div>
+                <div>Eval pass <strong class="tnum text-[var(--ok-text)]">99.0% (24/24)</strong></div>
+                <div>Automation <strong class="code-id text-[var(--info-text)]">auto-oom-triage</strong></div>
               </div>
             </div>
-            <div class="space-y-2 pt-2.5 border-t border-[#1c242c]">
+            <div class="space-y-2 pt-2.5 border-t border-[var(--border-subtle)]">
               <button type="button" data-onclick="runProposalTrace()" class="so-btn so-btn-blue w-full">${ctx.ic("play")} <span>Simulate trace and staged proposal</span></button>
               <button type="button" data-onclick="state.proposalTab='evals'; switchScreen('pt02-proposals-evals')" class="so-btn w-full">${ctx.ic("flask")} <span>Open evals</span></button>
             </div>
@@ -783,10 +791,10 @@ export function createReleaseGates(ctx) {
     const recorded = recordedGateRows(state);
     const recordedTable = recorded.length
       ? `<div class="so-panel p-3 space-y-2">
-          <div class="text-[13px] font-semibold text-white">Recorded gate results</div>
-          <p class="text-[12px] text-[#8b96a5]">Recorded by the packaging assessment. No model call.</p>
+          <div class="text-[13px] font-semibold text-[var(--text-1)]">Recorded gate results</div>
+          <p class="text-[12px] text-[var(--text-2)]">Recorded by the packaging assessment. No model call.</p>
           <table class="so-table"><thead><tr><th>Run</th><th>Gate</th><th>Outcome</th><th>Reason</th></tr></thead><tbody>
-            ${recorded.map((row) => `<tr><td class="code-id">${esc(row.run)}</td><td>${esc(row.gate)}</td><td>${esc(row.outcome)}</td><td class="text-[#8b96a5]">${esc(row.reason)}</td></tr>`).join("")}
+            ${recorded.map((row) => `<tr><td class="code-id">${esc(row.run)}</td><td>${esc(row.gate)}</td><td>${esc(row.outcome)}</td><td class="text-[var(--text-2)]">${esc(row.reason)}</td></tr>`).join("")}
           </tbody></table>
         </div>`
       : "";
@@ -817,9 +825,9 @@ export function createReleaseGates(ctx) {
           state.proposalTab === "proposals"
             ? `
           <div class="so-grid-3 gap-2.5">
-            <div class="so-card p-3"><div class="text-[10px] uppercase text-[#6d7885]">Watchers</div><div class="text-[15px] font-bold text-white tnum mt-1">3</div><div class="text-[11px] text-[#34d399] mt-0.5">Effect: stage for review</div></div>
-            <div class="so-warn-card p-3"><div class="text-[10px] uppercase text-[#eab854]">Pending review</div><div class="text-[15px] font-bold text-[#eab854] tnum mt-1">${pending}</div><div class="text-[11px] text-[#8b96a5] mt-0.5">No unreviewed writes</div></div>
-            <div class="so-opt-card p-3"><div class="text-[10px] uppercase text-[#34d399]">Applied</div><div class="text-[15px] font-bold text-[#34d399] tnum mt-1">${applied}</div><div class="text-[11px] text-[#8b96a5] mt-0.5">Each decision is recorded</div></div>
+            <div class="so-card p-3"><div class="text-[10px] uppercase text-[var(--text-2)]">Watchers</div><div class="text-[15px] font-bold text-[var(--text-1)] tnum mt-1">3</div><div class="text-[11px] text-[var(--ok-text)] mt-0.5">Effect: stage for review</div></div>
+            <div class="so-warn-card p-3"><div class="text-[10px] uppercase text-[var(--warn-text)]">Pending review</div><div class="text-[15px] font-bold text-[var(--warn-text)] tnum mt-1">${pending}</div><div class="text-[11px] text-[var(--text-2)] mt-0.5">No unreviewed writes</div></div>
+            <div class="so-opt-card p-3"><div class="text-[10px] uppercase text-[var(--ok-text)]">Applied</div><div class="text-[15px] font-bold text-[var(--ok-text)] tnum mt-1">${applied}</div><div class="text-[11px] text-[var(--text-2)] mt-0.5">Each decision is recorded</div></div>
           </div>
           ${sectionCard(
             "Proposals awaiting review",
@@ -834,15 +842,15 @@ export function createReleaseGates(ctx) {
                   ) => `<div class="${row.status === "Pending Review" ? "so-warn-card" : row.status === "Applied" ? "so-opt-card" : "so-card"} p-3 space-y-2">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <div class="flex flex-wrap items-center gap-2">
-                    <span class="code-id text-[13px] font-bold text-white">${esc(row.id)}</span>
-                    <span class="font-semibold text-[12.5px] text-[#dce4ee]">${esc(row.target)}</span>
+                    <span class="code-id text-[13px] font-bold text-[var(--text-1)]">${esc(row.id)}</span>
+                    <span class="font-semibold text-[12.5px] text-[var(--text-1)]">${esc(row.target)}</span>
                     ${ctx.pill(row.status, row.status === "Applied" ? "green" : row.status === "Rejected" ? "red" : "amber")}
                     ${compoundTag("confidence", row.conf, "blue")}
                   </div>
-                  <span class="code-id text-[10.5px] text-[#60a5fa]">${esc(row.rule)}</span>
+                  <span class="code-id text-[10.5px] text-[var(--info-text)]">${esc(row.rule)}</span>
                 </div>
-                <div class="text-[12px] font-medium text-white">${esc(row.action)}</div>
-                <div class="p-2 rounded bg-[#080c0f] border border-[#1c242c] code-id text-[10.5px] text-[#9aa5b4]">Decision log: ${esc(row.log)}</div>
+                <div class="text-[12px] font-medium text-[var(--text-1)]">${esc(row.action)}</div>
+                <div class="p-2 rounded bg-[var(--bg-0)] border border-[var(--border-subtle)] code-id text-[10.5px] text-[var(--text-2)]">Decision log: ${esc(row.log)}</div>
                 ${
                   row.status === "Pending Review"
                     ? `<div class="flex flex-wrap justify-end gap-2">
@@ -867,13 +875,13 @@ export function createReleaseGates(ctx) {
                 ${cases
                   .map(
                     (row) => `<tr>
-                  <td class="code-id font-semibold text-[#60a5fa]">${row[0]}</td>
-                  <td class="text-white">${row[1]}</td>
+                  <td class="code-id font-semibold text-[var(--info-text)]">${row[0]}</td>
+                  <td class="text-[var(--text-1)]">${row[1]}</td>
                   <td><span class="so-pill code-id">${row[2]}</span></td>
                   <td class="code-id" style="text-align:right">${row[3]}</td>
-                  <td class="code-id text-[#8b96a5]" style="text-align:right">${row[4]}</td>
+                  <td class="code-id text-[var(--text-2)]" style="text-align:right">${row[4]}</td>
                   <td>${ctx.pill(row[5], row[6])}</td>
-                  <td><button type="button" data-onclick="switchScreen('pt01-proposal-trace')" class="text-[#60a5fa] text-[11px] hover:underline">Trace</button></td>
+                  <td><button type="button" data-onclick="switchScreen('pt01-proposal-trace')" class="text-[var(--info-text)] text-[11px] hover:underline">Trace</button></td>
                 </tr>`,
                   )
                   .join("")}
@@ -894,10 +902,10 @@ export function createReleaseGates(ctx) {
                 ${models
                   .map(
                     (row) => `<tr>
-                  <td class="code-id font-semibold text-white">${row[0]}</td>
-                  <td class="code-id text-[#34d399]" style="text-align:right">${row[1]}</td>
+                  <td class="code-id font-semibold text-[var(--text-1)]">${row[0]}</td>
+                  <td class="code-id text-[var(--ok-text)]" style="text-align:right">${row[1]}</td>
                   <td class="code-id" style="text-align:right">${row[2]}</td>
-                  <td class="code-id text-[#8b96a5]" style="text-align:right">${row[3]}</td>
+                  <td class="code-id text-[var(--text-2)]" style="text-align:right">${row[3]}</td>
                   <td>${ctx.pill(row[4], row[5])}</td>
                 </tr>`,
                   )

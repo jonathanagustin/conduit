@@ -154,7 +154,7 @@ function propsBody(model, esc, empty) {
   const body = rows
     .map(
       ([k, v]) =>
-        `<tr><td class="kit-muted text-[12px] pr-3">${esc(k)}</td><td class="code-id text-[12px] text-white">${esc(v)}</td></tr>`,
+        `<tr><td class="kit-muted text-[12px] pr-3">${esc(k)}</td><td class="code-id text-[12px] text-[var(--text-1)]">${esc(v)}</td></tr>`,
     )
     .join("");
   return `<table class="kit-card w-full"><tbody>${body}</tbody></table>`;
@@ -174,7 +174,7 @@ function linksBody(model, esc, empty) {
       const err = l.error
         ? `<p class="kit-muted text-[12px]">${esc(l.error)}</p>`
         : "";
-      return `<section class="kit-card"><h4 class="text-[12px] text-white">${esc(l.link)}</h4><p class="kit-muted text-[12px]">${esc(l.target)} · ${esc(l.cardinality)} · ${esc(l.count)}</p>${err}<ul>${items}</ul></section>`;
+      return `<section class="kit-card"><h4 class="text-[12px] text-[var(--text-1)]">${esc(l.link)}</h4><p class="kit-muted text-[12px]">${esc(l.target)} · ${esc(l.cardinality)} · ${esc(l.count)}</p>${err}<ul>${items}</ul></section>`;
     })
     .join("");
 }
@@ -213,7 +213,7 @@ function actionsBody(model, esc) {
         riskOf(name) === "low"
           ? `<span class="kit-badge kit-badge-info">Confirm</span>`
           : `<span class="kit-badge kit-badge-warn">Change request</span>`;
-      return `<li class="text-[12px]"><span class="code-id text-white">${esc(name)}</span> ${badge} <button type="button" class="kit-tab" data-inspector-validate="${esc(name)}">Check</button></li>`;
+      return `<li class="text-[12px]"><span class="code-id text-[var(--text-1)]">${esc(name)}</span> ${badge} <button type="button" class="kit-tab" data-inspector-validate="${esc(name)}">Check</button></li>`;
     })
     .join("");
   const outcome = model.outcome ? outcomeMarkup(model.outcome, esc) : "";
@@ -240,7 +240,7 @@ function timelineBody(model, esc, empty, audit, auditOrder) {
   const rows = entries
     .map(
       (e) =>
-        `<li class="text-[12px]"><span class="code-id text-white">${esc(e.sequence)}</span> <span class="kit-muted">${esc(e.action)} · ${esc(e.actor)} · ${esc(e.resource)} · ${esc(e.recordedAt)}</span></li>`,
+        `<li class="text-[12px]"><span class="code-id text-[var(--text-1)]">${esc(e.sequence)}</span> <span class="kit-muted">${esc(e.action)} · ${esc(e.actor)} · ${esc(e.resource)} · ${esc(e.recordedAt)}</span></li>`,
     )
     .join("");
   return `<ul>${rows}</ul>`;

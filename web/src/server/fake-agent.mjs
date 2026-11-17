@@ -243,6 +243,7 @@ async function prompt(id, params) {
       authenticated,
       hasOpenAiKey: Boolean(process.env["OPENAI_API_KEY"]),
       hasCodexKey: Boolean(process.env["CODEX_API_KEY"]),
+      hasGeminiKey: Boolean(process.env["GEMINI_API_KEY"]),
       offlineBundle: process.env["CONDUIT_OFFLINE_BUNDLE"] ?? "",
       noProxy: process.env["NO_PROXY"] ?? "",
     });

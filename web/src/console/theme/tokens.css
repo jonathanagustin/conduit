@@ -1,28 +1,25 @@
-/* Dark tactical shell tokens, plus a light pair for the existing theme toggle.
+/* Legacy shell aliases over the native operator token sheet.
    Names are Conduit's. The layout follows a three-pane command center; the
    values are not copied from a third-party stylesheet. */
 .conduit-shell {
-  --c-bg: #111418;
-  --c-sidebar: #101519;
-  --c-panel: #151b1f;
-  --c-card: #1c2127;
-  --c-border: #2b3038;
-  --c-text: #f6f7f9;
-  --c-muted: #abb3bf;
-  --c-accent: #2d72d2;
-  --c-ok: #238551;
-  --c-warn: #c87619;
-  --c-bad: #cd4246;
-  --background: #111418;
-  --foreground: #f6f7f9;
-  --card: #1c2127;
-  --muted: #1c2127;
-  --muted-foreground: #8f99a8;
-  --border: #2b3038;
-  --input: #111418;
-  --cnd-mark-1: #215db0;
-  --cnd-mark-2: #4c90f0;
-  --cnd-mark-3: #8abbff;
+  --c-bg: var(--bg-1);
+  --c-sidebar: var(--bg-1);
+  --c-panel: var(--bg-1);
+  --c-card: var(--bg-1);
+  --c-border: var(--border-subtle);
+  --c-text: var(--text-1);
+  --c-muted: var(--text-2);
+  --c-accent: var(--info-text);
+  --c-ok: var(--ok-text);
+  --c-warn: var(--warn-text);
+  --c-bad: var(--err-text);
+  --background: var(--bg-1);
+  --foreground: var(--text-1);
+  --card: var(--bg-1);
+  --muted: var(--bg-1);
+  --muted-foreground: var(--text-2);
+  --border: var(--border-subtle);
+  --input: var(--bg-1);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -33,19 +30,6 @@
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12.5px;
   line-height: 1.4;
-}
-
-.conduit-shell[data-theme="light"] {
-  --c-bg: #f4f6f8;
-  --c-sidebar: #ffffff;
-  --c-panel: #ffffff;
-  --c-card: #ffffff;
-  --c-border: #d5dde6;
-  --c-text: #1c2127;
-  --c-muted: #5f6b7a;
-  --cnd-mark-1: #4c90f0;
-  --cnd-mark-2: #2d72d2;
-  --cnd-mark-3: #184a90;
 }
 
 .conduit-shell * {
@@ -130,8 +114,8 @@
   gap: 12px;
   height: 48px;
   padding: 0 12px;
-  background: #0d1317;
-  border-bottom: 1px solid #1e262d;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border-subtle);
   flex: none;
 }
 
@@ -182,7 +166,7 @@
   height: 32px;
   padding: 0 8px;
   overflow-x: auto;
-  background: #151b1f;
+  background: var(--bg-1);
   border-bottom: 1px solid var(--c-border);
   flex: none;
 }
@@ -193,24 +177,24 @@
   gap: 6px;
   height: 24px;
   padding: 0 8px;
-  border: 1px solid #2b3038;
+  border: 1px solid var(--border-subtle);
   border-radius: 2px;
-  background: #111418;
+  background: var(--bg-1);
   color: var(--c-muted);
   font-size: 11.5px;
 }
 
 .conduit-tab.is-active {
-  background: #252a31;
+  background: var(--bg-2);
   color: var(--c-text);
-  border-color: #383e47;
+  border-color: var(--border-subtle);
 }
 
 .conduit-shell .aui-thread-root {
   height: 100%;
   min-height: 0;
-  background: #111418;
-  color: #f6f7f9;
+  background: var(--bg-1);
+  color: var(--text-1);
 }
 
 .conduit-body {
@@ -413,17 +397,17 @@
   width: 8px;
   height: 8px;
   border-radius: 1px;
-  background: #2b3038;
+  background: var(--bg-2);
 }
 
 .cd-gatecell[data-mark="ok"] {
-  background: #32a467;
+  background: var(--ok-border);
 }
 .cd-gatecell[data-mark="warn"] {
-  background: #eab854;
+  background: var(--warn-border);
 }
 .cd-gatecell[data-mark="bad"] {
-  background: #e76a6e;
+  background: var(--err-border);
 }
 .cd-gatestrip[data-size="lg"] .cd-gatecell {
   width: 16px;
@@ -449,17 +433,17 @@
 }
 
 .cd-step[data-state="done"] {
-  color: #5ad196;
+  color: var(--ok-text);
 }
 .cd-step[data-state="current"] {
-  color: #7cb4ff;
+  color: var(--info-text);
 }
 
 .cd-step-index {
   width: 16px;
   height: 16px;
   border-radius: 999px;
-  border: 1px solid #2b3742;
+  border: 1px solid var(--border-subtle);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -469,7 +453,7 @@
 .cd-step-line {
   width: 16px;
   height: 1px;
-  background: #2b3742;
+  background: var(--bg-2);
 }
 
 .cd-timeline {
@@ -488,8 +472,8 @@
 .cd-timeline-track {
   position: relative;
   height: 14px;
-  background: #090e11;
-  border: 1px solid #1e262d;
+  background: var(--bg-0);
+  border: 1px solid var(--border-subtle);
   border-radius: 3px;
 }
 
@@ -498,17 +482,17 @@
   top: 1px;
   bottom: 1px;
   border-radius: 2px;
-  background: #2d72d2;
+  background: var(--accent-fill);
 }
 
 .cd-timeline-bar[data-tone="ok"] {
-  background: #238551;
+  background: var(--ok-border);
 }
 .cd-timeline-bar[data-tone="warn"] {
-  background: #c87619;
+  background: var(--warn-border);
 }
 .cd-timeline-bar[data-tone="bad"] {
-  background: #cd4246;
+  background: var(--err-border);
 }
 
 .cd-facet {
@@ -556,15 +540,15 @@
 
 .cd-banner[data-edge="top"],
 .cd-banner[data-edge="inline"] {
-  background: #3a2e1e;
-  color: #f2b45c;
-  border-bottom: 1px solid #d98b2b;
+  background: var(--bg-2);
+  color: var(--warn-text);
+  border-bottom: 1px solid var(--warn-border);
 }
 
 .cd-banner[data-edge="bottom"] {
-  background: #1d332a;
-  color: #5ad196;
-  border-top: 1px solid #2e9a62;
+  background: var(--bg-2);
+  color: var(--ok-text);
+  border-top: 1px solid var(--ok-border);
 }
 
 .conduit-table-scroll .bp6-html-table,
@@ -646,7 +630,8 @@
     right: 0;
     transform: translateX(105%);
     border-left: 1px solid var(--c-border);
-    box-shadow: -12px 0 32px rgba(0, 0, 0, 0.45);
+    box-shadow: -12px 0 32px
+      color-mix(in srgb, var(--shadow-color) 45%, transparent);
   }
 
   .conduit-shell.is-chat-open .conduit-chat {
@@ -663,7 +648,7 @@
     left: 0;
     z-index: 20;
     border: 0;
-    background: rgba(4, 8, 12, 0.68);
+    background: color-mix(in srgb, var(--bg-0) 68%, transparent);
   }
 
   .conduit-split,

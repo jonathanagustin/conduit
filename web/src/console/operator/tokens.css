@@ -3,6 +3,8 @@
    maps the names older styles use onto it. Contrast is WCAG 2.2 AA in both
    themes (text >= 4.5:1, icons and control boundaries >= 3:1); the unit test
    tokens-contrast.test.ts measures every pair. */
+.conduit-shell,
+:root,
 .operator-root {
   color-scheme: dark;
 
@@ -51,6 +53,18 @@
   --icon-md: 20px;
   --icon-stroke: 1.65;
 
+  --shadow-color: #000000;
+  --mask-opaque: var(--shadow-color);
+  --globe-ocean-core: #0e2b4a;
+  --globe-ocean-mid: #07182c;
+  --globe-ocean-edge: #040c18;
+  --globe-land-mask: #08111c;
+  --globe-panel-core: #10233b;
+  --globe-panel-mid: #0b131c;
+  --globe-city-core-rgb: 255, 238, 190;
+  --globe-city-edge-rgb: 255, 204, 111;
+  --globe-city-point-rgb: 252, 211, 125;
+
   /* Surfaces, borders, text */
   --bg-0: #0b1113;
   --bg-1: #10161a;
@@ -95,6 +109,8 @@
   --cnd-mark-2: #4c90f0;
   --cnd-mark-3: #8abbff;
 }
+.conduit-shell[data-theme="light"],
+:root[data-theme="light"],
 .operator-root[data-theme="light"] {
   color-scheme: light;
   --bg-0: #f1f4f8;
@@ -138,6 +154,7 @@
 }
 
 /* Aliases: names older styles use, mapped onto the sheet above. */
+:root,
 .operator-root,
 .operator-root[data-theme="light"] {
   --c-bg: var(--bg-0);
@@ -202,25 +219,6 @@
   --c-diff-add-fg: var(--ok-text);
 }
 
-/* Hardcoded dim grays from older views read through the ramp, so they meet AA. */
-.operator-root [class*="text-[#4a5562]"],
-.operator-root [class*="text-[#55616e]"],
-.operator-root [class*="text-[#596573]"],
-.operator-root [class*="text-[#6d7885]"],
-.operator-root [class*="text-[#738091]"],
-.operator-root [class*="text-[#7c8794]"] {
-  color: var(--c-subtle) !important;
-}
-/* Pure white body text glares on dark panels; buttons keep their own colour. */
-.operator-root:not([data-theme="light"])
-  #main-workspace
-  .text-white:not(button):not(.so-btn):not(.kit-btn),
-.operator-root:not([data-theme="light"])
-  #main-workspace
-  [class*="text-[#fff"]:not(button):not(.so-btn):not(.kit-btn) {
-  color: var(--c-text) !important;
-}
-
 .operator-root :focus-visible {
   outline: 2px solid var(--accent-focus);
   outline-offset: 1.5px;
@@ -276,11 +274,166 @@
 .operator-root[data-theme="light"] .chip-ontology * {
   color: inherit !important;
 }
-.operator-root[data-theme="light"] [class*="bg-[#191d32]"] {
-  background: var(--ai-fill) !important;
-  border-color: var(--ai-border) !important;
-  color: var(--ai-text) !important;
+
+/* Runtime adapters: native primitives, assistant-ui and Blueprint share the
+   same semantic palette. No adapter owns a second light/dark ramp. */
+.conduit-shell,
+.conduit-shell[data-theme],
+:root,
+:root[data-theme],
+.operator-root,
+.operator-root[data-theme] {
+  --radius: 0.625rem;
+  --background: var(--bg-0);
+  --foreground: var(--text-1);
+  --card: var(--bg-1);
+  --card-foreground: var(--text-1);
+  --popover: var(--bg-1);
+  --popover-foreground: var(--text-1);
+  --primary: var(--accent-fill);
+  --primary-foreground: var(--accent-text);
+  --secondary: var(--bg-2);
+  --secondary-foreground: var(--text-1);
+  --muted: var(--bg-2);
+  --muted-foreground: var(--text-2);
+  --accent: var(--bg-3);
+  --accent-foreground: var(--text-1);
+  --destructive: var(--err-text);
+  --border: var(--border-subtle);
+  --input: var(--border-control);
+  --ring: var(--accent-focus);
+  --chart-1: var(--info-text);
+  --chart-2: var(--ok-text);
+  --chart-3: var(--warn-text);
+  --chart-4: var(--ai-text);
+  --chart-5: var(--err-text);
+  --sidebar: var(--bg-1);
+  --sidebar-foreground: var(--text-1);
+  --sidebar-primary: var(--accent-fill);
+  --sidebar-primary-foreground: var(--accent-text);
+  --sidebar-accent: var(--bg-3);
+  --sidebar-accent-foreground: var(--text-1);
+  --sidebar-border: var(--border-subtle);
+  --sidebar-ring: var(--accent-focus);
+  --aui-success: var(--ok-text);
+  --aui-warning: var(--warn-text);
+  --aui-panel: var(--bg-2);
+  --bp-typography-color-muted: var(--text-2);
+  --bp-typography-color-default-rest: var(--text-1);
+  --bp-typography-color-default-hover: var(--text-1);
+  --bp-typography-color-default-active: var(--text-1);
+  --bp-typography-color-default-disabled: var(--text-2);
+  --bp-surface-background-color-default-rest: var(--bg-1);
+  --bp-surface-background-color-default-hover: var(--bg-2);
+  --bp-surface-background-color-default-active: var(--bg-3);
+  --bp-surface-background-color-default-disabled: var(--bg-2);
+  --bp-surface-border-color-default: var(--border-subtle);
+  --bp-surface-border-color-strong: var(--border-control);
+  --bp-surface-color-code: var(--bg-2);
+  --bp-emphasis-focus-color: var(--accent-focus);
+  --bp-typography-color-primary-rest: var(--info-text);
+  --bp-surface-background-color-primary-rest: var(--info-fill);
+  --bp-typography-color-primary-hover: var(--info-text);
+  --bp-surface-background-color-primary-hover: var(--info-fill);
+  --bp-typography-color-primary-active: var(--info-text);
+  --bp-surface-background-color-primary-active: var(--info-fill);
+  --bp-typography-color-primary-disabled: var(--info-text);
+  --bp-surface-background-color-primary-disabled: var(--info-fill);
+  --bp-intent-primary-foreground: var(--info-text);
+  --bp-typography-color-success-rest: var(--ok-text);
+  --bp-surface-background-color-success-rest: var(--ok-fill);
+  --bp-typography-color-success-hover: var(--ok-text);
+  --bp-surface-background-color-success-hover: var(--ok-fill);
+  --bp-typography-color-success-active: var(--ok-text);
+  --bp-surface-background-color-success-active: var(--ok-fill);
+  --bp-typography-color-success-disabled: var(--ok-text);
+  --bp-surface-background-color-success-disabled: var(--ok-fill);
+  --bp-intent-success-foreground: var(--ok-text);
+  --bp-typography-color-warning-rest: var(--warn-text);
+  --bp-surface-background-color-warning-rest: var(--warn-fill);
+  --bp-typography-color-warning-hover: var(--warn-text);
+  --bp-surface-background-color-warning-hover: var(--warn-fill);
+  --bp-typography-color-warning-active: var(--warn-text);
+  --bp-surface-background-color-warning-active: var(--warn-fill);
+  --bp-typography-color-warning-disabled: var(--warn-text);
+  --bp-surface-background-color-warning-disabled: var(--warn-fill);
+  --bp-intent-warning-foreground: var(--warn-text);
+  --bp-typography-color-danger-rest: var(--err-text);
+  --bp-surface-background-color-danger-rest: var(--err-fill);
+  --bp-typography-color-danger-hover: var(--err-text);
+  --bp-surface-background-color-danger-hover: var(--err-fill);
+  --bp-typography-color-danger-active: var(--err-text);
+  --bp-surface-background-color-danger-active: var(--err-fill);
+  --bp-typography-color-danger-disabled: var(--err-text);
+  --bp-surface-background-color-danger-disabled: var(--err-fill);
+  --bp-intent-danger-foreground: var(--err-text);
+  --bp-intent-default-rest: var(--neutral-fill);
+  --bp-intent-default-hover: var(--bg-3);
+  --bp-intent-default-active: var(--bg-3);
+  --bp-intent-default-disabled: var(--bg-2);
+  --bp-intent-default-foreground: var(--neutral-text);
+  --bp-intent-primary-rest: var(--info-fill);
+  --bp-intent-primary-hover: var(--info-fill);
+  --bp-intent-primary-active: var(--info-fill);
+  --bp-intent-primary-disabled: var(--info-fill);
+  --bp-intent-success-rest: var(--ok-fill);
+  --bp-intent-success-hover: var(--ok-fill);
+  --bp-intent-success-active: var(--ok-fill);
+  --bp-intent-success-disabled: var(--ok-fill);
+  --bp-intent-warning-rest: var(--warn-fill);
+  --bp-intent-warning-hover: var(--warn-fill);
+  --bp-intent-warning-active: var(--warn-fill);
+  --bp-intent-warning-disabled: var(--warn-fill);
+  --bp-intent-danger-rest: var(--err-fill);
+  --bp-intent-danger-hover: var(--err-fill);
+  --bp-intent-danger-active: var(--err-fill);
+  --bp-intent-danger-disabled: var(--err-fill);
 }
-.operator-root[data-theme="light"] [class*="bg-[#0b1014]"] {
-  background: var(--bg-3) !important;
+
+.operator-root .bp6-card,
+body .bp6-card {
+  background: var(--bg-1);
+  color: var(--text-1);
+  box-shadow: 0 0 0 1px var(--border-subtle);
+}
+
+.conduit-shell[data-theme] .bp6-tag.bp6-intent-primary,
+.conduit-shell[data-theme] .bp6-tag.bp6-minimal.bp6-intent-primary,
+.operator-root[data-theme] .bp6-tag.bp6-intent-primary,
+.operator-root[data-theme] .bp6-tag.bp6-minimal.bp6-intent-primary {
+  color: var(--info-text);
+  background: var(--info-fill);
+  box-shadow: inset 0 0 0 1px var(--info-border);
+}
+
+.conduit-shell[data-theme] .bp6-tag.bp6-intent-success,
+.conduit-shell[data-theme] .bp6-tag.bp6-minimal.bp6-intent-success,
+.operator-root[data-theme] .bp6-tag.bp6-intent-success,
+.operator-root[data-theme] .bp6-tag.bp6-minimal.bp6-intent-success {
+  color: var(--ok-text);
+  background: var(--ok-fill);
+  box-shadow: inset 0 0 0 1px var(--ok-border);
+}
+
+.conduit-shell[data-theme] .bp6-tag.bp6-intent-warning,
+.conduit-shell[data-theme] .bp6-tag.bp6-minimal.bp6-intent-warning,
+.operator-root[data-theme] .bp6-tag.bp6-intent-warning,
+.operator-root[data-theme] .bp6-tag.bp6-minimal.bp6-intent-warning {
+  color: var(--warn-text);
+  background: var(--warn-fill);
+  box-shadow: inset 0 0 0 1px var(--warn-border);
+}
+
+.conduit-shell[data-theme] .bp6-tag.bp6-intent-danger,
+.conduit-shell[data-theme] .bp6-tag.bp6-minimal.bp6-intent-danger,
+.operator-root[data-theme] .bp6-tag.bp6-intent-danger,
+.operator-root[data-theme] .bp6-tag.bp6-minimal.bp6-intent-danger {
+  color: var(--err-text);
+  background: var(--err-fill);
+  box-shadow: inset 0 0 0 1px var(--err-border);
+}
+
+.operator-root .bp6-tag .bp6-icon {
+  color: inherit;
+  fill: currentColor;
 }
