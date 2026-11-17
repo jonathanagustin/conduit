@@ -22,7 +22,7 @@ import (
 // rather than the path not existing. Apply proposes a change request and does
 // not approve it.
 func mountOntology(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, hub Options, workspaces *devapp.Service) http.Handler {
-	service := controlplane.NewGovernanceService(repository)
+	service := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	ontologyhttp.Register(mux, ontologyhttp.Config{
 		Source: workspaceCatalog{inner: ontologyrepo.New(repository, service), spaces: workspaces},

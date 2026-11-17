@@ -37,9 +37,15 @@ type governanceAnnouncements struct {
 }
 
 // SetAnnouncements names who is told about change requests and grants this
-// service commits. Unset, the service announces nothing, which is what every
-// service built over a transaction's repository must do.
+// service commits. A service over a transaction-local repository stays silent,
+// even if hooks were supplied: its own boundary may only release a savepoint.
+// The outer transaction's owner must announce after its final commit. This
+// suppresses uncommitted signals; durable retry intent remains separate work.
 func (service *GovernanceService) SetAnnouncements(announcements Announcements) {
+	if service.repository != nil && service.repository.InTransaction() {
+		service.announcements = governanceAnnouncements{}
+		return
+	}
 	service.announcements = governanceAnnouncements{
 		openings: announcements.ChangeRequestOpenings, grants: announcements.GrantChanges,
 	}

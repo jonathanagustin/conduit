@@ -25,7 +25,7 @@ import (
 func mountAssistant(
 	legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, hub Options, model assistantdomain.Model, cases evalAdder,
 ) http.Handler {
-	governanceService := controlplane.NewGovernanceService(repository)
+	governanceService := newGovernanceService(repository, options)
 	threads := hub.AssistantThreads
 	if threads == nil {
 		// No durable store was handed in. Threads still work, in this process

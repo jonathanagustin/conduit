@@ -108,7 +108,7 @@ func (s releaseRolloutSource) Read(ctx context.Context, product, version string,
 }
 
 func registerReleaseRollout(mux *http.ServeMux, repository controlplane.Repository, options controlplane.HandlerOptions, waves func() []wavedomain.Rollout) {
-	governance := controlplane.NewGovernanceService(repository)
+	governance := newGovernanceService(repository, options)
 	service := releaseapp.Service{Source: releaseRolloutSource{repository: repository, waves: waves}}
 	releasehttp.Register(mux, releasehttp.Config{
 		Authorize: func(r *http.Request) int {

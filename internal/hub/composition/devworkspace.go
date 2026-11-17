@@ -26,7 +26,7 @@ func assembleDevWorkspace(
 	repository controlplane.Repository, options controlplane.HandlerOptions, getenv func(string) string,
 ) *application.Service {
 	store := recorded.New()
-	service := controlplane.NewGovernanceService(repository)
+	service := newGovernanceService(repository, options)
 	var records ports.Catalog = store
 	var files ports.Files = store.Files()
 	var runtime ports.Runtime
@@ -77,7 +77,7 @@ func (audit devAudit) Record(ctx context.Context, subject, action, resource, dec
 func mountDevWorkspace(
 	legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, spaces *application.Service,
 ) http.Handler {
-	service := controlplane.NewGovernanceService(repository)
+	service := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	devhttp.Register(mux, devhttp.Config{
 		Service: spaces,

@@ -12,8 +12,8 @@ import (
 )
 
 func mountBlackouts(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions) http.Handler {
-	service := &blackoutapp.Service{Store: repository}
-	governance := controlplane.NewGovernanceService(repository)
+	service := &blackoutapp.Service{Store: repository, Governance: newGovernanceService(repository, options)}
+	governance := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	blackouthttp.Register(mux, blackouthttp.Config{
 		Authorize: func(request *http.Request) error {

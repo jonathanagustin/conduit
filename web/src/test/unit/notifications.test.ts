@@ -6,6 +6,7 @@ import {
   INBOX_LIMITS,
   contactPayload,
   contactProblem,
+  hasCompleteTypeAvailability,
   inboxBound,
   inboxPath,
   inboxReduce,
@@ -272,6 +273,40 @@ describe("preference edit", () => {
     ).toBe("contact-1");
   });
 
+  it("distinguishes complete availability from an older Hub's selected-only array", () => {
+    const older = {
+      types: ["PLAN_FAILURES", "RBAC_CHANGE"],
+      typesNotYetEmitted: ["RBAC_CHANGE"],
+    };
+    expect(hasCompleteTypeAvailability(older)).toBe(false);
+    expect(
+      hasCompleteTypeAvailability({
+        ...older,
+        typeAvailabilityScope: "SELECTED",
+      }),
+    ).toBe(false);
+    const complete = { ...older, typeAvailabilityScope: "ALL_KNOWN" };
+    expect(hasCompleteTypeAvailability(complete)).toBe(true);
+    expect(
+      hasCompleteTypeAvailability({ ...complete, typesNotYetEmitted: [] }),
+    ).toBe(true);
+    for (const invalid of [
+      undefined,
+      null,
+      "RBAC_CHANGE",
+      [42],
+      [""],
+      [" RBAC_CHANGE"],
+    ]) {
+      expect(
+        hasCompleteTypeAvailability({
+          ...complete,
+          typesNotYetEmitted: invalid,
+        }),
+      ).toBe(false);
+    }
+  });
+
   it("refuses first what the Hub would refuse", () => {
     const empty = { types: [], allFutureTypes: false, contactId: "" };
     expect(preferenceProblem("product/payments", empty)).toContain(
@@ -282,6 +317,17 @@ describe("preference edit", () => {
     );
     expect(
       preferenceProblem("product/payments", { ...empty, allFutureTypes: true }),
+    ).toBe("");
+    const legacy = { ...empty, types: ["PLAN_FAILURES", "RBAC_CHANGE"] };
+    expect(
+      preferenceProblem("product/payments", legacy, ["RBAC_CHANGE"]),
+    ).toContain("Remove the selected types");
+    expect(
+      preferenceProblem(
+        "product/payments",
+        { ...legacy, allFutureTypes: true },
+        ["RBAC_CHANGE"],
+      ),
     ).toBe("");
   });
 
@@ -382,15 +428,24 @@ describe("screen markup", () => {
       status: "ready",
       stored: { types: ["ROLE_CHANGE"], revision: 2 },
       draft: { types: ["ROLE_CHANGE"], allFutureTypes: false, contactId: "" },
+      availabilityKnown: true,
       ...overrides,
     });
     return notificationsMarkup(next, { decision });
   };
 
-  it("offers a checkbox for every type the Hub accepts", () => {
-    const html = editor();
-    for (const type of EVENT_TYPES)
-      expect(html).toContain(`data-ntf-type="${type}"`);
+  it("shows every known type and disables unavailable choices before selection", () => {
+    const unavailable = ["BLUE_GREEN_UPGRADE_FAILED", "RBAC_CHANGE"];
+    const html = editor({ notYetEmitted: unavailable });
+    for (const type of EVENT_TYPES) {
+      if (unavailable.includes(type)) {
+        expect(html).toContain(`data-type-not-emitted="${type}"`);
+        expect(html).not.toContain(`data-ntf-type="${type}"`);
+        expect(html).not.toContain(`data-ntf-remove-type="${type}"`);
+      } else expect(html).toContain(`data-ntf-type="${type}"`);
+    }
+    expect(html).toContain("cannot be selected individually");
+    expect(html).not.toContain("answer appears after a save");
   });
 
   it("renders a type nothing raises as disabled with the reason", () => {
@@ -401,6 +456,45 @@ describe("screen markup", () => {
     // It is not also offered as a working checkbox.
     expect(html).not.toContain('data-ntf-type="ROLE_CHANGE"');
     expect(html).toContain('data-ntf-remove-type="ROLE_CHANGE"');
+  });
+
+  it("blocks unsupported metadata and legacy unavailable selections without hiding them", () => {
+    const unknown = editor({ availabilityKnown: false });
+    expect(unknown).toContain("did not report notification availability");
+    expect(unknown).toMatch(/data-ntf-type="PLAN_FAILURES"[^>]*disabled/);
+    expect(unknown).toMatch(/data-ntf-action="save-preference"[^>]*disabled/);
+    expect(unknown).toMatch(/data-ntf-future[^>]*disabled/);
+    expect(unknown).toMatch(/data-ntf-contact[^>]*disabled/);
+    const legacy = editor({
+      notYetEmitted: ["ROLE_CHANGE"],
+      draft: {
+        types: ["PLAN_FAILURES", "ROLE_CHANGE"],
+        allFutureTypes: false,
+        contactId: "",
+      },
+    });
+    expect(legacy).toContain("Remove the selected types");
+    expect(legacy).toMatch(/data-ntf-action="save-preference"[^>]*disabled/);
+    const repaired = editor({
+      notYetEmitted: ["ROLE_CHANGE"],
+      draft: { types: ["PLAN_FAILURES"], allFutureTypes: false, contactId: "" },
+    });
+    expect(repaired).not.toMatch(
+      /data-ntf-action="save-preference"[^>]*disabled/,
+    );
+  });
+
+  it("keeps forward consent available without presenting unavailable types as emitted", () => {
+    const html = editor({
+      notYetEmitted: ["RBAC_CHANGE"],
+      draft: { types: [], allFutureTypes: true, contactId: "" },
+    });
+    expect(html).toMatch(
+      /data-ntf-type="PLAN_FAILURES"[^>]*checked[^>]*disabled/,
+    );
+    expect(html).toContain('data-type-not-emitted="RBAC_CHANGE"');
+    expect(html).toContain("cannot make an unavailable type deliver today");
+    expect(html).not.toMatch(/data-ntf-action="save-preference"[^>]*disabled/);
   });
 
   it("disables Save with the reason when nothing is selected", () => {

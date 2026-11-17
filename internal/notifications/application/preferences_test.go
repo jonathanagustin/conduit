@@ -2,11 +2,47 @@ package application
 
 import (
 	"errors"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/notifications/domain"
 )
+
+func TestUnavailablePreferenceSelectionIsRefusedWithoutChangingLegacyState(t *testing.T) {
+	t.Parallel()
+	legacy := domain.Preference{
+		ID: "legacy", Owner: alice(), ResourceRID: preferenceResource, Channel: domain.ChannelEmail,
+		Types:     []domain.EventType{domain.EventPlanFailures, domain.EventRBACChange},
+		CreatedAt: at(), UpdatedAt: at(), Revision: 3,
+	}
+	store := &fakeStore{preferences: map[string][]domain.Preference{preferenceResource: {legacy}}}
+	preferences := newPreferences(t, store)
+	for _, types := range [][]domain.EventType{
+		{domain.EventRBACChange}, {domain.EventPlanFailures, domain.EventRBACChange},
+	} {
+		_, err := preferences.Save(t.Context(), domain.Preference{
+			Owner: alice(), ResourceRID: preferenceResource, Channel: domain.ChannelEmail, Types: types,
+		})
+		if err == nil || !strings.Contains(err.Error(), "not yet emitted") {
+			t.Fatalf("unavailable selection was not refused: %v", err)
+		}
+	}
+	got, err := preferences.Get(t.Context(), preferenceResource, alice(), domain.ChannelEmail)
+	if err != nil || !reflect.DeepEqual(got, legacy) || len(store.saved) != 0 {
+		t.Fatalf("refusal changed the saved preference: %#v, %v, writes=%d", got, err, len(store.saved))
+	}
+	legacy.Types = []domain.EventType{domain.EventPlanFailures}
+	if _, err := preferences.Save(t.Context(), legacy); err != nil {
+		t.Fatalf("removing the unavailable selection failed: %v", err)
+	}
+	legacy.Types = []domain.EventType{domain.EventRBACChange}
+	legacy.AllFutureTypes = true
+	if _, err := preferences.Save(t.Context(), legacy); err != nil {
+		t.Fatalf("forward consent with an inactive named selection failed: %v", err)
+	}
+}
 
 const preferenceResource = "ri.apollo.main.environment.abc"
 

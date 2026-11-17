@@ -26,7 +26,7 @@ import (
 	planningdomain "github.com/jonathanagustin/conduit/internal/planning/domain"
 )
 
-func packagingPlanningComputer(repository controlplane.Repository, principal controlplane.Principal, getenv func(string) string) planningapp.AppgenComputer {
+func packagingPlanningComputer(repository controlplane.Repository, principal controlplane.Principal, getenv func(string) string, handlerOptions ...controlplane.HandlerOptions) planningapp.AppgenComputer {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
@@ -124,7 +124,7 @@ func packagingPlanningComputer(repository controlplane.Repository, principal con
 		}
 		fmt.Fprintf(logFile, "pinned image digest %s\n", result.Audit.ImageDigest)
 		if repository != nil && strings.TrimSpace(principal.Username) != "" {
-			receipt, err := devchange.New(controlplane.NewGovernanceService(repository)).Submit(ctx, devWorkspaceCaller(principal), devdomain.Submission{
+			receipt, err := devchange.New(newGovernanceService(repository, handlerOptions...)).Submit(ctx, devWorkspaceCaller(principal), devdomain.Submission{
 				WorkspaceID: wsID, EnvironmentID: "dev", Revision: result.Head,
 				SourceDigest: result.Audit.ImageDigest,
 				Title:        "Package " + app,
