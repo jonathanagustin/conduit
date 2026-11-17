@@ -18,8 +18,12 @@ packaging-run event history. Buffered changes are coalesced into native refreshe
 invalidations never copy event payloads into business state or invoke approval.
 Existing bundle preview and verification POSTs remain read-only queries.
 
-`useLiveEvents(identity, { catchUp, invalidate })` exposes the same lifecycle to
-React views through `useSyncExternalStore`. Callbacks receive an AbortSignal and
+`useLiveEvents(identity, { catchUp, invalidate })` in
+`web/src/api/use-live-events.ts` wraps the same lifecycle in
+`useSyncExternalStore` for a React view. *Corrected 2026-11-17:* nothing under
+`web/src` imports that file, so it is not the API the console uses and no view
+depends on it. The mounted console reaches live events through the Hub bridge
+described at the end of this paragraph. Callbacks receive an AbortSignal and
 must discard cancelled results. `liveAreas(event)` maps events to affected views,
 including overview, KPI, packaging, plans, approvals, fleet and assistant.
 Imperative consumers can use the Hub bridge's `subscribeLive`, `liveStatus`,

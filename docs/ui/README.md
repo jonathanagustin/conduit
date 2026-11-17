@@ -1,10 +1,23 @@
 # Console documentation
 
-The operator UI served from `/console/` is the local packaging assistant
-documented in `web/README.md`. The UI-library screens this directory describes
-(fleet, plans, products, promotions, change requests, notifications, and the
-rest) are no longer rendered. The notes below stay as the evidence record of
-that console. The tenant bootstrap contract is still in force.
+The operator UI served from `/console/` is one workbench
+(`web/src/console/Workbench.tsx`), which mounts the operator engine in
+`web/src/console/operator/engine.js`. The engine renders the fleet, plans,
+products, promotions, change requests, notifications and audit screens from
+the Hub's read model, with the assistant in a rail beside them.
+`console-navigation.md` lists the areas and tabs as coded, and `web/README.md`
+lists what the console writes to the Hub.
+
+*Corrected 2026-11-17.* This paragraph said until then that the console was
+"the local packaging assistant" and that the fleet, plans, products,
+promotions, change requests and notifications screens "are no longer
+rendered". That described an intermediate state. The engine renders them; see
+the `AREAS` table in `engine.js`.
+
+Not everything in this directory describes that engine.
+`console-composition-trees.md` was written against an earlier React console
+and is kept as its evidence record; it is marked historical at its top. The
+tenant bootstrap contract is still in force.
 
 The living UI contract is intentionally small:
 
@@ -17,7 +30,7 @@ The living UI contract is intentionally small:
 - `contracts/fleet-facets.md` defines the fleet's faceted filter rail, and in
   particular what each of its counts is over -- the one thing about a facet that
   cannot be inferred from looking at it.
-- `console-navigation.md` names the six workbench areas and the older hashes that open the same tabs.
+- `console-navigation.md` names the seven workbench areas, the rest of the left rail, and the screen hashes that open a tab.
 - `third-party-assets.md` credits the bundled globe imagery.
 
 The files under `evidence/` and the dated inventories in this directory are
