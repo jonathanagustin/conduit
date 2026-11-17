@@ -91,16 +91,23 @@ uds zarf package deploy zarf-package-platform-runtime-*.tar.zst \
 `PACKAGING_POSTGRES_SECRET`, the Secret the packaging worker already uses.
 `uds-metrics` applies the same Package CR as `uds` plus a ServiceMonitor for
 Service port `metrics` (9090, path `/metrics`). The two components carry the
-same Package object: select one, not both. Zarf cannot check one variable
-against another, so `METRICS_ADDRESS=:9090` with the file repository is
-accepted at deploy time; the Hub then logs that metrics need
-`REPOSITORY_KIND=postgres` and opens no listener.
+same Package object and now share the pinned Zarf v0.82.0 `uds-mode` choice
+group. The no-op `uds-disabled` default preserves a plain `--confirm` install.
+Selecting both UDS owners, or selecting every component with `*`, fails the
+real Zarf selection filter before any component runs. The deprecated `group`
+field must be migrated when the package moves to a schema that removes it.
+The metrics component's deploy action refuses unless both
+`REPOSITORY_KIND=postgres` and `METRICS_ADDRESS=:9090` are set, before applying
+its Package CR. The required runtime component can already have deployed;
+this guard does not make deployment of all components atomic.
 
-This path is checked by rendering only. `zarf dev inspect manifests`
-substitutes the variables and the Package validates against the UDS Core
-1.17.1 schema. No cluster run has shown the Zarf-packaged Hub running against
-Postgres, a scrape succeeding, or what Zarf does when both `uds` and
-`uds-metrics` are selected.
+`zarf dev inspect manifests` substitutes the variables and the Package validates
+against the UDS Core 1.17.1 schema. Pinned real Zarf package create and deployment
+of an action-only selection fixture check the default and conflicting choices,
+variable patterns and actual deploy guards. That fixture contains no images,
+charts or manifests and uses a nonexistent temporary kubeconfig. It proves no
+cluster deployment or scrape. The remaining #838 acceptance still requires a
+recorded UDS Core scrape returning Hub series.
 
 ### Alert rules and dashboard
 

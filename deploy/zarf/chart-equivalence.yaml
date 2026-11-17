@@ -141,6 +141,84 @@ profiles:
       tls: *hub-tls
       bundleSigningSecretName: platform-bundle-signing
     spokeValues: *spoke
+
+# No new allowlist: these settings must agree with the corresponding typed
+# chart values exactly. Fixture object names are not deployment defaults.
+operationalProfiles:
+  postgres-webhook:
+    baseProfile: postgres
+    zarfVariables:
+      NOTIFICATION_TRANSPORT: webhook
+      NOTIFICATION_WEBHOOK_SECRET_NAME: fixture-webhook
+      NOTIFICATION_WEBHOOK_SECRET_KEY: endpoint
+      NOTIFICATION_WEBHOOK_TIMEOUT: 7s
+    hubValues:
+      notifications:
+        transport: webhook
+        webhook:
+          urlSecretName: fixture-webhook
+          urlSecretKey: endpoint
+          timeout: 7s
+  postgres-native:
+    baseProfile: postgres
+    zarfVariables:
+      NOTIFICATION_TRANSPORT: native
+      NOTIFICATION_NATIVE_TIMEOUT: 12s
+      NOTIFICATION_SMTP_ADDRESS: smtp.example.test:465
+      NOTIFICATION_SMTP_FROM: "\"José \\\"Ops\\\" \\\\ Team — 東京 Crew Café🚀\" <ops@example.test>"
+      NOTIFICATION_SMTP_TLS_MODE: tls
+      NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME: fixture-smtp
+      NOTIFICATION_SMTP_USERNAME_KEY: login
+      NOTIFICATION_SMTP_PASSWORD_KEY: credential
+      NOTIFICATION_SMTP_CA_CONFIGMAP_NAME: fixture-smtp-ca
+      NOTIFICATION_SMTP_CA_KEY: bundle.pem
+      NOTIFICATION_SLACK_TOKEN_SECRET_NAME: fixture-slack
+      NOTIFICATION_SLACK_TOKEN_KEY: bot-token
+      PLAN_ORCHESTRATOR: temporal
+      PLAN_TEMPORAL_ADDRESS: plan-frontend.example.test:7233
+      MATERIAL_PREPARER_COMMAND: /opt/fixture-tools/prepare
+      MATERIAL_PREPARER_TOOLS_PVC: fixture-material-tools
+      MATERIAL_PREPARER_TOOLS_MOUNT_PATH: /opt/fixture-tools
+    hubValues:
+      notifications:
+        transport: native
+        native:
+          timeout: 12s
+          smtp:
+            address: smtp.example.test:465
+            from: "\"José \\\"Ops\\\" \\\\ Team — 東京 Crew Café🚀\" <ops@example.test>"
+            tlsMode: tls
+            credentialsSecretName: fixture-smtp
+            usernameKey: login
+            passwordKey: credential
+            caConfigMapName: fixture-smtp-ca
+            caKey: bundle.pem
+          slack:
+            tokenSecretName: fixture-slack
+            tokenKey: bot-token
+      planOrchestrator:
+        driver: temporal
+        temporalAddress: plan-frontend.example.test:7233
+    spokeValues:
+      materialPreparer:
+        command: /opt/fixture-tools/prepare
+        toolsPersistentVolumeClaimName: fixture-material-tools
+        toolsMountPath: /opt/fixture-tools
+  postgres-log:
+    baseProfile: postgres
+    zarfVariables:
+      NOTIFICATION_TRANSPORT: log
+    hubValues:
+      notifications:
+        transport: log
+  file-preparer:
+    baseProfile: file
+    zarfVariables:
+      MATERIAL_PREPARER_COMMAND: /usr/local/bin/prepare
+    spokeValues:
+      materialPreparer:
+        command: /usr/local/bin/prepare
+
 chartOnlyLabels:
   reason: Helm release bookkeeping. The package is not a Helm release of these charts, and the UDS Package CR and the package's own selectors use app.kubernetes.io/name alone.
   keys:

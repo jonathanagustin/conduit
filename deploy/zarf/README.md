@@ -72,18 +72,61 @@ default (`planning.compute`: a Docker image builder, a workspace root and a
 beside the Hub, and neither is in this package. The packaged Hub sets none of
 those three, and the equivalence gate renders the chart with them emptied.
 
-The actions validate the packaging profile and derive the three settings with
-POSIX `sh` commands. They run on the host that
-runs `zarf package deploy`, which therefore needs `sh`; a Windows deploy host
-without one is not supported. Moving an existing install from `file` to
+The actions validate the packaging profile and derive the profile and
+operational settings. They run on the deploying host, which therefore needs
+POSIX `sh` and `sed`; a Windows deploy host without them is not supported.
+Moving an existing install from `file` to
 `postgres` does not migrate its data, and the claim is left in place.
 
 `/metrics` needs both `--set-variables REPOSITORY_KIND=postgres` and
 `--set-variables METRICS_ADDRESS=:9090`. With those set, select `uds-metrics`
 instead of `uds`: it is the same Package custom resource plus a ServiceMonitor.
-Selecting it without them registers a scrape target that stays down. The
-notification, plan-orchestrator and material-preparer settings the Helm charts
-expose are not Zarf variables.
+A deploy guard refuses that component unless both are set. The `uds` and
+`uds-metrics` components share a Zarf choice group: requesting both (including
+`--components '*'`) fails selection before any component action or manifest.
+The group's default `uds-disabled` member has no assets or actions, preserving
+a plain `--confirm` install with no UDS CR. This uses the pinned Zarf v0.82.0
+`group` field; it is deprecated upstream and needs migration before a future
+schema removes it. No UDS Core installation is implied by selecting a component.
+
+### Typed operational variables
+
+These native deployment names map to the existing Helm settings. They contain
+configuration and existing object references; never pass credential contents.
+Disabled transports and preparers add no environment entries, mounts or volumes.
+
+| Zarf variables | Helm setting / behavior |
+| --- | --- |
+| `NOTIFICATION_TRANSPORT` (`none`, `webhook`, `log`, `native`) | `notifications.transport`; enabled delivery requires PostgreSQL. Default `none`. |
+| `NOTIFICATION_WEBHOOK_SECRET_NAME`, `NOTIFICATION_WEBHOOK_SECRET_KEY` | `notifications.webhook.urlSecretName` / `urlSecretKey`; the full URL comes from the named Secret via `secretKeyRef`, never a variable. Key defaults to `url`; name is empty. |
+| `NOTIFICATION_WEBHOOK_TIMEOUT` | `notifications.webhook.timeout`; empty preserves the Hub default. |
+| `NOTIFICATION_NATIVE_TIMEOUT` | `notifications.native.timeout`; a positive `ms` or `s` duration below the Hub's 30s delivery lease. |
+| `NOTIFICATION_SMTP_ADDRESS`, `NOTIFICATION_SMTP_FROM`, `NOTIFICATION_SMTP_TLS_MODE` | `notifications.native.smtp.address`, `from`, `tlsMode`; native SMTP requires a sender, and supports STARTTLS or implicit TLS. |
+| `NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME`, `NOTIFICATION_SMTP_USERNAME_KEY`, `NOTIFICATION_SMTP_PASSWORD_KEY` | Native SMTP credentials mounted read-only at `/run/notification-smtp`; keys default to `username` and `password`. Empty Secret name uses no SMTP authentication. |
+| `NOTIFICATION_SMTP_CA_CONFIGMAP_NAME`, `NOTIFICATION_SMTP_CA_KEY` | Optional SMTP CA mounted read-only at `/run/notification-smtp-ca/ca.pem`; key defaults to `ca.pem`. |
+| `NOTIFICATION_SLACK_TOKEN_SECRET_NAME`, `NOTIFICATION_SLACK_TOKEN_KEY` | Native Slack token mounted read-only at `/run/notification-slack/token`; key defaults to `token`. |
+| `PLAN_ORCHESTRATOR`, `PLAN_TEMPORAL_ADDRESS` | `planOrchestrator.driver` / `temporalAddress`; default `native`. Zarf requires an explicit address for `temporal`, with no fallback to another workflow address. The current Hub uses plaintext and Temporal namespace `default`. |
+| `MATERIAL_PREPARER_COMMAND`, `MATERIAL_PREPARER_TOOLS_PVC`, `MATERIAL_PREPARER_TOOLS_MOUNT_PATH` | Spoke `materialPreparer.command`, `toolsPersistentVolumeClaimName`, `toolsMountPath`; no executable or PVC is chosen by default. The optional PVC is read-only. Mount path defaults to `/opt/platform-material`. |
+
+All twenty operational variables reject C0/C1 control characters, Unicode line
+and paragraph separators, and characters that YAML cannot carry literally.
+Valid Unicode sender display names, including nonbreaking spaces, remain
+byte-preserving through variable admission, action quoting and YAML parsing;
+settings are not silently normalized. The pinned-tool regression exercises
+those boundaries for every variable, including NUL supplied as a package
+default (it cannot be passed in a process argument or environment).
+
+All referenced objects belong to the operator in `platform-system`. The shipped
+Spoke image supplies no material preparer; configure an executable actually
+present in the chosen immutable image or mounted tools PVC. A configured path
+does not prove that executable exists or works. SMTP, Slack and webhook delivery
+still need outbound connectivity; the UDS Package grants no notification
+endpoint egress by default. The operator supplies policy for the chosen
+endpoints. A custom Plan Temporal port similarly needs matching UDS egress.
+
+Runtime deploy actions check cross-setting requirements before the runtime
+manifests. The metrics guard runs before its own UDS component manifests;
+this is not an atomic rollback of a runtime deployed earlier in that command.
 
 `uds-observability` is a further optional component: a `PrometheusRule` with
 the Hub's alert rules and a ConfigMap, labelled `grafana_dashboard: "1"`, with
@@ -101,7 +144,17 @@ limiter off.
 
 ### One definition, checked against the other
 
-The package deploys `manifests/runtime.yaml`, not the Helm charts. Switching
+The package deploys `manifests/runtime.yaml`, not the Helm charts. Seven
+baseline and operational profiles compare the real Zarf substitution with Helm,
+including webhook Secret references, native SMTP/Slack file mounts, Plan
+orchestration, and the preparer with and without a PVC. No new differences are
+allowlisted for those settings. `scripts/test-zarf-operational-settings.rb`
+creates an action-only package with the source variables, selection metadata
+and guards, and runs pinned Zarf to check defaults, conflicts and invalid
+settings without contacting a cluster. These checks do not prove a scrape or
+notification delivery.
+
+The package deploys the runtime directly. Switching
 the components to `charts:` was considered and rejected for now: the charts
 read the mTLS CA from a ConfigMap where this package's Secret contract carries
 it as `ca.crt`, have no mount for the UDS trust bundle, and select Pods with

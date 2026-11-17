@@ -20,7 +20,7 @@ version = File.read(File.join(root, "VERSION")).strip
 
 abort "Zarf package API must be pinned" unless definition["apiVersion"] == "zarf.dev/v1alpha1"
 abort "Zarf package version must come from the release" unless definition.dig("metadata", "version") == "###ZARF_PKG_TMPL_PLATFORM_VERSION###"
-abort "Zarf package components drifted" unless definition.fetch("components").map { |item| [item["name"], item["required"], item["default"]] } == [["runtime", true, nil], ["packaging-worker", false, nil], ["uds", false, false], ["uds-metrics", false, false], ["uds-observability", false, false]]
+abort "Zarf package components drifted" unless definition.fetch("components").map { |item| [item["name"], item["required"], item["default"]] } == [["runtime", true, nil], ["packaging-worker", false, nil], ["uds-disabled", false, true], ["uds", false, false], ["uds-metrics", false, false], ["uds-observability", false, false]]
 worker = definition.fetch("components").find { |item| item["name"] == "packaging-worker" }
 abort "optional packaging worker must reuse the Hub image" unless worker&.dig("images") == ["###ZARF_PKG_TMPL_HUB_IMAGE###"]
 abort "optional packaging worker must not be required" if worker["required"]
