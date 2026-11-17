@@ -165,6 +165,34 @@ metrics:
     enabled: false
     interval: 30s
     labels: {}
+  # Alert rules (files/prometheus-rules.yaml, generated from
+  # deploy/observability/prometheus-rules.yaml). Needs the Prometheus Operator
+  # CRDs. Each alert links to docs/operations/runbooks.md.
+  prometheusRule:
+    enabled: false
+    labels: {}
+  # Reference Grafana dashboard as a ConfigMap (files/dashboard.json). The
+  # labels are what a Grafana dashboard sidecar selects on; the default is the
+  # kube-prometheus-stack convention.
+  dashboard:
+    enabled: false
+    labels:
+      grafana_dashboard: "1"
+
+# Request rate limits per class of caller. Every value is null by default,
+# which renders no RATE_LIMIT_* variable and leaves the Hub's built-in limits
+# in force; a limiter always runs and cannot be switched off. Set a class's
+# rps and burst to change them. See docs/operations/hub-rate-limiting.md.
+rateLimit:
+  operator:
+    rps: null
+    burst: null
+  agent:
+    rps: null
+    burst: null
+  anonymous:
+    rps: null
+    burst: null
 
 # Notification delivery. `none` builds no transport and sends nothing. The Hub
 # accepts exactly one of webhook, log, or native (SMTP and/or Slack), and only

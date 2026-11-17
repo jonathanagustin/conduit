@@ -56,6 +56,30 @@ variables:
     description: Hub metrics listener. Leave empty for none. Set to :9090 only together with REPOSITORY_KIND=postgres; the file repository serves no metrics.
     default: ""
     pattern: "^(:9090)?$"
+  - name: RATE_LIMIT_OPERATOR_RPS
+    description: Sustained requests per second the Hub allows one operator. Leave empty for the Hub default (100). The Hub refuses to start on zero or on more than 1000000.
+    default: ""
+    pattern: "^$|^[0-9]{1,7}(\\.[0-9]{1,3})?$"
+  - name: RATE_LIMIT_OPERATOR_BURST
+    description: Requests the Hub allows one operator at once. Leave empty for the Hub default (600). The Hub refuses to start on more than 1000000.
+    default: ""
+    pattern: "^$|^[1-9][0-9]{0,6}$"
+  - name: RATE_LIMIT_AGENT_RPS
+    description: Sustained requests per second the Hub allows one Agent. Leave empty for the Hub default (20). The Hub refuses to start on zero or on more than 1000000.
+    default: ""
+    pattern: "^$|^[0-9]{1,7}(\\.[0-9]{1,3})?$"
+  - name: RATE_LIMIT_AGENT_BURST
+    description: Requests the Hub allows one Agent at once. Leave empty for the Hub default (60). The Hub refuses to start on more than 1000000.
+    default: ""
+    pattern: "^$|^[1-9][0-9]{0,6}$"
+  - name: RATE_LIMIT_ANONYMOUS_RPS
+    description: Sustained requests per second the Hub allows one remote address. Leave empty for the Hub default (10). The Hub refuses to start on zero or on more than 1000000.
+    default: ""
+    pattern: "^$|^[0-9]{1,7}(\\.[0-9]{1,3})?$"
+  - name: RATE_LIMIT_ANONYMOUS_BURST
+    description: Requests the Hub allows one remote address at once. Leave empty for the Hub default (60). The Hub refuses to start on more than 1000000.
+    default: ""
+    pattern: "^$|^[1-9][0-9]{0,6}$"
   - name: CONSOLE_PUBLIC_URL
     description: Browser origin of the Hub console. Used only by the optional uds component as the SSO redirect prefix.
     default: https://conduit.uds.dev
@@ -249,3 +273,12 @@ components:
         namespace: platform-system
         files:
           - manifests/uds-package-metrics.yaml
+  - name: uds-observability
+    required: false
+    default: false
+    description: Alert rules (a PrometheusRule) and the reference Grafana dashboard (a ConfigMap labelled for the dashboard sidecar) for the Hub. Select together with uds-metrics, and only on a cluster with UDS Core; without the Hub's metrics every rule but ConduitMetricsAbsent is blind. Runbooks are docs/operations/runbooks.md.
+    manifests:
+      - name: observability
+        namespace: platform-system
+        files:
+          - manifests/observability.yaml

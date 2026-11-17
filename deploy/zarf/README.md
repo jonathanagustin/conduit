@@ -84,6 +84,20 @@ Selecting it without them registers a scrape target that stays down. The
 notification, plan-orchestrator and material-preparer settings the Helm charts
 expose are not Zarf variables.
 
+`uds-observability` is a further optional component: a `PrometheusRule` with
+the Hub's alert rules and a ConfigMap, labelled `grafana_dashboard: "1"`, with
+the reference dashboard. Select it together with `uds-metrics`; without the
+Hub's metrics every rule but `ConduitMetricsAbsent` is blind. Its manifest is
+generated from [`deploy/observability`](../observability) by
+`scripts/verify-observability-assets.rb --write`. It has not been applied to a
+cluster: that UDS Core's Prometheus and Grafana pick both up from
+`platform-system` is assumed, not verified.
+
+The six `RATE_LIMIT_<CLASS>_RPS` and `RATE_LIMIT_<CLASS>_BURST` variables set
+the Hub's request limits for the operator, agent and anonymous classes. Each
+defaults to empty, which keeps the Hub's built-in limit; none turns the
+limiter off.
+
 ### One definition, checked against the other
 
 The package deploys `manifests/runtime.yaml`, not the Helm charts. Switching

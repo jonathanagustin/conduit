@@ -20,7 +20,7 @@ version = File.read(File.join(root, "VERSION")).strip
 
 abort "Zarf package API must be pinned" unless definition["apiVersion"] == "zarf.dev/v1alpha1"
 abort "Zarf package version must come from the release" unless definition.dig("metadata", "version") == "###ZARF_PKG_TMPL_PLATFORM_VERSION###"
-abort "Zarf package components drifted" unless definition.fetch("components").map { |item| [item["name"], item["required"], item["default"]] } == [["runtime", true, nil], ["packaging-worker", false, nil], ["uds", false, false], ["uds-metrics", false, false]]
+abort "Zarf package components drifted" unless definition.fetch("components").map { |item| [item["name"], item["required"], item["default"]] } == [["runtime", true, nil], ["packaging-worker", false, nil], ["uds", false, false], ["uds-metrics", false, false], ["uds-observability", false, false]]
 worker = definition.fetch("components").find { |item| item["name"] == "packaging-worker" }
 abort "optional packaging worker must reuse the Hub image" unless worker&.dig("images") == ["###ZARF_PKG_TMPL_HUB_IMAGE###"]
 abort "optional packaging worker must not be required" if worker["required"]
@@ -157,6 +157,37 @@ hub_env = hub_container.fetch("env").to_h { |item| [item["name"], item["value"]]
   abort "#{name} must default to #{default.inspect} and be constrained to #{pattern}" unless
     variable && variable["default"] == default && variable["pattern"] == pattern
 end
+# Request limits in this package (#842). Six deploy variables, all empty by
+# default, which the Hub reads as "keep the built-in limit". No variable turns
+# the limiter off, and the patterns admit only numbers.
+%w[OPERATOR AGENT ANONYMOUS].each do |limited|
+  {"RPS" => "^$|^[0-9]{1,7}(\\.[0-9]{1,3})?$", "BURST" => "^$|^[1-9][0-9]{0,6}$"}.each do |kind, pattern|
+    name = "RATE_LIMIT_#{limited}_#{kind}"
+    abort "Hub must accept #{name} from a Zarf variable" unless hub_env[name] == "###ZARF_VAR_#{name}###"
+    variable = definition.fetch("variables").find { |item| item["name"] == name }
+    abort "#{name} must default to empty and be constrained to #{pattern}" unless
+      variable && variable["default"] == "" && variable["pattern"] == pattern
+    abort "#{name} pattern admits a non-number" if %w[off none -1 1e9 unlimited].any? { |value| value.match?(Regexp.new(pattern)) }
+  end
+end
+abort "no Zarf variable may disable the request limiter" if
+  definition.fetch("variables").any? { |item| item["name"].match?(/RATE_LIMIT.*(DISABLE|ENABLE|OFF)/) }
+# Alert rules and the dashboard (#839): an optional component, off by default,
+# whose manifest is generated from deploy/observability and holds exactly a
+# PrometheusRule and a dashboard ConfigMap. scripts/verify-observability-assets.rb
+# holds the manifest to its sources; this holds the component to the manifest.
+observability_component = definition.fetch("components").find { |item| item["name"] == "uds-observability" }
+abort "uds-observability must be an optional component that is off by default" unless
+  observability_component && observability_component["required"] == false && observability_component["default"] == false
+abort "uds-observability must apply only the generated observability manifest" unless
+  observability_component.fetch("manifests") == [{"name" => "observability", "namespace" => "platform-system", "files" => ["manifests/observability.yaml"]}]
+observability_documents = YAML.load_stream(File.read(File.join(root, "deploy/zarf/manifests/observability.yaml"))).compact
+abort "the observability manifest must hold one PrometheusRule and one dashboard ConfigMap in platform-system" unless
+  observability_documents.map { |item| item["kind"] }.sort == %w[ConfigMap PrometheusRule] &&
+    observability_documents.all? { |item| item.dig("metadata", "namespace") == "platform-system" } &&
+    observability_documents.find { |item| item["kind"] == "ConfigMap" }.dig("metadata", "labels", "grafana_dashboard") == "1"
+abort "the observability manifest must not carry a Zarf variable; it is generated" if
+  File.read(File.join(root, "deploy/zarf/manifests/observability.yaml")).include?("###ZARF_")
 # Model provider in this package (#807). Every variable defaults to "no model
 # call", the key and CA are files from optional mounts whose only accepted
 # paths are the ones mounted here, and no model command is configurable: the

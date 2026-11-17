@@ -39,7 +39,7 @@ def assert_fails_closed!(helm, release, chart, extra = [])
     helm, "template", release, chart, "--namespace", "platform-system", *extra
   )
   abort "#{release} rendered without required production values" if status.success?
-  abort "#{release} missing-value failure did not identify its cause" if (stdout + stderr).strip.empty?
+  abort "#{release} missing-value failure did not identify its cause" if (stdout + stderr).b.strip.empty?
 end
 
 def validate_deployment!(deployment)
@@ -641,6 +641,62 @@ assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub),
 assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub),
   ["--values", hub_values, "--skip-schema-validation", "--set", "repository.kind=file", "--set", "replicaCount=1", "--set", "metrics.enabled=true"])
 assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set", "metrics.serviceMonitor.enabled=true"])
+
+# Alert rules and the reference dashboard (#839). Both are off by default, both
+# need the metrics listener, and both ship the generated files byte for byte:
+# their annotations and legends are Prometheus and Grafana templates that Helm
+# must pass through unevaluated.
+abort "default Hub renders alert rules or a dashboard nobody asked for" if
+  hub_documents.any? { |item| item["kind"] == "PrometheusRule" || item.dig("metadata", "name").to_s.end_with?("-dashboard") }
+observability_documents = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set", "metrics.enabled=true", "--set", "metrics.prometheusRule.enabled=true", "--set", "metrics.prometheusRule.labels.release=monitoring",
+   "--set", "metrics.dashboard.enabled=true"]
+)
+prometheus_rule = observability_documents.find { |item| item["kind"] == "PrometheusRule" }
+abort "metrics.prometheusRule.enabled did not render a PrometheusRule" unless
+  prometheus_rule && prometheus_rule["apiVersion"] == "monitoring.coreos.com/v1" && prometheus_rule.dig("metadata", "namespace") == "platform-system"
+abort "metrics.prometheusRule.labels were not applied" unless prometheus_rule.dig("metadata", "labels", "release") == "monitoring"
+source_rule = YAML.safe_load(File.read(File.join(root, "deploy/observability/prometheus-rules.yaml")))
+abort "the chart's PrometheusRule is not deploy/observability/prometheus-rules.yaml" unless
+  prometheus_rule.fetch("spec") == source_rule.fetch("spec")
+rendered_alerts = prometheus_rule.dig("spec", "groups").flat_map { |group| group.fetch("rules") }
+abort "Helm evaluated an alert annotation template instead of passing it to Prometheus" unless
+  rendered_alerts.any? { |rule| rule.dig("annotations", "summary").to_s.include?("{{ $labels.queue }}") }
+abort "an alert rendered without a runbook" unless
+  rendered_alerts.all? { |rule| rule.dig("annotations", "runbook_url").to_s.include?("docs/operations/runbooks.md#") }
+dashboard_config = observability_documents.find { |item| item["kind"] == "ConfigMap" && item.dig("metadata", "name").end_with?("-dashboard") }
+abort "metrics.dashboard.enabled did not render the dashboard ConfigMap with its sidecar label" unless
+  dashboard_config && dashboard_config.dig("metadata", "labels", "grafana_dashboard") == "1"
+abort "the chart's dashboard is not deploy/observability/dashboard.json" unless
+  JSON.parse(dashboard_config.dig("data", "conduit-hub.json")) == JSON.parse(File.read(File.join(root, "deploy/observability/dashboard.json")))
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set", "metrics.prometheusRule.enabled=true"])
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--skip-schema-validation", "--set", "metrics.prometheusRule.enabled=true"])
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set", "metrics.dashboard.enabled=true"])
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--skip-schema-validation", "--set", "metrics.dashboard.enabled=true"])
+
+# Request rate limits (#842). Typed per class, and absent by default: the Hub's
+# own limits apply unless a value is set, and there is no value that turns the
+# limiter off. What the chart accepts is what cmd/platform-delivery accepts.
+abort "default Hub sets a rate limit nobody configured" if hub_env.keys.any? { |name| name.start_with?("RATE_LIMIT_") }
+limited_env = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set", "rateLimit.operator.rps=50", "--set", "rateLimit.operator.burst=300", "--set-json", "rateLimit.agent.rps=2.5",
+   "--set", "rateLimit.anonymous.burst=7"]
+).find { |item| item["kind"] == "Deployment" }.dig("spec", "template", "spec", "containers", 0).fetch("env").to_h { |item| [item["name"], item["value"]] }
+abort "rateLimit values did not become the Hub's RATE_LIMIT_* variables: #{limited_env.select { |name, _| name.start_with?("RATE_LIMIT_") }}" unless
+  limited_env.select { |name, _| name.start_with?("RATE_LIMIT_") } == {
+    "RATE_LIMIT_OPERATOR_RPS" => "50", "RATE_LIMIT_OPERATOR_BURST" => "300",
+    "RATE_LIMIT_AGENT_RPS" => "2.5", "RATE_LIMIT_ANONYMOUS_BURST" => "7"
+  }
+[
+  "rateLimit.agent.rps=0", "rateLimit.agent.rps=-1", "rateLimit.agent.rps=2000000",
+  "rateLimit.agent.burst=0", "rateLimit.agent.burst=1.5", "rateLimit.agent.burst=2000000",
+  "rateLimit.agent.enabled=false", "rateLimit.everyone.rps=1"
+].each do |refused|
+  assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set-json", refused])
+end
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set-string", "extraEnv.RATE_LIMIT_AGENT_RPS=100000"])
 
 # Notification credentials reach the Hub only as Secret references. An env
 # entry carrying a literal value for a credential would put it in the release

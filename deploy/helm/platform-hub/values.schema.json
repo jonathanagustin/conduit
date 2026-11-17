@@ -226,7 +226,7 @@
     "metrics": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "port", "service", "serviceMonitor"],
+      "required": ["enabled", "port", "service", "serviceMonitor", "prometheusRule", "dashboard"],
       "properties": {
         "enabled": {"type": "boolean"},
         "port": {"type": "integer", "minimum": 1024, "maximum": 65535},
@@ -245,7 +245,35 @@
             "interval": {"type": "string", "pattern": "^[1-9][0-9]*(s|m)$"},
             "labels": {"type": "object", "additionalProperties": {"type": "string"}}
           }
+        },
+        "prometheusRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "labels"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "labels": {"type": "object", "additionalProperties": {"type": "string"}}
+          }
+        },
+        "dashboard": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "labels"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "labels": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string"}}
+          }
         }
+      }
+    },
+    "rateLimit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operator", "agent", "anonymous"],
+      "properties": {
+        "operator": {"$ref": "#/definitions/rateLimitClass"},
+        "agent": {"$ref": "#/definitions/rateLimitClass"},
+        "anonymous": {"$ref": "#/definitions/rateLimitClass"}
       }
     },
     "notifications": {
@@ -368,6 +396,14 @@
       "then": {"properties": {"metrics": {"properties": {"enabled": {"const": true}}}}}
     },
     {
+      "if": {"required": ["metrics"], "properties": {"metrics": {"required": ["prometheusRule"], "properties": {"prometheusRule": {"required": ["enabled"], "properties": {"enabled": {"const": true}}}}}}},
+      "then": {"properties": {"metrics": {"properties": {"enabled": {"const": true}}}}}
+    },
+    {
+      "if": {"required": ["metrics"], "properties": {"metrics": {"required": ["dashboard"], "properties": {"dashboard": {"required": ["enabled"], "properties": {"enabled": {"const": true}}}}}}},
+      "then": {"properties": {"metrics": {"properties": {"enabled": {"const": true}}}}}
+    },
+    {
       "if": {"required": ["notifications"], "properties": {"notifications": {"required": ["transport"], "properties": {"transport": {"enum": ["webhook", "log", "native"]}}}}},
       "then": {"properties": {"repository": {"properties": {"kind": {"const": "postgres"}}}}}
     },
@@ -411,6 +447,14 @@
     }
   ],
   "definitions": {
+    "rateLimitClass": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rps": {"type": ["number", "null"], "exclusiveMinimum": 0, "maximum": 1000000},
+        "burst": {"type": ["integer", "null"], "minimum": 1, "maximum": 1000000}
+      }
+    },
     "displayText80": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[^<>[:cntrl:]]+$"},
     "displayText120": {"type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[^<>[:cntrl:]]+$"},
     "localObjectReference": {

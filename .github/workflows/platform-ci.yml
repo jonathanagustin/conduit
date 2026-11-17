@@ -768,6 +768,19 @@ jobs:
       - name: Validate Helm runtime chart
         if: needs.scope.outputs.checks == 'true'
         run: ruby scripts/verify-helm-runtime.rb
+      # An alert on a series the Hub does not export never fires, and reads
+      # exactly like an alert on a healthy system. This holds every expression
+      # in the shipped rules and dashboard to the exported-metrics manifest
+      # (which a Go test holds to the code), every alert to a runbook section,
+      # and the chart and Zarf copies to their sources. It checks names, labels
+      # and functions; it does not evaluate an expression, because no pinned
+      # promtool is installed here. Self-test first: the tree is correct, so a
+      # check that stopped reading it would print the same PASS.
+      - name: Validate observability assets
+        if: needs.scope.outputs.checks == 'true'
+        run: |
+          ./scripts/verify-observability-assets.test.sh
+          ruby scripts/verify-observability-assets.rb
       - name: Install pinned Zarf
         if: needs.scope.outputs.checks == 'true'
         run: |

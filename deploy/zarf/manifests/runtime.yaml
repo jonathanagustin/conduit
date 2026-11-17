@@ -94,6 +94,14 @@ spec:
             # only when this is set AND the repository is postgres; with the
             # file repository it logs a warning and opens nothing.
             - { name: METRICS_ADDRESS, value: "###ZARF_VAR_METRICS_ADDRESS###" }
+            # Request limits. Empty leaves the Hub's built-in limit for that
+            # class in force; a limiter always runs.
+            - { name: RATE_LIMIT_OPERATOR_RPS, value: "###ZARF_VAR_RATE_LIMIT_OPERATOR_RPS###" }
+            - { name: RATE_LIMIT_OPERATOR_BURST, value: "###ZARF_VAR_RATE_LIMIT_OPERATOR_BURST###" }
+            - { name: RATE_LIMIT_AGENT_RPS, value: "###ZARF_VAR_RATE_LIMIT_AGENT_RPS###" }
+            - { name: RATE_LIMIT_AGENT_BURST, value: "###ZARF_VAR_RATE_LIMIT_AGENT_BURST###" }
+            - { name: RATE_LIMIT_ANONYMOUS_RPS, value: "###ZARF_VAR_RATE_LIMIT_ANONYMOUS_RPS###" }
+            - { name: RATE_LIMIT_ANONYMOUS_BURST, value: "###ZARF_VAR_RATE_LIMIT_ANONYMOUS_BURST###" }
             # Model provider. Every value is empty or off by default, and an
             # empty CONDUIT_MODEL_BASE_URL makes the rest inert: the Hub makes
             # no model call. The key is never a variable; it is read from the

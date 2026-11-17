@@ -177,6 +177,15 @@ spec:
             {{- if .Values.metrics.enabled }}
             - { name: METRICS_ADDRESS, value: {{ printf ":%d" (int .Values.metrics.port) | quote }} }
             {{- end }}
+            {{- range $class := list "operator" "agent" "anonymous" }}
+            {{- $limit := index $.Values.rateLimit $class }}
+            {{- if not (kindIs "invalid" $limit.rps) }}
+            - { name: RATE_LIMIT_{{ upper $class }}_RPS, value: {{ $limit.rps | toString | quote }} }
+            {{- end }}
+            {{- if not (kindIs "invalid" $limit.burst) }}
+            - { name: RATE_LIMIT_{{ upper $class }}_BURST, value: {{ $limit.burst | int64 | toString | quote }} }
+            {{- end }}
+            {{- end }}
             {{- if eq .Values.notifications.transport "webhook" }}
             - name: NOTIFICATION_WEBHOOK_URL
               valueFrom:

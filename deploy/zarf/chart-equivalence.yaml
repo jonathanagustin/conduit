@@ -216,6 +216,36 @@ allow:
     profiles: [file, postgres, postgres-single]
     reason: "The package always names the metrics port so METRICS_ADDRESS can be a deploy variable; nothing listens unless it is set with the postgres profile. The chart renders the port only when metrics.enabled."
   - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[RATE_LIMIT_OPERATOR_RPS]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "Request limits are deploy variables that default to empty, and the Hub reads an empty RATE_LIMIT_* as unset and keeps its built-in limit. The chart renders one only when rateLimit.<class> sets it."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[RATE_LIMIT_OPERATOR_BURST]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "Request limits are deploy variables that default to empty, and the Hub reads an empty RATE_LIMIT_* as unset and keeps its built-in limit. The chart renders one only when rateLimit.<class> sets it."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[RATE_LIMIT_AGENT_RPS]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "Request limits are deploy variables that default to empty, and the Hub reads an empty RATE_LIMIT_* as unset and keeps its built-in limit. The chart renders one only when rateLimit.<class> sets it."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[RATE_LIMIT_AGENT_BURST]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "Request limits are deploy variables that default to empty, and the Hub reads an empty RATE_LIMIT_* as unset and keeps its built-in limit. The chart renders one only when rateLimit.<class> sets it."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[RATE_LIMIT_ANONYMOUS_RPS]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "Request limits are deploy variables that default to empty, and the Hub reads an empty RATE_LIMIT_* as unset and keeps its built-in limit. The chart renders one only when rateLimit.<class> sets it."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[RATE_LIMIT_ANONYMOUS_BURST]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "Request limits are deploy variables that default to empty, and the Hub reads an empty RATE_LIMIT_* as unset and keeps its built-in limit. The chart renders one only when rateLimit.<class> sets it."
+  - object: Deployment/platform-delivery
     path: "spec.template.spec.containers[delivery-control-plane].env[OPERATOR_OIDC_CA_FILE]"
     side: zarf-only
     profiles: [file, postgres, postgres-single]

@@ -1,0 +1,28 @@
+# Every metric family the Hub's /metrics endpoint renders: name, then type.
+#
+# TestTheExportedMetricsManifestIsWhatTheCodeRenders
+# (internal/observability/application) fails when this differs from what the
+# code renders. scripts/verify-observability-assets.rb fails when an alert rule
+# or dashboard panel names a series that is not here. A histogram contributes
+# its _bucket, _sum and _count series; its bare name is not a series.
+#
+# Not listed: the conduit_planning_* names in internal/planning/workflow. They
+# are handed to the Temporal SDK's metrics handler, not rendered on /metrics.
+conduit_build_info gauge
+conduit_http_request_duration_seconds histogram
+conduit_http_requests_in_flight gauge
+conduit_http_requests_total counter
+conduit_http_streams_open gauge
+conduit_notification_delivery_attempts_total counter
+conduit_notification_delivery_exhausted gauge
+conduit_notification_delivery_exhausted_total counter
+conduit_notification_delivery_failures_total counter
+conduit_notification_delivery_oldest_pending_seconds gauge
+conduit_notification_delivery_pending gauge
+conduit_notification_delivery_successes_total counter
+conduit_rate_limit_decisions_total counter
+conduit_rate_limit_tracked_callers gauge
+conduit_reconciliation_exhausted gauge
+conduit_reconciliation_leased gauge
+conduit_reconciliation_oldest_pending_seconds gauge
+conduit_reconciliation_pending gauge
