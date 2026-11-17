@@ -1,5 +1,14 @@
 # Console composition trees
 
+> **Historical, marked 2026-11-17.** This note describes a React console that
+> is no longer in the tree. `App.tsx`, `AppFrame`, `NavigationRail` and
+> `useIndexQuery`, which it names throughout, do not exist under `web/src` at
+> this date. The console served from `/console/` is `web/src/console/Workbench.tsx`
+> mounting the operator engine in `web/src/console/operator/engine.js`. The
+> trees below are kept unedited as the record of the earlier console. They
+> are not a description of the current one and must not be cited as one.
+> For current navigation see `console-navigation.md`.
+
 A composition tree for every operator-console screen, in the Foundry
 application-decomposition notation. This is the structural complement to
 `console-visual-language.md`: that note measures the console's palette, type and
