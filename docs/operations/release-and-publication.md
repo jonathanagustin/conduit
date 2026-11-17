@@ -79,10 +79,10 @@ not replace the manual release instruction or any publication precondition.
 
 ## Installing and verifying a published release
 
-Published releases attach an immutable descriptor set to the GitHub Release for
-`v<X.Y.Z>` (for example `v0.17.5`, the newest published tag as of 2026-11-17;
-`VERSION` on `main` is `0.18.0` after release preparation #347 merged and
-awaits manual publication dispatch):
+The next publication attaches the following descriptor set to the GitHub Release
+for `v<X.Y.Z>`. The existing `v0.17.5` release predates the complete standalone
+CLI assets and signed asset inventory; it cannot pass this new verifier.
+Release preparation and publication remain separate manual operations.
 
 - `platform-oci-manifest.json` — digest-pinned Hub and Spoke container image
   references (`ghcr.io/jonathanagustin/conduit@sha256:...`) and per-architecture
@@ -94,12 +94,16 @@ awaits manual publication dispatch):
 - `platform-runtime.json` — digest-pinned Flux OCI artifact reference;
 - `zarf-package-platform-runtime-<arch>-<X.Y.Z>.tar.zst` and `.sha256`;
 - `conduit_<X.Y.Z>_<os>_<arch>.tar.gz` (or `.zip`), `.sigstore.json`,
-  `.provenance.sigstore.json`, `.slsa.json`, `.spdx.json`, and `SHA256SUMS`.
+  `.provenance.sigstore.json`, `.slsa.json`, `.spdx.json`, and `SHA256SUMS`;
+- `release-assets.sha256` and `.sigstore.json` — a complete checksum inventory
+  signed by the release workflow, binding every other attachment to its identity.
 
 ### 1. Download and verify release assets from a clean client
 
 ```bash
-VERSION=0.17.5
+# Use a published version that includes the signed inventory. 0.19.0 is the
+# pending release proposal, not a claim that publication has already run.
+VERSION=0.19.0
 REPO=jonathanagustin/conduit
 ISSUER=https://token.actions.githubusercontent.com
 IDENTITY="https://github.com/${REPO}/.github/workflows/platform-images.yml@refs/tags/v${VERSION}"
@@ -107,9 +111,10 @@ IDENTITY="https://github.com/${REPO}/.github/workflows/platform-images.yml@refs/
 mkdir -p "/tmp/conduit-release-${VERSION}"
 gh release download "v${VERSION}" --repo "${REPO}" --dir "/tmp/conduit-release-${VERSION}"
 
-# Run the repository's clean-client release verifier (checks SHA256SUMS, chart
-# and Zarf .sha256 files, SPDX SBOM hashes against platform-oci-manifest.json,
-# Cosign blob signatures, and SLSA v1 provenance bundles):
+# The repository verifier requires Cosign, verifies the signed complete asset
+# inventory first, then checks manifests, chart/Zarf/CLI checksums, SPDX/Grype
+# hashes, CLI signatures and SLSA provenance bundles. No verification step is
+# silently skipped when a tool is missing.
 RELEASE_VERSION="${VERSION}" GITHUB_REPOSITORY="${REPO}" \
   ./scripts/verify-published-release.sh "/tmp/conduit-release-${VERSION}"
 ```
@@ -119,7 +124,12 @@ SPDX SBOM directly without a repository checkout:
 
 ```bash
 cd "/tmp/conduit-release-${VERSION}"
-sha256sum --ignore-missing --check SHA256SUMS
+cosign verify-blob \
+  --bundle release-assets.sha256.sigstore.json \
+  --certificate-identity "${IDENTITY}" \
+  --certificate-oidc-issuer "${ISSUER}" \
+  release-assets.sha256
+sha256sum --check release-assets.sha256
 
 ARCHIVE="conduit_${VERSION}_linux_amd64.tar.gz"
 cosign verify-blob \
@@ -144,8 +154,8 @@ Read the exact chart and image digests from the verified release manifests so
 neither Helm nor Kubernetes resolves a mutable tag:
 
 ```bash
-HUB_IMAGE="$(jq -er '.images[] | select(.component == "hub") | .reference' platform-oci-manifest.json)"
-SPOKE_IMAGE="$(jq -er '.images[] | select(.component == "spoke-agent") | .reference' platform-oci-manifest.json)"
+HUB_IMAGE="$(jq -er '.images.hub.reference' platform-oci-manifest.json)"
+SPOKE_IMAGE="$(jq -er '.images["spoke-agent"].reference' platform-oci-manifest.json)"
 HUB_CHART="$(jq -er '.charts[] | select(.component == "hub") | .reference' platform-helm-charts.json)"
 SPOKE_CHART="$(jq -er '.charts[] | select(.component == "spoke") | .reference' platform-helm-charts.json)"
 
@@ -160,6 +170,11 @@ for ref in "${HUB_IMAGE}" "${SPOKE_IMAGE}"; do
     --certificate-identity "${IDENTITY}" \
     --certificate-oidc-issuer "${ISSUER}" \
     "${ref}"
+  cosign verify-attestation \
+    --type https://platform.delivery/attestations/grype/v1 \
+    --certificate-identity "${IDENTITY}" \
+    --certificate-oidc-issuer "${ISSUER}" \
+    "${ref}"
 done
 
 # Verify OCI Helm chart signatures by digest:
@@ -170,16 +185,14 @@ for chart_ref in "${HUB_CHART}" "${SPOKE_CHART}"; do
     "${chart_ref}"
 done
 
-# Install from the digest-pinned OCI chart reference (or the verified local
-# platform-hub-${VERSION}.tgz archive) with the digest-pinned image reference:
-helm upgrade --install platform-hub "oci://${HUB_CHART%@*}" \
-  --version "${VERSION}" \
+# Install the local chart archives authenticated by the signed inventory.
+# This avoids resolving the mutable OCI tag again after checking its digest.
+helm upgrade --install platform-hub "./platform-hub-${VERSION}.tgz" \
   --namespace platform-system \
   --values hub-values.yaml \
   --set-string "image=${HUB_IMAGE}"
 
-helm upgrade --install platform-spoke "oci://${SPOKE_CHART%@*}" \
-  --version "${VERSION}" \
+helm upgrade --install platform-spoke "./platform-spoke-${VERSION}.tgz" \
   --namespace environment-system \
   --values spoke-values.yaml \
   --set-string "image=${SPOKE_IMAGE}"

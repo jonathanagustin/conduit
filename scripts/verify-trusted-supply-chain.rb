@@ -274,7 +274,7 @@ abort "Conduit archives must carry SPDX SBOMs and keyless signatures" unless
     workflow.include?("#{retry_wrapper} cosign sign-blob --yes --bundle \"${archive}.sigstore.json\"")
 abort "Zarf and every Cosign keyless operation must use bounded retries" unless
   workflow.include?("#{retry_wrapper} /tmp/zarf package sign") &&
-    workflow.scan("#{retry_wrapper} cosign").length == 7
+    workflow.scan("#{retry_wrapper} cosign").length == 8
 abort "Conduit archives must have verified keyless SLSA provenance bundles" unless
   workflow.include?("#{retry_wrapper} cosign attest-blob --yes") &&
     workflow.include?('--type slsaprovenance1') &&
@@ -286,6 +286,11 @@ abort "release workflow must download and verify published release assets from a
     workflow.include?('./scripts/verify-published-release.sh "${clean_release_dir}"') &&
     File.executable?(File.expand_path("verify-published-release.sh", __dir__)) &&
     File.executable?(File.expand_path("verify-published-release.test.sh", __dir__))
+abort "release must authenticate the complete flat asset inventory" unless
+  workflow.include?('./scripts/assemble-release-assets.sh "${staged_release_dir}"') &&
+    workflow.include?('--bundle "${staged_release_dir}/release-assets.sha256.sigstore.json"') &&
+    workflow.include?('gh release upload') && workflow.include?('"${staged_release_dir}"/*') &&
+    File.executable?(File.expand_path("assemble-release-assets.sh", __dir__))
 abort "release must not depend on unavailable private-repository GitHub attestations" if
   workflow.include?("actions/attest@") || workflow.include?("attestations: write")
 abort "runtime builds must use the fixed Go toolchain by exact image digest" unless

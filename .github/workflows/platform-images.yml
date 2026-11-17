@@ -561,9 +561,14 @@ jobs:
         run: |
           gh release view '${{ github.ref_name }}' --repo '${{ github.repository }}' >/dev/null 2>&1 || \
             gh release create '${{ github.ref_name }}' --repo '${{ github.repository }}' --verify-tag --generate-notes
-          gh release upload '${{ github.ref_name }}' \
+          staged_release_dir="$(mktemp -d "${RUNNER_TEMP}/conduit-release-assets.XXXXXX")"
+          ./scripts/assemble-release-assets.sh "${staged_release_dir}" \
             platform-oci-manifest.json platform-runtime.json platform-helm-charts.json \
-            dist/*.syft.json dist/*.spdx.json dist/*.grype.json helm-dist/* zarf-dist/* cli-dist/archives/* cli-dist/provenance/* cli-dist/sbom/* cli-dist/SHA256SUMS \
+            dist/*.syft.json dist/*.spdx.json dist/*.grype.json helm-dist/* zarf-dist/* cli-dist/archives/* cli-dist/provenance/* cli-dist/sbom/* cli-dist/SHA256SUMS
+          ./scripts/retry-keyless-signing.sh cosign sign-blob --yes \
+            --bundle "${staged_release_dir}/release-assets.sha256.sigstore.json" \
+            "${staged_release_dir}/release-assets.sha256"
+          gh release upload '${{ github.ref_name }}' "${staged_release_dir}"/* \
             --repo '${{ github.repository }}' --clobber
           clean_release_dir="$(mktemp -d "${RUNNER_TEMP}/conduit-clean-release.XXXXXX")"
           ./scripts/retry-github-api.sh gh release download '${{ github.ref_name }}' \
