@@ -33,6 +33,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/foundryinterop"
 	"github.com/jonathanagustin/conduit/internal/hub/composition"
 	agentcredentials "github.com/jonathanagustin/conduit/internal/identity/adapters/revocationpostgres"
+	"github.com/jonathanagustin/conduit/internal/identity/adapters/signinhttp"
 	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
 	notificationspostgres "github.com/jonathanagustin/conduit/internal/notifications/adapters/postgres"
 	notificationsapplication "github.com/jonathanagustin/conduit/internal/notifications/application"
@@ -185,11 +186,13 @@ func main() {
 		slog.Warn("ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY is set; Bundles are signed by a key this process generated "+
 			"and no other process, replica or restart holds", "bundleSigner", bundleSigningKeyIdentifier(bundlePrivateKey))
 	}
-	operatorIdentityResolver, err := loadOIDCOperatorIdentityResolver(ctx, os.Getenv)
+	operatorIdentity, closeOperatorIdentity, err := loadOperatorIdentity(ctx, os.Getenv)
 	if err != nil {
 		slog.Error("configure operator OIDC identity", "error", err)
 		os.Exit(1)
 	}
+	defer closeOperatorIdentity()
+	operatorIdentityResolver := operatorIdentity.Resolver
 	if operatorIdentityResolver != nil && allowInsecureOperatorIdentity {
 		slog.Error("OIDC operator identity cannot be combined with insecure identity headers")
 		os.Exit(1)
@@ -226,6 +229,9 @@ func main() {
 	operatorSignIn := controlplane.OperatorSignIn{}
 	if operatorIdentityResolver != nil {
 		operatorSignIn = controlplane.OperatorSignInFromIssuer(ctx, os.Getenv("OPERATOR_OIDC_ISSUER"), os.Getenv("OPERATOR_OIDC_CLIENT_ID"))
+		if operatorIdentity.SignIn != nil {
+			operatorSignIn.LoginPath, operatorSignIn.LogoutPath = signinhttp.LoginPath, signinhttp.LogoutPath
+		}
 	}
 	packagingReader := packagingStatusReader(ctx, os.Getenv)
 	stopPlanning, err := composition.StartPlanningWorker(ctx, os.Getenv, repository)
@@ -274,6 +280,7 @@ func main() {
 		// way the routes beneath it do, then spends from that caller's bucket
 		// before any of them runs.
 		Handler: composition.RateLimit(composition.NewHubHandler(repository, handlerOptions, composition.Options{
+			SignIn:               operatorIdentity.SignIn,
 			LiveEventJournal:     liveEventJournal,
 			LiveEventContext:     ctx,
 			AdminStorage:         adminStorageForRepository(repository, os.Getenv),
@@ -714,6 +721,16 @@ func readSingleLineSecretFile(path, variable string) (string, error) {
 func loadOIDCOperatorIdentityResolver(
 	ctx context.Context, getenv func(string) string,
 ) (controlplane.OperatorIdentityResolver, error) {
+	configuration, err := loadOIDCOperatorIdentityConfig(getenv)
+	if err != nil || configuration == nil {
+		return nil, err
+	}
+	return controlplane.NewOIDCOperatorIdentityResolver(ctx, *configuration)
+}
+
+// loadOIDCOperatorIdentityConfig reads the issuer and the claim policy. It
+// answers nil, nil for a Hub with no OIDC configuration at all.
+func loadOIDCOperatorIdentityConfig(getenv func(string) string) (*controlplane.OIDCOperatorIdentityConfig, error) {
 	if getenv == nil {
 		return nil, errors.New("environment reader is required")
 	}
@@ -724,7 +741,8 @@ func loadOIDCOperatorIdentityResolver(
 		getenv("OPERATOR_OIDC_SERVICE_ACCOUNT_CLAIM"), getenv("OPERATOR_OIDC_AUDIENCE_CLAIM"),
 		getenv("OPERATOR_OIDC_TOKEN_PURPOSE_CLAIM"), getenv("OPERATOR_OIDC_EXPECTED_TOKEN_PURPOSE"),
 		getenv("OPERATOR_OIDC_SCOPE_CLAIM"), getenv("OPERATOR_OIDC_REQUIRED_SCOPES"),
-		getenv("OPERATOR_OIDC_SIGNING_ALGORITHMS"), getenv("OPERATOR_OIDC_CA_FILE")}
+		getenv("OPERATOR_OIDC_SIGNING_ALGORITHMS"), getenv("OPERATOR_OIDC_CA_FILE"),
+		getenv("OPERATOR_OIDC_CLIENT_SECRET_FILE"), getenv("OPERATOR_OIDC_LOGIN_SCOPES")}
 	if issuer == "" {
 		for _, value := range configuredValues {
 			if strings.TrimSpace(value) != "" {
@@ -780,7 +798,7 @@ func loadOIDCOperatorIdentityResolver(
 		return nil, err
 	}
 	configuration.HTTPClient = httpClient
-	return controlplane.NewOIDCOperatorIdentityResolver(ctx, configuration)
+	return &configuration, nil
 }
 
 func oidcHTTPClient(caFile string) (*http.Client, error) {

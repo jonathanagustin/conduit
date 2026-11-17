@@ -165,5 +165,6 @@ func NewHub(
 		return nil, err
 	}
 	handler = guardAgentCredentials(handler, options, agentCredentials, time.Now, slog.Default())
+	handler = mountSignIn(handler, hubOptions.SignIn)
 	return guardUnregisteredRoutes(handler), nil
 }

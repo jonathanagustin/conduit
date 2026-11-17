@@ -94,6 +94,7 @@ const SOURCES = [
   { path: "internal/planning/agentstream", surface: "planning agent runs" },
   { path: "internal/workspaceacp/httpapi", surface: "workspace ACP" },
   { path: "internal/identity/adapters/revocationhttp", surface: "Agent credential revocation" },
+  { path: "internal/identity/adapters/signinhttp", surface: "operator sign-in" },
 ];
 
 const METHOD = "GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS";

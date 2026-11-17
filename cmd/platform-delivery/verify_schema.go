@@ -30,6 +30,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/resolutionlogpostgres"
 	"github.com/jonathanagustin/conduit/internal/governance/adapters/auditpostgres"
 	agentcredentials "github.com/jonathanagustin/conduit/internal/identity/adapters/revocationpostgres"
+	"github.com/jonathanagustin/conduit/internal/identity/adapters/sessionpostgres"
 	notificationspostgres "github.com/jonathanagustin/conduit/internal/notifications/adapters/postgres"
 	"github.com/jonathanagustin/conduit/internal/pgmigrate"
 )
@@ -56,6 +57,9 @@ func hubMigrationSets() []pgmigrate.Set {
 		{Component: appgenpostgres.Component, Migrations: appgenpostgres.Migrations()},
 		{Component: agentcredentials.Component, Migrations: agentcredentials.Migrations()},
 		{Component: resolutionlogpostgres.Component(), Migrations: resolutionlogpostgres.Migrations()},
+		// Applied only when interactive sign-in is configured; listed always,
+		// for the same reason as the resolution log above.
+		{Component: sessionpostgres.Component, Migrations: sessionpostgres.Migrations()},
 	}
 }
 

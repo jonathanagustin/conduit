@@ -103,6 +103,11 @@ CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/hub/composition -run
 # on every `go test`, plus two pools on one database reading each other's
 # revocations with nothing cached between them.
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/identity/adapters/revocationpostgres
+# Operator sessions: the same conformance suite the in-memory store runs, plus
+# what only two pools on one database can show -- a session shared between
+# replicas, a sign-out that reaches both, and one state redeemed exactly once
+# when both are asked at the same moment.
+CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/identity/adapters/sessionpostgres
 # This package opens two independent pools and writes concurrently; the
 # cmd/platform-delivery drill below separately proves its migration and one
 # exact resolution survive the pinned-client dump/restore path.

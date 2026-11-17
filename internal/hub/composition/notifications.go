@@ -16,6 +16,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	requestports "github.com/jonathanagustin/conduit/internal/debugsessions/ports"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
+	"github.com/jonathanagustin/conduit/internal/identity/adapters/signinhttp"
 	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
 	identityports "github.com/jonathanagustin/conduit/internal/identity/ports"
 	liveports "github.com/jonathanagustin/conduit/internal/liveevents/ports"
@@ -36,6 +37,10 @@ import (
 // The packaging-run status route is always mounted and, with no reader,
 // answers that no worker is configured.
 type Options struct {
+	// SignIn serves the browser sign-in routes. Nil mounts the same routes
+	// answering 404: a Hub with no configured identity provider or no
+	// configured public address has no interactive sign-in.
+	SignIn *signinhttp.Handler
 	// LiveEventJournal is a single-owner durable delivery journal. Nil keeps the
 	// authenticated route unavailable. It never falls back to memory storage.
 	LiveEventJournal liveports.Journal
