@@ -1,13 +1,12 @@
 # UDS Core reconciles this Package into a Keycloak client, NetworkPolicies,
-# a tenant-gateway route, and a ServiceMonitor. It is applied only by the
-# optional `uds` Zarf component, because a cluster without the UDS CRDs
-# cannot accept it.
+# and a tenant-gateway route. It is applied only by the optional `uds` Zarf
+# component, because a cluster without the UDS CRDs cannot accept it.
 #
-# The metrics monitor is declared against Service port `metrics`. On this
-# file-backed baseline the Hub does not listen there: /metrics is served only
-# when METRICS_ADDRESS is set and REPOSITORY_KIND=postgres, and exporting
-# zeroes for the file repository would report an idle fleet. The monitor
-# object can still be registered. A scrape of this baseline has no series.
+# It declares no metrics monitor. The default Hub is file-backed and serves
+# no /metrics, so a ServiceMonitor here would be a scrape target that is down
+# for the life of the deployment. `uds-package-metrics.yaml`, applied by the
+# `uds-metrics` component instead of this one, is this file plus the monitor;
+# scripts/verify-zarf-package.rb fails if the two differ anywhere else.
 apiVersion: uds.dev/v1alpha1
 kind: Package
 metadata:
@@ -75,6 +74,99 @@ spec:
         remoteSelector:
           app.kubernetes.io/name: "###ZARF_VAR_POSTGRES_NAME_LABEL###"
         port: 5432
+      # Operator sign-in. The Hub fetches discovery and JWKS from
+      # OPERATOR_OIDC_ISSUER. Two in-cluster routes are allowed because which
+      # one carries the request depends on how the issuer host resolves:
+      #   - an issuer on the tenant gateway (https://sso.<domain>/realms/uds)
+      #     resolves in-cluster to the tenant ingress gateway Pods. The
+      #     selector is the one this file already uses for gateway ingress.
+      #     ASSUMPTION: whether the policy must name the gateway Service port
+      #     (443) or its Pod port (8443) is not established by anything in
+      #     this repository, so both are listed.
+      #   - the Keycloak Pods directly. ASSUMPTION: namespace `keycloak`,
+      #     label `app.kubernetes.io/name: keycloak`, and port 8080 are UDS
+      #     Core's defaults as recalled, not read from a file in this
+      #     repository. OIDC_ISSUER_NAMESPACE and OIDC_ISSUER_NAME_LABEL
+      #     override the first two.
+      # An issuer outside the cluster needs a `remoteHost` entry instead. None
+      # is shipped: a Zarf variable cannot make a list entry optional, and an
+      # entry with an empty host is not one this file can justify.
+      - description: Hub to the OIDC issuer through the tenant gateway
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-delivery
+        remoteNamespace: istio-tenant-gateway
+        remoteSelector:
+          app: tenant-ingressgateway
+        ports:
+          - 443
+          - 8443
+      - description: Hub to the OIDC issuer
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-delivery
+        remoteNamespace: "###ZARF_VAR_OIDC_ISSUER_NAMESPACE###"
+        remoteSelector:
+          app.kubernetes.io/name: "###ZARF_VAR_OIDC_ISSUER_NAME_LABEL###"
+        port: 8080
+      # `helm pull oci://` in internal/agent/helm.go. The registry is whatever
+      # the Plans reference, so its namespace and Pod label are variables.
+      # ASSUMPTION: the defaults name the Zarf-managed registry (`zarf`,
+      # `app: docker-registry`, Pod port 5000) as recalled, not read from a
+      # file in this repository. 443 covers an in-cluster registry behind TLS.
+      - description: Spoke to the chart registry
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-spoke-agent
+        remoteNamespace: "###ZARF_VAR_CHART_REGISTRY_NAMESPACE###"
+        remoteSelector:
+          "###ZARF_VAR_CHART_REGISTRY_LABEL_KEY###": "###ZARF_VAR_CHART_REGISTRY_LABEL_VALUE###"
+        ports:
+          - 443
+          - 5000
+      # PACKAGING_TEMPORAL_ADDRESS. Temporal is operator-supplied, like
+      # Postgres, and 7233 is the frontend port that variable defaults to.
+      - description: Packaging worker to Temporal
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-packaging-worker
+        remoteNamespace: "###ZARF_VAR_TEMPORAL_NAMESPACE###"
+        remoteSelector:
+          app.kubernetes.io/name: "###ZARF_VAR_TEMPORAL_NAME_LABEL###"
+        port: 7233
+      # PLANNING_TEMPORAL_ADDRESS. Two Hub replicas share planning sessions
+      # through the same operator-supplied frontend, on the same port.
+      - description: Hub to Temporal
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-delivery
+        remoteNamespace: "###ZARF_VAR_TEMPORAL_NAMESPACE###"
+        remoteSelector:
+          app.kubernetes.io/name: "###ZARF_VAR_TEMPORAL_NAME_LABEL###"
+        port: 7233
+      # CONDUIT_MODEL_BASE_URL, when it names a model served in this cluster
+      # (vLLM, Ollama, LeapfrogAI). A Zarf variable cannot make a list entry
+      # optional, so the entry is always here and its defaults select nothing:
+      # no namespace is named `conduit-model-unconfigured`, so the policy this
+      # renders grants no egress until the operator sets
+      # MODEL_SERVICE_NAMESPACE and MODEL_SERVICE_NAME_LABEL.
+      # No port is listed. A quoted Zarf variable renders a string, and the
+      # UDS Core 1.17.1 Package schema requires `port` to be a number; model
+      # servers do not share one port (8000, 8080, 11434 and 443 are all
+      # common). The grant is bounded by source workload, namespace and Pod
+      # label instead.
+      # ASSUMPTION: an allow entry with no port admits every TCP port to the
+      # selected Pods; that is UDS Core behaviour as recalled, not read from a
+      # file in this repository.
+      # A model outside the cluster needs a `remoteHost` entry instead. None
+      # is shipped, for the reason given for the OIDC issuer above.
+      - description: Hub to the model endpoint
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-delivery
+        remoteNamespace: "###ZARF_VAR_MODEL_SERVICE_NAMESPACE###"
+        remoteSelector:
+          app.kubernetes.io/name: "###ZARF_VAR_MODEL_SERVICE_NAME_LABEL###"
       - description: Spoke to the Kubernetes API
         direction: Egress
         selector:
@@ -120,14 +212,6 @@ spec:
             id.token.claim: "true"
             access.token.claim: "true"
             userinfo.token.claim: "true"
-  monitor:
-    - description: Hub metrics
-      kind: ServiceMonitor
-      selector:
-        app.kubernetes.io/name: platform-delivery
-      portName: metrics
-      targetPort: 9090
-      path: /metrics
   caBundle:
     configMap:
       name: uds-trust-bundle

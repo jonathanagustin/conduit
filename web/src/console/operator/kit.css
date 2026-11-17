@@ -1001,7 +1001,8 @@
   gap: var(--sp-2);
   font-size: 12px;
 }
-[data-cr-root] .so-btn:disabled {
+[data-cr-root] .so-btn:disabled,
+[data-notifications] .so-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

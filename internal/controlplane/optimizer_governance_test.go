@@ -351,5 +351,9 @@ func optimizerSuccessfulExecution(record PlanRecord, startedAt time.Time) PlanEx
 			StartedAt: startedAt.Add(time.Duration(index) * time.Second), FinishedAt: startedAt.Add(time.Duration(index+1) * time.Second),
 		})
 	}
-	return PlanExecution{StartedAt: startedAt, FinishedAt: startedAt.Add(time.Duration(len(tasks)+1) * time.Second), Tasks: tasks}
+	attempt := 0
+	if record.Lease != nil {
+		attempt = record.Lease.Attempt
+	}
+	return PlanExecution{Attempt: attempt, StartedAt: startedAt, FinishedAt: startedAt.Add(time.Duration(len(tasks)+1) * time.Second), Tasks: tasks}
 }

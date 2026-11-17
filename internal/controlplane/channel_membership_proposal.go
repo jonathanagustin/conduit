@@ -41,6 +41,10 @@ func (service *GovernanceService) ProposeMembershipPlan(ctx context.Context, sta
 		if err := transactional.Transaction(ctx, operation); err != nil {
 			return PlanRecord{}, ChangeRequest{}, err
 		}
+		// After the commit, and by this service rather than the working one:
+		// the working service has no announcements, so nothing inside the
+		// transaction could have announced a proposal that then rolled back.
+		service.announceAwaitingApproval(ctx, request)
 		return plan, request, nil
 	}
 	if file, ok := service.repository.(*FileRepository); ok {

@@ -10,6 +10,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelcli"
+	packagingmodelhttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/packagingtools"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/recorded"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/runfacts"
@@ -20,6 +21,11 @@ import (
 func modelProposer(getenv func(string) string) (packagingdomain.ChangeProposer, error) {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
+	}
+	if client, err := modelHTTPClient(getenv); err != nil {
+		return nil, err
+	} else if client != nil {
+		return packagingmodelhttp.Adapter{Client: client, Tools: packagingtools.New()}, nil
 	}
 	raw := strings.TrimSpace(getenv("CONDUIT_MODEL_CMD"))
 	if raw == "" {
@@ -37,7 +43,7 @@ func modelProposer(getenv func(string) string) (packagingdomain.ChangeProposer, 
 		}
 		timeout = parsed
 	}
-	return modelcli.Runner{Argv: argv, Timeout: timeout, Tools: packagingtools.New()}, nil
+	return modelcli.Runner{Argv: argv, Timeout: timeout, Tools: packagingtools.New(), ModelName: configuredModelName(getenv)}, nil
 }
 
 func modelService(
@@ -110,6 +116,7 @@ func (audit modelAudit) Record(ctx context.Context, runID string, provenance pac
 		time.Now().UTC(), "model-proposal", "packaging.model-proposal", "packaging-run/"+runID, decision, reason,
 		map[string]any{
 			"adapter": provenance.Adapter, "promptSha256": provenance.PromptSHA256,
+			"configuredModel": provenance.ConfiguredModel, "providerModel": provenance.ProviderModel,
 			"responseSha256": provenance.ResponseSHA256, "skillSha256": provenance.SkillSHA256,
 			"toolCalls": toolCallNames(provenance), "gateResult": outcome,
 			"repoUrl": provenance.RepoURL, "resolvedCommit": provenance.ResolvedCommit,

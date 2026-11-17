@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/jonathanagustin/conduit/internal/localcmd"
 )
 
 // Provider names accepted by `agent-exec --provider`. "deterministic" is the
@@ -25,24 +27,18 @@ const (
 // CONDUIT_PROVIDER_<NAME>_CMD (whitespace-separated argv). Credentials stay in
 // the CLI's own configuration; Conduit never reads or forwards them.
 //
-// Only the codex default is taken from this repository's documented contract
-// (docs/operations/local-model-cli.md). The claude, gemini and grok defaults
-// are best-known non-interactive invocations that have not been exercised here
-// (none of those CLIs is installed in CI); override them if your version differs.
+// The defaults and whether each has been exercised are one table,
+// localcmd.Presets. Every delegating preset is UNVERIFIED there: no run
+// against a real codex, claude, gemini or grok CLI is recorded in this
+// repository (none is installed in CI), and selecting one logs a warning.
+// Override the argv if your version differs.
 func providerArgv(name string) ([]string, error) {
 	env := "CONDUIT_PROVIDER_" + strings.ToUpper(name) + "_CMD"
 	if raw := strings.Fields(os.Getenv(env)); len(raw) > 0 {
 		return raw, nil
 	}
-	switch name {
-	case providerClaude:
-		return []string{"claude", "-p", "--output-format", "text"}, nil
-	case providerCodex:
-		return []string{"codex", "exec", "--skip-git-repo-check", "--sandbox", "read-only", "--ephemeral", "-"}, nil
-	case providerGemini:
-		return []string{"gemini", "-p", "Follow the instructions provided on stdin and reply with the answer only."}, nil
-	case providerGrok:
-		return []string{"grok", "-p"}, nil
+	if preset, ok := localcmd.PresetByName(name); ok && name != "" && len(preset.Argv) > 0 {
+		return append([]string(nil), preset.Argv...), nil
 	}
 	return nil, fmt.Errorf("unknown agent provider %q (want deterministic, claude, codex, gemini or grok)", name)
 }

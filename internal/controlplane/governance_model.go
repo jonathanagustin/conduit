@@ -35,6 +35,7 @@ func (service *GovernanceService) ProposeHumanChange(
 	request, err = service.repository.CreateChangeRequest(ctx, request)
 	if err == nil {
 		service.auditRequestCreated(ctx, request)
+		service.announceAwaitingApproval(ctx, request)
 	}
 	return request, err
 }

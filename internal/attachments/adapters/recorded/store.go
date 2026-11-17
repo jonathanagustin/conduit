@@ -4,6 +4,7 @@ package recorded
 
 import (
 	"context"
+	"strings"
 	"sync"
 
 	"github.com/jonathanagustin/conduit/internal/attachments/domain"
@@ -25,12 +26,29 @@ func (store *Store) Put(_ context.Context, item domain.Stored) (bool, error) {
 	if store.items == nil {
 		store.items = map[string]domain.Stored{}
 	}
-	if _, ok := store.items[item.SHA256]; ok {
+	if existing, ok := store.items[item.SHA256]; ok {
+		existing.Owners = mergeOwners(existing.Owners, item.Owners)
+		store.items[item.SHA256] = existing
 		return false, nil
 	}
+	item.Owners = mergeOwners(nil, item.Owners)
 	store.items[item.SHA256] = item
 	store.order = append(store.order, item.SHA256)
 	return true, nil
+}
+
+func mergeOwners(current, extra []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(current)+len(extra))
+	for _, owner := range append(append([]string{}, current...), extra...) {
+		owner = strings.TrimSpace(owner)
+		if owner == "" || seen[owner] {
+			continue
+		}
+		seen[owner] = true
+		out = append(out, owner)
+	}
+	return out
 }
 
 func (store *Store) Get(_ context.Context, digest string) (domain.Stored, bool, error) {

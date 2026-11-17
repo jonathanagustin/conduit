@@ -235,6 +235,39 @@ carried to the residual list as item 5.
    publishes for the thing a recall is submitted against — #126 records that
    `Recalls` is a field of `DesiredState` rather than of a Product.
 
+   **Four more emit sites (#840).** The sentence above — "the other three events
+   named above are still emitted by nobody" — is no longer true of two of them,
+   and a fourth event it did not name now emits as well.
+   `CHANGE_REQUEST_PENDING_APPROVAL` is raised each time a change request is
+   committed waiting for an approver, on its Environment, once per review round;
+   `PLAN_FAILURES` is now also raised when an Agent's finish report leaves a
+   Plan `FAILED`, which is a different event from proposal exhaustion and leaves
+   that one unchanged; `PRODUCT_RELEASE_PROMOTION_FAILED` is raised when a
+   promotion run's lifecycle is `ABORTED`, on `product/<coordinate>`; and
+   `ROLE_CHANGE` is raised when a resource grant's authority changes, on the
+   resource the grant names. Each follows the recall shape: a port in the owning
+   context (`governance/ports`, `delivery/plan/ports`, `catalog/ports`), an
+   adapter beside it, called after the write commits with the error dropped at
+   the call and logged in `internal/hub/composition`. The selections are
+   registered as `governance.NotificationEventSelection` and
+   `catalog.PromotionFailureSelection`.
+
+   What this does **not** close. Four declared types are still raised by
+   nothing — `LATEST_PRODUCT_RELEASE_VULNERABILITY_UPDATE`,
+   `INSTALLED_PRODUCT_RELEASE_VULNERABILITY_UPDATE`, `BLUE_GREEN_UPGRADE_FAILED`
+   and `RBAC_CHANGE` — because Conduit has no event for any of them. They stay
+   subscribable, since the console's checkbox list is held to the vocabulary,
+   and a preference response now names them in `typesNotYetEmitted`;
+   `domain.EventType.Raised` is the predicate and
+   `TestRaisedTypesHaveAnEmitSite` holds it to the adapters. "A Release becoming
+   available" still emits nothing. The change-request and grant announcements
+   are wired to the facade's own Governance service only: a request opened by a
+   surface that builds its own — the assistant, model proposals, intelligence
+   courses, workspace ACP, dev-workspace submissions, blackouts, drift fixes,
+   waves and offline bundles — is stored waiting and still tells nobody. And an
+   approver is told by subscribing to the Environment, not by being eligible to
+   approve: nothing resolves a reviewer requirement to recipients.
+
 2. **Observability is partial.** Metrics now exist and the wedge signal is
    exported: `conduit_reconciliation_pending`, `_leased`, `_exhausted` and
    `_oldest_pending_seconds`, each labelled by queue, plus `conduit_build_info`.

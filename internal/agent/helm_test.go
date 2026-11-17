@@ -27,6 +27,11 @@ type helmRunner struct {
 	// values records the resolved values document the executor wrote for the
 	// invocation, read back from the path it passed to --values.
 	values string
+	// description is the release description the last upgrade wrote.
+	// statusDescription overrides what helm status reports, which is how a
+	// test shows a newer execution owning the release.
+	description       string
+	statusDescription string
 }
 
 type registryPreparer struct {
@@ -49,6 +54,9 @@ func (runner *helmRunner) Run(_ context.Context, name string, arguments ...strin
 				runner.values = string(contents)
 			}
 		}
+		if argument == "--description" && index+1 < len(arguments) {
+			runner.description = arguments[index+1]
+		}
 	}
 	if name == "kubectl" {
 		return []byte("rollout complete"), nil
@@ -62,7 +70,11 @@ func (runner *helmRunner) Run(_ context.Context, name string, arguments ...strin
 		return []byte(fmt.Sprintf("v%d.0.0", major)), nil
 	case "list":
 		if runner.installed {
-			return []byte(`[{"name":"foundation","revision":"1","chart":"foundation-1.2.3"}]`), nil
+			name := runner.step.HelmRelease()
+			if name == "" {
+				name = "foundation"
+			}
+			return []byte(fmt.Sprintf(`[{"name":%q,"revision":"1","chart":"foundation-1.2.3"}]`, name)), nil
 		}
 		return []byte(`[]`), nil
 	case "pull":
@@ -85,7 +97,22 @@ func (runner *helmRunner) Run(_ context.Context, name string, arguments ...strin
 		image := runner.step.Images[0]
 		return []byte("containers:\n  - name: app\n    image: \"" + image.Repository + ":" + image.Tag + "@" + image.Digest + "\"\n"), nil
 	case "status":
-		return []byte(fmt.Sprintf(`{"name":"foundation","info":{"status":"deployed","description":%q},"version":1,"namespace":"example"}`, releaseDescription(runner.step))), nil
+		description := runner.statusDescription
+		if description == "" {
+			description = runner.description
+		}
+		if description == "" {
+			description = releaseDescription(runner.step)
+		}
+		name := runner.step.HelmRelease()
+		if name == "" {
+			name = "foundation"
+		}
+		namespace := runner.step.Namespace
+		if namespace == "" {
+			namespace = "example"
+		}
+		return []byte(fmt.Sprintf(`{"name":%q,"info":{"status":"deployed","description":%q},"version":1,"namespace":%q}`, name, description, namespace)), nil
 	case "get":
 		return []byte("apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: foundation\n"), nil
 	case "uninstall":
@@ -794,6 +821,106 @@ func TestHelmExecutorBoundsBothRollbackPaths(t *testing.T) {
 	if len(runner.commands) != 0 {
 		t.Errorf("rolling back a restart ran %v", runner.commands)
 	}
+}
+
+func releaseStep(entity, releaseName string) controlplane.PlanStep {
+	return controlplane.PlanStep{
+		InstallationID: "foundation", Entity: entity, HelmReleaseName: releaseName,
+		Namespace: "example", Product: "app:foundation", Version: "1.2.3",
+		ReleaseDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		ConfigDigest:  "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		Chart: controlplane.Artifact{Repository: "registry.example/foundation", Tag: "1.2.3",
+			Digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+		Images: []controlplane.Artifact{{Repository: "registry.example/foundation", Tag: "1.2.3",
+			Digest: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}},
+		HelmExecution: controlplane.HelmExecutionPolicy{RolloutStrategy: controlplane.RolloutManageRollout},
+	}
+}
+
+// Deployment addresses the release name recorded on the step. Rollback has to
+// address that same name: the entity name can belong to a different release.
+func TestHelmRollbackUsesTheRecordedReleaseName(t *testing.T) {
+	t.Parallel()
+	step := releaseStep("entity-name", "custom-release")
+	ctx := withExecutionClaim(context.Background(), executionClaim{Generation: "gen-1", Attempt: 1})
+	runner := &helmRunner{step: step}
+	executor := HelmExecutor{Runner: runner, Timeout: time.Minute}
+	receipt, err := executor.Apply(ctx, controlplane.Plan{}, step)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if receipt.Fence.Generation != "gen-1" || receipt.Fence.Attempt != 1 || receipt.Fence.Name != "custom-release" {
+		t.Fatalf("receipt fence = %#v", receipt.Fence)
+	}
+	if _, err := executor.Observe(ctx, step); err != nil {
+		t.Fatal(err)
+	}
+	if err := executor.Rollback(ctx, receipt); err != nil {
+		t.Fatal(err)
+	}
+	uninstall := helmCommand(t, runner, "uninstall")
+	if uninstall[2] != "custom-release" {
+		t.Fatalf("uninstall command = %v", uninstall)
+	}
+	for _, argument := range uninstall {
+		if argument == "entity-name" {
+			t.Fatalf("uninstall targeted the entity name: %v", uninstall)
+		}
+	}
+
+	upgraded := receipt
+	upgraded.PreviousRevision = 3
+	runner.commands = nil
+	if err := executor.Rollback(ctx, upgraded); err != nil {
+		t.Fatal(err)
+	}
+	rollback := helmCommand(t, runner, "rollback")
+	if rollback[2] != "custom-release" || rollback[3] != "3" {
+		t.Fatalf("rollback command = %v", rollback)
+	}
+	for _, argument := range rollback {
+		if argument == "entity-name" {
+			t.Fatalf("rollback targeted the entity name: %v", rollback)
+		}
+	}
+}
+
+// A retried attempt writes its own fence. The worker that still holds the
+// previous attempt's receipt must not uninstall or roll back that release.
+func TestHelmRollbackRefusesAReleaseOwnedByANewerAttempt(t *testing.T) {
+	t.Parallel()
+	step := releaseStep("entity-name", "custom-release")
+	ctx := withExecutionClaim(context.Background(), executionClaim{Generation: "gen-1", Attempt: 1})
+	runner := &helmRunner{step: step}
+	executor := HelmExecutor{Runner: runner, Timeout: time.Minute}
+	receipt, err := executor.Apply(ctx, controlplane.Plan{}, step)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner.statusDescription = fencedReleaseDescription(step, ReleaseFence{
+		Generation: "gen-1", Attempt: 2, Namespace: step.Namespace, Name: "custom-release",
+	})
+	before := len(runner.commands)
+	err = executor.Rollback(ctx, receipt)
+	if err == nil || !strings.Contains(err.Error(), "attempt 2") {
+		t.Fatalf("stale rollback error = %v", err)
+	}
+	for _, command := range runner.commands[before:] {
+		if len(command) > 1 && (command[1] == "uninstall" || command[1] == "rollback") {
+			t.Fatalf("stale rollback mutated the release: %v", command)
+		}
+	}
+}
+
+func helmCommand(t *testing.T, runner *helmRunner, name string) []string {
+	t.Helper()
+	for _, command := range runner.commands {
+		if len(command) > 1 && command[1] == name {
+			return command
+		}
+	}
+	t.Fatalf("no helm %s command in %v", name, runner.commands)
+	return nil
 }
 
 // A registry assignment carrying neither a credential reference nor a pull

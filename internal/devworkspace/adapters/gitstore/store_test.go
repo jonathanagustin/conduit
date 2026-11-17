@@ -248,9 +248,13 @@ func TestGitStoreCrossInstanceRefreshAndDuplicateBlobIsolation(t *testing.T) {
 	ctx := context.Background()
 	rootDir := t.TempDir()
 
-	readerStore, err := Open(Options{RootDir: rootDir})
-	if err != nil {
-		t.Fatalf("Open readerStore: %v", err)
+	readers := make([]*Store, 4)
+	for index := range readers {
+		reader, err := Open(Options{RootDir: rootDir})
+		if err != nil {
+			t.Fatalf("Open reader %d: %v", index, err)
+		}
+		readers[index] = reader
 	}
 	writerStore, err := Open(Options{RootDir: rootDir})
 	if err != nil {
@@ -276,23 +280,24 @@ func TestGitStoreCrossInstanceRefreshAndDuplicateBlobIsolation(t *testing.T) {
 		t.Fatalf("writerStore.WriteAndCommit: %v", err)
 	}
 
-	// Without calling readerStore.List first, Tree/Read/Snapshot/Diff must refresh workspaces.json.
-	page, err := readerStore.Tree().List(ctx, ws.ID, ".", "", 50)
+	// Each reader started before the workspace existed. Every access must
+	// refresh workspaces.json independently, without another read priming it.
+	page, err := readers[0].Tree().List(ctx, ws.ID, ".", "", 50)
 	if err != nil {
 		t.Fatalf("readerStore.Tree().List: %v", err)
 	}
 	if len(page.Entries) != 3 {
 		t.Fatalf("expected 3 committed entries, got %#v", page.Entries)
 	}
-	view, err := readerStore.Tree().Read(ctx, ws.ID, "uds-package.yaml", "")
+	view, err := readers[1].Tree().Read(ctx, ws.ID, "uds-package.yaml", "")
 	if err != nil || view.Content != sharedContent {
 		t.Fatalf("readerStore.Tree().Read = (%#v, %v)", view, err)
 	}
-	diff, err := readerStore.Tree().Diff(ctx, ws.ID)
+	diff, err := readers[2].Tree().Diff(ctx, ws.ID)
 	if err != nil || len(diff.Files) != 2 {
 		t.Fatalf("readerStore.Tree().Diff = (%#v, %v)", diff, err)
 	}
-	snap, err := readerStore.Tree().Snapshot(ctx, ws.ID)
+	snap, err := readers[3].Tree().Snapshot(ctx, ws.ID)
 	if err != nil {
 		t.Fatalf("readerStore.Tree().Snapshot: %v", err)
 	}

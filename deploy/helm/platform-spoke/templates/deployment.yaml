@@ -62,6 +62,9 @@ spec:
             {{- if .Values.healthProbeCAConfigMapName }}
             - { name: HEALTH_PROBE_CA_FILE, value: /etc/ssl/platform-health-ca/ca.pem }
             {{- end }}
+            {{- with .Values.materialPreparer.command }}
+            - { name: EXTERNAL_MATERIAL_PREPARER, value: {{ . | quote }} }
+            {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           securityContext:
@@ -75,6 +78,9 @@ spec:
             - { name: external-ca, mountPath: /etc/ssl/platform-ca, readOnly: true }
             {{- if .Values.healthProbeCAConfigMapName }}
             - { name: health-ca, mountPath: /etc/ssl/platform-health-ca, readOnly: true }
+            {{- end }}
+            {{- if and .Values.materialPreparer.command .Values.materialPreparer.toolsPersistentVolumeClaimName }}
+            - { name: material-preparer-tools, mountPath: {{ .Values.materialPreparer.toolsMountPath | quote }}, readOnly: true }
             {{- end }}
       volumes:
         - name: temporary
@@ -94,6 +100,12 @@ spec:
             name: {{ .Values.healthProbeCAConfigMapName }}
             items:
               - { key: {{ .Values.healthProbeCAKey }}, path: ca.pem }
+        {{- end }}
+        {{- if and .Values.materialPreparer.command .Values.materialPreparer.toolsPersistentVolumeClaimName }}
+        - name: material-preparer-tools
+          persistentVolumeClaim:
+            claimName: {{ .Values.materialPreparer.toolsPersistentVolumeClaimName }}
+            readOnly: true
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:

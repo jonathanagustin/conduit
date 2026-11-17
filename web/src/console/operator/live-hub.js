@@ -21,6 +21,13 @@ import {
 import { emptyState } from "./empty-states.js";
 import { freshnessPill, reportTime } from "./freshness.js";
 import { channelTable } from "./channel-board.js";
+import {
+  activeSpaceId,
+  applySpaceScope,
+  mountSpaceSelector,
+  readSpaceSelection,
+  spaceScopedPath,
+} from "./space-scope.js";
 
 function esc(value) {
   return String(value ?? "")
@@ -71,10 +78,22 @@ async function postJSON(path, body, signal) {
   return response.json();
 }
 
-async function readPages(path, key, read = readJSON, strict = false) {
+/** Pages read per index in one refresh. Past it the read stops, not fails. */
+export const INDEX_PAGE_BOUND = 5;
+
+/**
+ * Read a cursor-paged Hub index up to the page bound.
+ *
+ * Reaching the bound while the Hub still offers a cursor is not a failed
+ * read: the rows already read are returned with `truncated: true`. `total` is
+ * the Hub's own authorized count when the envelope carries one, and null
+ * otherwise; it is never derived from the rows.
+ */
+export async function readPages(path, key, read = readJSON, strict = false) {
   const rows = [];
   let cursor = "";
-  for (let page = 0; page < 5; page += 1) {
+  let total = null;
+  for (let page = 0; page < INDEX_PAGE_BOUND; page += 1) {
     const url = cursor
       ? `${path}${path.includes("?") ? "&" : "?"}cursor=${encodeURIComponent(cursor)}`
       : path;
@@ -83,11 +102,34 @@ async function readPages(path, key, read = readJSON, strict = false) {
       throw new Error("Invalid Hub index");
     const items = Array.isArray(body[key]) ? body[key] : [];
     rows.push(...items);
-    cursor = body.nextCursor || "";
+    if (Number.isSafeInteger(body.total) && body.total >= 0) total = body.total;
+    cursor = typeof body.nextCursor === "string" ? body.nextCursor : "";
     if (!cursor) break;
   }
-  if (strict && cursor) throw new Error("Hub index exceeds catch-up bound");
-  return rows;
+  return { rows, truncated: cursor !== "", total };
+}
+
+/**
+ * The environment whose timeline and blackout the refresh reads: the
+ * operator's selection when it names a loaded environment, otherwise the
+ * first loaded one. Empty when no environment is loaded, in which case those
+ * reads are skipped rather than aimed at an id the Hub never returned.
+ */
+export function refreshEnvironmentId(environments, selections = []) {
+  const ids = (Array.isArray(environments) ? environments : [])
+    .map((row) => row?.environment?.id)
+    .filter((id) => typeof id === "string" && id !== "");
+  return selections.find((id) => ids.includes(id)) || ids[0] || "";
+}
+
+/**
+ * The refresh reads one environment's timeline. Only that environment's card
+ * may state a count; the others say the read did not cover them.
+ */
+export function timelineSummary(hubState, environmentId) {
+  if (!hubState?.timelineEnvironment) return "no environment loaded";
+  if (environmentId !== hubState.timelineEnvironment) return "not loaded";
+  return hubState.timeline || "unavailable";
 }
 
 function panel(title, body) {
@@ -520,11 +562,18 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
   function paintOperator() {
     paintOperatorIdentity(state.operatorName);
     paintAvailability();
+    mountSpaceSelector(globalThis.document, state, () => refresh());
   }
 
   async function readRefresh(options, generation) {
     const read = (path) => readJSON(path, options.signal);
-    const pages = (path, key) => readPages(path, key, read, true);
+    const truncated = {};
+    const pages = async (path, key, index) => {
+      const page = await readPages(path, key, read, true);
+      if (page.truncated)
+        truncated[index] = { shown: page.rows.length, total: page.total };
+      return page.rows;
+    };
     const postRead = (path, body) => readPost(path, body, options.signal);
     let session = null;
     const next = {
@@ -539,6 +588,7 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       channels: null,
       preview: null,
       note: "",
+      truncated,
     };
     try {
       session = await read("/v1/session");
@@ -556,14 +606,32 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       throw new DOMException("Operator session changed", "AbortError");
     }
 
+    // Spaces first: the selection decides how environments are read.
+    if (state.spaceId === undefined) state.spaceId = readSpaceSelection();
     try {
-      next.environments = await pages("/v1/environments", "environments");
+      const listed = await read("/v1/spaces");
+      if (!Array.isArray(listed.spaces)) throw new Error("invalid Space index");
+      next.spaces = listed.spaces;
     } catch {
-      next.note = "Hub did not return environments.";
+      next.spaces = [];
+      next.spaceNote = "Hub did not return Spaces; nothing is Space-scoped.";
+    }
+    const spaceId = activeSpaceId(state.spaceId, next.spaces);
+    try {
+      next.environments = await pages(
+        spaceScopedPath("/v1/environments", spaceId),
+        "environments",
+        "environments",
+      );
+    } catch {
+      next.note = spaceId
+        ? "Hub did not return environments for the selected Space."
+        : "Hub did not return environments.";
     }
     try {
       next.installations = await pages(
         "/v1/fleet/installations",
+        "installations",
         "installations",
       );
     } catch {
@@ -579,7 +647,11 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       next.workspaceNote = "Hub did not return workspace profile status.";
     }
     try {
-      next.products = await pages("/v1/products?limit=20", "products");
+      next.products = await pages(
+        "/v1/products?limit=20",
+        "products",
+        "products",
+      );
     } catch {
       next.productsNote = "Hub did not return the product catalog.";
     }
@@ -588,14 +660,28 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
     } catch {
       next.channelNote = "Hub did not return channel subscriptions.";
     }
-    try {
-      const timeline = await read("/v1/environments/dev/timeline");
-      const entries = Array.isArray(timeline.timeline) ? timeline.timeline : [];
-      next.timeline = entries.length
-        ? `${entries.length} entries`
-        : "no entries";
-    } catch {
-      next.timeline = "";
+    // The environment these two reads describe comes from what the Hub
+    // returned and what the operator selected, never from a fixed id.
+    const scoped = refreshEnvironmentId(next.environments, [
+      state.releaseEnvironmentId,
+      state.envDetailId,
+    ]);
+    next.timelineEnvironment = scoped;
+    next.timeline = "";
+    if (scoped) {
+      try {
+        const timeline = await read(
+          `/v1/environments/${encodeURIComponent(scoped)}/timeline`,
+        );
+        const entries = Array.isArray(timeline.timeline)
+          ? timeline.timeline
+          : [];
+        next.timeline = entries.length
+          ? `${entries.length} entries`
+          : "no entries";
+      } catch {
+        next.timeline = "";
+      }
     }
     try {
       const upgrades = await read("/v1/fleet/upgrades");
@@ -604,11 +690,16 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
     } catch {
       next.behind = "";
     }
-    try {
-      const blackout = await read("/v1/blackouts?environment=dev");
-      next.blackoutReason = blackout.blocked ? blackout.reason : "";
-    } catch {
-      next.blackoutReason = "";
+    next.blackoutReason = "";
+    if (scoped) {
+      try {
+        const blackout = await read(
+          `/v1/blackouts?environment=${encodeURIComponent(scoped)}`,
+        );
+        next.blackoutReason = blackout.blocked ? blackout.reason : "";
+      } catch {
+        next.blackoutReason = "";
+      }
     }
     try {
       const rollouts = await read("/v1/rollouts");
@@ -657,23 +748,36 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       next.packagingNote = "Hub did not return packaging runs.";
     }
     try {
-      const chain = await read("/v1/authorization-audit?view=chain");
-      next.audit = Array.isArray(chain.entries) ? chain.entries : [];
+      // The audit read is cursor-paged and oldest-first. Follow the cursor to
+      // the catch-up bound; past it the truncation mark says rows are missing.
+      next.audit = await pages(
+        "/v1/authorization-audit?view=chain&limit=200",
+        "entries",
+        "audit",
+      );
     } catch {
       next.auditNote = "Hub did not return the audit chain.";
     }
     try {
-      next.changes = await pages("/v1/change-requests", "changeRequests");
+      next.changes = await pages(
+        "/v1/change-requests",
+        "changeRequests",
+        "changes",
+      );
     } catch {
       next.changeNote = "Hub did not return change requests.";
     }
     try {
-      next.promotions = await pages("/v1/promotions", "promotions");
+      next.promotions = await pages(
+        "/v1/promotions",
+        "promotions",
+        "promotions",
+      );
     } catch {
       next.promotionNote = "Hub did not return promotions.";
     }
     try {
-      next.plans = await pages("/v1/plans", "plans");
+      next.plans = await pages("/v1/plans", "plans", "plans");
     } catch {
       next.planNote = "Hub did not return plans.";
     }
@@ -694,6 +798,9 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
     } catch {
       next.bundleNote = "Hub did not return a signed bundle.";
     }
+    // Only when the Hub answered the Space-scoped environment read: an
+    // unanswered read must not empty every list as if the Space were empty.
+    if (spaceId && !next.note) applySpaceScope(next, spaceId);
     if (options.signal?.aborted || generation !== refreshGeneration)
       throw new DOMException("Hub read aborted", "AbortError");
     if (started && observed) {
@@ -1102,7 +1209,7 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
             <div class="text-[12px] text-[#8b96a5]">Latest report ${freshnessPill(reportedAt, { esc })}</div>
             <div class="text-[12px] text-[#8b96a5]">Offline bundle <span class="text-white">${esc(hub(state).offlineBundle || "none handed off")}</span></div>
             <div class="text-[12px] text-[#8b96a5]">Behind <span class="text-white">${esc(hub(state).behind || "none")}</span></div>
-            <div class="text-[12px] text-[#8b96a5]">Timeline <span class="text-white">${esc(hub(state).timeline || "no entries")}</span></div>
+            <div class="text-[12px] text-[#8b96a5]">Timeline <span class="text-white">${esc(timelineSummary(hub(state), id))}</span></div>
           </div>`;
         })
         .join("");

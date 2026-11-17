@@ -161,7 +161,7 @@ fi
 # Explicit rather than derived from the scenario name: the mapping is the thing
 # a reader needs, and a scenario whose specs silently did not exist would pass.
 case "${scenario}" in
-  healthy) specs="assistant.spec.ts release-journey.spec.ts" ;;
+  healthy) specs="assistant.spec.ts release-journey.spec.ts release-write-journey.spec.ts" ;;
   failure|degraded) specs=assistant.spec.ts ;;
   *) echo "simulate: unknown scenario '${scenario}'" >&2; exit 1 ;;
 esac

@@ -4,7 +4,8 @@ The Zarf package `platform-runtime` carries the Hub, the Spoke Agent, and an
 optional UDS Package custom resource. The `uds` component is not selected by
 `zarf package deploy --confirm`. Select it with `--components uds` only after
 UDS Core is already installed. The Package CR registers a Keycloak client for
-the console, allows the traffic below, and declares a ServiceMonitor.
+the console and allows the traffic below. A ServiceMonitor is declared only
+by the separate `uds-metrics` component; see [Metrics](#metrics).
 
 These steps were run on a connected machine. They pull the Zarf init package
 and, for the UDS path, the published `k3d-core-slim-dev` bundle from a public
@@ -25,21 +26,89 @@ cluster operating after the images are already present.
 - Ingress from the Spoke to the Hub on 8081, and the matching egress.
 - Egress from the Hub and the packaging worker to operator-supplied Postgres
   on 5432. The namespace and `app.kubernetes.io/name` value default to
-  `postgres` (`POSTGRES_NAMESPACE`, `POSTGRES_NAME_LABEL`). The Zarf baseline
-  itself uses the file repository and does not open a database connection.
+  `postgres` (`POSTGRES_NAMESPACE`, `POSTGRES_NAME_LABEL`). The Hub opens a
+  database connection only with `REPOSITORY_KIND=postgres`, the production
+  profile; the default `file` profile is for development and evaluation and
+  never uses this allow. See
+  [Profiles](../../deploy/zarf/README.md#profiles).
+- Egress from the Hub to the OIDC issuer, by two in-cluster routes. One is the
+  tenant ingress gateway Pods on 443 and 8443, which is where an issuer such
+  as `https://sso.uds.dev/realms/uds` resolves inside the cluster. The other
+  is the Keycloak Pods on 8080 (`OIDC_ISSUER_NAMESPACE`,
+  `OIDC_ISSUER_NAME_LABEL`, both defaulting to `keycloak`). An issuer outside
+  the cluster is not covered and needs its own `remoteHost` allow.
+- Egress from the Spoke to the OCI registry it runs `helm pull oci://`
+  against, on 443 and 5000 (`CHART_REGISTRY_NAMESPACE`,
+  `CHART_REGISTRY_LABEL_KEY`, `CHART_REGISTRY_LABEL_VALUE`, defaulting to
+  `zarf` and `app: docker-registry`). Set them to wherever the Plans' charts
+  live.
+- Egress from the Hub to that same Temporal on 7233, for the planning
+  sessions two Hub replicas share (`PLANNING_TEMPORAL_ADDRESS`).
+- Egress from the packaging worker to operator-supplied Temporal on 7233
+  (`TEMPORAL_NAMESPACE`, `TEMPORAL_NAME_LABEL`, both defaulting to
+  `temporal`).
+- Egress from the Hub to an in-cluster model endpoint
+  (`MODEL_SERVICE_NAMESPACE`, `MODEL_SERVICE_NAME_LABEL`). Both default to
+  `conduit-model-unconfigured`, which names no namespace, so the policy grants
+  nothing until an operator sets them. The entry lists no port. See
+  [HTTP model endpoint](model-http.md#zarf-and-uds).
 - Egress from the Spoke to the Kubernetes API, kubelet probes to the Hub, and
   DNS to `kube-dns` in `kube-system`.
-- A ServiceMonitor for Service port `metrics` (9090, path `/metrics`). The
-  process does not listen on that port in this baseline. `/metrics` starts
-  only when `METRICS_ADDRESS` is set and `REPOSITORY_KIND=postgres`. The file
-  repository has no queue statistics, and exporting zeroes would report an
-  idle fleet. The monitor can be registered while the scrape has no series.
+
+The issuer, registry, Temporal and model allows are checked for shape only: they
+validate against the UDS Core 1.17.1 Package schema and Zarf substitutes
+their variables, but no cluster run has shown the generated NetworkPolicies
+admitting that traffic. Their default selectors (the Keycloak namespace, label
+and port; the Zarf registry namespace, label and port; which gateway port a
+policy must name) are recalled UDS Core and Zarf defaults, not values read
+from this repository. Confirm them against the cluster with
+`uds zarf tools kubectl get pods -A --show-labels` before relying on them.
+- No metrics monitor. The default Hub uses the file repository, which serves
+  no `/metrics`, so a ServiceMonitor would be a target that is down for the
+  life of the deployment.
+
+## Metrics
+
+`/metrics` starts only when `METRICS_ADDRESS` is set and
+`REPOSITORY_KIND=postgres`. The file repository has no queue statistics, and
+exporting zeroes would report an idle fleet. Both are deploy variables, and
+both default to off:
+
+```sh
+uds zarf package deploy zarf-package-platform-runtime-*.tar.zst \
+  --components uds-metrics \
+  --set-variables REPOSITORY_KIND=postgres \
+  --set-variables METRICS_ADDRESS=:9090 \
+  --set-variables PACKAGING_POSTGRES_SECRET=platform-postgres \
+  --confirm
+```
+
+`REPOSITORY_KIND=postgres` reads the DSN from the `dsn` key of
+`PACKAGING_POSTGRES_SECRET`, the Secret the packaging worker already uses.
+`uds-metrics` applies the same Package CR as `uds` plus a ServiceMonitor for
+Service port `metrics` (9090, path `/metrics`). The two components carry the
+same Package object: select one, not both. Zarf cannot check one variable
+against another, so `METRICS_ADDRESS=:9090` with the file repository is
+accepted at deploy time; the Hub then logs that metrics need
+`REPOSITORY_KIND=postgres` and opens no listener.
+
+This path is checked by rendering only. `zarf dev inspect manifests`
+substitutes the variables and the Package validates against the UDS Core
+1.17.1 schema. No cluster run has shown the Zarf-packaged Hub running against
+Postgres, a scrape succeeding, or what Zarf does when both `uds` and
+`uds-metrics` are selected.
 
 ## Tool versions used here
 
 - Zarf CLI `v0.82.0` for package create, lint, and the plain install.
-- UDS CLI `v0.41.0`. On the UDS cluster, deploy the Conduit package with
-  `uds zarf` so the CLI matches the Zarf agent that slim-dev installed.
+- UDS CLI `v0.41.0`, pinned by checksum in the Trunk gate
+  (`Install pinned UDS CLI` in `.github/workflows/platform-ci.yml`). On the
+  UDS cluster, deploy the Conduit package with `uds zarf` so the CLI matches
+  the Zarf agent that slim-dev installed. That vendored Zarf is `v0.89.0`
+  (`uds zarf version`), not the `v0.82.0` that builds the package; the gate
+  shows the newer one reading a package the older one built, and nothing
+  shows it deploying one. `mise.toml` does not pin the UDS CLI: adding it
+  needs `mise lock` against the GitHub API to record release asset IDs.
 - k3d `v5.9.0` for the plain cluster. The UDS path uses the k3d packaged in
   `uds-k3d` 0.21.4 (its offline variant), which the slim-dev bundle pins.
 - Slim-dev bundle
@@ -56,6 +125,21 @@ cluster operating after the images are already present.
 embeds its Core packages inside the published bundle, so this file does not
 re-pin them. Create it only after `zarf package create` has produced a
 package whose version matches `VERSION`.
+
+### UDS Core version
+
+The deploy path targets one UDS Core version, **1.17.1**. `scripts/uds-up.sh`
+pins the slim-dev bundle at 1.17.1, `workspace-schemas/v1` vendors the 1.17.1
+Package schema, and both Package CRs in `deploy/zarf/manifests` are written
+against it. That is a pairing, not a tested matrix: no other Core version has
+been deployed with this package, and the 1.17.1 pairing itself has only the
+connected-machine evidence this page describes.
+
+`docs/evidence/uds-packaging/` names UDS Core **1.15.0** instead. It is a
+frozen reference corpus for a different question, what a generated tenant
+package must satisfy, and 1.15.0 is the normative target its sources were
+pinned at. It is not a second deploy target for this package and is left as
+recorded.
 
 ## Images
 
@@ -190,6 +274,7 @@ uds zarf tools kubectl -n platform-system get package platform-runtime
 uds zarf tools kubectl -n platform-system get networkpolicy
 uds zarf tools kubectl -n platform-system get virtualservice
 uds zarf tools kubectl -n platform-system get secret conduit-hub-sso
+# Lists a Conduit monitor only when `uds-metrics` was selected instead of `uds`.
 uds zarf tools kubectl get servicemonitor -A
 ```
 
@@ -213,16 +298,118 @@ curl -sk "https://keycloak.uds.dev/admin/realms/uds/clients?clientId=conduit-hub
 From inside the cluster, use the Keycloak Service instead. The 2026-11-14
 evidence did not reach this query: Keycloak was not installed.
 
-Optional bundle, after the Zarf package exists:
+Optional bundle, after the Zarf package exists in `deploy/zarf`:
 
 ```sh
 uds create deploy/zarf --confirm --output /tmp/conduit-zarf
+cp deploy/zarf/uds-config.yaml /tmp/conduit-zarf/uds-config.yaml
+# Replace every REPLACE-WITH value, then:
+UDS_CONFIG=/tmp/conduit-zarf/uds-config.yaml \
+  uds deploy /tmp/conduit-zarf/uds-bundle-conduit-amd64-*.tar.zst --confirm
 ```
 
 That archive contains the Conduit package with the `uds` component selected.
 It does not contain UDS Core. Deploy slim-dev first, then this bundle.
+[`uds-config.yaml`](../../deploy/zarf/uds-config.yaml) carries the deployment
+variables the `--set-variables` flags above pass one at a time, and selects
+the production `postgres` profile, so it also needs the PostgreSQL Secret.
+The bundle declares no `overrides`: in the pinned v0.41.0 schema those set
+Helm chart values, and the package deploys manifests.
+
+The Trunk gate runs `uds create` on this bundle
+(`scripts/test-uds-bundle-create.sh`) against the package built without its
+image layers, which needs no registry or cluster. It shows the pinned CLI
+assembling the bundle, loading `uds-config.yaml`, and listing every variable
+that file sets. It does not show `uds deploy`; no workflow that runs on its
+own has a cluster.
 
 
+
+## Delivering a tenant's Zarf package or UDS bundle through the Spoke
+
+Everything above installs Conduit itself. This section is the other
+direction: a Plan step whose Release declares `chart.kind: zarf-package` or
+`uds-bundle` (see [Artifacts and releases](../architecture/artifacts-and-releases.md)).
+It is unit-tested against a recorded command model. It has not been run
+against a cluster.
+
+The Spoke picks an executor per step from the artifact kind. Helm steps run
+exactly as before. A package step runs only when the Spoke was configured
+for it; otherwise the step fails with a `Blocked` diagnostic that names the
+switch, and the Plan fails. It is never handed to Helm.
+
+| Variable | Meaning |
+| --- | --- |
+| `PACKAGE_EXECUTOR_ENABLED` | `true` turns the executor on. Anything below without it stops the Spoke at start-up. |
+| `PACKAGE_PUBLISHER_CERTIFICATE_ISSUER`, `PACKAGE_PUBLISHER_CERTIFICATE_IDENTITY` | Keyless publisher policy: two anchored regular expressions, passed to `zarf --certificate-oidc-issuer-regexp` and `--certificate-identity-regexp`. |
+| `PACKAGE_VERIFICATION_KEY_PATH` | Absolute path of a public key file, the alternative to the publisher pair. |
+| `PACKAGE_ARCHITECTURE` | `amd64` or `arm64`. Defaults to the Spoke binary's own. |
+| `ZARF_BIN`, `UDS_BIN`, `KUBECTL_BIN` | Binary paths. Default: looked up on `PATH`. |
+
+Exactly one of the publisher pair and the key path is required. `uds deploy`
+has no verification flags, so a bundle is checked with `uds inspect --key`
+first and can only be deployed by a Spoke configured with a key.
+
+The Spoke image does not contain `zarf` or `uds`. Mount pinned binaries and
+point `ZARF_BIN` and `UDS_BIN` at them. The chart in `deploy/helm/platform-spoke`
+does not yet expose these variables or the extra RBAC below.
+
+### What the Spoke needs to be allowed to do
+
+The Spoke chart grants namespaced Roles in the managed namespaces only. The
+executor's own calls need, in addition:
+
+- `get` on `secrets` in namespace `zarf` (`zarf-state` and
+  `zarf-package-<name>`);
+- `get` on the cluster-scoped `customresourcedefinitions` named
+  `packages.uds.dev`, when a bundle is deployed;
+- `get`, `create`, `delete` on `configmaps` in the step's namespace for the
+  applied record. The existing Role already grants this.
+
+`zarf package deploy` and `uds deploy` need far more than that, with the
+Spoke's token: they write `zarf-package-*` Secrets in `zarf`, create
+namespaces, and apply whatever the package contains. That is the same open
+bound the Helm path has, and it is the tenant's package that sets it.
+
+### What `APPLIED` means for a package
+
+Zarf records which package is deployed and at which generation. It does not
+record the variables a deployment was given, the Release, or the bundle a
+package came from. So after a deploy succeeds, and after Zarf's own record has
+been read back, the executor writes a ConfigMap
+`conduit-applied-<zarf package name>` in the step's namespace. It holds the
+Release digest, version, config digest, a digest of the exact `KEY=value`
+arguments passed, the artifact digest, and the digest and generation Zarf
+recorded for that deploy.
+
+The Spoke reports `configStatus: APPLIED`, and a Release and config digest at
+all, only from that record and only while the record's Zarf digest and
+generation equal what Zarf currently holds. The claim is:
+
+> Conduit deployed this Release with these values, the deploy succeeded, and
+> the Zarf package it produced has not been deployed again since.
+
+It is not an echo of the Plan. With no record, a record from an earlier
+generation, or another installation's record, the digests are empty and the
+status is `INDETERMINATE`, which the Hub refuses as a success. A record whose
+values differ from the step's reports `DRIFTED`.
+
+It is also not more than that:
+
+- It does not read live configuration. A `kubectl edit` or a `helm upgrade`
+  against what the package installed changes neither Zarf's generation nor
+  the record, so `APPLIED` does not detect it.
+- It is not tamper-evident. Whoever can write ConfigMaps in the namespace can
+  write this one.
+- For a bundle, only the one package named by `packageName` is observed. The
+  bundle's own digest cannot be read from the cluster and comes from the
+  record.
+- A rollback re-deploys the prior package with its own defaults, which moves
+  the generation, so the installation reports `INDETERMINATE` afterwards.
+
+The step's namespace must exist when the deploy finishes, because the record
+is written there. If the record cannot be written the step fails and is
+rolled back.
 
 ## Operator identity on a UDS cluster
 

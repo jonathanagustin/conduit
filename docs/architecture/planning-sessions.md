@@ -92,16 +92,27 @@ Accept records, and never rewrites:
 - the accept time
 
 `POST /compute` is refused with `COMPUTE_BEFORE_ACCEPT` until that binding exists.
-After Accept it returns `COMPUTE_NOT_CONFIGURED`; this slice does not execute a
-workspace, build, or package. The later workspace flow must consume the binding.
+After Accept it returns `COMPUTE_NOT_CONFIGURED` until `CONDUIT_IMAGE_BUILDER=docker`
+admits the local engine builder, the engine image inspector, and the zarf package
+creator. The production chart publishes that builder, `DEVWORKSPACE_GIT_ROOT`, and
+`CONDUIT_HTTP_WRITE_TIMEOUT`. The recorded digest is the local engine image id
+unless the image is pushed.
 
 ## Ownership and storage
 
 Sessions are isolated by the authenticated credential owner's principal. Other
 operators receive 404 for its session ID, including turns, answers, events,
 Accept, binding reads, and compute. Bootstrap administrator status does not
-implicitly share sessions. Session documents are process-local and disappear
-on Hub restart; this is not a durable workspace/session implementation.
+implicitly share sessions. The production chart's default is two Hub replicas
+and `planning.backend=temporal`. Both replicas dial one workflow frontend
+(`CONDUIT_TEMPORAL_ADDRESS`, `CONDUIT_TEMPORAL_SHARED=true`) and each runs a
+planning worker, so a session created on one replica is visible on the other
+and remains after a process restart as long as the frontend persists its
+history. The chart does not deploy that frontend. `planning.backend=local`
+keeps the process-local map and is legal only for one replica: the chart
+refuses to render `replicaCount` greater than 1, and Hub startup fails when
+`HUB_REPLICA_COUNT` is greater than 1 without the shared frontend. The Zarf
+baseline sets `HUB_REPLICA_COUNT=1`.
 
 Accept writes an authorization audit receipt through the configured repository
 before binding the session. Audit-write failure leaves the session unaccepted.

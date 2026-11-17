@@ -14,9 +14,9 @@ The planning session contract is [planning sessions](https://github.com/jonathan
 
 A session starts from a repository URL and ref. `POST /v1/planning-sessions` records intake only.
 
-The source-packaging walkthrough intakes Excalidraw at commit `3402f5bc78ae5f4ffbc7e9be4be1fc2c6c1fa6ef`. A planning turn clones that intake at the given ref into an isolated directory and allows only that git host. Inspection runs there. No package or image compute runs during inspection.
+`scripts/demo-excalidraw-e2e.sh` intakes Excalidraw at commit `a2ec2889babf7d2295469c6d90ebe77fae57df84`. A planning turn clones that intake at the given ref into an isolated directory. Inspection runs there. No package or image compute runs during inspection.
 
-Application generation (`appgen-v1`) starts from a problem statement instead of a repository checkout. Both profiles still go through plan review and Accept. See [Packaging profiles](/conduit/packaging/).
+Application generation (profile `appgen`) starts from a problem statement instead of a repository checkout. Both profiles still go through plan review and Accept. See [Packaging profiles](/conduit/packaging/).
 
 ## Planning and Needs Input
 
@@ -38,22 +38,20 @@ Accept records, and never rewrites:
 
 Accept writes an authorization audit receipt before the session is bound. If that write fails, the session stays unaccepted. The receipt binds profile coordinates, intake, the source commit, and the plan hash. It does not copy the plan text into the audit.
 
-Sessions are isolated by the authenticated owner. Another operator receives 404 for that session, including for Accept and compute. Session documents in this slice are process-local and disappear on Hub restart.
+Sessions are isolated by the authenticated owner. Another operator receives 404 for that session, including for Accept and compute. The production chart runs two Hub replicas against one shared workflow frontend, so a session created on one replica is readable on the other and survives a Hub restart when that frontend persists. A process-local store is limited to one replica. The chart will not render more than one, and startup fails if `HUB_REPLICA_COUNT` is greater than 1 without the shared frontend.
 
 ## Compute before Accept is refused
 
 > [!IMPORTANT]
 > `POST /v1/planning-sessions/{sessionID}/compute` is refused with `COMPUTE_BEFORE_ACCEPT` until the Accept binding exists.
 
-After Accept, that same route returns `COMPUTE_NOT_CONFIGURED`. The planning session does not itself run a workspace, build, or package. The later workspace flow has to consume the binding.
-
-The repository demo shows that later path: governed workspace compute after Accept, then validation gates and a change request. The recorded end-to-end run and the isolated workspace container are still open work ([#615](https://github.com/jonathanagustin/conduit/issues/615), [#616](https://github.com/jonathanagustin/conduit/issues/616)).
+After Accept, that route returns `COMPUTE_NOT_CONFIGURED` until `CONDUIT_IMAGE_BUILDER=docker` admits the local engine builder, the engine image inspector, and the zarf package creator together. The production chart publishes that builder, `DEVWORKSPACE_GIT_ROOT`, and `CONDUIT_HTTP_WRITE_TIMEOUT`. `scripts/demo-seed.sh` and `scripts/demo-excalidraw-e2e.sh` set the builder. They exit with an install message when docker or zarf is missing. The digest they record is the local engine image id, not a registry manifest digest, unless the image is pushed.
 
 ## Workspace, gates, and the change request
 
-For `packaging-v1`, the demo walkthrough commits a `Dockerfile`, `zarf.yaml`, and a UDS `Package` custom resource in the workspace, then runs Hadolint, Zarf, and schema gates.
+For profile `onboard`, `scripts/demo-excalidraw-e2e.sh` commits a `Dockerfile`, `zarf.yaml`, and a UDS `Package` custom resource in the workspace, then runs the dockerfile gate, the Package CR schema gate, `zarf dev lint`, and `zarf package create`.
 
-For `appgen-v1`, the walkthrough synthesizes the application and the package after Accept, then runs `zarf dev lint .` and `zarf package create`.
+For profile `appgen`, `scripts/demo-generate.sh` synthesizes the application and the package after Accept, then runs `zarf dev lint .` and `zarf package create`.
 
 Both hand off through a governed change request. A change request still needs a second person: the author cannot approve their own request. The console does not offer action controls for an unknown identity or for self-review. Hub authorization, current policy, status, and the no-self-approval check remain the authority at the write endpoint. The review screen does not grant a deployment by itself.
 

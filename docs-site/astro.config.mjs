@@ -24,6 +24,7 @@ const sidebarTemplate = [
     items: [
       { label: 'How it works', slug: 'how-it-works' },
       { label: 'Architecture', slug: 'architecture' },
+      { label: 'Governed AI agents', slug: 'ai-agents' },
     ],
   },
   {

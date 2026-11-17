@@ -78,8 +78,8 @@ is rejected. Both run in CI and in `scripts/verify-local.sh` under
 | Decision | What it requires | Routes |
 | --- | --- | --- |
 | `public` | nothing; the row must say why that is safe | 12 |
-| `operator-any` | an authenticated operator, and nothing else — every operator gets the same answer | 32 |
-| `operator-self` | an authenticated operator; the answer is about that operator only | 15 |
+| `operator-any` | an authenticated operator, and nothing else — every operator gets the same answer | 26 |
+| `operator-self` | an authenticated operator; the answer is about that operator only | 22 |
 | `operator-filtered` | an authenticated operator, then a Governance decision on every row of the answer | 35 |
 | `operator-grant` | an authenticated operator plus a Governance decision on a named resource | 131 |
 | `agent` | an Agent identity scoped to the Environment or Plan in the path | 10 |
@@ -146,19 +146,6 @@ before a worker is told. Cancel stops the packaging run only. A run that
 already handed off a Plan is not cancelled here, and this route does not
 call `POST /v1/plans/{planID}/cancel`.
 
-Intake attachment routes under `/v1/intake-attachments` are `operator-any`.
-`POST` takes one JSON object with `filename` and `content`, not a multipart
-stream. It accepts text-like files only: `Dockerfile`, `.yaml`, `.yml`, `.json`,
-`.txt`, and a short `.md` spec. Images, archives, and other binaries are
-refused, as is a file over 256 KiB, a set of more than 8 files or 1 MiB, or
-content that carries key material or a credential assignment. A refused upload
-returns its reason and is not stored. A stored file is named by the lowercase
-sha256 of its bytes, and that digest is recorded on the audit chain. `GET`
-returns the stored name, type, size, and digest, and the file text by digest.
-The routes cannot approve a change or publish a release. A confirmed app
-generation or a packaging model proposal may name stored digests, which bind
-the bytes as read-only context.
-
 Developer workspace routes under `/v1/dev-workspaces` are a separate surface.
 Reads require an operator and then the owner or an environment read. Writes
 require standing and then the owner. Submit opens a change request through
@@ -176,6 +163,31 @@ The local preview runtime fails closed when it is not configured.
 | `GET /v1/notifications/contacts` | `ownedBy(principal, owner)` |
 | `PUT /v1/notifications/contacts` | `ownedBy(principal, owner)` |
 | `DELETE /v1/notifications/contacts` | `ownedBy(principal, owner)` |
+| `GET /v1/app-generations` | the caller's generations only; other rows are omitted |
+| `GET /v1/app-generations/{id}` | the caller's generation, or 404 when it is missing or belongs to someone else |
+| `POST /v1/app-generations` | stores the generation under the caller and does not approve |
+| `GET /v1/intake-attachments` | the caller's attachments only; other rows are omitted |
+| `GET /v1/intake-attachments/{digest}` | the caller's file, or 404 when it is missing or belongs to someone else |
+| `POST /v1/intake-attachments` | stores the file under the caller and does not approve |
+
+App generation and intake attachments are not a shared catalog. A list omits
+every other operator. A get answers 404 for an id or digest the caller does
+not own, the same status as a missing one, and that refusal is audited. A row
+stored with no owner is not listed for anyone. There is no role or flag that
+turns the catalog into a shared view.
+
+`POST /v1/intake-attachments` takes one JSON object with `filename` and
+`content`, not a multipart stream. It accepts text-like files only:
+`Dockerfile`, `.yaml`, `.yml`, `.json`, `.txt`, and a short `.md` spec.
+Images, archives, and other binaries are refused, as is a file over 256 KiB,
+a set of more than 8 files or 1 MiB, or content that carries key material or
+a credential assignment. A refused upload returns its reason and is not
+stored. A stored file is named by the lowercase sha256 of its bytes, and that
+digest is recorded on the audit chain. The list returns the stored name,
+type, size, and digest. The routes cannot approve a change or publish a
+release. A confirmed app generation or a packaging model proposal may name
+digests that the same operator stored, which bind the bytes as read-only
+context.
 
 ### `operator-filtered` — every row authorized separately
 

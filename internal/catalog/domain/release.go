@@ -20,13 +20,154 @@
 // inward: the monolith knows about Catalog; Catalog knows about nobody.
 package domain
 
-import "time"
+import (
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+)
 
 // Artifact is one immutable, digest-addressed thing a Release ships.
+//
+// A Release's Chart is its single deployable artifact, and Kind says what that
+// artifact is. The field is named for the only kind that existed when it was
+// introduced: an absent Kind is a Helm chart, which is what every Release
+// written before Kind existed is and stays. Images never carry a Kind.
+//
+// CONDUIT-INVENTED: catalog.PackageArtifactKind
+// Displaced-by: a published or owner-approved Product Release contract that states how a Zarf package or UDS bundle artifact, its architectures and its deployed package name are declared.
 type Artifact struct {
 	Repository string `json:"repository"`
 	Tag        string `json:"tag"`
 	Digest     string `json:"digest"`
+	// Kind is one of the ArtifactKind constants; empty means ArtifactKindHelmChart.
+	Kind string `json:"kind,omitempty"`
+	// Architectures lists the cluster architectures a Zarf package or UDS
+	// bundle was built for. It is required for those kinds and refused for a
+	// Helm chart, which is architecture-neutral.
+	Architectures []string `json:"architectures,omitempty"`
+	// PackageName is the Zarf package name (zarf.yaml metadata.name) the
+	// artifact deploys as. Zarf records a deployment under that name and
+	// nothing else, so it is how the Spoke finds what it deployed. For a UDS
+	// bundle it names the bundled Zarf package the Spoke observes.
+	PackageName string `json:"packageName,omitempty"`
+}
+
+// The kinds of deployable artifact a Release may declare.
+const (
+	ArtifactKindHelmChart   = "helm-chart"
+	ArtifactKindZarfPackage = "zarf-package"
+	ArtifactKindUDSBundle   = "uds-bundle"
+)
+
+var (
+	artifactDigestPattern  = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
+	zarfPackageNamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9\-]*$`)
+	packageArchitectures   = []string{"amd64", "arm64"}
+)
+
+// ArtifactProblem is one thing wrong with an artifact's package declaration,
+// named by the field it concerns.
+type ArtifactProblem struct {
+	Field   string
+	Message string
+}
+
+// EffectiveKind resolves the kind an artifact deploys as. An artifact with no
+// Kind is a Helm chart.
+func (artifact Artifact) EffectiveKind() string {
+	if kind := strings.TrimSpace(artifact.Kind); kind != "" {
+		return kind
+	}
+	return ArtifactKindHelmChart
+}
+
+// IsPackage reports whether the artifact is a Zarf package or a UDS bundle,
+// the two kinds the Zarf/UDS executor deploys.
+func (artifact Artifact) IsPackage() bool {
+	kind := artifact.EffectiveKind()
+	return kind == ArtifactKindZarfPackage || kind == ArtifactKindUDSBundle
+}
+
+// SupportsArchitecture reports whether a package artifact was built for the
+// given architecture. A Helm chart supports every architecture.
+func (artifact Artifact) SupportsArchitecture(architecture string) bool {
+	if !artifact.IsPackage() {
+		return true
+	}
+	architecture = strings.TrimSpace(architecture)
+	for _, candidate := range artifact.Architectures {
+		if candidate == architecture {
+			return true
+		}
+	}
+	return false
+}
+
+// PackageProblems reports what is wrong with the kind-specific part of a
+// deployable artifact. It returns nothing for a well-formed artifact.
+//
+// A Zarf package or UDS bundle must be pinned by digest. A tag names whatever
+// the registry currently holds, so a tag-only reference is refused outright,
+// and a tag beside a digest is refused too: the Spoke deploys the digest, and
+// the tag would be a claim nobody checked.
+func (artifact Artifact) PackageProblems() []ArtifactProblem {
+	var problems []ArtifactProblem
+	add := func(field, message string) {
+		problems = append(problems, ArtifactProblem{Field: field, Message: message})
+	}
+	switch artifact.EffectiveKind() {
+	case ArtifactKindHelmChart:
+		if len(artifact.Architectures) > 0 {
+			add("architectures", "applies only to a zarf-package or uds-bundle")
+		}
+		if artifact.PackageName != "" {
+			add("packageName", "applies only to a zarf-package or uds-bundle")
+		}
+		return problems
+	case ArtifactKindZarfPackage, ArtifactKindUDSBundle:
+	default:
+		add("kind", "must be helm-chart, zarf-package or uds-bundle")
+		return problems
+	}
+	if !artifactDigestPattern.MatchString(artifact.Digest) {
+		add("digest", "a "+artifact.Kind+" must be pinned by a lowercase sha256 digest; a tag is mutable and is refused")
+	}
+	if artifact.Tag != "" {
+		add("tag", "must be empty for a "+artifact.Kind+": it is deployed by digest, and a tag is a mutable reference")
+	}
+	if strings.Contains(artifact.Repository, "@") || repositoryCarriesTag(artifact.Repository) {
+		add("repository", "must be an OCI repository without a tag or digest")
+	}
+	if !zarfPackageNamePattern.MatchString(artifact.PackageName) {
+		add("packageName", "must be the Zarf package name: lowercase letters, digits and hyphens")
+	}
+	if len(artifact.Architectures) == 0 {
+		add("architectures", "must list at least one architecture the package was built for")
+	}
+	seen := make(map[string]struct{}, len(artifact.Architectures))
+	for _, architecture := range artifact.Architectures {
+		known := false
+		for _, candidate := range packageArchitectures {
+			known = known || candidate == architecture
+		}
+		if !known {
+			add("architectures", "architecture "+strconv.Quote(architecture)+" is not one of amd64, arm64")
+		}
+		if _, duplicate := seen[architecture]; duplicate {
+			add("architectures", "architecture "+strconv.Quote(architecture)+" is listed twice")
+		}
+		seen[architecture] = struct{}{}
+	}
+	return problems
+}
+
+// repositoryCarriesTag reports whether the last path segment of an OCI
+// repository has a ":tag" suffix. A colon before the first slash is a port.
+func repositoryCarriesTag(repository string) bool {
+	repository = strings.TrimPrefix(strings.TrimSpace(repository), "oci://")
+	slash := strings.LastIndexByte(repository, '/')
+	return slash >= 0 && strings.Contains(repository[slash+1:], ":")
 }
 
 // Dependency is another Product this Release needs, within a version range.

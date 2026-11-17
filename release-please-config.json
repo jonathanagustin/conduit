@@ -87,6 +87,10 @@
           "type": "yaml",
           "path": "deploy/helm/platform-spoke/Chart.yaml",
           "jsonpath": "$.appVersion"
+        },
+        {
+          "type": "generic",
+          "path": "deploy/zarf/uds-bundle.yaml"
         }
       ]
     }

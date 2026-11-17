@@ -12,6 +12,7 @@
 package composition
 
 import (
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -63,6 +64,10 @@ func NewHub(
 		options.BundlePrivateKey = key
 	}
 	options = withSpaceLookup(repository, options, hubOptions.Spaces)
+	options, err := withAnnouncements(options, hubOptions.NotificationStore, slog.Default())
+	if err != nil {
+		return nil, err
+	}
 	sequencer, err := planSequencer(repository, hubOptions, os.Getenv)
 	if err != nil {
 		return nil, err
@@ -124,13 +129,17 @@ func NewHub(
 		repository, hubOptions.AppGenerator, hubOptions.Attachments,
 		hubOptions.AppgenSandbox, hubOptions.AppgenPublisher, os.Getenv,
 	)
+	appgenService, err = configureAppGeneration(appgenService, hubOptions.AppgenStore, hubOptions.AppgenSandbox, os.Getenv)
+	if err != nil {
+		return nil, err
+	}
 	handler = mountReportingConnect(handler, repository, options)
 	handler = mountPlanSummaryConnect(handler, repository, options)
 	handler = mountPlanApprovalConnect(handler, repository, options)
 	handler = mountProductSummaryConnect(handler, repository, options)
 	handler = mountAdminStatus(handler, repository, options, hubOptions)
-	handler = mountAttachments(handler, options, hubOptions.Attachments)
-	handler = mountAppGenerationWithService(handler, options, appgenService)
+	handler = mountAttachments(handler, repository, options, hubOptions.Attachments)
+	handler = mountAppGenerationWithService(handler, repository, options, appgenService)
 	intelService := newIntelligenceService(repository, options)
 	handler = mountTimeline(mountUpgrades(mountOfflineBundles(mountSiteCheckIn(mountBlackouts(mountWaves(mountDriftFix(mountChannels(mountIntelligence(mountAssistant(mountOntology(mountPackaging(handler, repository, options, hubOptions), repository, options, hubOptions, workspaces), repository, options, hubOptions, assistant, intelCases{service: intelService}), repository, options, hubOptions, intelService), repository, options), repository, options), repository, options), repository, options), options), repository, options), repository, options), repository, options)
 	handler, err = mountPlanningWithAppgenService(handler, repository, options, appgenService, os.Getenv)

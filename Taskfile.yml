@@ -49,6 +49,44 @@ tasks:
     desc: Run the ephemeral-cluster Spoke acceptance gate, which CI runs separately
     cmd: ./scripts/test-spoke-e2e.sh
 
+  zarf:lint:
+    desc: Validate the Zarf package, its chart equivalence and the UDS bundle, as the Trunk gate does
+    cmd: |
+      set -eu
+      export ZARF_BIN="${ZARF_BIN:-zarf}" UDS_BIN="${UDS_BIN:-uds}"
+      ruby scripts/verify-zarf-package.rb
+      ruby scripts/verify-zarf-chart-equivalence.rb
+      ./scripts/test-uds-bundle-create.sh
+
+  zarf:create:
+    desc: Create the Zarf package for one architecture from digest-pinned images; publishes nothing
+    requires:
+      vars: [HUB_IMAGE, SPOKE_AGENT_IMAGE]
+    vars:
+      ARCHITECTURE: '{{.ARCHITECTURE | default "amd64"}}'
+      OUTPUT_DIR: '{{.OUTPUT_DIR | default "deploy/zarf"}}'
+    cmd: |
+      set -eu
+      "${ZARF_BIN:-zarf}" package create deploy/zarf \
+        --architecture {{.ARCHITECTURE}} \
+        --confirm \
+        --output {{.OUTPUT_DIR}} \
+        --set "PLATFORM_VERSION=$(tr -d '\n' < VERSION)" \
+        --set "HUB_IMAGE={{.HUB_IMAGE}}" \
+        --set "SPOKE_AGENT_IMAGE={{.SPOKE_AGENT_IMAGE}}"
+
+  uds:create:
+    desc: Create the UDS bundle from the Zarf package zarf:create left in deploy/zarf
+    vars:
+      ARCHITECTURE: '{{.ARCHITECTURE | default "amd64"}}'
+    cmd: |
+      set -eu
+      "${UDS_BIN:-uds}" create deploy/zarf --architecture {{.ARCHITECTURE}} --confirm
+
+  zarf:lifecycle:
+    desc: Install N-1, upgrade to N and remove the signed package on k3d. Opt-in and never yet run; needs Docker and a published release.
+    cmd: ./scripts/test-zarf-package-lifecycle.sh {{.CLI_ARGS}}
+
   audit:apollo-images:
     desc: Capture and inventory every public Apollo documentation image
     requires:

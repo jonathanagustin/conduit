@@ -25,6 +25,16 @@ func (repository *PostgresRepository) ClaimExportPipelineScheduleRun(ctx context
 	return result0, result1, err
 }
 
+func (repository *PostgresRepository) CompleteComputeExecution(ctx context.Context, sessionID string, token string, receipt ComputeReceipt, now time.Time) (ComputeReservation, error) {
+	var result0 ComputeReservation
+	err := repository.withState(ctx, true, func(memory *MemoryRepository) error {
+		var innerErr error
+		result0, innerErr = memory.CompleteComputeExecution(ctx, sessionID, token, receipt, now)
+		return innerErr
+	})
+	return result0, err
+}
+
 func (repository *PostgresRepository) CompleteExportPipelineScheduleRun(ctx context.Context, pipelineID string, scheduledFor time.Time, update func(*ExportPipelineScheduleRun) error) (ExportPipelineScheduleRun, error) {
 	var result0 ExportPipelineScheduleRun
 	err := repository.withState(ctx, true, func(memory *MemoryRepository) error {
@@ -630,6 +640,34 @@ func (repository *PostgresRepository) PutTeam(ctx context.Context, team Team) (T
 	err := repository.withState(ctx, true, func(memory *MemoryRepository) error {
 		var innerErr error
 		result0, innerErr = memory.PutTeam(ctx, team)
+		return innerErr
+	})
+	return result0, err
+}
+
+func (repository *PostgresRepository) ReleaseComputeExecution(ctx context.Context, sessionID string, token string) error {
+	err := repository.withState(ctx, true, func(memory *MemoryRepository) error {
+		var innerErr error
+		innerErr = memory.ReleaseComputeExecution(ctx, sessionID, token)
+		return innerErr
+	})
+	return err
+}
+
+func (repository *PostgresRepository) RenewComputeExecution(ctx context.Context, sessionID string, token string, now time.Time, lease time.Duration) error {
+	err := repository.withState(ctx, true, func(memory *MemoryRepository) error {
+		var innerErr error
+		innerErr = memory.RenewComputeExecution(ctx, sessionID, token, now, lease)
+		return innerErr
+	})
+	return err
+}
+
+func (repository *PostgresRepository) ReserveComputeExecution(ctx context.Context, sessionID string, now time.Time, lease time.Duration) (ComputeReservation, error) {
+	var result0 ComputeReservation
+	err := repository.withState(ctx, true, func(memory *MemoryRepository) error {
+		var innerErr error
+		result0, innerErr = memory.ReserveComputeExecution(ctx, sessionID, now, lease)
 		return innerErr
 	})
 	return result0, err

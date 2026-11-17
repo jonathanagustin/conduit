@@ -18,7 +18,11 @@ import (
 	"syscall"
 	"time"
 
+	appgenpostgres "github.com/jonathanagustin/conduit/internal/appgen/adapters/postgres"
+	appgenapp "github.com/jonathanagustin/conduit/internal/appgen/application"
 	artifacts "github.com/jonathanagustin/conduit/internal/artifacts/domain"
+	assistantthreads "github.com/jonathanagustin/conduit/internal/assistant/adapters/threadpostgres"
+	assistantapp "github.com/jonathanagustin/conduit/internal/assistant/application"
 	"github.com/jonathanagustin/conduit/internal/buildinfo"
 	"github.com/jonathanagustin/conduit/internal/consoleui"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
@@ -223,33 +227,52 @@ func main() {
 		operatorSignIn = controlplane.OperatorSignInFromIssuer(ctx, os.Getenv("OPERATOR_OIDC_ISSUER"), os.Getenv("OPERATOR_OIDC_CLIENT_ID"))
 	}
 	packagingReader := packagingStatusReader(ctx, os.Getenv)
+	stopPlanning, err := composition.StartPlanningWorker(ctx, os.Getenv, repository)
+	if err != nil {
+		slog.Error("start planning workflow worker", "error", err)
+		os.Exit(1)
+	}
+	defer stopPlanning()
 	liveEventJournal, closeLiveEventJournal, err := openLiveEventJournal(os.Getenv)
 	if err != nil {
 		slog.Error("initialize live-event delivery journal", "error", err)
 		os.Exit(1)
 	}
 	defer closeLiveEventJournal()
+	// A limiter always runs. A misconfigured limit is a startup failure for
+	// the same reason a misconfigured identity is: a Hub that came up with no
+	// bound, or with one that refuses its own Agents, is found out in an
+	// incident rather than at deploy time. See docs/operations/hub-rate-limiting.md.
+	requestLimiter, err := loadRequestLimiter(os.Getenv)
+	if err != nil {
+		slog.Error("configure request rate limits", "error", err)
+		os.Exit(1)
+	}
+	handlerOptions := controlplane.HandlerOptions{
+		ConsoleHandler:                       consoleui.Handler(consoleBootstrap),
+		AllowInsecureAgentIdentityHeaders:    allowInsecureAgentIdentity,
+		AllowInsecureOperatorIdentityHeaders: allowInsecureOperatorIdentity,
+		OperatorIdentityResolver:             operatorIdentityResolver,
+		BootstrapAdministrators:              bootstrapAdministrators,
+		BundlePrivateKey:                     bundlePrivateKey,
+		TrustedBundleKeys:                    trustedBundleKeys,
+		OperatorSignIn:                       operatorSignIn,
+		ArtifactScanner:                      artifactScanner,
+		RecallOpenings:                       recallOpenings,
+		EntityConfigurationAdapters: map[string]controlplane.EntityConfigurationAdapter{
+			foundryinterop.AdapterID: foundryinterop.AdaptEntityConfiguration,
+		},
+		ExportSchedulerContext: ctx,
+		ExportSchedulerErrorHandler: func(err error) {
+			slog.Error("run scheduled Export Pipeline", "error", err)
+		},
+	}
 	server := &http.Server{
 		Addr: address,
-		Handler: composition.NewHubHandler(repository, controlplane.HandlerOptions{
-			ConsoleHandler:                       consoleui.Handler(consoleBootstrap),
-			AllowInsecureAgentIdentityHeaders:    allowInsecureAgentIdentity,
-			AllowInsecureOperatorIdentityHeaders: allowInsecureOperatorIdentity,
-			OperatorIdentityResolver:             operatorIdentityResolver,
-			BootstrapAdministrators:              bootstrapAdministrators,
-			BundlePrivateKey:                     bundlePrivateKey,
-			TrustedBundleKeys:                    trustedBundleKeys,
-			OperatorSignIn:                       operatorSignIn,
-			ArtifactScanner:                      artifactScanner,
-			RecallOpenings:                       recallOpenings,
-			EntityConfigurationAdapters: map[string]controlplane.EntityConfigurationAdapter{
-				foundryinterop.AdapterID: foundryinterop.AdaptEntityConfiguration,
-			},
-			ExportSchedulerContext: ctx,
-			ExportSchedulerErrorHandler: func(err error) {
-				slog.Error("run scheduled Export Pipeline", "error", err)
-			},
-		}, composition.Options{
+		// The limiter is the outermost handler: it resolves who is asking the
+		// way the routes beneath it do, then spends from that caller's bucket
+		// before any of them runs.
+		Handler: composition.RateLimit(composition.NewHubHandler(repository, handlerOptions, composition.Options{
 			LiveEventJournal:     liveEventJournal,
 			LiveEventContext:     ctx,
 			AdminStorage:         adminStorageForRepository(repository, os.Getenv),
@@ -259,12 +282,14 @@ func main() {
 			DebugSessionJournal:  debugJournal,
 			NotificationStore:    notifications.Store,
 			NotificationContacts: notifications.Contacts,
+			AssistantThreads:     assistantThreadsFor(notifications),
+			AppgenStore:          appGenerationsFor(notifications),
 			PackagingStatus:      packagingReader,
 			PackagingControls:    packagingReader,
-		}),
+		}), handlerOptions, requestLimiter),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		WriteTimeout:      httpWriteTimeout(),
 		IdleTimeout:       60 * time.Second,
 	}
 	if agentClientCAFile != "" {
@@ -329,7 +354,7 @@ func main() {
 	// turn an authenticated surface into a partly public one. An empty
 	// METRICS_ADDRESS adds no reachable surface at all, which is what an
 	// existing deployment gets until somebody decides otherwise.
-	if stopMetrics := startMetricsListener(ctx, os.Getenv("METRICS_ADDRESS"), readStats); stopMetrics != nil {
+	if stopMetrics := startMetricsListener(ctx, os.Getenv("METRICS_ADDRESS"), readStats, requestLimiterMetrics(requestLimiter)); stopMetrics != nil {
 		defer stopMetrics()
 	}
 
@@ -366,10 +391,36 @@ func main() {
 // Store and Contacts are the same object in this deployment and are still
 // declared apart, because the ports are apart: the composition root is handed
 // two capabilities rather than one thing it may use for both.
+// assistantThreadsFor returns the durable thread store when one was opened. A
+// typed nil pointer stored in the interface would read as configured, so the
+// file repository returns an untyped nil and keeps threads in memory.
+func assistantThreadsFor(component notificationComponent) assistantapp.Threads {
+	if component.AssistantThreads == nil {
+		return nil
+	}
+	return component.AssistantThreads
+}
+
+// appGenerationsFor returns the durable generation store when one was opened,
+// and an untyped nil otherwise, for the reason assistantThreadsFor gives. Nil
+// keeps generation results in process memory.
+func appGenerationsFor(component notificationComponent) appgenapp.Store {
+	if component.AppGenerations == nil {
+		return nil
+	}
+	return component.AppGenerations
+}
+
 type notificationComponent struct {
 	Store      notificationports.Store
 	Contacts   notificationports.Contacts
 	Deliveries *notificationsapplication.Dispatcher
+	// AssistantThreads rides with the notification store because it is opened
+	// on the same DSN and closed by the same closer.
+	AssistantThreads *assistantthreads.Store
+	// AppGenerations is opened on the same DSN and closed by the same closer,
+	// so a generation result survives a Hub restart.
+	AppGenerations *appgenpostgres.Store
 }
 
 func configureReconciliation(
@@ -431,6 +482,31 @@ func configureReconciliation(
 	// and a later edit that forgets a store leaks a connection pool for the
 	// lifetime of the process.
 	closeStore = func() {
+		_ = notificationStore.Close()
+		closeReconciliationStore()
+	}
+	// Assistant conversations share the same database and ledger, so a thread
+	// survives a Hub restart and is visible from every replica.
+	assistantThreadStore, err := assistantthreads.New(ctx, dataSourceName)
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, nil, notificationComponent{}, err
+	}
+	closeStore = func() {
+		_ = assistantThreadStore.Close()
+		_ = notificationStore.Close()
+		closeReconciliationStore()
+	}
+	// App generation results share the same database and ledger. Each result
+	// is owned by one operator and is listed only for that operator.
+	appGenerationStore, err := appgenpostgres.New(ctx, dataSourceName)
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, nil, notificationComponent{}, err
+	}
+	closeStore = func() {
+		_ = appGenerationStore.Close()
+		_ = assistantThreadStore.Close()
 		_ = notificationStore.Close()
 		closeReconciliationStore()
 	}
@@ -508,6 +584,8 @@ func configureReconciliation(
 	}
 	return bridge, closeStore, supervisor, readStats, notificationComponent{
 		Store: notificationStore, Contacts: notificationStore, Deliveries: deliveries,
+		AssistantThreads: assistantThreadStore,
+		AppGenerations:   appGenerationStore,
 	}, nil
 }
 
@@ -560,6 +638,20 @@ func openRepository(
 	default:
 		return nil, func() {}, fmt.Errorf("REPOSITORY_KIND must be file or postgres, got %q", kind)
 	}
+}
+
+func httpWriteTimeout() time.Duration {
+	fallback := 30 * time.Second
+	text := strings.TrimSpace(os.Getenv("CONDUIT_HTTP_WRITE_TIMEOUT"))
+	if text == "" {
+		return fallback
+	}
+	parsed, err := time.ParseDuration(text)
+	if err != nil || parsed <= 0 {
+		slog.Error("CONDUIT_HTTP_WRITE_TIMEOUT must be a positive duration", "value", text)
+		os.Exit(1)
+	}
+	return parsed
 }
 
 func readSingleLineSecretFile(path, variable string) (string, error) {
@@ -823,7 +915,9 @@ func loadTrustedBundleKeys(path string) (map[string]ed25519.PublicKey, error) {
 // zeroes there would tell a scraper the fleet is idle rather than that this mode
 // has nothing to say. Both are logged, because a silently absent metrics
 // endpoint is exactly the kind of thing somebody debugs for an hour.
-func startMetricsListener(ctx context.Context, address string, readStats metricsapplication.ReadStats) func() {
+func startMetricsListener(
+	ctx context.Context, address string, readStats metricsapplication.ReadStats, rateLimits metricsapplication.ReadRateLimits,
+) func() {
 	address = strings.TrimSpace(address)
 	if address == "" {
 		return nil
@@ -834,8 +928,10 @@ func startMetricsListener(ctx context.Context, address string, readStats metrics
 		return nil
 	}
 	server := &http.Server{
-		Addr:              address,
-		Handler:           httpmetrics.Handler(metricsapplication.Gather(buildinfo.Version, readStats), httpmetrics.Options{}),
+		Addr: address,
+		Handler: httpmetrics.Handler(
+			metricsapplication.WithRateLimits(metricsapplication.Gather(buildinfo.Version, readStats), rateLimits), httpmetrics.Options{},
+		),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {

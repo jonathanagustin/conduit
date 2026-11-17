@@ -104,85 +104,102 @@ func TestSessionWorkflowLifecycleUpdatesValidatorsAndMetrics(t *testing.T) {
 	env.RegisterActivityWithOptions(acts.TurnActivity, activity.RegisterOptions{Name: ActTurn})
 	env.RegisterActivityWithOptions(acts.AuditAcceptActivity, activity.RegisterOptions{Name: ActAuditAccept})
 
-	// Step 1: Reject Accept before any plan exists (validator rejection).
-	var prePlanErr error
+	// Chain each update step after the previous step completes or rejects so
+	// activity execution under -race cannot advance the mock clock past later
+	// dependent updates before session.NeedsInput or session.Plan is updated.
+	var prePlanErr, wrongActorErr error
+	var turn1Session, turn2Session, turn3Session *domain.Session
+
+	scheduleStep7Accept := func() {
+		env.RegisterDelayedCallback(func() {
+			env.UpdateWorkflow(UpdateAccept, "accept-final", callbackUpdateCallbacks{
+				onComplete: func(_ any, err error) {
+					if err != nil {
+						t.Errorf("accept failed: %v", err)
+					}
+				},
+			}, AcceptRequest{Actor: "alice"})
+		}, time.Millisecond)
+	}
+
+	scheduleStep6Turn3 := func() {
+		env.RegisterDelayedCallback(func() {
+			env.UpdateWorkflow(UpdateTurn, "turn-3", callbackUpdateCallbacks{
+				onComplete: func(val any, err error) {
+					if err != nil {
+						t.Errorf("turn 3 failed: %v", err)
+						return
+					}
+					turn3Session = val.(*domain.Session)
+					scheduleStep7Accept()
+				},
+			}, TurnRequest{Actor: "alice", Message: "Enable SSO in the plan"})
+		}, time.Millisecond)
+	}
+
+	scheduleStep5Turn2 := func() {
+		env.RegisterDelayedCallback(func() {
+			env.UpdateWorkflow(UpdateTurn, "turn-2", callbackUpdateCallbacks{
+				onComplete: func(val any, err error) {
+					if err != nil {
+						t.Errorf("turn 2 failed: %v", err)
+						return
+					}
+					turn2Session = val.(*domain.Session)
+					scheduleStep6Turn3()
+				},
+			}, TurnRequest{Actor: "alice", Message: "Generate the initial plan"})
+		}, time.Millisecond)
+	}
+
+	scheduleStep4Answer := func() {
+		env.RegisterDelayedCallback(func() {
+			env.UpdateWorkflow(UpdateAnswer, "answer-1", callbackUpdateCallbacks{
+				onComplete: func(_ any, err error) {
+					if err != nil {
+						t.Errorf("answer failed: %v", err)
+						return
+					}
+					scheduleStep5Turn2()
+				},
+			}, AnswerRequest{Actor: "alice", Answers: []domain.Answer{{ID: "node_ver", Value: "20"}}})
+		}, time.Millisecond)
+	}
+
+	scheduleStep3WrongActor := func() {
+		env.RegisterDelayedCallback(func() {
+			env.UpdateWorkflow(UpdateTurn, "turn-bob", callbackUpdateCallbacks{
+				onReject: func(err error) {
+					wrongActorErr = err
+					scheduleStep4Answer()
+				},
+			}, TurnRequest{Actor: "bob", Message: "intrude"})
+		}, time.Millisecond)
+	}
+
+	scheduleStep2Turn1 := func() {
+		env.RegisterDelayedCallback(func() {
+			env.UpdateWorkflow(UpdateTurn, "turn-1", callbackUpdateCallbacks{
+				onComplete: func(val any, err error) {
+					if err != nil {
+						t.Errorf("turn 1 failed: %v", err)
+						return
+					}
+					turn1Session = val.(*domain.Session)
+					scheduleStep3WrongActor()
+				},
+			}, TurnRequest{Actor: "alice", Message: "Please inspect and package"})
+		}, time.Millisecond)
+	}
+
 	env.RegisterDelayedCallback(func() {
 		env.UpdateWorkflow(UpdateAccept, "accept-early", callbackUpdateCallbacks{
-			onReject: func(err error) { prePlanErr = err },
+			onReject: func(err error) {
+				prePlanErr = err
+				scheduleStep2Turn1()
+			},
 		}, AcceptRequest{Actor: "alice"})
 	}, time.Millisecond)
-
-	// Step 2: Turn 1 (Inspect + NeedsInput question).
-	var turn1Session *domain.Session
-	env.RegisterDelayedCallback(func() {
-		env.UpdateWorkflow(UpdateTurn, "turn-1", callbackUpdateCallbacks{
-			onComplete: func(val any, err error) {
-				if err != nil {
-					t.Errorf("turn 1 failed: %v", err)
-					return
-				}
-				turn1Session = val.(*domain.Session)
-			},
-		}, TurnRequest{Actor: "alice", Message: "Please inspect and package"})
-	}, 2*time.Millisecond)
-
-	// Step 3: Reject Turn from wrong actor ("bob").
-	var wrongActorErr error
-	env.RegisterDelayedCallback(func() {
-		env.UpdateWorkflow(UpdateTurn, "turn-bob", callbackUpdateCallbacks{
-			onReject: func(err error) { wrongActorErr = err },
-		}, TurnRequest{Actor: "bob", Message: "intrude"})
-	}, 3*time.Millisecond)
-
-	// Step 4: Answer NeedsInput question.
-	env.RegisterDelayedCallback(func() {
-		env.UpdateWorkflow(UpdateAnswer, "answer-1", callbackUpdateCallbacks{
-			onComplete: func(_ any, err error) {
-				if err != nil {
-					t.Errorf("answer failed: %v", err)
-				}
-			},
-		}, AnswerRequest{Actor: "alice", Answers: []domain.Answer{{ID: "node_ver", Value: "20"}}})
-	}, 4*time.Millisecond)
-
-	// Step 5: Turn 2 (Write initial plan; model not reported -> defaults to "Configured model").
-	var turn2Session *domain.Session
-	env.RegisterDelayedCallback(func() {
-		env.UpdateWorkflow(UpdateTurn, "turn-2", callbackUpdateCallbacks{
-			onComplete: func(val any, err error) {
-				if err != nil {
-					t.Errorf("turn 2 failed: %v", err)
-					return
-				}
-				turn2Session = val.(*domain.Session)
-			},
-		}, TurnRequest{Actor: "alice", Message: "Generate the initial plan"})
-	}, 5*time.Millisecond)
-
-	// Step 6: Turn 3 (Revise plan after plan arrived; model reports "claude-sonnet-4-20250514").
-	var turn3Session *domain.Session
-	env.RegisterDelayedCallback(func() {
-		env.UpdateWorkflow(UpdateTurn, "turn-3", callbackUpdateCallbacks{
-			onComplete: func(val any, err error) {
-				if err != nil {
-					t.Errorf("turn 3 failed: %v", err)
-					return
-				}
-				turn3Session = val.(*domain.Session)
-			},
-		}, TurnRequest{Actor: "alice", Message: "Enable SSO in the plan"})
-	}, 6*time.Millisecond)
-
-	// Step 7: Accept the plan -> commits audit and finishes the workflow.
-	env.RegisterDelayedCallback(func() {
-		env.UpdateWorkflow(UpdateAccept, "accept-final", callbackUpdateCallbacks{
-			onComplete: func(_ any, err error) {
-				if err != nil {
-					t.Errorf("accept failed: %v", err)
-				}
-			},
-		}, AcceptRequest{Actor: "alice"})
-	}, 7*time.Millisecond)
 
 	env.ExecuteWorkflow(WorkflowName, Input{
 		SessionID: "s-1",

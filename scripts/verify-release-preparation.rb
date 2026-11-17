@@ -33,7 +33,13 @@ check.call(config["include-component-in-tag"] == false && config["include-v-in-t
 check.call(config["bootstrap-sha"] == "92e0c6f6258b68f7bebf5da04978ac54ec337844", "bootstrap must remain the published v0.17.5 commit")
 check.call(package["bump-minor-pre-major"] == true && package["bump-patch-for-minor-pre-major"] == false, "pre-1.0 semantics changed without a policy decision")
 expected = %w[platform-hub platform-spoke].flat_map { |chart| %w[version appVersion].map { |key| {"type" => "yaml", "path" => "deploy/helm/#{chart}/Chart.yaml", "jsonpath" => "$.#{key}"} } }
-check.call(package["extra-files"] == expected, "version updates must enumerate the two charts only")
+# The UDS bundle is the third hand-maintained copy of VERSION, and
+# scripts/verify-zarf-package.rb refuses a bundle that disagrees with it. The
+# generic updater rewrites only lines marked x-release-please-version; the YAML
+# updater would also strip the bundle's comments. deploy/zarf/zarf.yaml is not
+# listed: its version is a package template filled at `zarf package create`.
+expected << {"type" => "generic", "path" => "deploy/zarf/uds-bundle.yaml"}
+check.call(package["extra-files"] == expected, "version updates must enumerate the two charts and the UDS bundle only")
 check.call(config["pull-request-title-pattern"] == 'chore(main): release ${version}', "release titles must use Conventional Commits")
 check.call(!config["pull-request-header"].to_s.empty? && !config["pull-request-footer"].to_s.empty?, "custom metadata must suppress upstream signature defaults")
 check.call(![config["pull-request-header"],config["pull-request-footer"]].join.match?(/generated with|beep|co-authored-by|openai|claude|codex/i), "release metadata must contain no attribution")
@@ -43,4 +49,9 @@ check.call(JSON.parse(File.read(File.join(root, ".release-please-manifest.json")
   metadata = YAML.safe_load_file(File.join(root, "deploy/helm", chart, "Chart.yaml"))
   check.call(metadata["version"] == version && metadata["appVersion"] == version, "chart versions must agree with VERSION")
 end
+# A bundle line that loses its marker is skipped silently by the generic
+# updater, and the next release PR fails the Zarf gate on its own head.
+marked = File.readlines(File.join(root, "deploy/zarf/uds-bundle.yaml"), chomp: true).grep(/\A  version: |\A    ref: /)
+check.call(marked.length == 2 && marked.all? { |line| line.end_with?(" #{version} # x-release-please-version") },
+  "the UDS bundle version and package ref must each carry VERSION and the Release Please marker")
 puts "release preparation: PR-only, explicit versions, bounded Trunk dispatch, manual publication preserved"

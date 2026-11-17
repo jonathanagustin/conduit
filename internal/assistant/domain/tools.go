@@ -22,6 +22,16 @@ const (
 	LabelNoModel   = "No model call"
 	LabelLiveModel = "Live model call"
 
+	// MaxToolCallsPerReply is how many calls one model reply may carry.
+	MaxToolCallsPerReply = 3
+	// MaxRounds is how many model calls one turn may make. Tool results are
+	// fed back between rounds, and the last round has to answer.
+	MaxRounds = 4
+	// MaxToolCallsPerTurn bounds the calls run across all rounds of one turn.
+	MaxToolCallsPerTurn = 8
+	// MaxToolResultBytes bounds one tool result as it is fed back to the model.
+	MaxToolResultBytes = 8 << 10
+
 	ModeExplore     = "explore"
 	ModeReleasePlan = "release_plan"
 	ModeConfigDiff  = "config_diff"
@@ -34,6 +44,10 @@ var (
 	ErrModelTimeout     = errors.New("local model CLI timed out")
 	ErrModelFailed      = errors.New("local model CLI failed")
 	ErrReplyInvalid     = errors.New("model reply is not valid")
+	// ErrRoundCap means the model was still asking for tools in its last round.
+	ErrRoundCap = errors.New("the model did not answer within the round limit")
+	// ErrAuditUnavailable stops a tool call or turn whose audit entry cannot be written.
+	ErrAuditUnavailable = errors.New("assistant audit is unavailable")
 )
 
 // Chip is one object the operator attached to the turn.
@@ -73,15 +87,19 @@ type DiffArgs struct {
 }
 
 // WriteArgs is one governed mutation. Missing fields come back as elicitation.
-// Confirm is set only after the person submits the card.
+// Confirm is set only after the person submits the card. An action that opens
+// a change request names its own environment, installation, and product: the
+// server never fills one in.
 type WriteArgs struct {
-	Action        string `json:"action"`
-	TargetID      string `json:"targetId,omitempty"`
-	Environment   string `json:"environment,omitempty"`
-	Value         string `json:"value,omitempty"`
-	Justification string `json:"justification,omitempty"`
-	Expected      string `json:"expectedOutcome,omitempty"`
-	Confirm       bool   `json:"confirm,omitempty"`
+	Action         string `json:"action"`
+	TargetID       string `json:"targetId,omitempty"`
+	Environment    string `json:"environment,omitempty"`
+	InstallationID string `json:"installationId,omitempty"`
+	ProductID      string `json:"productId,omitempty"`
+	Value          string `json:"value,omitempty"`
+	Justification  string `json:"justification,omitempty"`
+	Expected       string `json:"expectedOutcome,omitempty"`
+	Confirm        bool   `json:"confirm,omitempty"`
 }
 
 // Field is one elicitation input. It never asks for a secret.
@@ -201,10 +219,7 @@ func ParseToolCall(name string, arguments json.RawMessage) (ToolCall, error) {
 		if err != nil {
 			return ToolCall{}, err
 		}
-		switch strings.TrimSpace(args.Action) {
-		case "add_eval_case", "propose_memory", "cancel_packaging_run", "rerun_packaging_run",
-			"promote", "recall", "approve_change", "reject_change", "select_course", "start_packaging_run":
-		default:
+		if !knownWriteAction(args.Action) {
 			return ToolCall{}, fmt.Errorf("%w: unknown action", ErrToolInvalid)
 		}
 		call.Write = args
@@ -217,25 +232,69 @@ func ParseToolCall(name string, arguments json.RawMessage) (ToolCall, error) {
 	return call, nil
 }
 
-// ParseReply accepts one JSON object and at most three tool calls.
+// ParseReply accepts one reply object with at most three tool calls. The
+// object may be the whole reply, sit inside a Markdown fence, or follow prose:
+// a raw CLI often prints either. The object itself is still decoded strictly.
 func ParseReply(raw []byte) (ModelReply, error) {
+	var first error
+	for _, candidate := range replyCandidates(raw) {
+		reply, shaped, err := parseReplyObject(candidate)
+		if err == nil {
+			return reply, nil
+		}
+		if shaped {
+			// The right object with a wrong tool call. An earlier object in
+			// the same output is not a better answer.
+			return ModelReply{}, err
+		}
+		if first == nil {
+			first = err
+		}
+	}
+	if first == nil {
+		first = fmt.Errorf("%w: no JSON object in the reply", ErrReplyInvalid)
+	}
+	return ModelReply{}, first
+}
+
+// parseReplyObject decodes one candidate. shaped reports that it was a reply
+// object carrying tool calls, so its error is the reply's error.
+func parseReplyObject(raw []byte) (ModelReply, bool, error) {
 	reply, err := decode[ModelReply](raw)
 	if err != nil {
-		return ModelReply{}, fmt.Errorf("%w: %v", ErrReplyInvalid, err)
+		return ModelReply{}, false, fmt.Errorf("%w: %v", ErrReplyInvalid, err)
 	}
 	reply.Text = strings.TrimSpace(reply.Text)
 	if reply.Text == "" && len(reply.ToolCalls) == 0 {
-		return ModelReply{}, fmt.Errorf("%w: text or a tool call is required", ErrReplyInvalid)
+		return ModelReply{}, false, fmt.Errorf("%w: text or a tool call is required", ErrReplyInvalid)
 	}
-	if len(reply.ToolCalls) > 3 {
-		return ModelReply{}, fmt.Errorf("%w: at most 3 tool calls", ErrReplyInvalid)
+	if len(reply.ToolCalls) > MaxToolCallsPerReply {
+		return ModelReply{}, true, fmt.Errorf("%w: at most %d tool calls", ErrReplyInvalid, MaxToolCallsPerReply)
 	}
 	for _, call := range reply.ToolCalls {
 		if _, err := ParseToolCall(call.Name, call.Arguments); err != nil {
-			return ModelReply{}, err
+			return ModelReply{}, true, fmt.Errorf("%w: %w", ErrReplyInvalid, err)
 		}
 	}
-	return reply, nil
+	return reply, true, nil
+}
+
+// WriteActions lists every action governed_write accepts.
+func WriteActions() []string {
+	return []string{
+		"add_eval_case", "propose_memory", "cancel_packaging_run", "rerun_packaging_run",
+		"promote", "recall", "approve_change", "reject_change", "select_course", "start_packaging_run",
+	}
+}
+
+func knownWriteAction(action string) bool {
+	action = strings.TrimSpace(action)
+	for _, known := range WriteActions() {
+		if action == known {
+			return true
+		}
+	}
+	return false
 }
 
 // Risk is low when the caller's role may apply the action after Confirm.
@@ -258,6 +317,13 @@ func MissingFields(args WriteArgs) []Field {
 		}
 		fields = append(fields, Field{Name: name, Label: label, Type: "string", Required: true, Options: options})
 	}
+	// changeTarget is what a change request is filed against. The caller names
+	// all three; none of them has a default.
+	changeTarget := func() {
+		need("environment", "Environment", args.Environment)
+		need("installationId", "Installation", args.InstallationID)
+		need("productId", "Product", args.ProductID)
+	}
 	switch strings.TrimSpace(args.Action) {
 	case "add_eval_case":
 		need("justification", "Scenario", args.Justification)
@@ -266,11 +332,14 @@ func MissingFields(args WriteArgs) []Field {
 	case "propose_memory", "select_course":
 		need("value", "Memory value", args.Value, "512Mi", "1Gi", "8Gi")
 		need("justification", "Justification", args.Justification)
-		need("environment", "Environment", args.Environment)
+		changeTarget()
 	case "promote", "recall":
 		need("targetId", "Target", args.TargetID)
 		need("justification", "Justification", args.Justification)
-		need("environment", "Environment", args.Environment)
+		changeTarget()
+	case "cancel_packaging_run":
+		need("targetId", "Packaging run", args.TargetID)
+		changeTarget()
 	case "approve_change", "reject_change":
 		need("targetId", "Change request", args.TargetID)
 		need("justification", "Justification", args.Justification)

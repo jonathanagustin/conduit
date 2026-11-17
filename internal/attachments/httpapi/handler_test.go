@@ -24,6 +24,7 @@ func server(allow bool) *http.ServeMux {
 			}
 			return errors.New("no")
 		},
+		Operator: func(*http.Request) (string, error) { return "ada", nil },
 	})
 	return mux
 }
@@ -86,6 +87,55 @@ func TestUploadListAndReadBack(t *testing.T) {
 	if call(mux, "GET", "/v1/intake-attachments/NOT-A-DIGEST", "").Code != http.StatusNotFound {
 		t.Fatal("malformed digest must be 404")
 	}
+}
+
+func TestAnotherOperatorCannotFetchTheFile(t *testing.T) {
+	mux := http.NewServeMux()
+	httpapi.Register(mux, httpapi.Config{
+		Service:   application.Service{Store: recorded.New()},
+		Authorize: func(*http.Request) error { return nil },
+		Operator: func(request *http.Request) (string, error) {
+			name := request.Header.Get("X-Test-User")
+			if name == "" {
+				return "", errors.New("no")
+			}
+			return name, nil
+		},
+	})
+	raw, _ := json.Marshal(map[string]string{"filename": "notes.txt", "content": "private note\n"})
+	created := callAs(mux, "ada", "POST", "/v1/intake-attachments", string(raw))
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create %d %s", created.Code, created.Body)
+	}
+	var item domain.Attachment
+	if err := json.Unmarshal(created.Body.Bytes(), &item); err != nil || item.SHA256 == "" {
+		t.Fatal(created.Body.String())
+	}
+	ada := callAs(mux, "ada", "GET", "/v1/intake-attachments/"+item.SHA256, "")
+	if ada.Code != http.StatusOK || !strings.Contains(ada.Body.String(), "private note") {
+		t.Fatalf("ada %d %s", ada.Code, ada.Body)
+	}
+	foreign := callAs(mux, "bea", "GET", "/v1/intake-attachments/"+item.SHA256, "")
+	missing := callAs(mux, "bea", "GET", "/v1/intake-attachments/"+strings.Repeat("0", 64), "")
+	if foreign.Code != http.StatusNotFound || missing.Code != http.StatusNotFound || foreign.Body.String() != missing.Body.String() {
+		t.Fatalf("foreign %d %s missing %d %s", foreign.Code, foreign.Body, missing.Code, missing.Body)
+	}
+	list := callAs(mux, "bea", "GET", "/v1/intake-attachments", "")
+	if list.Code != http.StatusOK || strings.Contains(list.Body.String(), item.SHA256) || strings.Contains(list.Body.String(), "private note") {
+		t.Fatalf("bea list %s", list.Body)
+	}
+	adaList := callAs(mux, "ada", "GET", "/v1/intake-attachments", "")
+	if adaList.Code != http.StatusOK || !strings.Contains(adaList.Body.String(), item.SHA256) {
+		t.Fatalf("ada list %s", adaList.Body)
+	}
+}
+
+func callAs(mux http.Handler, user, method, target, body string) *httptest.ResponseRecorder {
+	request := httptest.NewRequest(method, target, strings.NewReader(body))
+	request.Header.Set("X-Test-User", user)
+	recorder := httptest.NewRecorder()
+	mux.ServeHTTP(recorder, request)
+	return recorder
 }
 
 func TestRejectedUploadsReturnAReasonAndAreNotStored(t *testing.T) {

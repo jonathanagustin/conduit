@@ -2,7 +2,9 @@ package composition
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	appdomain "github.com/jonathanagustin/conduit/internal/appgen/domain"
@@ -22,14 +24,22 @@ func newAttachmentService(repository controlplane.Repository) *attachapp.Service
 }
 
 func mountAttachments(
-	legacy http.Handler, options controlplane.HandlerOptions, service *attachapp.Service,
+	legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, service *attachapp.Service,
 ) http.Handler {
+	governanceService := controlplane.NewGovernanceService(repository)
 	mux := http.NewServeMux()
 	attachhttp.Register(mux, attachhttp.Config{
 		Service: service,
 		Authorize: func(request *http.Request) error {
 			_, err := operatorClaims(request, options)
 			return err
+		},
+		Operator: func(request *http.Request) (string, error) {
+			principal, ok := packagingPrincipal(request, governanceService, options)
+			if !ok || strings.TrimSpace(principal.Username) == "" {
+				return "", errors.New("unauthorized")
+			}
+			return principal.Username, nil
 		},
 	})
 	mux.Handle("/", legacy)
@@ -39,8 +49,8 @@ func mountAttachments(
 // appAttachments binds stored files into a generation request as read-only context.
 type appAttachments struct{ stored *attachapp.Service }
 
-func (bound appAttachments) Resolve(ctx context.Context, digests []string) ([]appdomain.Attachment, error) {
-	items, err := bound.stored.Resolve(ctx, digests)
+func (bound appAttachments) Resolve(ctx context.Context, actor string, digests []string) ([]appdomain.Attachment, error) {
+	items, err := bound.stored.Resolve(ctx, actor, digests)
 	if err != nil {
 		return nil, err
 	}
@@ -54,8 +64,8 @@ func (bound appAttachments) Resolve(ctx context.Context, digests []string) ([]ap
 // packagingAttachments binds stored files into a packaging proposal as read-only context.
 type packagingAttachments struct{ stored *attachapp.Service }
 
-func (bound packagingAttachments) Resolve(ctx context.Context, digests []string) ([]packagingdomain.Attachment, error) {
-	items, err := bound.stored.Resolve(ctx, digests)
+func (bound packagingAttachments) Resolve(ctx context.Context, actor string, digests []string) ([]packagingdomain.Attachment, error) {
+	items, err := bound.stored.Resolve(ctx, actor, digests)
 	if err != nil {
 		return nil, err
 	}
@@ -82,8 +92,12 @@ func (audit attachmentAudit) Record(ctx context.Context, event attachapp.Audit) 
 	if event.Outcome != attachapp.OutcomeStored {
 		decision = governance.DecisionDeny
 	}
+	subject := "intake-attachment"
+	if name := strings.TrimSpace(event.Actor); name != "" && event.Outcome == attachapp.OutcomeDenied {
+		subject = name
+	}
 	record := governance.NewAuthorizationCheckEvent(
-		time.Now().UTC(), "intake-attachment", event.Action, "intake-attachment/"+event.SHA256, decision, event.Reason,
+		time.Now().UTC(), subject, event.Action, "intake-attachment/"+event.SHA256, decision, event.Reason,
 		map[string]any{"name": event.Name, "kind": event.Kind, "size": event.Size, "sha256": event.SHA256},
 	)
 	_, err := audit.repository.AppendAuthorizationAudit(ctx, record)

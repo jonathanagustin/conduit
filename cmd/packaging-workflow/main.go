@@ -24,9 +24,7 @@ import (
 	devworkspaceapp "github.com/jonathanagustin/conduit/internal/devworkspace/application"
 	devworkspacedomain "github.com/jonathanagustin/conduit/internal/devworkspace/domain"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
-	"github.com/jonathanagustin/conduit/internal/localcmd"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters"
-	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelcli"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/packagingmcp"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/packagingtools"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/planlifecycle"
@@ -36,7 +34,6 @@ import (
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/fixtures"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/pipeline"
-	"github.com/jonathanagustin/conduit/internal/planning/adapters/planner"
 	planningapp "github.com/jonathanagustin/conduit/internal/planning/application"
 	planningdomain "github.com/jonathanagustin/conduit/internal/planning/domain"
 	planningworkflow "github.com/jonathanagustin/conduit/internal/planning/workflow"
@@ -62,7 +59,9 @@ func newRoot() *cobra.Command {
 			if os.Getenv("TEMPORAL_API_KEY") != "" || (namespace != "" && namespace != "default") {
 				return fmt.Errorf("refusing Temporal Cloud credentials")
 			}
-			return nil
+			// Every subcommand, the worker and agent-exec included, refuses
+			// two model transports before it does anything else.
+			return refuseBothModelTransports(os.Getenv)
 		},
 	}
 	root.PersistentFlags().StringVar(&address, "address", "127.0.0.1:7233", "loopback Temporal frontend")
@@ -119,7 +118,7 @@ func newRoot() *cobra.Command {
 			return nil
 		},
 	}
-	workerCmd.Flags().BoolVar(&planFixture, "plan-fixture", false, "use a deterministic local planning fixture when CONDUIT_MODEL_CMD is unset")
+	workerCmd.Flags().BoolVar(&planFixture, "plan-fixture", false, "use a deterministic local planning fixture when no model transport is configured")
 	root.AddCommand(workerCmd)
 
 	var sourceFile string
@@ -492,12 +491,12 @@ func executePlanCompute(ctx context.Context, stateDir, actor, workspaceID, envID
 	}
 
 	var writer packagingapp.PackageWriter = fixturePackageWriter{repoURL: repoURL, planText: planText}
-	if raw := strings.TrimSpace(os.Getenv("CONDUIT_MODEL_CMD")); raw != "" {
-		argv, parseErr := localcmd.ParseArgv(raw)
-		if parseErr != nil {
-			return planComputeOutput{}, fmt.Errorf("CONDUIT_MODEL_CMD: %w", parseErr)
-		}
-		writer = modelcli.Runner{Argv: argv, Timeout: 45 * time.Second}
+	transport, transportErr := resolveModelTransport(os.Getenv)
+	if transportErr != nil {
+		return planComputeOutput{}, transportErr
+	}
+	if transport.configured() {
+		writer = transport.packageWriter()
 	}
 
 	auditor := &fileWorkspaceComputeAuditor{
@@ -604,7 +603,7 @@ func (w fixturePackageWriter) ProposePackage(_ context.Context, input domain.Pac
 		Zarf:   string(rendered.Zarf),
 		CR:     string(rendered.CR),
 		Dockerfile: strings.Join([]string{
-			"FROM cgr.dev/chainguard/node@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+			"FROM cgr.dev/chainguard/node@sha256:a7e8f028496a951ef5f97fd5de75d98ef5a74383148a346e6858264de0b211a8",
 			"WORKDIR /app",
 			"COPY package.json ./",
 			"USER 65532:65532",
@@ -1195,12 +1194,12 @@ func activitiesWithRepository(stateDir, fixtureDir string) (pipeline.Activities,
 
 func planningActivities(stateDir string, repository controlplane.Repository, useFixture bool) (planningworkflow.Activities, error) {
 	var runner planningapp.Planner
-	if raw := strings.TrimSpace(os.Getenv("CONDUIT_MODEL_CMD")); raw != "" {
-		argv, err := localcmd.ParseArgv(raw)
-		if err != nil {
-			return planningworkflow.Activities{}, fmt.Errorf("CONDUIT_MODEL_CMD: %w", err)
-		}
-		runner = planner.Planner{Argv: argv, Timeout: 45 * time.Second, Clone: workspaceAwareClone(stateDir)}
+	transport, err := resolveModelTransport(os.Getenv)
+	if err != nil {
+		return planningworkflow.Activities{}, err
+	}
+	if transport.configured() {
+		runner = transport.planner(workspaceAwareClone(stateDir))
 	} else if useFixture {
 		runner = fixturePlanningRunner{stateDir: stateDir}
 	}

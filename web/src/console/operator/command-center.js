@@ -259,7 +259,10 @@ export function createCommandCenter({
   function render(node) {
     currentNode = node;
     node.innerHTML = overviewMarkup(getHub(), { ui });
-    void mountOverview(node.querySelector("[data-overview-rpc]"));
+    // The loading markup has no overview slot. Mounting into the missing
+    // node rejected on every first paint, unhandled.
+    const overview = node.querySelector("[data-overview-rpc]");
+    if (overview) void mountOverview(overview);
     const select = (id) => {
       const site = recordedSites(getHub()?.environments).find(
         (item) => item.id === id,

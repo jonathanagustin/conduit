@@ -1,3 +1,40 @@
+{{- if and .Values.metrics.enabled (ne .Values.repository.kind "postgres") }}
+{{- fail "metrics.enabled requires repository.kind postgres: the Hub serves /metrics only for the PostgreSQL repository" }}
+{{- end }}
+{{- if and (ne .Values.notifications.transport "none") (ne .Values.repository.kind "postgres") }}
+{{- fail "notifications.transport requires repository.kind postgres: delivery needs the durable queue" }}
+{{- end }}
+{{- $smtp := .Values.notifications.native.smtp -}}
+{{- $slack := .Values.notifications.native.slack -}}
+{{- if eq .Values.notifications.transport "native" }}
+{{- if and (not $smtp.address) (not $slack.tokenSecretName) }}
+{{- fail "notifications.transport=native requires notifications.native.smtp.address or notifications.native.slack.tokenSecretName" }}
+{{- end }}
+{{- if and $smtp.address (not $smtp.from) }}
+{{- fail "notifications.native.smtp.from is required when notifications.native.smtp.address is set" }}
+{{- end }}
+{{- end }}
+{{- if and (eq .Values.planOrchestrator.driver "temporal") (not .Values.planOrchestrator.temporalAddress) (not .Values.packagingWorkflow.enabled) }}
+{{- fail "planOrchestrator.driver=temporal requires planOrchestrator.temporalAddress or packagingWorkflow.enabled" }}
+{{- end }}
+{{- $planningBackend := .Values.planning.backend | default "local" -}}
+{{- if and (gt (int .Values.replicaCount) 1) (ne $planningBackend "temporal") }}
+{{- fail "replicaCount greater than 1 requires planning.backend temporal; a process-local planning store is not shared across Hub replicas" }}
+{{- end }}
+{{- $model := .Values.model -}}
+{{- if $model.baseURL }}
+{{- if not $model.name }}
+{{- fail "model.name is required when model.baseURL is set" }}
+{{- end }}
+{{- if and (hasPrefix "http://" $model.baseURL) (not $model.allowInsecureHTTP) }}
+{{- fail "model.baseURL uses plain http: set model.allowInsecureHTTP=true to accept a plaintext model endpoint, or use https" }}
+{{- end }}
+{{- if and $model.allowInsecureHTTP (not (hasPrefix "http://" $model.baseURL)) }}
+{{- fail "model.allowInsecureHTTP is only accepted with an http:// model.baseURL" }}
+{{- end }}
+{{- else if or $model.name $model.timeout $model.apiKeySecret.name $model.caConfigMap.name $model.allowInsecureHTTP }}
+{{- fail "model.baseURL is required when any other model value is set" }}
+{{- end }}
 {{- $podLabels := deepCopy .Values.podLabels -}}
 {{- $_ := set $podLabels "app.kubernetes.io/name" (include "platform-hub.name" .) -}}
 {{- $_ := set $podLabels "app.kubernetes.io/instance" .Release.Name -}}
@@ -100,6 +137,25 @@ spec:
             - { name: DOCKER_CONFIG, value: {{ $.Values.artifactScanner.registryAuthMountPath | quote }} }
             {{- end }}
             {{- end }}
+            - { name: HUB_REPLICA_COUNT, value: {{ .Values.replicaCount | quote }} }
+            {{- if eq $planningBackend "temporal" }}
+            - { name: CONDUIT_TEMPORAL_ADDRESS, value: {{ required "planning.temporal.address is required when planning.backend is temporal" .Values.planning.temporal.address | quote }} }
+            - { name: CONDUIT_TEMPORAL_NAMESPACE, value: {{ .Values.planning.temporal.namespace | default "default" | quote }} }
+            - { name: CONDUIT_TEMPORAL_TASK_QUEUE, value: {{ .Values.planning.temporal.taskQueue | default "planning-sessions" | quote }} }
+            - { name: CONDUIT_TEMPORAL_SHARED, value: "true" }
+            {{- end }}
+            {{- with .Values.planning.compute.imageBuilder }}
+            - { name: CONDUIT_IMAGE_BUILDER, value: {{ . | quote }} }
+            {{- end }}
+            {{- with .Values.planning.compute.gitRoot }}
+            - { name: DEVWORKSPACE_GIT_ROOT, value: {{ . | quote }} }
+            {{- end }}
+            {{- with .Values.planning.compute.packagingBuild }}
+            - { name: CONDUIT_PACKAGING_BUILD, value: {{ . | quote }} }
+            {{- end }}
+            {{- with .Values.planning.compute.httpWriteTimeout }}
+            - { name: CONDUIT_HTTP_WRITE_TIMEOUT, value: {{ . | quote }} }
+            {{- end }}
             {{- if .Values.packagingWorkflow.enabled }}
             - { name: PACKAGING_TEMPORAL_ADDRESS, value: {{ required "packagingWorkflow.address is required when packagingWorkflow.enabled" .Values.packagingWorkflow.address | quote }} }
             - { name: PACKAGING_TEMPORAL_NAMESPACE, value: {{ .Values.packagingWorkflow.namespace | quote }} }
@@ -118,8 +174,70 @@ spec:
             - { name: PACKAGING_TEMPORAL_API_KEY_FILE, value: /run/packaging-temporal-api-key/api-key }
             {{- end }}
             {{- end }}
+            {{- if .Values.metrics.enabled }}
+            - { name: METRICS_ADDRESS, value: {{ printf ":%d" (int .Values.metrics.port) | quote }} }
+            {{- end }}
+            {{- if eq .Values.notifications.transport "webhook" }}
+            - name: NOTIFICATION_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "notifications.webhook.urlSecretName is required when notifications.transport=webhook" .Values.notifications.webhook.urlSecretName }}
+                  key: {{ .Values.notifications.webhook.urlSecretKey }}
+                  optional: false
+            {{- with .Values.notifications.webhook.timeout }}
+            - { name: NOTIFICATION_WEBHOOK_TIMEOUT, value: {{ . | quote }} }
+            {{- end }}
+            {{- else if eq .Values.notifications.transport "log" }}
+            - { name: NOTIFICATION_DELIVERY_LOG, value: "true" }
+            {{- else if eq .Values.notifications.transport "native" }}
+            {{- with .Values.notifications.native.timeout }}
+            - { name: NOTIFICATION_NATIVE_TIMEOUT, value: {{ . | quote }} }
+            {{- end }}
+            {{- if $smtp.address }}
+            - { name: NOTIFICATION_SMTP_ADDRESS, value: {{ $smtp.address | quote }} }
+            - { name: NOTIFICATION_SMTP_FROM, value: {{ $smtp.from | quote }} }
+            {{- with $smtp.tlsMode }}
+            - { name: NOTIFICATION_SMTP_TLS_MODE, value: {{ . | quote }} }
+            {{- end }}
+            {{- if $smtp.credentialsSecretName }}
+            - { name: NOTIFICATION_SMTP_USERNAME_FILE, value: /run/notification-smtp/username }
+            - { name: NOTIFICATION_SMTP_PASSWORD_FILE, value: /run/notification-smtp/password }
+            {{- end }}
+            {{- if $smtp.caConfigMapName }}
+            - { name: NOTIFICATION_SMTP_CA_FILE, value: /run/notification-smtp-ca/ca.pem }
+            {{- end }}
+            {{- end }}
+            {{- if $slack.tokenSecretName }}
+            - { name: NOTIFICATION_SLACK_TOKEN_FILE, value: /run/notification-slack/token }
+            {{- end }}
+            {{- end }}
+            {{- if eq .Values.planOrchestrator.driver "temporal" }}
+            - { name: PLAN_ORCHESTRATOR, value: temporal }
+            {{- with .Values.planOrchestrator.temporalAddress }}
+            - { name: PLAN_TEMPORAL_ADDRESS, value: {{ . | quote }} }
+            {{- end }}
+            {{- end }}
+            {{- if $model.baseURL }}
+            - { name: CONDUIT_MODEL_BASE_URL, value: {{ $model.baseURL | quote }} }
+            - { name: CONDUIT_MODEL_NAME, value: {{ $model.name | quote }} }
+            {{- with $model.timeout }}
+            - { name: CONDUIT_MODEL_TIMEOUT, value: {{ . | quote }} }
+            {{- end }}
+            {{- if $model.apiKeySecret.name }}
+            - { name: CONDUIT_MODEL_API_KEY_FILE, value: /run/conduit-model/api-key }
+            {{- end }}
+            {{- if $model.caConfigMap.name }}
+            - { name: CONDUIT_MODEL_CA_FILE, value: /run/conduit-model-ca/ca.pem }
+            {{- end }}
+            {{- if $model.allowInsecureHTTP }}
+            - { name: CONDUIT_MODEL_ALLOW_INSECURE_HTTP, value: "true" }
+            {{- end }}
+            {{- end }}
           ports:
             - { name: https, containerPort: {{ .Values.service.port }} }
+            {{- if .Values.metrics.enabled }}
+            - { name: metrics, containerPort: {{ .Values.metrics.port }} }
+            {{- end }}
           startupProbe:
             httpGet: { path: /health/live, port: https, scheme: HTTPS }
             periodSeconds: 5
@@ -154,6 +272,9 @@ spec:
             {{- with .Values.artifactScanner.registryAuthSecretName }}
             - { name: artifact-scanner-registry-auth, mountPath: {{ $.Values.artifactScanner.registryAuthMountPath | quote }}, readOnly: true }
             {{- end }}
+            {{- with .Values.planning.compute.gitRoot }}
+            - { name: planning-workspaces, mountPath: {{ . | quote }} }
+            {{- end }}
             {{- if .Values.packagingWorkflow.enabled }}
             {{- with .Values.packagingWorkflow.tls.certSecretName }}
             - { name: packaging-temporal-tls, mountPath: /run/packaging-temporal-tls, readOnly: true }
@@ -164,6 +285,23 @@ spec:
             {{- with .Values.packagingWorkflow.apiKeySecretName }}
             - { name: packaging-temporal-api-key, mountPath: /run/packaging-temporal-api-key, readOnly: true }
             {{- end }}
+            {{- end }}
+            {{- if eq .Values.notifications.transport "native" }}
+            {{- if and $smtp.address $smtp.credentialsSecretName }}
+            - { name: notification-smtp, mountPath: /run/notification-smtp, readOnly: true }
+            {{- end }}
+            {{- if and $smtp.address $smtp.caConfigMapName }}
+            - { name: notification-smtp-ca, mountPath: /run/notification-smtp-ca, readOnly: true }
+            {{- end }}
+            {{- if $slack.tokenSecretName }}
+            - { name: notification-slack, mountPath: /run/notification-slack, readOnly: true }
+            {{- end }}
+            {{- end }}
+            {{- if and $model.baseURL $model.apiKeySecret.name }}
+            - { name: conduit-model, mountPath: /run/conduit-model, readOnly: true }
+            {{- end }}
+            {{- if and $model.baseURL $model.caConfigMap.name }}
+            - { name: conduit-model-ca, mountPath: /run/conduit-model-ca, readOnly: true }
             {{- end }}
       volumes:
         {{- if eq .Values.repository.kind "file" }}
@@ -197,6 +335,10 @@ spec:
             name: {{ include "platform-hub.fullname" . }}-console-bootstrap
             items:
               - { key: bootstrap.json, path: bootstrap.json }
+        {{- with .Values.planning.compute.gitRoot }}
+        - name: planning-workspaces
+          emptyDir: {}
+        {{- end }}
         {{- with .Values.artifactScanner.toolsPersistentVolumeClaimName }}
         - name: artifact-scanner-tools
           persistentVolumeClaim:
@@ -235,6 +377,47 @@ spec:
             items:
               - { key: api-key, path: api-key }
         {{- end }}
+        {{- end }}
+        {{- if eq .Values.notifications.transport "native" }}
+        {{- if and $smtp.address $smtp.credentialsSecretName }}
+        - name: notification-smtp
+          secret:
+            secretName: {{ $smtp.credentialsSecretName }}
+            optional: false
+            items:
+              - { key: {{ $smtp.usernameKey }}, path: username }
+              - { key: {{ $smtp.passwordKey }}, path: password }
+        {{- end }}
+        {{- if and $smtp.address $smtp.caConfigMapName }}
+        - name: notification-smtp-ca
+          configMap:
+            name: {{ $smtp.caConfigMapName }}
+            items:
+              - { key: {{ $smtp.caKey }}, path: ca.pem }
+        {{- end }}
+        {{- if $slack.tokenSecretName }}
+        - name: notification-slack
+          secret:
+            secretName: {{ $slack.tokenSecretName }}
+            optional: false
+            items:
+              - { key: {{ $slack.tokenKey }}, path: token }
+        {{- end }}
+        {{- end }}
+        {{- if and $model.baseURL $model.apiKeySecret.name }}
+        - name: conduit-model
+          secret:
+            secretName: {{ $model.apiKeySecret.name }}
+            optional: false
+            items:
+              - { key: {{ $model.apiKeySecret.key }}, path: api-key }
+        {{- end }}
+        {{- if and $model.baseURL $model.caConfigMap.name }}
+        - name: conduit-model-ca
+          configMap:
+            name: {{ $model.caConfigMap.name }}
+            items:
+              - { key: {{ $model.caConfigMap.key }}, path: ca.pem }
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:

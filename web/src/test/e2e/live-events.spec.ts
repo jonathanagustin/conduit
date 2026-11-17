@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { APPLICATIONS } from "./hub-stub";
+
 type BrowserStream = {
   controller: ReadableStreamDefaultController<Uint8Array> | null;
   requests: {
@@ -105,6 +107,7 @@ async function fixture(page: Page, status = 200) {
             actor: person,
             effective: person,
             delegated: false,
+            applications: APPLICATIONS,
             globalOperations: [],
             resources: [],
           }

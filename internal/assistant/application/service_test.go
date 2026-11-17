@@ -23,11 +23,38 @@ func (governor scriptGovernor) Evaluate(context.Context, string, string, string,
 	return governor.decision, nil
 }
 
-type memoryChanges struct{ calls int }
+type countingGovernor struct{ rules []string }
 
-func (changes *memoryChanges) Open(context.Context, Proposal) (OpenedChange, error) {
+func (governor *countingGovernor) Evaluate(_ context.Context, _, action, _ string, _ []string) (Decision, error) {
+	governor.rules = append(governor.rules, action)
+	return Decision{Known: true, Allowed: true, Reason: "action allowed"}, nil
+}
+
+type memoryChanges struct {
+	calls int
+	last  Proposal
+}
+
+func (changes *memoryChanges) Open(_ context.Context, proposal Proposal) (OpenedChange, error) {
 	changes.calls++
+	changes.last = proposal
 	return OpenedChange{ID: "crq_test", Status: "PENDING_APPROVALS"}, nil
+}
+
+type memoryReviews struct{ calls int }
+
+func (reviews *memoryReviews) Approve(context.Context, string, string, string, []string) (string, error) {
+	reviews.calls++
+	return "APPROVED", nil
+}
+
+func (reviews *memoryReviews) Reject(context.Context, string, string, string, []string) (string, error) {
+	reviews.calls++
+	return "REJECTED", nil
+}
+
+func allow() scriptGovernor {
+	return scriptGovernor{decision: Decision{Known: true, Allowed: true, Reason: "action allowed"}}
 }
 
 type memoryDiffs struct{}
@@ -105,21 +132,19 @@ func TestDiffReturnsTheStoredHunk(t *testing.T) {
 	}
 }
 
-type scriptModel struct{ body string }
-
-func (model scriptModel) Complete(context.Context, string) (string, domain.Provenance, error) {
-	return model.body, domain.Provenance{Adapter: "script"}, nil
-}
-
 func TestModelTurnValidatesThenGatesTheAction(t *testing.T) {
 	changes := &memoryChanges{}
+	model := &scripted{replies: []string{
+		`{"text":"checking the rule","toolCalls":[{"name":"propose_governed_action","arguments":` + string(proposeBody()) + `}]}`,
+		`{"text":"the rule refused it: the run is not running"}`,
+	}}
 	service := Service{
-		Model:    scriptModel{body: `{"text":"checking the rule","toolCalls":[{"name":"propose_governed_action","arguments":` + string(proposeBody()) + `}]}`},
+		Model:    model,
 		Governor: scriptGovernor{decision: Decision{Known: true, Reason: "run is not queued, running, or staged"}},
 		Changes:  changes, Audit: &memoryAudit{}, Now: fixedClock(),
 	}
 	turn, err := service.Turn(context.Background(), operator(), domain.ModeOntology, "cancel the run", nil)
-	if err != nil || turn.Label != domain.LabelLiveModel || turn.Text != "checking the rule" || len(turn.Results) != 1 {
+	if err != nil || turn.Label != domain.LabelLiveModel || turn.Text != "the rule refused it: the run is not running" || len(turn.Results) != 1 {
 		t.Fatalf("turn = %#v %v", turn, err)
 	}
 	if turn.Results[0].Allowed || changes.calls != 0 || turn.Results[0].Reason == "" {
@@ -159,20 +184,120 @@ func (authors memoryAuthors) Author(context.Context, string) (string, error) {
 
 func TestElicitationDoesNotOpenAChange(t *testing.T) {
 	changes := &memoryChanges{}
-	service := Service{Changes: changes, Audit: &memoryAudit{}, Now: fixedClock()}
-	result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, []byte(`{"action":"propose_memory"}`))
+	service := Service{Governor: allow(), Changes: changes, Audit: &memoryAudit{}, Now: fixedClock()}
+	result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, []byte(`{"action":"promote"}`))
 	if err != nil || len(result.Fields) == 0 || changes.calls != 0 || result.ChangeRequestID != "" {
 		t.Fatalf("elicit = %#v calls=%d %v", result, changes.calls, err)
 	}
 }
 
-func TestHighRiskOpensAChangeRequest(t *testing.T) {
+// A change request is filed against the installation, product, and environment
+// the caller named. One that is missing is asked for; none is defaulted.
+func TestChangeRequestTargetComesFromTheArguments(t *testing.T) {
 	changes := &memoryChanges{}
-	service := Service{Changes: changes, Audit: &memoryAudit{}, Now: fixedClock()}
-	result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, []byte(`{"action":"propose_memory","value":"512Mi","justification":"headroom","environment":"dev"}`))
+	service := Service{Governor: allow(), Changes: changes, Audit: &memoryAudit{}, Now: fixedClock()}
+	result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite,
+		[]byte(`{"action":"promote","targetId":"rel-7","justification":"ready","environment":"prod-east","installationId":"billing-api","productId":"com.acme:billing"}`))
 	if err != nil || result.ChangeRequestID != "crq_test" || result.Applied || changes.calls != 1 {
 		t.Fatalf("high = %#v calls=%d %v", result, changes.calls, err)
 	}
+	if changes.last.InstallationID != "billing-api" || changes.last.ProductID != "com.acme:billing" || changes.last.Environment != "prod-east" || changes.last.TargetEntityID != "rel-7" {
+		t.Fatalf("proposal = %#v", changes.last)
+	}
+	for _, body := range []string{
+		`{"action":"promote","targetId":"rel-7","justification":"ready","installationId":"billing-api","productId":"com.acme:billing"}`,
+		`{"action":"promote","targetId":"rel-7","justification":"ready","environment":"prod-east","productId":"com.acme:billing"}`,
+		`{"action":"promote","targetId":"rel-7","justification":"ready","environment":"prod-east","installationId":"billing-api"}`,
+		`{"action":"cancel_packaging_run","targetId":"run-1","environment":" ","installationId":"billing-api","productId":"com.acme:billing"}`,
+	} {
+		changes.calls = 0
+		missing, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, []byte(body))
+		if err != nil || changes.calls != 0 || missing.ChangeRequestID != "" || missing.Allowed || len(missing.Fields) != 1 {
+			t.Fatalf("%s = %#v calls=%d %v", body, missing, changes.calls, err)
+		}
+	}
+}
+
+// An opened change request says what it is: nothing runs the action on approval.
+func TestOpenedChangeRequestDoesNotClaimTheActionWillRun(t *testing.T) {
+	service := Service{Governor: allow(), Changes: &memoryChanges{}, Audit: &memoryAudit{}, Now: fixedClock()}
+	result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite,
+		[]byte(`{"action":"cancel_packaging_run","targetId":"run-1","environment":"dev","installationId":"billing-api","productId":"com.acme:billing"}`))
+	if err != nil || result.Applied || !strings.Contains(result.Reason, "does not run the action") {
+		t.Fatalf("opened = %#v %v", result, err)
+	}
+}
+
+// start_packaging_run and rerun_packaging_run have no service behind them here.
+func TestActionWithoutAnExecutorIsRefusedNotApplied(t *testing.T) {
+	for _, action := range []string{"start_packaging_run", "rerun_packaging_run"} {
+		changes, cases, reviews := &memoryChanges{}, &memoryCases{}, &memoryReviews{}
+		service := Service{Governor: allow(), Changes: changes, Cases: cases, Reviews: reviews, Audit: &memoryAudit{}, Now: fixedClock()}
+		for _, confirm := range []string{"true", "false"} {
+			result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite,
+				[]byte(`{"action":"`+action+`","targetId":"run-1","confirm":`+confirm+`}`))
+			if err != nil || result.Applied || result.Allowed || result.NeedsConfirm || result.WriteOps != 0 || result.State != "" || result.Reason != ReasonNotExecutable {
+				t.Fatalf("%s confirm=%s = %#v %v", action, confirm, result, err)
+			}
+		}
+		if changes.calls+len(cases.ids)+reviews.calls != 0 {
+			t.Fatalf("%s reached a service", action)
+		}
+	}
+}
+
+func TestActionWithoutARuleIsRefused(t *testing.T) {
+	for _, action := range []string{"recall", "propose_memory", "select_course"} {
+		changes := &memoryChanges{}
+		governor := &countingGovernor{}
+		service := Service{Governor: governor, Changes: changes, Audit: &memoryAudit{}, Now: fixedClock()}
+		result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, fullWrite(action))
+		if err != nil || result.Allowed || result.Applied || changes.calls != 0 || result.Reason != ReasonNoActionRule || len(result.Fields) != 0 {
+			t.Fatalf("%s = %#v calls=%d %v", action, result, changes.calls, err)
+		}
+	}
+}
+
+func TestRuledWriteWithoutAGovernorIsRefused(t *testing.T) {
+	changes := &memoryChanges{}
+	service := Service{Changes: changes, Audit: &memoryAudit{}, Now: fixedClock()}
+	result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, fullWrite("promote"))
+	if err != nil || result.Allowed || changes.calls != 0 || result.Reason != ReasonNoGovernor {
+		t.Fatalf("no governor = %#v calls=%d %v", result, changes.calls, err)
+	}
+}
+
+// Every action in the schema is evaluated by a rule or refused, and none
+// reports applied without a service having been called. add_eval_case is the
+// one write that runs with no rule.
+func TestEveryWriteActionIsGovernedOrRefusedAndNeverAppliedWithoutAnEffect(t *testing.T) {
+	for _, action := range domain.WriteActions() {
+		changes, cases, reviews, governor := &memoryChanges{}, &memoryCases{}, &memoryReviews{}, &countingGovernor{}
+		service := Service{
+			Governor: governor, Changes: changes, Cases: cases, Reviews: reviews,
+			Authors: memoryAuthors{author: "someone-else"}, Audit: &memoryAudit{}, Now: fixedClock(),
+		}
+		result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, fullWrite(action))
+		if err != nil {
+			t.Fatalf("%s: %v", action, err)
+		}
+		effects := changes.calls + len(cases.ids) + reviews.calls
+		refused := !result.Allowed && !result.Applied && effects == 0 && result.Reason != "" && len(result.Constraints) == 1
+		if len(governor.rules) == 0 && !refused && action != "add_eval_case" {
+			t.Fatalf("%s ran with no action rule: %#v", action, result)
+		}
+		if (result.Applied || result.WriteOps != 0 || result.State != "") && effects != 1 {
+			t.Fatalf("%s reports a write with %d service calls: %#v", action, effects, result)
+		}
+		if result.Applied && len(cases.ids)+reviews.calls != 1 {
+			t.Fatalf("%s says applied and only opened a change request: %#v", action, result)
+		}
+	}
+}
+
+func fullWrite(action string) []byte {
+	return []byte(`{"action":"` + action + `","targetId":"target-1","value":"512Mi","justification":"because","expectedOutcome":"PASS",` +
+		`"environment":"prod-east","installationId":"billing-api","productId":"com.acme:billing","confirm":true}`)
 }
 
 func TestLowRiskAppliesOnlyAfterConfirm(t *testing.T) {
@@ -207,7 +332,7 @@ func TestRuleDenyDoesNotApply(t *testing.T) {
 		Changes: changes, Audit: &memoryAudit{}, Now: fixedClock(),
 		Governor: scriptGovernor{decision: Decision{Known: true, Allowed: false, Reason: "run is not queued, running, or staged"}},
 	}
-	result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, []byte(`{"action":"cancel_packaging_run","targetId":"sample-app-blocked","confirm":true}`))
+	result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, []byte(`{"action":"cancel_packaging_run","targetId":"sample-app-blocked","environment":"dev","installationId":"sample-app","productId":"app.example:sample-app","confirm":true}`))
 	if err != nil || result.Allowed || result.Applied || changes.calls != 0 || !strings.Contains(result.Reason, "not queued") {
 		t.Fatalf("deny = %#v calls=%d %v", result, changes.calls, err)
 	}

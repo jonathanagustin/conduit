@@ -88,6 +88,7 @@ const register = (rows) =>
   "package composition\n\ntype Decision string\n\nconst (\n" +
   "\tDecisionPublic Decision = \"public\"\n" +
   "\tDecisionOperatorGrant Decision = \"operator-grant\"\n" +
+  "\tDecisionOperatorSelf Decision = \"operator-self\"\n" +
   "\tDecisionOperatorFiltered Decision = \"operator-filtered\"\n" +
   ")\n\nfunc HubRouteAuthorization() []RouteAuthorization {\n\treturn []RouteAuthorization{\n" +
   rows.join("") +
@@ -208,10 +209,61 @@ build();
 write(REGISTER, "package composition\n\nfunc HubRouteAuthorization() []RouteAuthorization {\n\treturn nil\n}\n");
 expectFail("an emptied register", "yielded no rows");
 
+// --- rule 9: app generation or attachment routes that are not operator-self -
+// These rows carry another operator's description, source, and file bytes.
+// Registering them as a grant, or as any authenticated operator, is the hole.
+const ownedPatterns = [
+  "GET /v1/app-generations",
+  "GET /v1/app-generations/{id}",
+  "POST /v1/app-generations",
+  "GET /v1/intake-attachments",
+  "GET /v1/intake-attachments/{digest}",
+  "POST /v1/intake-attachments",
+];
+build();
+write(
+  "internal/appgen/httpapi/handler.go",
+  "package httpapi\n\nconst (\n" +
+    ownedPatterns
+      .slice(0, 3)
+      .map((pattern) => `\t_ = ${JSON.stringify(pattern)}\n`)
+      .join("") +
+    ")\n",
+);
+write(
+  "internal/attachments/httpapi/handler.go",
+  "package httpapi\n\nconst (\n" +
+    ownedPatterns
+      .slice(3)
+      .map((pattern) => `\t_ = ${JSON.stringify(pattern)}\n`)
+      .join("") +
+    ")\n",
+);
+write(
+  REGISTER,
+  register([
+    ...baselineRows(),
+    ...ownedPatterns.map((pattern) =>
+      row(pattern, "DecisionOperatorGrant", "requireOperatorPrincipal + requireResourceOperation"),
+    ),
+  ]),
+);
+expectFail("app generation registered as a shared grant", "must be DecisionOperatorSelf");
+write(
+  REGISTER,
+  register([
+    ...baselineRows(),
+    ...ownedPatterns.map((pattern) =>
+      row(pattern, "DecisionOperatorSelf", "requireOperatorPrincipal; the caller's own rows; there is no shared catalog"),
+    ),
+  ]),
+);
+expectPass("app generation registered as the caller's own rows");
+
 rmSync(fixture, { recursive: true, force: true });
 if (failures.length) {
   for (const failure of failures) console.error(`FAIL ${failure}`);
   process.exit(1);
 }
-console.log("PASS route-authorization gate self-test: 8 planted violations, each rejected");
+console.log("PASS route-authorization gate self-test: 9 planted violations, each rejected");
 

@@ -166,6 +166,35 @@
     "nodeSelector": {"type": "object", "additionalProperties": {"type": "string"}},
     "affinity": {"type": "object"},
     "tolerations": {"type": "array", "items": {"type": "object"}},
+    "planning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backend", "temporal", "compute"],
+      "properties": {
+        "backend": {"type": "string", "enum": ["temporal", "local"]},
+        "temporal": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["address", "namespace", "taskQueue"],
+          "properties": {
+            "address": {"type": "string"},
+            "namespace": {"type": "string", "minLength": 1},
+            "taskQueue": {"type": "string", "minLength": 1}
+          }
+        },
+        "compute": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["imageBuilder", "gitRoot", "packagingBuild", "httpWriteTimeout"],
+          "properties": {
+            "imageBuilder": {"type": "string"},
+            "gitRoot": {"type": "string"},
+            "packagingBuild": {"type": "string"},
+            "httpWriteTimeout": {"type": "string"}
+          }
+        }
+      }
+    },
     "packagingWorkflow": {
       "type": "object",
       "additionalProperties": false,
@@ -193,9 +222,173 @@
           "properties": {"enabled": {"type": "boolean"}}
         }
       }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "port", "service", "serviceMonitor"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "port": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["port"],
+          "properties": {"port": {"type": "integer", "minimum": 1, "maximum": 65535}}
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "interval", "labels"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "interval": {"type": "string", "pattern": "^[1-9][0-9]*(s|m)$"},
+            "labels": {"type": "object", "additionalProperties": {"type": "string"}}
+          }
+        }
+      }
+    },
+    "notifications": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["transport", "webhook", "native"],
+      "properties": {
+        "transport": {"type": "string", "enum": ["none", "webhook", "log", "native"]},
+        "webhook": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["urlSecretName", "urlSecretKey", "timeout"],
+          "properties": {
+            "urlSecretName": {"$ref": "#/definitions/optionalDnsName"},
+            "urlSecretKey": {"$ref": "#/definitions/secretKey"},
+            "timeout": {"type": "string", "pattern": "^$|^[1-9][0-9]*(ms|s|m)$"}
+          }
+        },
+        "native": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["timeout", "smtp", "slack"],
+          "properties": {
+            "timeout": {"type": "string", "pattern": "^$|^[1-9][0-9]*(ms|s)$"},
+            "smtp": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["address", "from", "tlsMode", "credentialsSecretName", "usernameKey", "passwordKey", "caConfigMapName", "caKey"],
+              "properties": {
+                "address": {"type": "string", "pattern": "^$|^[^[:space:]:]+:[0-9]{1,5}$|^\\[[0-9A-Fa-f:]+\\]:[0-9]{1,5}$"},
+                "from": {"type": "string", "pattern": "^$|^[^[:cntrl:]]*[^[:space:][:cntrl:]]+@[^[:space:][:cntrl:]]+$", "maxLength": 320},
+                "tlsMode": {"type": "string", "enum": ["", "starttls", "tls"]},
+                "credentialsSecretName": {"$ref": "#/definitions/optionalDnsName"},
+                "usernameKey": {"$ref": "#/definitions/secretKey"},
+                "passwordKey": {"$ref": "#/definitions/secretKey"},
+                "caConfigMapName": {"$ref": "#/definitions/optionalDnsName"},
+                "caKey": {"$ref": "#/definitions/secretKey"}
+              }
+            },
+            "slack": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["tokenSecretName", "tokenKey"],
+              "properties": {
+                "tokenSecretName": {"$ref": "#/definitions/optionalDnsName"},
+                "tokenKey": {"$ref": "#/definitions/secretKey"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "planOrchestrator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["driver", "temporalAddress"],
+      "properties": {
+        "driver": {"type": "string", "enum": ["native", "temporal"]},
+        "temporalAddress": {"type": "string", "pattern": "^$|^[^[:space:]]+:[0-9]{1,5}$"}
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseURL", "name", "timeout", "apiKeySecret", "caConfigMap", "allowInsecureHTTP"],
+      "properties": {
+        "baseURL": {"type": "string", "pattern": "^$|^https?://[^[:space:][:cntrl:]@?#]+$", "maxLength": 2048},
+        "name": {"type": "string", "pattern": "^$|^[^[:space:][:cntrl:]]+$", "maxLength": 256},
+        "timeout": {"type": "string", "pattern": "^$|^[1-9][0-9]*(ms|s|m)$"},
+        "apiKeySecret": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "key"],
+          "properties": {
+            "name": {"$ref": "#/definitions/optionalDnsName"},
+            "key": {"$ref": "#/definitions/secretKey"}
+          }
+        },
+        "caConfigMap": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "key"],
+          "properties": {
+            "name": {"$ref": "#/definitions/optionalDnsName"},
+            "key": {"$ref": "#/definitions/secretKey"}
+          }
+        },
+        "allowInsecureHTTP": {"type": "boolean"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"baseURL": {"minLength": 1}}},
+          "then": {"properties": {"name": {"minLength": 1}}},
+          "else": {"properties": {
+            "name": {"maxLength": 0},
+            "timeout": {"maxLength": 0},
+            "apiKeySecret": {"properties": {"name": {"maxLength": 0}}},
+            "caConfigMap": {"properties": {"name": {"maxLength": 0}}},
+            "allowInsecureHTTP": {"const": false}
+          }}
+        },
+        {
+          "if": {"properties": {"baseURL": {"pattern": "^http://"}}},
+          "then": {"properties": {"allowInsecureHTTP": {"const": true}}}
+        },
+        {
+          "if": {"properties": {"allowInsecureHTTP": {"const": true}}},
+          "then": {"properties": {"baseURL": {"pattern": "^http://"}}}
+        }
+      ]
     }
   },
   "allOf": [
+    {
+      "if": {"required": ["metrics"], "properties": {"metrics": {"required": ["enabled"], "properties": {"enabled": {"const": true}}}}},
+      "then": {"properties": {"repository": {"properties": {"kind": {"const": "postgres"}}}}}
+    },
+    {
+      "if": {"required": ["metrics"], "properties": {"metrics": {"required": ["serviceMonitor"], "properties": {"serviceMonitor": {"required": ["enabled"], "properties": {"enabled": {"const": true}}}}}}},
+      "then": {"properties": {"metrics": {"properties": {"enabled": {"const": true}}}}}
+    },
+    {
+      "if": {"required": ["notifications"], "properties": {"notifications": {"required": ["transport"], "properties": {"transport": {"enum": ["webhook", "log", "native"]}}}}},
+      "then": {"properties": {"repository": {"properties": {"kind": {"const": "postgres"}}}}}
+    },
+    {
+      "if": {"required": ["notifications"], "properties": {"notifications": {"required": ["transport"], "properties": {"transport": {"const": "webhook"}}}}},
+      "then": {"properties": {"notifications": {"properties": {"webhook": {"properties": {"urlSecretName": {"minLength": 1}}}}}}}
+    },
+    {
+      "if": {"required": ["notifications"], "properties": {"notifications": {"required": ["transport"], "properties": {"transport": {"const": "native"}}}}},
+      "then": {"properties": {"notifications": {"properties": {"native": {"anyOf": [
+        {"properties": {"smtp": {"properties": {"address": {"minLength": 1}, "from": {"minLength": 1}}}}},
+        {"properties": {"smtp": {"properties": {"address": {"maxLength": 0}}}, "slack": {"properties": {"tokenSecretName": {"minLength": 1}}}}}
+      ]}}}}}
+    },
+    {
+      "if": {"required": ["planOrchestrator"], "properties": {"planOrchestrator": {"required": ["driver"], "properties": {"driver": {"const": "temporal"}}}}},
+      "then": {"anyOf": [
+        {"properties": {"planOrchestrator": {"properties": {"temporalAddress": {"minLength": 1}}}}},
+        {"properties": {"packagingWorkflow": {"properties": {"enabled": {"const": true}}}}}
+      ]}
+    },
     {
       "if": {"properties": {"repository": {"properties": {"kind": {"const": "postgres"}}}}},
       "then": {"properties": {"repository": {"properties": {"postgres": {"properties": {"secretName": {"minLength": 1}}}}}}}
@@ -203,6 +396,10 @@
     {
       "if": {"properties": {"repository": {"properties": {"kind": {"const": "file"}}}}},
       "then": {"properties": {"replicaCount": {"const": 1}}}
+    },
+    {
+      "if": {"properties": {"planning": {"properties": {"backend": {"const": "temporal"}}}}},
+      "then": {"properties": {"planning": {"properties": {"temporal": {"properties": {"address": {"minLength": 1}}}}}}}
     },
     {
       "if": {"properties": {"packagingWorkflow": {"properties": {"enabled": {"const": true}}}}},
@@ -224,6 +421,7 @@
     },
     "dnsName": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 253},
     "optionalDnsName": {"type": "string", "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 253},
+    "secretKey": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$", "minLength": 1, "maxLength": 253},
     "serviceAccount": {
       "type": "object",
       "additionalProperties": false,

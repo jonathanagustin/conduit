@@ -50,7 +50,7 @@ import {
 import { runsMarkup } from "./packaging-runs.js";
 import {
   bindPlanning,
-  emptyPlanning,
+  syncPlanningScreen,
   planningMarkup,
 } from "./planning-flow.js";
 import { createConduitClient } from "@conduit/ontology-client";
@@ -65,7 +65,23 @@ import { createAuditLedger } from "./audit-ledger.js";
 import { createAdminStatus } from "./admin-status.js";
 import { productRows, productsMarkup } from "./release-products.js";
 import { createSettings } from "./settings.js";
+import { createCapabilities } from "./session-capabilities.js";
+import { createNotifications } from "./notifications.js";
 import { createLiveHub } from "./live-hub.js";
+import {
+  deliverySlots,
+  mountPlanDecision,
+  mountPlanProposal,
+  mountPromotion,
+} from "./delivery-journey.js";
+import { parseScreenHash, screenHash } from "./planning-session-link.js";
+import {
+  classifyRenderers,
+  screenBadge,
+  truncationMarkup,
+} from "./screen-registry.js";
+import { renderContained } from "./render-containment.js";
+import { logClientError } from "../../runtime/client-errors.js";
 import { createIntelligence } from "./intelligence.js";
 import { createDevWorkspaces } from "./dev-workspaces.js";
 import {
@@ -986,6 +1002,17 @@ export function mountOperator(host, options) {
   });
   settings.extendState();
   SCREENS.push(...settings.screens);
+  // Session capabilities (#824) and the notification inbox (#819).
+  const capabilities = createCapabilities({
+    state,
+    render: () => renderApp({ backgroundRefresh: true }),
+  });
+  const notifications = createNotifications({
+    state,
+    render: () => renderApp({ backgroundRefresh: true }),
+    capabilities,
+  });
+  SCREENS.push(...notifications.screens);
   const adminStatus = createAdminStatus({ navigate: switchScreen });
   const commandCenter = createCommandCenter({
     getIdentity: () => ({
@@ -1264,6 +1291,7 @@ export function mountOperator(host, options) {
   }
 
   function switchScreen(scrId) {
+    globalThis.switchScreen = switchScreen;
     closeEngineerWorkspace();
     const mapped = areaFor(scrId);
     if (mapped) {
@@ -1280,7 +1308,7 @@ export function mountOperator(host, options) {
     } else {
       state.screen = scrId;
     }
-    const nextHash = "#" + (mapped ? state.screen : scrId);
+    const nextHash = screenHash(mapped ? state.screen : scrId, state);
     if (location.hash !== nextHash) history.replaceState(null, "", nextHash);
     if (!state.openTabs.includes(scrId)) {
       state.openTabs.splice(1, 0, scrId);
@@ -1360,42 +1388,6 @@ export function mountOperator(host, options) {
   // =========================================================================
   // AUTHENTIC Conduit LEFT RAIL + TOP BAR + PLAIN RIGHT CHAT
   // =========================================================================
-  // Screens whose body is read from the Hub. Everything else is example data
-  // until it is wired, and says so in the header badge.
-  const LIVE_SCREENS = new Set([
-    "s19-ontology",
-    "s09-source",
-    "s11-preview",
-    "s12-lifecycle",
-    "s17-spokes-audit",
-    "s01-intake",
-    "cc-overview",
-    "pkg-runs",
-    "s08-staged-run",
-    "s07-pipeline",
-    "s02-workspaces",
-    "rm08-bundle-preview",
-    "s14-env-detail",
-    "rel-products",
-    "rm-channels",
-    "rm-waves",
-    "rm06-promotion-pipe",
-    "rm09-recalls",
-    "rm07-change-requests",
-    "flt-environments",
-    "au01-audit",
-    "adm-platform-status",
-    "ai01-logic",
-    "ai02-evals",
-    "ai04-courses",
-    "ai03-events",
-  ]);
-  // Screens that label each section Hub or Example data themselves.
-  const SECTION_LABELLED = new Set([
-    "adm02-org-control-panel",
-    "pt02-proposals-evals",
-  ]);
-
   /** The screen actually on view: an area's current tab, or the screen. */
   function visibleScreen() {
     const area = AREAS[state.screen];
@@ -1409,39 +1401,31 @@ export function mountOperator(host, options) {
     const badge = document.getElementById("example-data-badge");
     if (!badge) return;
     const screen = visibleScreen();
-    const live =
-      LIVE_SCREENS.has(screen) ||
-      (screen === "pt01-proposal-trace" &&
-        (state.hub?.packaging || []).some((run) => run?.runId)) ||
-      (screen === "og01-ontology-graph" && state.graphLive === true);
-    if (SECTION_LABELLED.has(screen)) {
+    // The classification comes from the registry the renderer tables are
+    // built from, so a screen with a renderer always has one.
+    const view = screenBadge(screen, {
+      hub: state.hub,
+      graphLive: state.graphLive,
+      unavailable:
+        ((screen === "pt01-proposal-trace" ||
+          screen === "pt02-proposals-evals") &&
+          !state.proposalExamples) ||
+        (isOperationalExample(screen) &&
+          !operationalExamples.enabled(screen)) ||
+        document.getElementById("main-workspace")?.dataset.unavailableScreen ===
+          screen,
+      failed:
+        document.getElementById("main-workspace")?.dataset.renderFailed ===
+        screen,
+    });
+    if (view.hidden) {
       badge.style.display = "none";
       return;
     }
     badge.style.display = "";
-    const proposalUnavailable =
-      ((screen === "pt01-proposal-trace" ||
-        screen === "pt02-proposals-evals") &&
-        !live &&
-        !state.proposalExamples) ||
-      (isOperationalExample(screen) && !operationalExamples.enabled(screen)) ||
-      document.getElementById("main-workspace")?.dataset.unavailableScreen ===
-        screen;
-    badge.dataset.mode = live
-      ? "live"
-      : proposalUnavailable
-        ? "unavailable"
-        : "example";
-    badge.textContent = live
-      ? "LIVE"
-      : proposalUnavailable
-        ? "UNAVAILABLE"
-        : "EXAMPLE DATA";
-    badge.title = live
-      ? "This view is read from the Hub"
-      : proposalUnavailable
-        ? "No native operational data is available for this view; example mode is off"
-        : "This view shows example data, not this Hub's records";
+    badge.dataset.mode = view.mode;
+    badge.textContent = view.text;
+    badge.title = view.title;
   }
 
   function renderKpiStrip() {
@@ -1543,6 +1527,7 @@ export function mountOperator(host, options) {
       { label: "Ontology", icon: "globe", id: "s19-ontology" },
       { label: "Component System", icon: "settings", id: "s18-components" },
       ...settings.navItems(),
+      ...notifications.navItems(),
     ];
     // Every section is a list of groups so the collapsed rail can flatten them.
     const sections = [
@@ -1559,6 +1544,14 @@ export function mountOperator(host, options) {
     const iconRail =
       state.leftRailCollapsed ||
       window.matchMedia("(max-width: 1024px) and (min-width: 1024px)").matches;
+
+    // Capability-derived navigation (#824) and the inbox indicator (#819).
+    capabilities.sync();
+    notifications.sync();
+    capabilities.paintNotice(AREAS, iconRail, escAttr);
+    for (const section of sections)
+      for (const group of section.groups)
+        group.items = capabilities.navItems(group.items, AREAS);
 
     const sitesEl = document.getElementById("left-nav-sites");
     if (sitesEl) {
@@ -3021,7 +3014,7 @@ export function mountOperator(host, options) {
   // SCREEN 1: CHAT-FIRST INTAKE (Matched 1:1 to Conduit f_05_08_comms_det.png!)
   // =========================================================================
   function renderS01Intake(root) {
-    if (!state.planning) state.planning = emptyPlanning();
+    syncPlanningScreen(state, renderApp);
     root.innerHTML = planningMarkup(state.planning);
     if (root.dataset.planningBound !== "1") {
       root.dataset.planningBound = "1";
@@ -3653,7 +3646,8 @@ export function mountOperator(host, options) {
   // SCREEN 14: ENVIRONMENT DETAIL
   // =========================================================================
   function renderS14EnvDetail(root) {
-    mountEnvironmentHub(root, state.hub, {
+    const [view, actions] = deliverySlots(root);
+    mountEnvironmentHub(view, state.hub, {
       selectedId: state.releaseEnvironmentId || "",
       onProposeFix: (environment, installationId) =>
         liveHub.proposeFix(environment, installationId),
@@ -3662,6 +3656,9 @@ export function mountOperator(host, options) {
         renderMainWorkspace();
       },
     });
+    mountPlanProposal(actions, state, {
+      environmentId: state.releaseEnvironmentId || "",
+    });
   }
 
   function renderS15PlanDetail(root) {
@@ -3669,8 +3666,10 @@ export function mountOperator(host, options) {
   }
 
   function renderS16ApprovalsBoard(root) {
-    root.innerHTML = approvalsMarkup(state.hub?.plans, state.hub?.planNote);
-    root.onclick = (event) => {
+    const [view, actions] = deliverySlots(root);
+    mountPlanDecision(actions, state, { board: true });
+    view.innerHTML = approvalsMarkup(state.hub?.plans, state.hub?.planNote);
+    view.onclick = (event) => {
       const target =
         event.target instanceof Element
           ? event.target.closest("[data-review-plan]")
@@ -4315,12 +4314,19 @@ export function mountOperator(host, options) {
   }
 
   function renderRM03PlanDetail(root) {
-    mountPlanInspector(root, state.hub?.plans, {
+    const [view, actions] = deliverySlots(root);
+    const decide = () =>
+      mountPlanDecision(actions, state, {
+        planId: state.releasePlanId || "",
+      });
+    mountPlanInspector(view, state.hub?.plans, {
       selectedId: state.releasePlanId || "",
       onSelect: (id) => {
         state.releasePlanId = id;
+        decide();
       },
     });
+    decide();
   }
 
   function renderRM04Constraints(root) {
@@ -4364,7 +4370,9 @@ export function mountOperator(host, options) {
   }
 
   function renderRM06PromotionPipe(root) {
-    liveHub.renderPromotion(root);
+    const [view, actions] = deliverySlots(root);
+    liveHub.renderPromotion(view);
+    mountPromotion(actions, state);
     return;
     const sel =
       RM_CHANNELS.find((c) => c.id === state.rmSelectedChannel) ||
@@ -4828,6 +4836,34 @@ export function mountOperator(host, options) {
     if (state.cmdOmnibarOpen) renderPaletteResults();
   }
 
+  /**
+   * Paint one view so that a throwing renderer leaves a stated failure in
+   * `node` instead of a blank or half-painted workspace. The shell, the
+   * navigation and the area tabs are painted outside this and stay usable.
+   */
+  let loggedRenderFailure = "";
+  function containView(node, screen, paint) {
+    return (
+      renderContained(node, screen, paint, {
+        esc: escAttr,
+        log: (failed, error) => {
+          // A background refresh repaints the same failing view; one record
+          // per failure, not one per repaint.
+          const key = `${failed}\n${error?.message}`;
+          if (key === loggedRenderFailure) return;
+          loggedRenderFailure = key;
+          logClientError("render", error, failed);
+        },
+        reload: () => window.location.reload(),
+      }) || markRenderFailed(screen)
+    );
+  }
+  function markRenderFailed(screen) {
+    const main = document.getElementById("main-workspace");
+    if (main) main.dataset.renderFailed = screen;
+    return false;
+  }
+
   let previousScreen = "";
   function renderMainWorkspace() {
     if (state.screen !== "au01-audit" && state.screen !== "area-audit")
@@ -4835,9 +4871,11 @@ export function mountOperator(host, options) {
     const root = document.getElementById("main-workspace");
     if (!root) return;
     delete root.dataset.unavailableScreen;
+    delete root.dataset.renderFailed;
     operationalExamples.sync(visibleScreen());
     if (AREAS[state.screen]) {
-      renderArea(root);
+      containView(root, visibleScreen(), () => renderArea(root));
+      if (!root.dataset.renderFailed) loggedRenderFailure = "";
       updateExampleBadge();
       settings.applyChrome();
       settings.ensureLoaded();
@@ -4846,51 +4884,55 @@ export function mountOperator(host, options) {
     const screenChanged =
       previousScreen !== "" && previousScreen !== state.screen;
     previousScreen = state.screen;
-    const m = {
-      "s01-intake": renderS01Intake,
-      "s02-workspaces": renderS02Workspaces,
-      "s03-saved-views": renderS03SavedViews,
-      "s04-scope-plan": renderS04ScopePlan,
-      "s05-backlog": renderS05Backlog,
-      "s06-active-work": renderS06ActiveWork,
-      "s07-pipeline": renderS07Pipeline,
-      "s08-staged-run": renderS08StagedRun,
-      "au01-audit": renderAuditLedger,
-      "adm-platform-status": (node) => void adminStatus.render(node),
-      "s09-source": renderS09Source,
-      "s10-diff": renderS10Diff,
-      "s11-preview": renderS11Preview,
-      "s12-lifecycle": renderS12Lifecycle,
-      "s13-fleet-overview": renderS13FleetOverview,
-      "s14-env-detail": renderS14EnvDetail,
-      "s15-plan-detail": renderS15PlanDetail,
-      "s16-approvals-board": renderS16ApprovalsBoard,
-      "s17-spokes-audit": renderS17SpokesAudit,
-      "s18-components": renderS18Components,
-      "s19-ontology": renderS19Ontology,
-      "rm01-env-page": renderRM01EnvPage,
-      "rm02-env-activity": renderRM02EnvActivity,
-      "rm03-plan-detail": renderRM03PlanDetail,
-      "rm04-constraints": renderRM04Constraints,
-      "rm05-release-rollout": renderRM05ReleaseRollout,
-      "rm06-promotion-pipe": renderRM06PromotionPipe,
-      "rm07-change-requests": renderRM07ChangeRequests,
-      "rm08-bundle-preview": renderRM08BundlePreview,
-      "ai01-logic": (root) => intelligence.renderLogic(root),
-      "ai02-evals": (root) => intelligence.renderEvals(root),
-      "ai03-events": (root) => intelligence.renderEvents(root),
-      "ai04-courses": (root) => intelligence.renderCourses(root),
-      ...releaseGates.renderers,
-      ...ontologyGraph.renderers,
-      ...settings.renderers,
-    };
-    const renderer = m[state.screen];
-    if (!renderer) {
-      root.dataset.unavailableScreen = state.screen;
-      root.innerHTML = `<section class="so-panel p-3" aria-label="View unavailable">This view is unavailable. Choose a view from the navigation.</section>`;
-    } else if (!operationalExamples.paint(root, state.screen, renderer)) {
-      renderer(root);
-    }
+    containView(root, state.screen, () => {
+      const m = classifyRenderers({
+        "s01-intake": renderS01Intake,
+        "s02-workspaces": renderS02Workspaces,
+        "s03-saved-views": renderS03SavedViews,
+        "s04-scope-plan": renderS04ScopePlan,
+        "s05-backlog": renderS05Backlog,
+        "s06-active-work": renderS06ActiveWork,
+        "s07-pipeline": renderS07Pipeline,
+        "s08-staged-run": renderS08StagedRun,
+        "au01-audit": renderAuditLedger,
+        "adm-platform-status": (node) => void adminStatus.render(node),
+        "s09-source": renderS09Source,
+        "s10-diff": renderS10Diff,
+        "s11-preview": renderS11Preview,
+        "s12-lifecycle": renderS12Lifecycle,
+        "s13-fleet-overview": renderS13FleetOverview,
+        "s14-env-detail": renderS14EnvDetail,
+        "s15-plan-detail": renderS15PlanDetail,
+        "s16-approvals-board": renderS16ApprovalsBoard,
+        "s17-spokes-audit": renderS17SpokesAudit,
+        "s18-components": renderS18Components,
+        "s19-ontology": renderS19Ontology,
+        "rm01-env-page": renderRM01EnvPage,
+        "rm02-env-activity": renderRM02EnvActivity,
+        "rm03-plan-detail": renderRM03PlanDetail,
+        "rm04-constraints": renderRM04Constraints,
+        "rm05-release-rollout": renderRM05ReleaseRollout,
+        "rm06-promotion-pipe": renderRM06PromotionPipe,
+        "rm07-change-requests": renderRM07ChangeRequests,
+        "rm08-bundle-preview": renderRM08BundlePreview,
+        "ai01-logic": (root) => intelligence.renderLogic(root),
+        "ai02-evals": (root) => intelligence.renderEvals(root),
+        "ai03-events": (root) => intelligence.renderEvents(root),
+        "ai04-courses": (root) => intelligence.renderCourses(root),
+        ...releaseGates.renderers,
+        ...ontologyGraph.renderers,
+        ...settings.renderers,
+        ...notifications.renderers,
+      });
+      const renderer = m[state.screen];
+      if (!renderer) {
+        root.dataset.unavailableScreen = state.screen;
+        root.innerHTML = `<section class="so-panel p-3" aria-label="View unavailable">This view is unavailable. Choose a view from the navigation.</section>`;
+      } else if (!operationalExamples.paint(root, state.screen, renderer)) {
+        renderer(root);
+      }
+    });
+    if (!root.dataset.renderFailed) loggedRenderFailure = "";
     updateExampleBadge();
     settings.applyChrome();
     settings.ensureLoaded();
@@ -4902,7 +4944,18 @@ export function mountOperator(host, options) {
 
   function renderArea(root) {
     const area = AREAS[state.screen];
-    const tabs = area.tabs;
+    const gate = capabilities.gateArea(
+      state.screen,
+      area,
+      state.areaTab,
+      escAttr,
+    );
+    if (gate.blocked) {
+      root.dataset.unavailableScreen = visibleScreen();
+      root.innerHTML = gate.blocked;
+      return;
+    }
+    const tabs = gate.tabs;
     const current = tabs.find((tab) => tab.id === state.areaTab) || tabs[0];
     state.areaTab = current.id;
     state.detailScreen = current.screen;
@@ -4943,9 +4996,11 @@ export function mountOperator(host, options) {
         .join("")}</div>
       <div data-area-object-header>${header}</div>
       <div id="area-kit">${extra}</div>
+      ${truncationMarkup(state.hub, current.screen, escAttr)}
+      ${capabilities.grantMarkup(current.screen, escAttr)}
       <div id="area-body"></div>
     </div>`;
-    const renderer = {
+    const renderer = classifyRenderers({
       "s02-workspaces": renderS02Workspaces,
       "s09-source": renderS09Source,
       "s11-preview": renderS11Preview,
@@ -5068,11 +5123,13 @@ export function mountOperator(host, options) {
       "s17-spokes-audit": renderS17SpokesAudit,
       "au01-audit": renderAuditLedger,
       "adm-platform-status": (node) => void adminStatus.render(node),
-    }[current.screen];
+    })[current.screen];
     if (renderer) {
       const body = root.querySelector("#area-body");
-      if (!operationalExamples.paint(body, current.screen, renderer))
-        renderer(body);
+      containView(body, current.screen, () => {
+        if (!operationalExamples.paint(body, current.screen, renderer))
+          renderer(body);
+      });
     }
     root.querySelectorAll("[data-area-tab]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -5165,7 +5222,8 @@ export function mountOperator(host, options) {
   };
   window.addEventListener("keydown", onKey);
   const onHash = () => {
-    const id = (location.hash || "").replace(/^#/, "");
+    // `#screen/param`: the param (a planning session id) is the screen's own.
+    const { screen: id, param } = parseScreenHash(location.hash);
     const mapped = areaFor(id);
     if (!mapped && !AREAS[id] && !SCREENS.some((s) => s.id === id)) return;
     closeEngineerWorkspace();
@@ -5175,13 +5233,13 @@ export function mountOperator(host, options) {
     } else if (AREAS[id]) {
       state.screen = id;
       state.areaTab = AREAS[id].tabs[0].id;
-    } else if (state.screen !== id) {
+    } else if (state.screen !== id || param) {
       state.screen = id;
     } else return;
     renderApp();
   };
   window.addEventListener("hashchange", onHash);
-  const initialHash = (location.hash || "").replace(/^#/, "");
+  const initialHash = parseScreenHash(location.hash).screen;
   if (SCREENS.some((s) => s.id === initialHash)) state.screen = initialHash;
   window.switchScreen = switchScreen;
   window.closeTab = closeTab;
@@ -5225,6 +5283,7 @@ export function mountOperator(host, options) {
   releaseGates.bind(window);
   ontologyGraph.bind(window);
   settings.bind(window);
+  capabilities.bind(window);
   settingsDialog.restore();
   renderApp();
   return () => {

@@ -188,6 +188,11 @@ func (service *Service) Run(ctx context.Context, input RunInput, write func([]by
 		return output.send(ctx, map[string]any{"type": "RUN_FINISHED", "threadId": input.ThreadID, "runId": input.RunID, "outcome": map[string]any{"type": "cancelled"}})
 	}
 	if !snapshot {
+		// An empty opening message is still the intake. The console sends the
+		// repository and ref, then a run with no text. Skipping that run left
+		// the session at started, so Accept never appeared.
+		opening := message == "" && len(answers) == 0 && session.Plan == nil &&
+			session.Status == domain.StatusStarted && strings.TrimSpace(session.Intake.RepoURL) != ""
 		if len(answers) > 0 {
 			if action := inputAction(input); len(action) > 0 {
 				if err := service.audit.Record(ctx, AuditRecord{ThreadID: input.ThreadID, RunID: input.RunID, Action: "agent.a2ui_action", PayloadSHA256: digest(action)}); err != nil {
@@ -209,7 +214,7 @@ func (service *Service) Run(ctx context.Context, input RunInput, write func([]by
 			observer.session = session
 			ctx = application.WithRunScope(ctx, application.RunScope{ThreadID: input.ThreadID, RunID: input.RunID, Tools: observer, Frontend: observer, Questions: observer, Grounding: input.grounding(fieldsFor(session))})
 		}
-		if (message != "" || len(answers) > 0 || (feedback.Changed && session.Plan == nil)) && (form == nil || len(input.Resume) > 0) {
+		if (message != "" || len(answers) > 0 || opening || (feedback.Changed && session.Plan == nil)) && (form == nil || len(input.Resume) > 0) {
 			before := len(session.Messages)
 			if message != "" {
 				if userID == "" || strings.HasPrefix(userID, "conduit:") {

@@ -25,6 +25,10 @@ type (
 )
 
 const (
+	ArtifactKindHelmChart   = catalog.ArtifactKindHelmChart
+	ArtifactKindZarfPackage = catalog.ArtifactKindZarfPackage
+	ArtifactKindUDSBundle   = catalog.ArtifactKindUDSBundle
+
 	VulnerabilitySuppressionGlobal       = catalog.VulnerabilitySuppressionGlobal
 	VulnerabilitySuppressionScanner      = catalog.VulnerabilitySuppressionScanner
 	VulnerabilitySuppressionImage        = catalog.VulnerabilitySuppressionImage

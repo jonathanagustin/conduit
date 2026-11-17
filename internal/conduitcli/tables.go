@@ -2,7 +2,9 @@ package conduitcli
 
 import (
 	"encoding/json"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
@@ -55,13 +57,34 @@ func (view planStatusView) MarshalJSON() ([]byte, error) {
 
 func (view planStatusView) MarshalCSV() ([][]string, error) {
 	return [][]string{
-		{"id", "environment", "status", "approvals", "requiredApprovals", "revision"},
+		{"id", "environment", "status", "approvals", "requiredApprovals", "revision", "artifacts"},
 		{
 			view.ID, view.Plan.Environment, string(view.Status),
 			strconv.Itoa(len(view.Approvals)), strconv.Itoa(view.RequiredApprovals),
-			strconv.FormatUint(view.Revision, 10),
+			strconv.FormatUint(view.Revision, 10), planArtifactKinds(view.Plan),
 		},
 	}, nil
+}
+
+// planArtifactKinds names what the Plan's steps deploy, once per distinct kind:
+// "helm-chart", or "helm-chart zarf-package[amd64+arm64]". A reviewer approving
+// a Plan should not have to open the JSON to learn that it runs Zarf. The full
+// artifact, with its repository and digest, is in the JSON and YAML bodies.
+func planArtifactKinds(plan controlplane.Plan) string {
+	seen := make(map[string]struct{}, len(plan.Steps))
+	kinds := make([]string, 0, 2)
+	for _, step := range plan.Steps {
+		kind := step.Chart.EffectiveKind()
+		if step.Chart.IsPackage() {
+			kind += "[" + strings.Join(step.Chart.Architectures, "+") + "]"
+		}
+		if _, duplicate := seen[kind]; !duplicate {
+			seen[kind] = struct{}{}
+			kinds = append(kinds, kind)
+		}
+	}
+	sort.Strings(kinds)
+	return strings.Join(kinds, " ")
 }
 
 type packagingRunList struct {

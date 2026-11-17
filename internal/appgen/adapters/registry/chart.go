@@ -14,6 +14,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/jonathanagustin/conduit/internal/appgen/domain"
 )
 
 // PushChart uploads one chart archive and returns its manifest digest.
@@ -113,23 +115,19 @@ func upload(ctx context.Context, client http.Client, base, name string, payload 
 }
 
 func chartArchive(name, version string, values []byte) ([]byte, error) {
+	chart, err := domain.ChartFiles(name, version, values)
+	if err != nil {
+		return nil, err
+	}
 	var buffer bytes.Buffer
 	compressed := gzip.NewWriter(&buffer)
 	archive := tar.NewWriter(compressed)
-	files := []struct {
-		path string
-		body []byte
-	}{
-		{name + "/Chart.yaml", []byte(fmt.Sprintf("apiVersion: v2\nname: %s\nversion: %s\n", name, version))},
-		{name + "/values.yaml", values},
-		{name + "/templates/configmap.yaml", []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: " + name + "\ndata:\n  memory: {{ .Values.resources.limits.memory }}\n")},
-	}
-	for _, file := range files {
-		header := &tar.Header{Name: file.path, Mode: 0o644, Size: int64(len(file.body))}
+	for _, file := range chart {
+		header := &tar.Header{Name: name + "/" + file.Path, Mode: 0o644, Size: int64(len(file.Body))}
 		if err := archive.WriteHeader(header); err != nil {
 			return nil, err
 		}
-		if _, err := archive.Write(file.body); err != nil {
+		if _, err := archive.Write(file.Body); err != nil {
 			return nil, err
 		}
 	}

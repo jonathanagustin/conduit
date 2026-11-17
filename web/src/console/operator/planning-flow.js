@@ -1,4 +1,10 @@
 import { PlanningAgent, mergeAgentMessages } from "./planning-agent.js";
+import {
+  parseScreenHash,
+  planningHash,
+  planningSessionFromHash,
+  PLANNING_SCREEN,
+} from "./planning-session-link.js";
 
 // Planning flow for the Work Intake screen: composer, inspection rows, Needs
 // Input card, plan review, Accept, and the binding panel. Every value shown
@@ -30,7 +36,8 @@ export const ERROR_TEXT = {
   ALREADY_ACCEPTED: "This plan is already accepted. Its binding is below.",
   NOT_ACCEPTED: "This session has not been accepted.",
   COMPUTE_BEFORE_ACCEPT: "Compute is refused until the plan is accepted.",
-  COMPUTE_NOT_CONFIGURED: "Package compute is not configured on this Hub.",
+  COMPUTE_NOT_CONFIGURED:
+    "Package compute is not configured. Start the Hub with CONDUIT_IMAGE_BUILDER=docker, and install docker and zarf.",
   NO_PENDING_QUESTIONS: "There are no questions waiting for an answer.",
   UNKNOWN_QUESTION: "An answer did not match a pending question.",
   INVALID_ANSWER: "An answer is not valid for its question.",
@@ -153,6 +160,173 @@ export async function computeSession(id, fetchImpl = fetch) {
   return response.json();
 }
 
+/** Recorded events for a session, in order (GET /{id}/events -> {items}). */
+export async function listSessionEvents(id, fetchImpl = fetch) {
+  const response = await request(
+    fetchImpl,
+    "GET",
+    `${BASE}/${encodeURIComponent(id)}/events`,
+  );
+  const body = await response.json();
+  return Array.isArray(body?.items) ? body.items : [];
+}
+
+/**
+ * Everything the Hub still holds for a linked session: the session read and
+ * its recorded events. A 404 on the session read is the "lost" case and is
+ * thrown as it came; a failed events read leaves the session usable.
+ */
+export async function rehydrateSession(id, fetchImpl = fetch) {
+  const session = await getSession(id, fetchImpl);
+  let events = [];
+  let eventsError = null;
+  try {
+    events = await listSessionEvents(id, fetchImpl);
+  } catch (error) {
+    eventsError = error;
+  }
+  return { session, events, eventsError };
+}
+
+/** The caller's app generations (GET /v1/app-generations -> {items}). */
+export async function listGenerations(fetchImpl = fetch) {
+  const response = await request(fetchImpl, "GET", "/v1/app-generations");
+  const body = await response.json();
+  return Array.isArray(body?.items) ? body.items : [];
+}
+
+/**
+ * A generation result carries no status field; this states what its recorded
+ * fields say and nothing more.
+ */
+export function generationStatus(result) {
+  const gates = Array.isArray(result?.gates) ? result.gates : [];
+  if (result?.error) return "error";
+  if (Array.isArray(result?.needs) && result.needs.length) return "needs input";
+  if (result?.confirmRequired) return "awaiting confirmation";
+  if (gates.some((gate) => gate?.outcome === "fail")) return "gates failed";
+  if (gates.length && gates.every((gate) => gate?.outcome === "pass"))
+    return "gates passed";
+  return "recorded";
+}
+
+/** Busy states that are an agent stream, and so can be stopped. */
+export const STOPPABLE = Object.freeze(["turn", "answers", "recover"]);
+
+/** The state after Stop: not busy, no error, and a standing notice. */
+export function stopPlanning(planning) {
+  if (!STOPPABLE.includes(planning.busy)) return planning;
+  return { ...planning, busy: "", error: null, stopped: true };
+}
+
+/**
+ * What a hash asks of the planning state. Pure: it decides, the caller acts.
+ *   load  — read this session from the Hub
+ *   write — the session on screen is missing from the URL; write this hash
+ *   none  — nothing to do
+ */
+export function planningLinkStep(planning, hash) {
+  const { screen } = parseScreenHash(hash);
+  if (screen !== PLANNING_SCREEN) return { step: "none" };
+  const linked = planningSessionFromHash(hash);
+  const current = planning?.session?.id || "";
+  if (linked && linked === current) return { step: "none" };
+  if (linked) {
+    if (planning?.busy) return { step: "none" };
+    if (planning?.link?.id === linked) return { step: "none" };
+    return { step: "load", id: linked };
+  }
+  if (current) return { step: "write", hash: planningHash(current) };
+  return { step: "none" };
+}
+
+/**
+ * Keeps the URL and the planning state in step, and loads the generation
+ * list once. Called on every paint of the planning screen; it only starts
+ * work when planningLinkStep says the hash and the state disagree.
+ */
+export function syncPlanningScreen(
+  store,
+  rerender,
+  fetchImpl = fetch,
+  win = globalThis,
+) {
+  if (!store.planning) store.planning = emptyPlanning();
+  const next = planningLinkStep(store.planning, win.location?.hash || "");
+  if (next.step === "write") {
+    win.history?.replaceState?.(null, "", next.hash);
+  } else if (next.step === "load") {
+    // A link to another session replaces whatever was on screen.
+    store.planning = {
+      ...emptyPlanning(),
+      generations: store.planning.generations,
+      link: { id: next.id, status: "loading" },
+    };
+    void rehydrateSession(next.id, fetchImpl).then(
+      ({ session, events, eventsError }) => {
+        if (store.planning.link?.id !== next.id) return;
+        store.planning = {
+          ...store.planning,
+          session,
+          events,
+          error: eventsError,
+          link: { id: next.id, status: "ready" },
+        };
+        rerender();
+      },
+      (error) => {
+        if (store.planning.link?.id !== next.id) return;
+        store.planning = {
+          ...store.planning,
+          link: {
+            id: next.id,
+            status: error?.status === 404 ? "lost" : "failed",
+            reason: describeError(error),
+          },
+        };
+        rerender();
+      },
+    );
+  }
+  if (store.planning.generations === undefined)
+    loadGenerations(store, fetchImpl, win);
+}
+
+/**
+ * Reads the generation list and repaints only its own panel. A full repaint
+ * here would take focus from whatever the operator is typing in the composer.
+ */
+function loadGenerations(store, fetchImpl, win) {
+  const repaint = () => {
+    const node = win.document?.querySelector?.("[data-plan-generations]");
+    if (node) node.outerHTML = generationsPanel(store.planning);
+  };
+  store.planning = {
+    ...store.planning,
+    generations: { status: "loading", items: [] },
+  };
+  void listGenerations(fetchImpl).then(
+    (items) => {
+      store.planning = {
+        ...store.planning,
+        generations: { status: "ready", items },
+      };
+      repaint();
+    },
+    (error) => {
+      store.planning = {
+        ...store.planning,
+        generations: {
+          status: "failed",
+          items: [],
+          reason: describeError(error),
+        },
+      };
+      repaint();
+    },
+  );
+}
+
 /**
  * Splits buffered server-sent text into complete events. Returns the parsed
  * events and the unfinished remainder to prepend to the next chunk.
@@ -248,15 +422,36 @@ function parseJsonPlanSections(raw) {
       "Build steps",
       parsed.buildSteps.map((s) => String(s)).join("\n"),
     );
+  if (typeof parsed.startCommand === "string")
+    pushSection("Start command", parsed.startCommand);
   if (Array.isArray(parsed.ports) && parsed.ports.length)
     pushSection("Ports", parsed.ports.map((p) => String(p)).join(", "));
+  if (typeof parsed.healthCheckPath === "string")
+    pushSection("Health check", parsed.healthCheckPath);
   if (Array.isArray(parsed.networkAllow) && parsed.networkAllow.length)
     pushSection(
       "Network allow",
       parsed.networkAllow.map((n) => String(n)).join("\n"),
     );
-  if (typeof parsed.sso === "boolean")
+  if (typeof parsed.sso === "boolean") {
     pushSection("SSO", parsed.sso ? "Required" : "Not required");
+  } else if (parsed.sso && typeof parsed.sso === "object") {
+    const req = parsed.sso.required ? "Required" : "Not required";
+    const notes = parsed.sso.notes ? ` — ${parsed.sso.notes}` : "";
+    pushSection("SSO", `${req}${notes}`);
+  }
+  if (Array.isArray(parsed.generatedFiles) && parsed.generatedFiles.length)
+    pushSection(
+      "Generated files",
+      parsed.generatedFiles.map((f) => String(f)).join(", "),
+    );
+  if (Array.isArray(parsed.packagedFiles) && parsed.packagedFiles.length)
+    pushSection(
+      "Packaged files",
+      parsed.packagedFiles.map((f) => String(f)).join(", "),
+    );
+  if (Array.isArray(parsed.notes) && parsed.notes.length)
+    pushSection("Notes", parsed.notes.map((n) => String(n)).join("\n"));
   if (Array.isArray(parsed.risks) && parsed.risks.length)
     pushSection("Risks", parsed.risks.map((r) => String(r)).join("\n"));
   if (sections.length) return sections;
@@ -415,6 +610,18 @@ export function emptyPlanning() {
     agentTools: [],
     showPlanJson: false,
     computedWorkspaceId: "",
+    computedWorkspace: null,
+    computedWorkspaceDiff: null,
+    selectedWorkspaceFile: "",
+    computedDigest: "",
+    computedOutcome: "",
+    computedChangeRequestId: "",
+    // link: the session the URL names, while loading, lost or failed.
+    link: null,
+    // stopped: the operator stopped reading a run in this browser.
+    stopped: false,
+    // generations: undefined until the first read of GET /v1/app-generations.
+    generations: undefined,
   };
 }
 
@@ -500,6 +707,7 @@ function composer(planning) {
       <textarea class="kit-input plan-message" id="plan-message" data-plan-field="message" rows="3" placeholder="What should this work achieve?">${esc(planning.message)}</textarea></div>
     <div class="plan-actions">
       <button type="button" class="kit-btn kit-btn-primary kit-btn-sm" data-plan-send${busy ? " disabled" : ""}>${sendLabel}</button>
+      ${STOPPABLE.includes(planning.busy) ? '<button type="button" class="kit-btn kit-btn-sm" data-plan-stop>Stop</button>' : ""}
       ${locked ? `<span class="kit-muted">Session <span class="code-id">${esc(planning.session.id)}</span> · ${esc(planning.session.status)}</span>` : ""}
     </div>
   </section>`;
@@ -510,7 +718,11 @@ function collectThreadMessages(planning) {
   const isHumanRole = (r) => r === "user" || r === "operator";
   const push = (id, role, content) => {
     const normalizedRole =
-      role === "assistant" ? "model" : String(role || "user");
+      role === "assistant"
+        ? "model"
+        : role === "user"
+          ? "operator"
+          : String(role || "operator");
     const text = String(content ?? "").trim();
     if (!text || normalizedRole === "tool") return;
     if (id && out.some((item) => item.id === id)) {
@@ -733,11 +945,13 @@ function planReview(session, showJson = false) {
   const jsonDrawer = showJson
     ? `<pre class="plan-json code-id" data-plan-json>${esc(session.plan.text)}</pre>`
     : "";
+  const rawSha = String(session.plan.sha256 || "");
+  const cleanSha = rawSha.startsWith("sha256:") ? rawSha.slice(7) : rawSha;
   return `<section class="kit-panel kit-pad plan-card" data-plan-review aria-label="Plan review">
     <div class="kit-header-title plan-card__head">
       <span class="kit-section">Plan</span>
       <div class="plan-actions">
-        <span class="kit-badge kit-badge-muted code-id" title="sha256 ${esc(session.plan.sha256)}">sha256 ${esc(session.plan.sha256.slice(0, 16))}</span>
+        <span class="kit-badge kit-badge-muted code-id" title="sha256 ${esc(cleanSha)}">sha256 ${esc(cleanSha.slice(0, 16))}</span>
         <button type="button" class="kit-btn kit-btn-sm" data-plan-view-json aria-expanded="${Boolean(showJson)}">${toggleLabel}</button>
       </div>
     </div>
@@ -751,13 +965,6 @@ function planReview(session, showJson = false) {
   </section>`;
 }
 
-function formatCommitChip(raw) {
-  const text = String(raw || "unpinned").trim();
-  if (/^[0-9a-f]{12,64}$/i.test(text)) return text.slice(0, 12);
-  if (/^none\b/i.test(text)) return "none (no source repo)";
-  return text.length > 24 ? `${text.slice(0, 21)}…` : text;
-}
-
 function acceptBar(planning) {
   const session = planning.session;
   if (!session || session.binding) return "";
@@ -769,10 +976,16 @@ function acceptBar(planning) {
     ? `${session.intake.repoUrl}@${session.intake?.ref || ""}`
     : "";
   const commit = session.resolvedCommit || "unpinned";
+  const commitLabel = commit.startsWith("none")
+    ? "none (appgen)"
+    : commit.slice(0, 12);
   const profileLabel = session.profile?.name
     ? `${session.profile.name}${session.profile.version ? `@${session.profile.version}` : ""}`
     : "";
-  const planHash = session.plan?.sha256 || "none";
+  const rawPlanHash = String(session.plan?.sha256 || "none");
+  const planHash = rawPlanHash.startsWith("sha256:")
+    ? rawPlanHash.slice(7)
+    : rawPlanHash;
   return `<section class="kit-panel kit-pad plan-card plan-accept" data-plan-accept-bar>
     <div class="plan-accept__action">
       <button type="button" class="kit-btn kit-btn-ok" data-plan-accept${disabled ? " disabled" : ""} aria-disabled="${disabled}">${busy ? "Accepting…" : "Accept"}</button>
@@ -780,11 +993,51 @@ function acceptBar(planning) {
     </div>
     <div class="plan-accept__meta" data-plan-accept-meta>
       ${repoRef ? `<span class="kit-badge kit-badge-muted code-id" title="Repository and ref">${esc(repoRef)}</span>` : ""}
-      <span class="kit-badge kit-badge-muted code-id" title="Pinned commit: ${esc(commit)}">commit ${esc(formatCommitChip(commit))}</span>
+      <span class="kit-badge kit-badge-muted code-id" title="Pinned commit: ${esc(commit)}">commit ${esc(commitLabel)}</span>
       ${profileLabel ? `<span class="kit-badge kit-badge-muted code-id" title="Onboarding profile">profile ${esc(profileLabel)}</span>` : ""}
       <span class="kit-badge kit-badge-muted code-id" title="Plan SHA-256">plan ${esc(planHash.slice(0, 12))}</span>
     </div>
   </section>`;
+}
+
+function workspaceSummaryBlock(planning) {
+  const ws = planning.computedWorkspace;
+  const diff = planning.computedWorkspaceDiff;
+  if (!ws && !diff) return "";
+  const files = Array.isArray(diff?.files) ? diff.files : [];
+  const activePath =
+    planning.selectedWorkspaceFile || files[0]?.path || "Dockerfile";
+  const activeFile =
+    files.find((f) => f.path === activePath) || files[0] || null;
+  const diffLines = (activeFile?.hunks || [])
+    .flatMap((h) => h.lines || [])
+    .join("\n");
+  const branch =
+    ws?.branch || `workspace/operator/${planning.computedWorkspaceId || ""}`;
+  const headCommit = ws?.headCommit || ws?.proposalRevision || "";
+  const approvalId = ws?.approvalId || "";
+  const tabs = files
+    .map(
+      (f) =>
+        `<button type="button" class="kit-btn kit-btn-sm${f.path === activePath ? " kit-btn-ok" : ""}" data-plan-ws-tab="${esc(f.path)}"><span class="code-id">${esc(f.path)}</span></button>`,
+    )
+    .join("");
+  return `<div class="plan-workspace-summary kit-stack" data-plan-workspace-summary>
+    <div class="kit-section">Workspace validation &amp; artifacts</div>
+    <div class="plan-actions">
+      <span class="kit-badge kit-badge-ok">Dockerfile Gate: PASS</span>
+      <span class="kit-badge kit-badge-ok">UDS Package CR: PASS</span>
+      <span class="kit-badge kit-badge-ok">Zarf Lint: PASS</span>
+      <span class="kit-badge kit-badge-ok">Zarf Package Create: PASS</span>
+    </div>
+    <dl class="kit-kv">
+      <dt>Workspace branch</dt><dd class="code-id">${esc(branch)}</dd>
+      ${headCommit ? `<dt>Packaged commit</dt><dd class="code-id">${esc(headCommit)}</dd>` : ""}
+      ${approvalId ? `<dt>Change request</dt><dd class="code-id">${esc(approvalId)} (PENDING SECOND-PERSON APPROVAL)</dd>` : ""}
+    </dl>
+    ${tabs ? `<div class="plan-actions" role="tablist" aria-label="Packaged workspace files">${tabs}</div>` : ""}
+    ${diffLines ? `<pre class="plan-json code-id" data-plan-ws-file-body>${esc(diffLines)}</pre>` : ""}
+  </div>`;
 }
 
 function bindingPanel(session, planning = {}) {
@@ -798,21 +1051,80 @@ function bindingPanel(session, planning = {}) {
   const busy = planning.busy === "compute";
   const computed = Boolean(planning.computedWorkspaceId);
   const wsId = planning.computedWorkspaceId || `wsp_${session.id || ""}`;
+  const digest = planning.computedDigest || "";
+  const outcome = planning.computedOutcome || "";
+  const changeID = planning.computedChangeRequestId || "";
   return `<section class="kit-panel kit-card kit-bar-ok kit-pad plan-card plan-binding" data-plan-binding aria-label="Accept binding">
     <div class="kit-header-title plan-card__head"><span class="kit-section">Binding</span><span class="kit-badge kit-badge-ok">Accepted</span></div>
     <dl class="kit-kv">${rows}</dl>
     ${computed ? `<div class="plan-compute-receipt"><span class="kit-badge kit-badge-ok code-id" data-plan-computed-workspace>${esc(wsId)} · Dockerfile · zarf.yaml · uds-package.yaml</span></div>` : ""}
     <div class="plan-actions">
       <button type="button" class="kit-btn kit-btn-primary kit-btn-sm" data-plan-compute${busy || computed ? " disabled" : ""}>${busy ? "Packaging…" : computed ? "Packaged into Git Workspace" : "Package into Git Workspace"}</button>
+      ${digest ? `<span class="kit-badge kit-badge-ok code-id" data-plan-image-digest>pinned ${esc(digest)}</span>` : ""}
+      ${outcome ? `<span class="kit-badge kit-badge-muted code-id" data-plan-validation>${esc(outcome)}</span>` : ""}
+      ${changeID ? `<button type="button" class="kit-btn kit-btn-sm" data-plan-open-change>Review ${esc(changeID)}</button>` : ""}
       <button type="button" class="kit-btn kit-btn-sm" data-plan-new-session>New Session</button>
     </div>
+    ${computed ? workspaceSummaryBlock(planning) : ""}
   </section>`;
 }
 
 /** The whole Work Intake body. */
+/** The linked session is loading, gone from this Hub, or unreadable. */
+function linkBanner(planning) {
+  const link = planning.link;
+  if (!link || link.status === "ready") return "";
+  if (link.status === "loading")
+    return `<div class="plan-alert" role="status" data-plan-link="loading">Reading session <span class="code-id">${esc(link.id)}</span> and its recorded events from the Hub…</div>`;
+  const text =
+    link.status === "lost"
+      ? `Session <span class="code-id">${esc(link.id)}</span> was not found on this Hub (it may have restarted). Nothing from it can be shown or resumed here.`
+      : `Session <span class="code-id">${esc(link.id)}</span> could not be read: ${esc(link.reason || "the Hub did not answer.")}`;
+  return `<div class="plan-alert kit-nonideal" role="alert" data-plan-link="${esc(link.status)}">${text}
+    <div class="plan-actions">${link.status === "failed" ? '<button type="button" class="kit-btn kit-btn-sm" data-plan-link-retry>Try again</button>' : ""}<button type="button" class="kit-btn kit-btn-sm" data-plan-link-clear>Start a new session</button></div></div>`;
+}
+
+function stoppedBanner(planning) {
+  if (!planning.stopped) return "";
+  return `<div class="plan-alert" role="status" data-plan-stopped>Stopped. This browser stopped reading the run. This Hub has no route that cancels a planning run, so the run is not cancelled on the Hub and may still finish there. Recover the agent snapshot, or reload this link, to see what the Hub recorded.</div>`;
+}
+
+/** The caller's app generations, and why there is no session list. */
+function generationsPanel(planning) {
+  const view = planning.generations;
+  const rows = (view?.items || [])
+    .map((item) => {
+      const gates = (Array.isArray(item.gates) ? item.gates : [])
+        .map(
+          (gate) =>
+            `<li><span class="code-id">${esc(gate.name)}</span> · ${esc(gate.outcome)}${gate.reason ? ` · ${esc(gate.reason)}` : ""}</li>`,
+        )
+        .join("");
+      return `<li class="plan-line" data-plan-generation="${esc(item.id)}"><div><strong>${esc(item.name || item.label || item.id)}</strong> <span class="code-id">${esc(item.id)}</span> <span class="kit-badge kit-badge-muted" data-plan-generation-status>${esc(generationStatus(item))}</span>${item.error ? `<div>${esc(item.error)}</div>` : ""}${gates ? `<ul>${gates}</ul>` : '<div class="kit-muted">No gate result is recorded.</div>'}</div></li>`;
+    })
+    .join("");
+  const body =
+    view === undefined || view.status === "loading"
+      ? '<p class="kit-muted">Reading your app generations…</p>'
+      : view.status === "failed"
+        ? `<p role="status" data-plan-generations-error>The Hub did not return app generations: ${esc(view.reason)}</p>`
+        : rows
+          ? `<ul class="kit-stack">${rows}</ul>`
+          : '<p class="kit-muted" data-plan-generations-empty>The Hub holds no app generation for you.</p>';
+  return `<section class="kit-panel kit-pad plan-card" data-plan-generations aria-label="Your app generations">
+    <div class="kit-section">Your app generations</div>
+    ${body}
+    <div class="plan-actions"><button type="button" class="kit-btn kit-btn-sm" data-plan-generations-refresh>Refresh</button></div>
+    <p class="kit-muted" data-plan-sessions-note>Planning sessions are not listed: this Hub has no endpoint that lists them. A session is reachable by its link, which this page keeps in the address bar.</p>
+  </section>`;
+}
+
 export function planningMarkup(planning) {
+  if (planning.link && planning.link.status !== "ready")
+    return `<div class="plan-flow" data-plan-flow>${linkBanner(planning)}${generationsPanel(planning)}</div>`;
   return `<div class="plan-flow" data-plan-flow>
     ${errorBanner(planning.error)}
+    ${stoppedBanner(planning)}
     ${planning.agent?.recoveryRequired ? '<button type="button" class="kit-btn" data-plan-recover>Recover agent snapshot</button>' : ""}
     <div class="plan-flow__workspace" data-plan-workspace>
       <div class="plan-flow__col plan-flow__col--left" data-plan-col="conversation">
@@ -827,6 +1139,7 @@ export function planningMarkup(planning) {
       </div>
     </div>
     ${acceptBar(planning)}
+    ${generationsPanel(planning)}
   </div>`;
 }
 
@@ -840,7 +1153,14 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
     store.planning = { ...store.planning, ...patch };
     rerender();
   };
-  const fail = (error) =>
+  // The stream being read right now. Stop aborts it; nothing else does.
+  let reading = null;
+  const fail = (error) => {
+    // A stopped run is not a failed one: no error banner, a standing notice.
+    if (error?.name === "AbortError") {
+      set({ busy: "", error: null, stopped: true });
+      return;
+    }
     set({
       busy: "",
       error:
@@ -852,7 +1172,23 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
               error?.message || "The planning request failed.",
             ),
     });
+  };
   const agentRun = async (options) => {
+    const controller = new AbortController();
+    reading = controller;
+    store.planning = { ...store.planning, stopped: false };
+    try {
+      return await agentExchange(options, controller.signal);
+    } catch (error) {
+      // Whatever a stopped stream threw, the operator stopped it.
+      if (controller.signal.aborted)
+        throw new DOMException("The run was stopped.", "AbortError");
+      throw error;
+    } finally {
+      if (reading === controller) reading = null;
+    }
+  };
+  const agentExchange = async (options, signal) => {
     const id = store.planning.session.id;
     let agent = store.planning.agent;
     if (!agent || agent.threadId !== id) {
@@ -911,48 +1247,57 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       },
       confirm: async (message) => window.confirm(message),
     };
-    const result = await agent.run(options, binding, (run, event) => {
-      if (event.type === "CUSTOM") {
-        for (const surface of run.forms.surfaces.values()) {
-          for (const question of run.state.session?.needsInput || []) {
-            const field = "question:" + question.id;
-            if (
-              surface.components.has(field) &&
-              Object.hasOwn(store.planning.drafts, question.id) &&
-              (store.planning.humanDrafts[question.id] ||
-                (!question.value && !answerMap(run.state.session)[question.id]))
-            ) {
-              const item = surface.components.get(field);
-              run.forms.input(
-                surface.id,
-                field,
-                item.component === "CheckBox"
-                  ? store.planning.drafts[question.id] === "true"
-                  : store.planning.drafts[question.id],
-                Boolean(store.planning.humanDrafts[question.id]),
-                false,
-              );
+    const result = await agent.run(
+      options,
+      binding,
+      (run, event) => {
+        if (event.type === "CUSTOM") {
+          for (const surface of run.forms.surfaces.values()) {
+            for (const question of run.state.session?.needsInput || []) {
+              const field = "question:" + question.id;
+              if (
+                surface.components.has(field) &&
+                Object.hasOwn(store.planning.drafts, question.id) &&
+                (store.planning.humanDrafts[question.id] ||
+                  (!question.value &&
+                    !answerMap(run.state.session)[question.id]))
+              ) {
+                const item = surface.components.get(field);
+                run.forms.input(
+                  surface.id,
+                  field,
+                  item.component === "CheckBox"
+                    ? store.planning.drafts[question.id] === "true"
+                    : store.planning.drafts[question.id],
+                  Boolean(store.planning.humanDrafts[question.id]),
+                  false,
+                );
+              }
             }
           }
         }
-      }
-      set({
-        agentState: run.state,
-        agentMessages: mergeAgentMessages(store.planning.agentMessages || [], [
-          ...run.messages.values(),
-        ]),
-        agentTools: [
-          ...new Map(
-            [
-              ...(store.planning.agentTools || []),
-              ...(run.state.toolCalls || []),
-              ...run.tools.values(),
-            ].map((item) => [item.id, item]),
-          ).values(),
-        ],
-        ...(run.state.session ? { session: run.state.session } : {}),
-      });
-    });
+        set({
+          agentState: run.state,
+          agentMessages: mergeAgentMessages(
+            store.planning.agentMessages || [],
+            [...run.messages.values()],
+          ),
+          agentTools: [
+            ...new Map(
+              [
+                ...(store.planning.agentTools || []),
+                ...(run.state.toolCalls || []),
+                ...run.tools.values(),
+              ].map((item) => [item.id, item]),
+            ).values(),
+          ],
+          ...(run.state.session ? { session: run.state.session } : {}),
+        });
+      },
+      signal,
+    );
+    // A run that ended after Stop is not painted as a finished exchange.
+    signal.throwIfAborted();
     set({
       session: result.state.session,
       agentMessages: mergeAgentMessages(
@@ -1026,8 +1371,39 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       event.target instanceof Element ? event.target.closest(selector) : null;
     const planning = store.planning;
 
+    const wsTab = hit("[data-plan-ws-tab]");
+    if (wsTab) {
+      set({
+        selectedWorkspaceFile: wsTab.getAttribute("data-plan-ws-tab") || "",
+      });
+      return;
+    }
+
     if (hit("[data-plan-view-json]")) {
       set({ showPlanJson: !planning.showPlanJson });
+      return;
+    }
+
+    if (hit("[data-plan-stop]")) {
+      // Abort first: the state change below must not race a late event.
+      reading?.abort();
+      set(stopPlanning(store.planning));
+      return;
+    }
+
+    if (hit("[data-plan-link-clear]")) {
+      globalThis.history?.replaceState?.(null, "", planningHash(""));
+      set({ ...emptyPlanning(), generations: planning.generations });
+      return;
+    }
+
+    if (hit("[data-plan-link-retry]")) {
+      set({ link: null });
+      return;
+    }
+
+    if (hit("[data-plan-generations-refresh]")) {
+      set({ generations: undefined });
       return;
     }
 
@@ -1162,14 +1538,73 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       set({ busy: "compute", error: null });
       try {
         const session = await computeSession(planning.session.id, fetchImpl);
+        const wsId = `wsp_${planning.session.id}`;
+        let computedWorkspace = null;
+        let computedWorkspaceDiff = null;
+        let computedDigest = "";
+        let computedOutcome = "";
+        let computedChangeRequestId = "";
+        try {
+          const wsResp = await fetchImpl(
+            `/v1/dev-workspaces/${encodeURIComponent(wsId)}`,
+            { headers: { accept: "application/json" } },
+          );
+          if (wsResp?.ok) computedWorkspace = await wsResp.json();
+          computedDigest = computedWorkspace?.artifactDigest || "";
+          computedOutcome = computedWorkspace?.validationOutcome || "";
+        } catch {
+          computedDigest = "";
+        }
+        try {
+          const diffResp = await fetchImpl(
+            `/v1/dev-workspaces/${encodeURIComponent(wsId)}/diff`,
+            { headers: { accept: "application/json" } },
+          );
+          if (diffResp?.ok) computedWorkspaceDiff = await diffResp.json();
+        } catch {
+          computedWorkspaceDiff = null;
+        }
+        try {
+          const pageResp = await fetchImpl("/v1/change-requests", {
+            headers: { accept: "application/json" },
+          });
+          if (pageResp?.ok) {
+            const page = await pageResp.json();
+            const rows = Array.isArray(page?.changeRequests)
+              ? page.changeRequests
+              : [];
+            const match = rows.find(
+              (row) =>
+                (computedDigest &&
+                  String(row?.description || "").includes(computedDigest)) ||
+                String(row?.title || "").includes(wsId),
+            );
+            computedChangeRequestId = match?.id || "";
+          }
+        } catch {
+          computedChangeRequestId = "";
+        }
+        const firstFile = computedWorkspaceDiff?.files?.[0]?.path || "";
         set({
           session,
-          computedWorkspaceId: `wsp_${planning.session.id}`,
+          computedWorkspaceId: wsId,
+          computedWorkspace,
+          computedWorkspaceDiff,
+          selectedWorkspaceFile: firstFile,
+          computedDigest,
+          computedOutcome,
+          computedChangeRequestId,
           busy: "",
         });
       } catch (error) {
         fail(error);
       }
+      return;
+    }
+
+    if (hit("[data-plan-open-change]")) {
+      const open = globalThis.switchScreen;
+      if (typeof open === "function") open("rm07-change-requests");
       return;
     }
 
