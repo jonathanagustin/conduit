@@ -1027,6 +1027,8 @@ export function mountOperator(host, options) {
   const settings = createSettings({
     state,
     render: () => renderApp({ backgroundRefresh: true, settingsRefresh: true }),
+    canPerform: (operation, resource) =>
+      capabilities.canPerform(operation, resource),
   });
   settings.extendState();
   SCREENS.push(...settings.screens);

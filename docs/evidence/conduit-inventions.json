@@ -15,6 +15,13 @@
   ],
   "inventions": [
     {
+      "id": "console.GovernanceEditors",
+      "what": "Conduit-native Organization editors for existing approval-policy and resource-grant APIs, with typed policy variables, revision-bound confirmation and identity-bound request/response handling.",
+      "why": "Issue #823 requests confirmed administration through the mounted console. Native Hub contracts already define authority, CEL validation and revision conflicts; no recovered Apollo source establishes a corresponding editing workflow. These controls retain the Hub's decisions and never confer approval themselves.",
+      "displacedBy": "An authoritative console workflow for native approval-policy and resource-grant edits.",
+      "riskIfWrong": "Presentation may require replacement. No new role, policy language, deletion route or permission is introduced. The Hub authorizes every write; stale revisions fail without automatic retry and observed identity changes discard the editor."
+    },
+    {
       "id": "modelconfig.CapabilitySelection",
       "what": "Conduit-native capability-scoped HTTP model name/deadline overrides and separate configured/provider model identities on planning sessions, immutable Accept bindings, audit records and per-call assistant/app-generation provenance.",
       "why": "No adopted upstream contract in this repository defines selection or model provenance for Conduit AI capabilities. A configured alias and provider-reported response id are different facts. Native keys preserve global configuration defaults and share one HTTP endpoint/key; all former global/capability command settings are explicitly refused before HTTP or offline selection.",

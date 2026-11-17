@@ -53,6 +53,21 @@ function harness(overrides: Record<string, any> = {}) {
 }
 afterEach(() => vi.unstubAllGlobals());
 describe("native read-only organization snapshots", () => {
+  it("retains authoritative grant identity, typed lists, relationship and revision for editing", async () => {
+    const grant = {
+      id: "grt_native",
+      team: "reviewers",
+      resourceRid: "environment/dev",
+      roles: ["environment:viewer"],
+      operations: ["resource:read"],
+      relationship: "CO_OWNER",
+      revision: 7,
+    };
+    const h = harness({ "/v1/resource-grants": { resourceGrants: [grant] } });
+    h.settings.ensureLoaded();
+    await vi.waitFor(() => expect(h.state.settingsLoaded).toBe(true));
+    expect(h.state.orgGrants).toEqual([grant]);
+  });
   it.each([true, false])(
     "reads packaging source status through Connect without a REST retry (allowed=%s)",
     async (allowed) => {
