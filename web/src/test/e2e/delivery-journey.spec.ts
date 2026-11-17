@@ -1,4 +1,10 @@
-import { expect, test, type Page, type Route } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Page,
+  type Route,
+  type Locator,
+} from "@playwright/test";
 import { APPLICATIONS } from "./hub-stub";
 
 // The delivery journey's writes and the planning deep link, against stubbed
@@ -836,4 +842,125 @@ test("a link to a session the Hub no longer has says so", async ({ page }) => {
   await lost.locator("[data-plan-link-clear]").click();
   await expect(page.locator("[data-plan-send]")).toBeVisible();
   await expect(page).toHaveURL(/#s01-intake$/);
+});
+
+// Reach controls through the browser tab order; never focus/click them directly.
+async function keyboardReach(page: Page, target: Locator) {
+  await expect(target).toBeVisible();
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (await target.evaluate((element) => element === document.activeElement))
+      return;
+    await page.keyboard.press("Tab");
+  }
+  await expect(target).toBeFocused();
+}
+async function keyboardActivate(page: Page, target: Locator) {
+  await keyboardReach(page, target);
+  await page.keyboard.press("Enter");
+}
+async function keyboardArea(page: Page, area: string, tab: string) {
+  await keyboardActivate(
+    page,
+    page
+      .locator("#left-nav")
+      .getByRole("button", { name: area, exact: true })
+      .first(),
+  );
+  await keyboardActivate(
+    page,
+    page
+      .locator("#main-workspace")
+      .getByRole("button", { name: tab, exact: true })
+      .first(),
+  );
+}
+
+test("keyboard-only proposal and independent approval retain both confirmations", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const hub: Hub = {
+    operator: "alice",
+    plans: [basePlan],
+    changes: [],
+    promotions: [],
+    writes: [],
+    answer: (path, body) => {
+      if (path === "/v1/plans") {
+        const created = { ...awaitingPlan, desiredState: body };
+        hub.plans = [created, basePlan];
+        hub.changes = [changeRequest("alice")];
+        return { status: 201, json: created };
+      }
+      if (path === "/v1/plans/pln_new/approvals") {
+        hub.plans = [{ ...awaitingPlan, status: "APPROVED" }, basePlan];
+        return { status: 200, json: hub.plans[0] };
+      }
+      return null;
+    },
+  };
+  await hydrate(page);
+  await stubHub(page, hub);
+  await page.goto("/console/");
+  const search = page.getByRole("button", {
+    name: "Search views",
+    exact: true,
+  });
+  await keyboardReach(page, search);
+  await expect(
+    page.getByRole("dialog", { name: "Command palette" }),
+  ).toHaveCount(0);
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("dialog", { name: "Command palette" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await keyboardArea(page, "Releases", "Environments");
+  const propose = page.locator('[data-dj-panel="propose"]');
+  await keyboardReach(page, propose.locator('[data-dj-field="generation"]'));
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.insertText("gen-2");
+  await keyboardReach(page, propose.locator('[data-dj-field="rationale"]'));
+  await page.keyboard.insertText("keyboard proposal");
+  await keyboardActivate(page, propose.locator("[data-dj-review]"));
+  await expect(propose.locator("[data-dj-request]")).toContainText(
+    "POST /v1/plans",
+  );
+  expect(hub.writes).toHaveLength(0);
+  await keyboardActivate(page, propose.locator("[data-dj-confirm]"));
+  await expect(propose.locator("[data-dj-outcome]")).toContainText("pln_new");
+  expect(hub.writes).toHaveLength(1);
+  expect(hub.writes[0].body.environment.generation).toBe("gen-2");
+
+  await keyboardArea(page, "Change requests", "Approvals");
+  const decide = page.locator('[data-dj-panel="decide"]');
+  await expect(
+    decide.getByRole("button", { name: "Approve", exact: true }),
+  ).toBeDisabled();
+  await expect(decide).toContainText(
+    "Another person must approve or reject it.",
+  );
+
+  // A fresh fixture session for the independent reviewer, not UI impersonation.
+  hub.operator = "bob";
+  await page.reload();
+  await expect(decide).toContainText("pln_new");
+  await keyboardReach(page, decide.locator('[data-dj-field="rationale"]'));
+  await page.keyboard.insertText("keyboard independent review");
+  await keyboardActivate(page, decide.locator('[data-dj-review="approve"]'));
+  await expect(decide.locator("[data-dj-request]")).toContainText(
+    "POST /v1/plans/pln_new/approvals",
+  );
+  expect(hub.writes).toHaveLength(1);
+  await keyboardActivate(page, decide.locator("[data-dj-confirm]"));
+  await expect(decide.locator("[data-dj-outcome]")).toContainText(
+    "pln_new is now APPROVED.",
+  );
+  expect(hub.writes).toHaveLength(2);
+  expect(hub.writes[1]).toEqual(
+    expect.objectContaining({
+      path: "/v1/plans/pln_new/approvals",
+      body: { rationale: "keyboard independent review" },
+    }),
+  );
 });

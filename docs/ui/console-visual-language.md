@@ -397,3 +397,16 @@ Missing output, a missing JS/CSS class, symbolic links, an oversized chunk or
 an oversized aggregate fail closed. Chunk splitting cannot bypass the total.
 Raising a limit requires a reviewed source change with a fresh measurement;
 there is no environment override.
+
+## Keyboard release journey
+
+The top-bar search is a button: Tab focuses it without opening a dialog;
+Enter, Space, clicking, or the existing Ctrl/Cmd+K shortcut opens the palette.
+Moving focus alone must not change context or intercept navigation.
+
+`delivery-journey.spec.ts` walks proposal and independent approval using only
+Tab and keyboard activation/input. It checks both request previews, no write
+before confirmation, the author's disabled approval, and exact reviewer payload.
+The Hub answers are fixtures; the reviewer is a fresh fixture session after
+reload. This is keyboard interaction coverage, not a real-issuer or full
+accessibility audit, and does not replace live-Hub journey tests.
