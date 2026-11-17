@@ -420,3 +420,22 @@ No rule or DOM region is excluded. These use the synthetic empty Hub fixture,
 so loaded records, dialogs, error states and every tab still need their own
 interaction coverage. A passing scan does not establish WCAG conformance or
 replace keyboard, screen-reader and cross-browser review.
+
+## Default-area screenshot baselines
+
+`visual-areas.spec.ts` compares all seven default areas in light/dark at
+1440×900 and 390×844. Date is fixed and fonts are awaited. Snapshots capture
+the synthetic empty/unavailable Hub fixture, with animations disabled and the
+caret hidden. No region is masked and no changed pixel is allowed. The normal
+browser suite compares committed PNGs; snapshot update mode is review-only.
+
+The 28 cases have separate zero-tolerance PNGs for native Linux and the named
+`qemu-x86_64-no-zygote` renderer. Text rasterization differs despite matching
+layout. The QEMU set was generated and independently compared with pinned
+Playwright 1.65.0/Chromium 1254. The native set was explicitly reviewed from
+Trunk run 44149724338 at source c7f375e3, artifact 14358167843 (SHA-256
+`991076843273679956d1dcfb7caf0326b4aa0bb6fad882b1b140171bb7cf9139`).
+Its actual images were retained byte-for-byte; no tolerance or mask was added.
+Each renderer must pass its own comparison before promotion.
+These are viewport/default-state baselines, not populated data, every scroll
+position, a real tenant screenshot or cross-browser appearance evidence.
