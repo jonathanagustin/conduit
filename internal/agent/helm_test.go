@@ -912,6 +912,36 @@ func TestHelmRollbackRefusesAReleaseOwnedByANewerAttempt(t *testing.T) {
 	}
 }
 
+func TestFencedUninstallRecordsOwnershipSoItsOwnRollbackCanRestoreTheRelease(t *testing.T) {
+	for _, major := range []int{3, 4} {
+		t.Run(fmt.Sprintf("Helm%d", major), func(t *testing.T) {
+			step := releaseStep("entity-name", "custom-release")
+			step.Action = "uninstall"
+			runner := &helmRunner{step: step, major: major, installed: true}
+			runner.description = fencedReleaseDescription(step, ReleaseFence{
+				Generation: "gen-1", Attempt: 2, Namespace: step.Namespace, Name: step.HelmRelease(),
+			})
+			ctx := withExecutionClaim(t.Context(), executionClaim{Generation: "gen-1", Attempt: 3})
+			executor := HelmExecutor{Runner: runner, Timeout: time.Minute}
+			receipt, err := executor.Apply(ctx, controlplane.Plan{}, step)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fence, ok := parseReleaseFence(runner.description)
+			if !ok || !fenceMatches(receipt.Fence, fence) || fence.Attempt != 3 {
+				t.Fatalf("uninstall did not record its own fence: receipt=%#v description=%q", receipt, runner.description)
+			}
+			if err := executor.Rollback(ctx, receipt); err != nil || !runner.installed {
+				t.Fatalf("own uninstall rollback: installed=%v err=%v", runner.installed, err)
+			}
+			command := helmCommand(t, runner, "rollback")
+			if command[2] != "custom-release" || command[3] != "1" {
+				t.Fatalf("uninstall rollback targeted wrong release/revision: %v", command)
+			}
+		})
+	}
+}
+
 func helmCommand(t *testing.T, runner *helmRunner, name string) []string {
 	t.Helper()
 	for _, command := range runner.commands {
