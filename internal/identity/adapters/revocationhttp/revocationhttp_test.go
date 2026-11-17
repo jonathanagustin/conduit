@@ -39,6 +39,16 @@ func newFixture(t *testing.T) *fixture {
 			fixture.audited = append(fixture.audited, actor+" "+action)
 			return nil
 		},
+		Remove: func(ctx context.Context, actor, environment, id string) (domain.AgentRevocation, error) {
+			return fixture.store.DeleteRevocationAudited(ctx, environment, id,
+				func(context.Context, domain.AgentRevocation) error {
+					if fixture.auditErr != nil {
+						return fixture.auditErr
+					}
+					fixture.audited = append(fixture.audited, actor+" "+ActionRemove)
+					return nil
+				})
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -81,7 +91,7 @@ func TestTheRoutesRefuseToMountWithoutAnAuthorizerOrAnAuditSink(t *testing.T) {
 
 // Lifting a revocation readmits a credential. If that cannot be recorded it
 // must not stand.
-func TestARemovalThatCannotBeAuditedIsUndone(t *testing.T) {
+func TestARemovalThatCannotBeAuditedNeverLiftsTheRevocation(t *testing.T) {
 	fixture := newFixture(t)
 	created := fixture.do(http.MethodPost, "/v1/environments/prod/agent-revocations", `{"scope":"AGENT","agentId":"primary","reason":"key leaked"}`)
 	if created.Code != http.StatusOK {
@@ -91,7 +101,7 @@ func TestARemovalThatCannotBeAuditedIsUndone(t *testing.T) {
 
 	fixture.auditErr = errors.New("audit store is down")
 	response := fixture.do(http.MethodDelete, "/v1/environments/prod/agent-revocations/"+held[0].ID, "")
-	if response.Code != http.StatusInternalServerError || !strings.Contains(response.Body.String(), "restored") {
+	if response.Code != http.StatusServiceUnavailable {
 		t.Fatalf("unaudited removal: %d %s", response.Code, response.Body.String())
 	}
 	after, _ := fixture.store.Revocations(t.Context(), "prod")
@@ -108,6 +118,39 @@ func TestARemovalThatCannotBeAuditedIsUndone(t *testing.T) {
 	}
 	if got := strings.Join(fixture.audited, ", "); got != "alice AGENT_REVOCATION_ADD, alice AGENT_REVOCATION_REMOVE" {
 		t.Fatalf("audited = %q", got)
+	}
+}
+
+func TestRemovalWithoutAnAtomicOperationFailsClosed(t *testing.T) {
+	store := revocationmemory.New()
+	held, err := domain.NewAgentRevocation(domain.AgentRevocation{
+		Scope: domain.RevocationEnvironment, Environment: "prod", Reason: "incident",
+	}, "alice", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.PutRevocation(t.Context(), held); err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	if err := Register(mux, Config{
+		Store: store, Now: time.Now,
+		Authorize: func(*http.Request, string, bool) (string, error) { return "alice", nil },
+		Audit: func(context.Context, string, string, *domain.AgentRevocation, *domain.AgentRevocation) error {
+			t.Fatal("unsupported removal tried the ordinary audit path")
+			return nil
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequest(http.MethodDelete,
+		"/v1/environments/prod/agent-revocations/"+held.ID, nil))
+	if response.Code != http.StatusServiceUnavailable || !strings.Contains(response.Body.String(), "remains in force") {
+		t.Fatalf("unsupported removal: %d %s", response.Code, response.Body.String())
+	}
+	if got, err := store.Revocations(t.Context(), "prod"); err != nil || len(got) != 1 || got[0] != held {
+		t.Fatalf("unsupported removal changed the deny-list: %#v, %v", got, err)
 	}
 }
 

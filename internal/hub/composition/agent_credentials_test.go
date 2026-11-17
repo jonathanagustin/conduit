@@ -19,7 +19,6 @@ import (
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/identity/adapters/revocationmemory"
 	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
-	identityports "github.com/jonathanagustin/conduit/internal/identity/ports"
 )
 
 // Everything here drives the assembled Hub -- NewHub, route guard and all --
@@ -31,7 +30,7 @@ const revocationEnvironment = "prod"
 // brokenCredentialStore is a deny-list that cannot be read, which is what a
 // database outage looks like from here.
 type brokenCredentialStore struct {
-	identityports.AgentCredentialStore
+	*revocationmemory.Store
 	broken atomic.Bool
 }
 
@@ -39,7 +38,7 @@ func (store *brokenCredentialStore) Revocations(ctx context.Context, environment
 	if store.broken.Load() {
 		return nil, errors.New("connection refused")
 	}
-	return store.AgentCredentialStore.Revocations(ctx, environment)
+	return store.Store.Revocations(ctx, environment)
 }
 
 type revocationHub struct {
@@ -73,7 +72,7 @@ func newRevocationHub(t *testing.T) revocationHub {
 			t.Fatal(err)
 		}
 	}
-	store := &brokenCredentialStore{AgentCredentialStore: revocationmemory.New()}
+	store := &brokenCredentialStore{Store: revocationmemory.New()}
 	handler, err := NewHub(repository, controlplane.HandlerOptions{
 		AllowInsecureOperatorIdentityHeaders: true,
 		BootstrapAdministrators:              []string{"root"},

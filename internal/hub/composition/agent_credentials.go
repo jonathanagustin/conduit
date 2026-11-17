@@ -203,12 +203,44 @@ func mountAgentCredentials(
 		Audit: func(ctx context.Context, actor, action string, before, after *identity.AgentRevocation) error {
 			return auditAgentRevocation(ctx, repository, now(), actor, action, before, after)
 		},
+		Remove: atomicAgentRevocationRemoval(store, repository, now),
 	})
 	if err != nil {
 		return nil, err
 	}
 	mux.Handle("/", legacy)
 	return mux, nil
+}
+
+// atomicAgentRevocationRemoval chooses an audit/removal boundary the store can
+// actually uphold. A custom store without one keeps read/add support and its
+// removal route fails closed; delete-and-compensate is never a fallback.
+func atomicAgentRevocationRemoval(
+	store identityports.AgentCredentialStore, repository controlplane.Repository, now func() time.Time,
+) func(context.Context, string, string, string) (identity.AgentRevocation, error) {
+	if durable, ok := store.(interface {
+		DeleteRevocationAndAudit(context.Context, string, string,
+			func(identity.AgentRevocation) (controlplane.AuthorizationAuditEvent, error)) (identity.AgentRevocation, error)
+	}); ok {
+		return func(ctx context.Context, actor, environment, id string) (identity.AgentRevocation, error) {
+			return durable.DeleteRevocationAndAudit(ctx, environment, id,
+				func(removed identity.AgentRevocation) (controlplane.AuthorizationAuditEvent, error) {
+					return agentRevocationAuditEvent(now(), actor, revocationhttp.ActionRemove, &removed, nil)
+				})
+		}
+	}
+	if volatile, ok := store.(interface {
+		DeleteRevocationAudited(context.Context, string, string,
+			func(context.Context, identity.AgentRevocation) error) (identity.AgentRevocation, error)
+	}); ok {
+		return func(ctx context.Context, actor, environment, id string) (identity.AgentRevocation, error) {
+			return volatile.DeleteRevocationAudited(ctx, environment, id,
+				func(ctx context.Context, removed identity.AgentRevocation) error {
+					return auditAgentRevocation(ctx, repository, now(), actor, revocationhttp.ActionRemove, &removed, nil)
+				})
+		}
+	}
+	return nil
 }
 
 // auditAgentRevocation records the content of a deny-list change: who made
@@ -218,6 +250,20 @@ func auditAgentRevocation(
 	ctx context.Context, repository controlplane.Repository, now time.Time, subject, action string,
 	before, after *identity.AgentRevocation,
 ) error {
+	event, err := agentRevocationAuditEvent(now, subject, action, before, after)
+	if err != nil {
+		return err
+	}
+	_, err = repository.AppendAuthorizationAudit(ctx, event)
+	return err
+}
+
+// agentRevocationAuditEvent constructs the same event for both store kinds.
+// PostgreSQL appends it inside the removal's transaction; memory appends it
+// while retaining its deny-list lock and deletes only after the append succeeds.
+func agentRevocationAuditEvent(
+	now time.Time, subject, action string, before, after *identity.AgentRevocation,
+) (controlplane.AuthorizationAuditEvent, error) {
 	target := after
 	if target == nil {
 		target = before
@@ -253,10 +299,9 @@ func auditAgentRevocation(
 		CreatedAt:    instant,
 	}
 	if err := controlplane.ValidateAuditCategoryEvent(event); err != nil {
-		return err
+		return controlplane.AuthorizationAuditEvent{}, err
 	}
-	_, err := repository.AppendAuthorizationAudit(ctx, event)
-	return err
+	return event, nil
 }
 
 func writeAgentCredentialJSON(writer http.ResponseWriter, status int, body any) {

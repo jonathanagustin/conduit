@@ -10,6 +10,7 @@ package revocationmemory
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"sync"
 	"time"
@@ -66,6 +67,32 @@ func (store *Store) DeleteRevocation(_ context.Context, environment, id string) 
 	revocation, found := store.revocations[environment][id]
 	if !found {
 		return domain.AgentRevocation{}, domain.ErrRevocationNotFound
+	}
+	delete(store.revocations[environment], id)
+	return revocation, nil
+}
+
+// DeleteRevocationAudited holds the deny-list lock until the audit succeeds.
+// Readers cannot observe an unaudited removal, and an audit failure leaves the
+// original record untouched. After a successful audit the map deletion cannot
+// fail, including when the requesting client has disconnected in the meantime.
+func (store *Store) DeleteRevocationAudited(
+	ctx context.Context, environment, id string, audit func(context.Context, domain.AgentRevocation) error,
+) (domain.AgentRevocation, error) {
+	if audit == nil {
+		return domain.AgentRevocation{}, errors.New("revocation removal requires an audit sink")
+	}
+	store.mutex.Lock()
+	defer store.mutex.Unlock()
+	if err := ctx.Err(); err != nil {
+		return domain.AgentRevocation{}, err
+	}
+	revocation, found := store.revocations[environment][id]
+	if !found {
+		return domain.AgentRevocation{}, domain.ErrRevocationNotFound
+	}
+	if err := audit(ctx, revocation); err != nil {
+		return domain.AgentRevocation{}, err
 	}
 	delete(store.revocations[environment], id)
 	return revocation, nil

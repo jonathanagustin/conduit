@@ -45,6 +45,11 @@ type Config struct {
 	// Audit records the content of a change after it has landed. before is
 	// nil for a first revocation and after is nil for a removal.
 	Audit func(ctx context.Context, actor, action string, before, after *domain.AgentRevocation) error
+	// Remove atomically lifts a revocation and records its audit event. A
+	// removal must never be visible without its audit. Nil disables removal while
+	// retaining the read and add routes; a store without this capability must
+	// never fall back to a delete followed by a compensating write.
+	Remove func(ctx context.Context, actor, environment, id string) (domain.AgentRevocation, error)
 }
 
 // CredentialView is the per-Agent expiry the metrics endpoint must not carry:
@@ -147,23 +152,19 @@ func Register(mux *http.ServeMux, config Config) error {
 		if !ok {
 			return
 		}
-		removed, err := store.DeleteRevocation(request.Context(), environment, request.PathValue("revocationID"))
+		if config.Remove == nil {
+			writeJSON(writer, http.StatusServiceUnavailable, map[string]string{
+				"error": "audited Agent revocation removal is unavailable; the revocation remains in force",
+			})
+			return
+		}
+		removed, err := config.Remove(request.Context(), actor, environment, request.PathValue("revocationID"))
 		switch {
 		case errors.Is(err, domain.ErrRevocationNotFound):
 			writeJSON(writer, http.StatusNotFound, map[string]string{"error": err.Error()})
 			return
 		case err != nil:
 			unavailable(writer)
-			return
-		}
-		// Lifting a revocation readmits a credential, so an unrecorded removal
-		// is the unsafe direction. It is put back rather than left standing.
-		if err := config.Audit(request.Context(), actor, ActionRemove, &removed, nil); err != nil {
-			message := unaudited + "; the revocation was restored"
-			if _, restoreErr := store.PutRevocation(request.Context(), removed); restoreErr != nil {
-				message = unaudited + " and the revocation could not be restored; it is no longer in force"
-			}
-			writeJSON(writer, http.StatusInternalServerError, map[string]string{"error": message})
 			return
 		}
 		writeJSON(writer, http.StatusOK, removed)

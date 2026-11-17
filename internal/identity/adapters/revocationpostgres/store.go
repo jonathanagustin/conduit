@@ -14,6 +14,8 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
+	"github.com/jonathanagustin/conduit/internal/governance/adapters/auditpostgres"
+	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	"github.com/jonathanagustin/conduit/internal/identity/domain"
 	"github.com/jonathanagustin/conduit/internal/pgmigrate"
 )
@@ -160,6 +162,50 @@ func (store *Store) DeleteRevocation(ctx context.Context, environment, id string
 		return domain.AgentRevocation{}, err
 	}
 	return revocation, nil
+}
+
+// DeleteRevocationAndAudit commits the removal and its authorization audit
+// event in one SQL transaction. Until commit, other replicas still read the
+// revocation. Failure before commit rolls everything back; a completed commit
+// contains both changes, and no compensation can overwrite a newer revocation.
+// buildEvent only constructs the immutable event and must not write it.
+func (store *Store) DeleteRevocationAndAudit(
+	ctx context.Context, environment, id string,
+	buildEvent func(domain.AgentRevocation) (governance.AuthorizationAuditEvent, error),
+) (domain.AgentRevocation, error) {
+	if buildEvent == nil {
+		return domain.AgentRevocation{}, errors.New("revocation removal requires an audit event")
+	}
+	tx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.AgentRevocation{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	// Match PutRevocation's lock order, so a newer revocation serializes with
+	// this removal and can never be replaced by an older compensation record.
+	if _, err := tx.ExecContext(ctx,
+		`SELECT pg_advisory_xact_lock(hashtextextended('conduit-agent-revocations:' || $1, 0))`, environment); err != nil {
+		return domain.AgentRevocation{}, err
+	}
+	removed, err := scanRevocation(tx.QueryRowContext(ctx, `DELETE FROM conduit_agent_revocations
+		WHERE environment = $1 AND revocation_id = $2 RETURNING `+revocationColumns, environment, id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.AgentRevocation{}, domain.ErrRevocationNotFound
+	}
+	if err != nil {
+		return domain.AgentRevocation{}, err
+	}
+	event, err := buildEvent(removed)
+	if err != nil {
+		return domain.AgentRevocation{}, err
+	}
+	if _, err := auditpostgres.New(tx).AppendAuthorizationAudit(ctx, event); err != nil {
+		return domain.AgentRevocation{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.AgentRevocation{}, err
+	}
+	return removed, nil
 }
 
 // RecordSighting keeps the newer of what is held and what is offered. Two

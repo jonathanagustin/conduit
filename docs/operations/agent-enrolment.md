@@ -82,7 +82,9 @@ Steps:
    ConfigMap. Restart the Hub: it reads `AGENT_CLIENT_CA_FILE` once, at start.
 2. Put the CA's certificate and key in the Secret the `Issuer` names. Whoever
    can read that Secret can mint an Agent identity for any Environment the Hub
-   trusts that CA for. One CA per Environment limits that to one Environment.
+   trusts. The Hub does not bind an issuing CA to an Environment: even when
+   separate CAs are issued per Environment, every CA in its trust bundle can
+   mint a certificate naming any Environment. Protect those CA keys accordingly.
 3. Apply the `Issuer` and the `Certificate` in the namespace the Spoke chart is
    released into. Wait for the Secret to exist.
 4. Install the Spoke chart with the values above.
@@ -149,6 +151,13 @@ conduit agent-credential unrevoke prod-use2 arv_0123456789abcdef0123456789abcdef
 
 Revoking the same thing twice replaces the one record; it does not add a second.
 
+Removing a revocation commits its audit event and the removal in one PostgreSQL
+transaction. Until commit, other Hub replicas still read the revocation. An
+audit failure or cancellation before commit rolls the removal back. With the in-memory store,
+the deny-list stays locked until the audit succeeds, then the record is removed.
+Custom credential stores must supply an audited removal operation; otherwise
+the removal route returns `503` and leaves the revocation in force.
+
 ### Three things to know before relying on it
 
 **Re-enrol with a new private key.** An `AGENT` or `ENVIRONMENT` revocation
@@ -161,9 +170,11 @@ example is what prevents this.
 still refused until the instant passes. If a fresh certificate is refused, read
 its `NotBefore` and compare it with the revocation's `notBefore`.
 
-**A revocation is not CA rotation.** If the CA key itself is exposed, revoke
-the Environment to stop the bleeding, then rotate the CA
-([key-rotation.md](key-rotation.md)).
+**A revocation cannot contain a compromised CA.** Anyone holding a trusted CA
+key can mint a certificate with a later `NotBefore`, bypassing an `AGENT` or
+`ENVIRONMENT` timestamp revocation. Remove the compromised CA from Hub trust
+and rotate affected credentials ([key-rotation.md](key-rotation.md)); do not
+rely on an Environment revocation to contain the incident.
 
 ### What a revoked Agent sees
 
