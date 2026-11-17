@@ -98,6 +98,20 @@ substitutes the variables and the Package validates against the UDS Core
 Postgres, a scrape succeeding, or what Zarf does when both `uds` and
 `uds-metrics` are selected.
 
+### Alert rules and dashboard
+
+Add `uds-observability` to `--components` beside `uds-metrics` to apply the
+Hub's `PrometheusRule` and its dashboard ConfigMap (labelled
+`grafana_dashboard: "1"`) into `platform-system`. The series, the alerts and
+their runbooks are described in [`hub-observability.md`](hub-observability.md)
+and [`runbooks.md`](runbooks.md).
+
+This is also checked by rendering only. The manifest is generated from
+`deploy/observability` and a gate holds it to its sources and to the series
+the Hub exports. That UDS Core's Prometheus loads a rule, and its Grafana a
+dashboard, from this namespace is assumed from the kube-prometheus-stack
+conventions; no cluster run has shown either, and no rule has been evaluated.
+
 ## Tool versions used here
 
 - Zarf CLI `v0.82.0` for package create, lint, and the plain install.

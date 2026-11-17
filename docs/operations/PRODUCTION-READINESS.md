@@ -44,7 +44,7 @@ answer, and nothing here should be read as claiming it.
 | Offline-bundle packaging | The Zarf package assembles and validates for disconnected **installation**: image digests pinned, one confined namespace, non-root runtime with every capability dropped, no credential bytes in the manifest, HTTPS probes, and a required `BUNDLE_SIGNING_KEY_FILE`. It claims nothing about **operating** a disconnected estate after that install. | `Validate Zarf offline-bundle package` gate (`scripts/verify-zarf-package.rb`). **Bounded by gap 5**: a Release recalled on the source keeps running on a disconnected target, so lifecycle control of a disconnected estate is outside this row. Read the two together — see [Offline bundles: what this claims and what it does not](#offline-bundles-what-this-claims-and-what-it-does-not). |
 | Supply chain | Every workflow action, container base, and tool is digest- or checksum-pinned; images carry SBOM and vulnerability evidence with zero high/critical matches; Hadolint and the trusted-technology policy gate the Containerfiles. | `Validate trusted supply-chain policy`, `Scan for known vulnerabilities`, `Lint Containerfiles` gates. Image SBOM and vulnerability evidence is **digest-bound and produced at publication**, by the "Generate digest-bound SBOM and vulnerability evidence" step in `.github/workflows/platform-images.yml` (pinned Syft 1.50.0 and Grype 0.116.1); it is not a committed artifact, so this half of the row is proven per-publication rather than per-commit. Corrected on 2026-08-18: this row previously cited `docs/evidence/highs-1.15.1-shim-candidate-amd64.json`, which is the `UNADMITTED` optimizer candidate the [out-of-scope section](#explicitly-out-of-production-scope) excludes from production — evidence about an image this document says production does not run. |
 | CI provenance | Publication, release, and deployment run only on explicit human dispatch; verification and maintenance workflows may be automated under ADR 0006's guardrails (cancel superseded runs, cap runtime, least-privilege, never publish). The Trunk gate runs on `pull_request` under those guardrails (#195) and stays dispatchable for a re-run on an unchanged tree; it authenticates the exact pull-request head on both paths and publishes a commit status against it; each run writes a per-gate summary with failure annotations. | A4 (ADR 0006); `docs/operations/manual-ci.md`; `.github/workflows/platform-ci.yml`; `scripts/verify-pr-fidelity.test.sh`. |
-| Metrics exposition | The Hub exports queue depth, lease occupancy, exhaustion and reconciliation lag on an opt-in listener, with no tenant identifier in any label — enforced on the publishing path rather than by convention. | `internal/observability`; `TestALabelNamingATenantResourceIsRefused`; `TestAWedgedHubIsDistinguishableFromABusyOne`. **Bounded by gap 2**, which owns everything this row does not claim: no tracing, nothing exported under `REPOSITORY_KIND=file`, the listener off until `METRICS_ADDRESS` is set, and no alerting rules. This row was titled "Observability" until the 2026-08-18 external audit, which read the title as contradicting gap 2; the claim never did, but the title invited the reading. |
+| Metrics exposition | The Hub exports, on an opt-in listener, queue depth, lease occupancy, exhaustion and reconciliation lag; request rate, errors and duration by registered route pattern; rate-limiter decisions; and notification delivery attempts, outcomes and backlog — with no tenant identifier in any label, enforced on the publishing path rather than by convention. Every request gets a request id and one access-log line that carries no path, query string, header or principal. Nine alert rules, a dashboard and a runbook per alert ship, held to the exported series by a gate. | `internal/observability`; `TestALabelNamingATenantResourceIsRefused`; `TestAWedgedHubIsDistinguishableFromABusyOne`; `TestAThousandDistinctIdentifiersDoNotGrowTheSeriesCount`; `TestTheAccessLogCarriesNoQueryStringHeaderOrPrincipal`; `TestTheExportedMetricsManifestIsWhatTheCodeRenders`; `ruby scripts/verify-observability-assets.rb`; [`hub-observability.md`](hub-observability.md). **Bounded by gap 2**, which owns everything this row does not claim: no tracing (trace ids in logs only), nothing exported under `REPOSITORY_KIND=file`, the listener off until `METRICS_ADDRESS` is set, and alert expressions and a dashboard that no Prometheus or Grafana has evaluated. Read the two together. This row was titled "Observability" until the 2026-08-18 external audit, which read the title as contradicting gap 2; the claim never did, but the title invited the reading. |
 | Frontend | The operator console ships one tenant-neutral bundle; tenant runtime overrides pass two independent closed validators that reject executable content and policy weakening; browser tests cover URL-owned pagination state. | A3; `Validate operator console` gate; `docs/ui/contracts/runtime-bootstrap.md`. |
 | Disaster recovery | A `pg_dump` taken while decisions are committing restores into an empty database with the migration ledger intact, state readable through the real repositories including artifact bytes, and no decision, audit record or queued proposal torn from the transaction that wrote all three. | `docs/operations/backup-and-restore.md`; `TestPostgresBackupAndRestoreDrill` (`scripts/test-postgres-repository.sh`). **Bounded by gap 4**: the schedule, retention, PITR and secrets backup belong to the deployment that owns the database. |
 | Fidelity boundary | No private Apollo behavior is inferred: the public OpenAPI is authoritative only for published operations, and the private Hub-to-Agent protocol remains an explicit non-claim. | A1, A2; H9 (BLOCKED by design); `docs/reference-platform/conformance.md`. |
@@ -268,29 +268,51 @@ carried to the residual list as item 5.
    approver is told by subscribing to the Environment, not by being eligible to
    approve: nothing resolves a reviewer requirement to recipients.
 
-2. **Observability is partial.** Metrics now exist and the wedge signal is
-   exported: `conduit_reconciliation_pending`, `_leased`, `_exhausted` and
-   `_oldest_pending_seconds`, each labelled by queue, plus `conduit_build_info`.
-   The lag gauge is the one that matters — depth alone cannot separate a busy Hub
-   from a stuck one, because both sit at some number; how long the oldest due
-   item has waited can.
+2. **Observability is partial.** Tracked in #839. Metrics exist for the three
+   things an operator has to tell apart. The wedge signal:
+   `conduit_reconciliation_pending`, `_leased`, `_exhausted` and
+   `_oldest_pending_seconds`, by queue — the lag gauge is the one that matters,
+   because depth alone cannot separate a busy Hub from a stuck one. Requests:
+   `conduit_http_requests_total` and a duration histogram, labelled by the
+   registered route pattern and never the path, with every request given a
+   request id and an access-log line. Notification delivery: attempts,
+   successes, failures and exhaustions per kind of transport, and the pending
+   and exhausted backlog read from the database, so
+   `conduit_notification_inbox.delivery_exhausted` is no longer a row nobody
+   queries. Alert rules for a wedged Hub, lag, exhausted proposals and
+   deliveries, a sustained 5xx ratio, refused Agents and absent metrics ship as
+   a `PrometheusRule`, with a dashboard and a runbook section each
+   ([`hub-observability.md`](hub-observability.md), [`runbooks.md`](runbooks.md)).
 
-   What remains: **no tracing**, so a slow decision cannot be attributed to a
-   stage; metrics are available **only under `REPOSITORY_KIND=postgres`**, since
-   the file repository has none of the queues they describe; the endpoint is
-   **off unless `METRICS_ADDRESS` is set**, on its own listener, so an existing
-   deployment gains no reachable surface until an operator asks; and **no
-   alerting rules ship**, so the signal exists but nobody is woken by it.
+   What remains:
+
+   - **No tracing.** The Hub and the Spoke Agent carry a W3C trace id and the
+     access log records it, which correlates log lines. No span is recorded or
+     exported, and the request that decided a Plan is not linked to the cycle
+     that leased it. Adding an OTLP exporter is a dependency and egress
+     decision set out in [ADR 0018](../decisions/0018-tracing.md), which is
+     Proposed, not accepted.
+   - **Nothing is exported under `REPOSITORY_KIND=file`** — including the
+     request metrics, which need no database but share the listener.
+   - The endpoint is **off unless `METRICS_ADDRESS` is set**, on its own
+     listener, so an existing deployment gains no reachable surface until an
+     operator asks. The rules and dashboard are off by default too.
+   - **The alert expressions have not been evaluated.** No pinned `promtool`
+     is available to the gate, so it checks that each rule and panel names
+     only exported series, allowlisted labels and real functions. No rule has
+     fired in a Prometheus, the dashboard has not been loaded in a Grafana,
+     neither has been applied to a cluster, and the thresholds are untuned.
+   - The exhausted-proposal alert cannot tell a proposal that ran out of
+     retries from one a newer desired state superseded; the store records
+     both the same way. Its runbook says how to tell.
+   - Nothing in the repository routes an alert to a person. That is the
+     deployment's Alertmanager.
 
    **This gap bounds the Metrics exposition row above, and the two must be read
-   together.** The row claims one thing — that the four reconciliation gauges
-   and `conduit_build_info` are exported on an opt-in listener with no tenant
-   identifier in any label — and this gap owns everything the broader word
-   "observability" would imply. Nothing exported here covers notification
-   delivery either: `conduit_notification_inbox.delivery_exhausted` has a reader
-   (`internal/notifications/adapters/postgres.Store.Deliveries`) and no
-   production caller, no metric and no alerting rule, so a notification that
-   runs out of retries ends in a database row nobody queries.
+   together.** The row claims what is exported, that no label or log field
+   carries a tenant identifier, and that the shipped rules name only series
+   that exist. This gap owns everything the broader word "observability" would
+   imply beyond that.
 
 3. **Schema migrations are versioned and verifiable on request; rehearsal is
    not.** An earlier draft of this row said there was no migration path at all.
@@ -546,7 +568,7 @@ end-to-end and live suites, and mutation scores on both sides.
 | The tests do not actually test | **Mutation** | Present on both Go and web, with committed scores. |
 | **Infrastructure fails underneath it** | **Failure injection** — PostgreSQL failover mid-transaction, Agent disconnect mid-Plan, partial network | **Missing.** Bounds the Concurrency and replica correctness row above: that row proves replicas do not corrupt each other, not that the Hub stays available when the infrastructure under it fails. |
 | **It degrades under its own backlog** | **Load and soak** — sustained multi-replica reconciliation, lease contention, no starvation | **Missing.** Concurrency tests prove correctness at small N, not behaviour at depth. Bounds the Concurrency and replica correctness row above. |
-| It is running and nobody can tell | **Observability assertion** | Present for metrics: the exposition format, the label allowlist and the wedge-versus-busy distinction are all asserted. Tracing remains unbuilt. |
+| It is running and nobody can tell | **Observability assertion** | Present for metrics and the access log: the exposition format, the label allowlist, the wedge-versus-busy distinction, the bound on request series and the absence of credentials from log lines are all asserted. Alert rules are checked for the names they use, not evaluated. Tracing remains unbuilt (gap 2). |
 | Nobody is told what happened | **Delivery end-to-end** | **Partial.** Ports exist and are driven: one emit site records an exhausted reconciliation proposal, fans it out to the preferences stored for the Environment, and a read path returns it — asserted against a real database in `internal/notifications/adapters/postgres` — and, when an operator configures one, a transport leases the entry and POSTs it or logs it; the recipient can now read their own inbox in the console rather than by hand. Native SMTP and Slack also submit to the selected recipient contact (#119), verified with isolated protocol servers and the PostgreSQL queue. Real mailbox receipt and human acknowledgement are not established. |
 | A recall does not reach a disconnected target | **Bundle round trip** | **Blocked** by the design decision in #126, not by effort. |
 
