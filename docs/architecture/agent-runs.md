@@ -130,3 +130,178 @@ a live provider. Unit replay covers dropped/invalid streams and schema policy.
 Browser interaction tests separately exercise the Work Intake DOM with owned
 wire fixtures. None of these fixtures establishes live-model, tenant, cluster,
 publication or workspace-agent qualification.
+
+## Assistant turns and threads
+
+The console assistant is a second producer of the same AG-UI event vocabulary.
+It is not a planning run: it has its own routes, no `RunAgentInput`, no form
+tools and no resume. What it shares is the event schema under `api/agui` and
+the Hub ordering profile `agui.Sequence` checks, which every event passes
+before it is written. It does not share the planning publisher, which is
+private to `internal/planning/agentstream` and audits per event; the assistant
+audits per tool call instead, as it did before.
+
+### Routes
+
+| Route | Decision | Purpose |
+| --- | --- | --- |
+| `POST /v1/assistant/tools` | operator-any | run one tool a person submitted, including a Confirm |
+| `POST /v1/assistant/turns` | operator-any | one message; JSON or, with `Accept: text/event-stream`, SSE |
+| `GET /v1/assistant/threads` | operator-self | the caller's threads, newest update first, no messages |
+| `POST /v1/assistant/threads` | operator-self | open an empty thread; body `{}` or `{"title": "..."}` |
+| `GET /v1/assistant/threads/{threadID}` | operator-self | one thread with its messages |
+| `DELETE /v1/assistant/threads/{threadID}` | operator-self | delete it; `204` |
+
+A thread belongs to the authenticated username. A thread that does not exist
+and a thread another operator owns are the same `404 THREAD_NOT_FOUND`.
+
+### The turn
+
+Request: `{"mode", "message", "context"?, "threadId"?}`. `threadId` is the
+only new field and is optional. Without it the turn reads and writes no
+conversation state, and its first prompt is byte-for-byte what it was.
+
+Response, `200`:
+
+```json
+{
+  "label": "Live model call",
+  "text": "One environment: zeta.",
+  "provenance": {"Adapter": "...", "PromptSHA256": "...", "ResponseSHA256": "..."},
+  "results": [{"tool": "query_ontology_objects", "ok": true, "...": "..."}],
+  "toolCalls": [{"id": "call_1_1", "round": 1, "name": "query_ontology_objects", "arguments": {"objectType": "Environment"}}],
+  "rounds": 2,
+  "threadId": "ath_...",
+  "model": {"kind": "openai-http", "model": "..."}
+}
+```
+
+`label`, `text`, `provenance` and `results` are unchanged in shape. `text` is
+now the model's last text, after it has read the tool results. `toolCalls[i]`
+is the call that produced `results[i]`, with the arguments the server ran.
+`threadId` is present only on a thread turn. `model.kind` is the adapter;
+`model.model` is present only when the adapter reads a model id from the
+provider. `provenance` describes the last model call.
+
+A turn is a loop. The Hub calls the model, runs the tool calls in the reply,
+and sends the results back, until a reply has no tool calls. The bounds are
+four model calls per turn, three tool calls per reply and eight per turn; the
+ninth is not run and the model is told. The fourth call has to answer: tool
+calls in it are not run and the turn fails with `ROUND_CAP`.
+
+Tool results, the model's own earlier replies and earlier turns of a thread
+are written into the prompt as JSON lines between
+`<<<UNTRUSTED_HUB_DATA>>>` and `<<<END_UNTRUSTED_HUB_DATA>>>`, under a standing
+rule that nothing between the markers is an instruction. Marker runs inside
+the data are escaped. This is the planner's framing, applied to Hub data.
+
+Governance holds in every round: the mode's tool allowlist, the action rules,
+the refusal to approve one's own change request, and one audit entry per tool
+call. A turn stops at the first tool call whose audit entry cannot be written.
+One rule is new. Once the model has read anything the operator did not type in
+this message (a tool result from an earlier round, or earlier turns of a
+thread), its tool calls are *held*: a `confirm` flag on a `governed_write` is
+discarded, and an `approve_change` or `reject_change` returns `needsConfirm`
+with the elicitation card instead of recording the review. A held call can
+still open a change request, which needs a separate approver. The person
+confirms through `POST /v1/assistant/tools`, as before. The first round of a
+turn with no thread history is not held and behaves as it did.
+
+### Threads
+
+A thread turn loads the thread, puts the newest earlier messages in the prompt
+(at most 20 messages and 24 KiB of text, an unbroken tail, oldest dropped
+first), runs the loop, and appends two messages: the operator's, and the
+assistant's with its tool calls, their arguments and their results. A turn
+that fails after the model was called is appended too, with `errorCode` on
+the assistant message, because its tool calls ran.
+
+```json
+{
+  "id": "ath_0123456789abcdef0123456789abcdef",
+  "title": "which environments exist?",
+  "createdAt": "2026-11-17T09:00:00Z",
+  "updatedAt": "2026-11-17T09:00:07Z",
+  "messageCount": 2,
+  "messages": [
+    {"role": "user", "text": "...", "mode": "explore", "createdAt": "..."},
+    {"role": "assistant", "text": "...", "mode": "explore", "createdAt": "...",
+     "toolCalls": [{"id": "call_1_1", "round": 1, "name": "...", "arguments": {}, "result": {}}],
+     "errorCode": "ROUND_CAP"}
+  ]
+}
+```
+
+`GET /v1/assistant/threads` returns `{"threads": [...]}` with the same fields
+and no `messages`. A thread with no title takes its first message, cut to 120
+bytes. Bounds: 50 threads per owner (`409 THREAD_LIMIT`), 200 messages per
+thread (`409 THREAD_FULL`, checked before the model is called), 16 KiB of text
+and 64 KiB encoded per message. A stored assistant message over the encoded
+bound keeps its text and replaces each tool result with `{"truncated": true}`.
+
+The store is a port with two adapters that run one conformance suite.
+`threadpostgres` (ledger component `assistant-threads`, migration
+`0001-assistant-threads`) is the durable one. `threadmemory` is what the Hub
+uses when `composition.Options.AssistantThreads` is nil: threads then live in
+one process, are lost on restart and are not shared between replicas.
+`cmd/platform-delivery` does not yet open the PostgreSQL adapter, so that is
+the current state of a deployed Hub.
+
+### Streaming
+
+`POST /v1/assistant/turns` with `Accept: text/event-stream` and the same body
+answers with `data: <event JSON>` lines. The events are the ones that have
+really happened; the model ports are request and response, so there is no
+token stream.
+
+| Event | When | Fields beyond `type` |
+| --- | --- | --- |
+| `RUN_STARTED` | before the first model call | `threadId`, `runId`, `protocolVersion` |
+| `STEP_STARTED` / `STEP_FINISHED` | around each round | `stepName`: `round-1` ... `round-4` |
+| `TOOL_CALL_START` | a tool is about to run | `toolCallId`, `toolCallName` |
+| `TOOL_CALL_ARGS` | once per call | `toolCallId`, `delta`: the whole argument JSON |
+| `TOOL_CALL_END` | arguments complete | `toolCallId` |
+| `TOOL_CALL_RESULT` | the tool returned | `toolCallId`, `messageId`, `content`: the result object as a JSON string |
+| `TEXT_MESSAGE_START` / `_CONTENT` / `_END` | the answer, once, whole | `messageId`, `role`, `delta` |
+| `RUN_FINISHED` | success | `threadId`, `runId`, `result`: the JSON turn document |
+| `RUN_ERROR` | failure after `RUN_STARTED` | `code`, `message` |
+
+`runId` is `arun_` plus 16 hex characters. `threadId` is the thread's id, or
+the `runId` again on a turn with no thread. A failure before `RUN_STARTED`
+(authentication, a bad body, no model, an unknown or full thread) is an
+ordinary JSON error with its HTTP status, not a stream. After `RUN_ERROR` the
+tool results already sent stand; on a thread turn the partial turn is in the
+thread. The stream sends a `: keep-alive` comment every fifteen seconds and
+is bounded to ten minutes.
+
+Both forms run on the request context. Closing the connection cancels the
+model call in flight; a thread turn cancelled this way is still appended,
+with `errorCode` `CANCELLED`.
+
+### Errors
+
+Every failure body is `{"code", "error"}`. `MODEL_NOT_CONFIGURED` also carries
+`"label": "No model call"`, as the `422` always did. A failed turn that got as
+far as a model call also carries `"turn"`, the partial turn document.
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `MODEL_NOT_CONFIGURED` | 422 | no model adapter is configured |
+| `MODEL_FAILED` | 502 | the model call failed |
+| `MODEL_TIMEOUT` | 502 | the model call timed out |
+| `MODEL_REPLY_INVALID` | 502 | no valid reply object in the model's output |
+| `ROUND_CAP` | 502 | the model was still calling tools in its last round |
+| `AUDIT_UNAVAILABLE` | 503 | a tool call or reply could not be audited; the turn stopped |
+| `THREAD_NOT_FOUND` | 404 | no such thread for this operator |
+| `THREAD_LIMIT` / `THREAD_FULL` | 409 | a store bound was reached |
+| `THREADS_NOT_CONFIGURED` | 503 | no conversation store |
+| `INVALID_REQUEST` | 400 | malformed body, empty message, or message over 16 KiB on a thread turn |
+| `TOOL_INVALID` | 400 | `POST /v1/assistant/tools` with an unknown tool or bad arguments |
+| `UNAUTHORIZED` | 401 | no operator credential |
+| `CANCELLED` | — | the request went away; seen as `errorCode` in a thread |
+| `TURN_FAILED` | 502 | anything else |
+
+The reply parser accepts the reply object alone, inside a Markdown fence, or
+after prose or log lines, preferring the last object, which is what the
+planner's parser does. The object itself is still decoded strictly: an unknown
+field, an unknown tool or bad arguments fail the turn.
