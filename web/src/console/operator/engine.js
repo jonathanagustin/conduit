@@ -4815,6 +4815,12 @@ export function mountOperator(host, options) {
 
   let previousScreen = "";
   function renderMainWorkspace() {
+    const focusedCommandLayer =
+      visibleScreen() === "cc-overview"
+        ? document.activeElement
+            ?.closest("#main-workspace [data-cc-layer]")
+            ?.getAttribute("data-cc-layer")
+        : null;
     writeIndexLocation();
     liveHub.ensure();
     if (state.screen !== "au01-audit" && state.screen !== "area-audit")
@@ -4830,6 +4836,14 @@ export function mountOperator(host, options) {
       updateExampleBadge();
       settings.applyChrome();
       settings.ensureLoaded();
+      if (focusedCommandLayer && visibleScreen() === "cc-overview") {
+        [...root.querySelectorAll("[data-cc-layer]")]
+          .find(
+            (element) =>
+              element.getAttribute("data-cc-layer") === focusedCommandLayer,
+          )
+          ?.focus();
+      }
       return;
     }
     const screenChanged =

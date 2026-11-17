@@ -654,7 +654,13 @@ test("Command Center uses recorded sites and drafts context without writes", asy
   await expect(page.locator(".kit-cc-pin")).toHaveCount(1);
   const labels = page.getByRole("button", { name: "Labels", exact: true });
   await labels.focus();
-  await page.keyboard.press("Space");
+  await page.evaluate(() => Reflect.get(window, "refreshHub")());
+  await expect(labels).toBeFocused();
+  await page.keyboard.down("Space");
+  await page.evaluate(() => Reflect.get(window, "refreshHub")());
+  // Holding Space must not toggle the replacement button a second time.
+  await page.keyboard.down("Space");
+  await page.keyboard.up("Space");
   await expect(labels).toHaveAttribute("aria-pressed", "false");
   await expect(labels).toBeFocused();
   await expect(page.locator(".kit-cc-pin text")).toHaveCount(0);
