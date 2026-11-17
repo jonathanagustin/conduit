@@ -21,7 +21,7 @@ func (service *GovernanceService) notificationScope(repository Repository) *Gove
 func (service *GovernanceService) withNotificationTransaction(ctx context.Context, operation func(*GovernanceService) error) error {
 	transactional, ok := service.repository.(TransactionalRepository)
 	if !ok {
-		return fmt.Errorf("%w: durable notification sources require a transactional repository", ErrInvalidTransition)
+		return fmt.Errorf("%w: durable governance changes require a transactional repository", ErrInvalidTransition)
 	}
 	return transactional.Transaction(ctx, func(repository Repository) error {
 		if err := operation(service.notificationScope(repository)); err != nil {
