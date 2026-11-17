@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jonathanagustin/conduit/internal/appgen/adapters/modelcli"
 	appmodelhttp "github.com/jonathanagustin/conduit/internal/appgen/adapters/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/appgen/adapters/recorded"
 	"github.com/jonathanagustin/conduit/internal/appgen/adapters/registry"
@@ -27,7 +26,6 @@ import (
 	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/gitstore"
 	devdomain "github.com/jonathanagustin/conduit/internal/devworkspace/domain"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
-	"github.com/jonathanagustin/conduit/internal/localcmd"
 	"github.com/jonathanagustin/conduit/internal/modelgovernor"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/workspacepkg"
 	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
@@ -45,23 +43,7 @@ func appGenerator(getenv func(string) string) (appdomain.AppGenerator, error) {
 	} else if client != nil {
 		return appmodelhttp.Adapter{Client: client}, nil
 	}
-	raw := strings.TrimSpace(getenv("CONDUIT_MODEL_CMD"))
-	if raw == "" {
-		return recorded.Adapter{}, nil
-	}
-	argv, err := localcmd.ParseArgv(raw)
-	if err != nil {
-		return nil, fmt.Errorf("CONDUIT_MODEL_CMD: %w", err)
-	}
-	timeout := 45 * time.Second
-	if text := strings.TrimSpace(getenv("CONDUIT_MODEL_TIMEOUT")); text != "" {
-		parsed, err := time.ParseDuration(text)
-		if err != nil || parsed <= 0 {
-			return nil, fmt.Errorf("CONDUIT_MODEL_TIMEOUT must be a positive duration")
-		}
-		timeout = parsed
-	}
-	return modelcli.Runner{Argv: argv, Timeout: timeout, ModelName: configuredModelName(getenv), Exec: governedExec(getenv, modelgovernor.CapabilityAppgen)}, nil
+	return recorded.Adapter{}, nil
 }
 
 func newAppGenerationService(

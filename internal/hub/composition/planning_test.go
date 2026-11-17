@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"reflect"
 	"strings"
 	"sync"
@@ -21,6 +20,7 @@ import (
 	planningapp "github.com/jonathanagustin/conduit/internal/planning/application"
 	planningdomain "github.com/jonathanagustin/conduit/internal/planning/domain"
 	planningworkflow "github.com/jonathanagustin/conduit/internal/planning/workflow"
+	"github.com/jonathanagustin/conduit/internal/testsupport/modelhttpfixture"
 )
 
 type readyPlanningRunner struct{}
@@ -292,11 +292,7 @@ func TestPlanningHandlerWithTemporalServesSessionsAndSSEAgentRuns(t *testing.T) 
 
 func TestPlanningAcceptDoesNotInventWorkspaceCompute(t *testing.T) {
 	tmpDir := t.TempDir()
-	binPath := tmpDir + "/packaging-workflow"
-	buildCmd := exec.Command("go", "build", "-o", binPath, "github.com/jonathanagustin/conduit/cmd/packaging-workflow")
-	if out, err := buildCmd.CombinedOutput(); err != nil {
-		t.Fatalf("go build packaging-workflow: %v\n%s", err, string(out))
-	}
+	modelhttpfixture.Configure(t, nil)
 
 	remote := newTestGitRemote(t, "excalidraw", map[string]string{
 		"package.json":  `{"name":"excalidraw","version":"0.17.6","scripts":{"start":"yarn start"}}`,
@@ -304,7 +300,6 @@ func TestPlanningAcceptDoesNotInventWorkspaceCompute(t *testing.T) {
 		"tsconfig.json": `{"compilerOptions":{"strict":true}}`,
 	})
 
-	t.Setenv("CONDUIT_MODEL_CMD", binPath+" agent-exec")
 	// The fixture source is a loopback server, which the default policy refuses.
 	t.Setenv("CONDUIT_SOURCE_ALLOWED_HOSTS", "127.0.0.1")
 	t.Setenv("DEVWORKSPACE_GIT_ROOT", tmpDir+"/devworkspaces")

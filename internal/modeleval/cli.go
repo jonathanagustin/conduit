@@ -22,7 +22,7 @@ const usage = `usage: conduit-eval <replay|record|live> [flags]
            --out is given
 
 record and live read the Hub's own variables: CONDUIT_MODEL_BASE_URL (with
-CONDUIT_MODEL_NAME, CONDUIT_MODEL_API_KEY_FILE) or CONDUIT_MODEL_CMD.
+CONDUIT_MODEL_NAME, CONDUIT_MODEL_API_KEY_FILE). Host model commands are unsupported.
 
 flags:
   --corpus DIR   corpus directory (default ` + DefaultCorpusDir + `)

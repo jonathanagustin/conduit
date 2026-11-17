@@ -13,9 +13,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/jonathanagustin/conduit/internal/localcmd"
 	"github.com/jonathanagustin/conduit/internal/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/planning/adapters/planner"
 )
@@ -248,13 +246,11 @@ type Provider struct {
 }
 
 // ErrNoProvider means neither model transport variable is set.
-var ErrNoProvider = errors.New("no model provider is configured: set CONDUIT_MODEL_BASE_URL or CONDUIT_MODEL_CMD, exactly as for the Hub")
-
-const defaultCommandTimeout = 90 * time.Second
+var ErrNoProvider = errors.New("no model provider is configured: set CONDUIT_MODEL_BASE_URL, exactly as for the Hub")
 
 // ProviderFromEnv resolves the live model with the Hub's own rule:
 // CONDUIT_MODEL_BASE_URL selects the OpenAI-compatible HTTP transport,
-// CONDUIT_MODEL_CMD a local command, both set is an error.
+// Host model command settings are refused before provider selection.
 func ProviderFromEnv(getenv func(string) string) (Provider, error) {
 	client, err := modelhttp.FromEnv(getenv)
 	if err != nil {
@@ -267,33 +263,5 @@ func ProviderFromEnv(getenv func(string) string) (Provider, error) {
 		}
 		return Provider{Model: planner.HTTPModel{Client: client}, ID: modelhttp.AdapterName + "/" + name}, nil
 	}
-	raw := strings.TrimSpace(getenv("CONDUIT_MODEL_CMD"))
-	if raw == "" {
-		return Provider{}, ErrNoProvider
-	}
-	argv, err := localcmd.ParseArgv(raw)
-	if err != nil {
-		return Provider{}, fmt.Errorf("CONDUIT_MODEL_CMD: %w", err)
-	}
-	timeout := defaultCommandTimeout
-	if text := strings.TrimSpace(getenv("CONDUIT_MODEL_TIMEOUT")); text != "" {
-		parsed, err := time.ParseDuration(text)
-		if err != nil || parsed <= 0 {
-			return Provider{}, fmt.Errorf("CONDUIT_MODEL_TIMEOUT must be a positive duration")
-		}
-		timeout = parsed
-	}
-	name := strings.TrimSpace(getenv("CONDUIT_MODEL_NAME"))
-	model := planner.CLIModel{Argv: argv, Timeout: timeout, Name: name}
-	id := model.Identity().Adapter + "/"
-	switch preset, ok := localcmd.PresetFromArgv(argv, getenv("CONDUIT_AGENT_PROVIDER")); {
-	case ok:
-		// agent-exec names its engine; the built-in one is "deterministic".
-		id = "agent-exec/" + preset.Name
-	case name != "":
-		id += name
-	default:
-		id += "unnamed"
-	}
-	return Provider{Model: model, ID: id}, nil
+	return Provider{}, ErrNoProvider
 }

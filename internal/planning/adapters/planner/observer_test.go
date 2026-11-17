@@ -57,7 +57,7 @@ func TestInspectionDoesNotIgnoreVetoAfterEarlierToolSucceeded(t *testing.T) {
 	veto := errors.New("run audit unavailable")
 	observer := &observerFixture{deny: "read_file", failure: veto}
 	ctx := application.WithRunScope(t.Context(), application.RunScope{ThreadID: "thread", RunID: "run", Tools: observer})
-	service := application.NewService(Planner{Argv: []string{writeModelScript(t, inspectAndRead, "summary", askNone)}})
+	service := application.NewService(Planner{Model: writeModelScript(t, inspectAndRead, "summary", askNone)})
 	session, err := service.Create(ctx, server.URL+"/src.git", "main")
 	if err != nil {
 		t.Fatal(err)
@@ -82,7 +82,7 @@ func TestLaterPhasePropagatesToolVeto(t *testing.T) {
 	veto := errors.New("run audit unavailable")
 	observer := &observerFixture{deny: "read_file", failure: veto}
 	ctx := application.WithRunScope(t.Context(), application.RunScope{ThreadID: "thread", RunID: "run", Tools: observer})
-	runner := Planner{Argv: []string{writeModelScript(t, inspectAndRead, askNone)}}
+	runner := Planner{Model: writeModelScript(t, inspectAndRead, askNone)}
 	parsed := false
 	err := runner.runPhase(ctx, &domain.Session{ID: "thread"}, repoclone.Checkout{Dir: root}, packagingtools.New(packagingtools.WithRepoRoot(root)), ActionQuestions, "fixture", func([]byte) error { parsed = true; return nil })
 	if !errors.Is(err, veto) || parsed {

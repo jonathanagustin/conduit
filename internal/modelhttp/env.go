@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/jonathanagustin/conduit/internal/localcmd"
 )
 
 // ErrBothConfigured is the refusal to choose between two model transports.
@@ -12,21 +14,19 @@ import (
 var ErrBothConfigured = errors.New(
 	"CONDUIT_MODEL_CMD and CONDUIT_MODEL_BASE_URL are both set; set exactly one model transport")
 
-// FromEnv reads the HTTP model configuration. It returns nil with no error
-// when CONDUIT_MODEL_BASE_URL is unset, which leaves a caller on its existing
-// path. With CONDUIT_MODEL_CMD also set it returns ErrBothConfigured. The key
-// is named by file; no variable holds it inline. Every process that can call
-// a model uses this one rule.
+// FromEnv refuses retired command settings before inspecting any HTTP
+// configuration. An absent endpoint then leaves the existing offline path.
+// HTTP keys are file references, never inline credential values.
 func FromEnv(getenv func(string) string) (*Client, error) {
 	if getenv == nil {
 		return nil, nil
 	}
+	if err := RejectLocalCommands(getenv); err != nil {
+		return nil, err
+	}
 	base := strings.TrimSpace(getenv("CONDUIT_MODEL_BASE_URL"))
 	if base == "" {
 		return nil, nil
-	}
-	if strings.TrimSpace(getenv("CONDUIT_MODEL_CMD")) != "" {
-		return nil, ErrBothConfigured
 	}
 	timeout := DefaultTimeout
 	if text := strings.TrimSpace(getenv("CONDUIT_MODEL_TIMEOUT")); text != "" {
@@ -48,4 +48,19 @@ func FromEnv(getenv func(string) string) (*Client, error) {
 		return nil, fmt.Errorf("CONDUIT_MODEL_BASE_URL: %w", err)
 	}
 	return client, nil
+}
+
+// RejectLocalCommands refuses every retired command setting, even without an
+// HTTP endpoint or when the selected capability would otherwise be offline.
+// Only fixed setting names enter the error; command values may be sensitive.
+func RejectLocalCommands(getenv func(string) string) error {
+	if getenv == nil {
+		return nil
+	}
+	for _, name := range []string{"CONDUIT_ASSISTANT_MODEL_CMD", "CONDUIT_PLANNING_MODEL_CMD", "CONDUIT_PACKAGING_MODEL_CMD", "CONDUIT_APPGEN_MODEL_CMD", "CONDUIT_MODEL_CMD"} {
+		if strings.TrimSpace(getenv(name)) != "" {
+			return fmt.Errorf("%s: %w", name, localcmd.ErrLocalCommandUnsupported)
+		}
+	}
+	return nil
 }

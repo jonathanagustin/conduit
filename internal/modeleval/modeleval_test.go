@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jonathanagustin/conduit/internal/localcmd"
 	packagingapp "github.com/jonathanagustin/conduit/internal/packagingworkflow/application"
 	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	"github.com/jonathanagustin/conduit/internal/planning/adapters/planner"
@@ -360,16 +361,13 @@ func TestProviderFromEnvFollowsTheHubRule(t *testing.T) {
 	if _, err := ProviderFromEnv(env(nil)); !errors.Is(err, ErrNoProvider) {
 		t.Fatalf("no provider configured: got %v", err)
 	}
-	provider, err := ProviderFromEnv(env(map[string]string{"CONDUIT_MODEL_CMD": "packaging-workflow agent-exec"}))
-	if err != nil || provider.ID != "agent-exec/deterministic" {
-		t.Fatalf("agent-exec id = %q, %v", provider.ID, err)
+	for _, command := range []string{"packaging-workflow agent-exec", "some-cli -p"} {
+		if _, err := ProviderFromEnv(env(map[string]string{"CONDUIT_MODEL_CMD": command})); !errors.Is(err, localcmd.ErrLocalCommandUnsupported) {
+			t.Fatalf("command accepted: %v", err)
+		}
 	}
-	provider, err = ProviderFromEnv(env(map[string]string{"CONDUIT_MODEL_CMD": "some-cli -p", "CONDUIT_MODEL_NAME": "m-1"}))
-	if err != nil || provider.ID != "some-cli/m-1" {
-		t.Fatalf("cli id = %q, %v", provider.ID, err)
-	}
-	if _, err := ProviderFromEnv(env(map[string]string{"CONDUIT_MODEL_CMD": "x", "CONDUIT_MODEL_BASE_URL": "https://models.example"})); err == nil {
-		t.Fatal("both transports set must be refused, as the Hub refuses it")
+	if _, err := ProviderFromEnv(env(map[string]string{"CONDUIT_MODEL_CMD": "x", "CONDUIT_MODEL_BASE_URL": "https://models.example"})); !errors.Is(err, localcmd.ErrLocalCommandUnsupported) {
+		t.Fatalf("HTTP fallback bypassed command refusal: %v", err)
 	}
 	var stdout, stderr bytes.Buffer
 	if status := Main(context.Background(), []string{"live", "--corpus", committedCorpus}, env(nil), &stdout, &stderr); status != 2 || !strings.Contains(stderr.String(), "no model provider is configured") {

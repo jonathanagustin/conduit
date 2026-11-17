@@ -76,29 +76,12 @@ func (probe aiProbe) facts() admin.AIFacts {
 	}
 	client, err := modelHTTPClient(getenv)
 	switch {
+	case errors.Is(err, localcmd.ErrLocalCommandUnsupported):
+		facts.ProviderKind, facts.ConfigError = admin.ProviderInvalid, "local model commands are unsupported; configure an HTTP model endpoint"
 	case err != nil:
 		facts.ProviderKind, facts.ConfigError = admin.ProviderInvalid, modelConfigProblem(err)
 	case client != nil:
 		facts.ProviderKind, facts.ProviderSummary = admin.ProviderHTTP, endpointOrigin(getenv("CONDUIT_MODEL_BASE_URL"))
-	default:
-		raw := strings.TrimSpace(getenv("CONDUIT_MODEL_CMD"))
-		if raw == "" {
-			break
-		}
-		argv, parseErr := localcmd.ParseArgv(raw)
-		if parseErr != nil {
-			facts.ProviderKind, facts.ConfigError = admin.ProviderInvalid, "CONDUIT_MODEL_CMD is not a valid command line"
-			break
-		}
-		name := localcmd.CommandName(argv[0])
-		if !probe.found(argv[0]) {
-			facts.ProviderKind, facts.ConfigError = admin.ProviderInvalid, "the model command "+name+" was not found"
-			break
-		}
-		facts.ProviderKind, facts.ProviderSummary = admin.ProviderCLI, "command "+name
-		if preset, ok := localcmd.PresetFromArgv(argv, getenv("CONDUIT_AGENT_PROVIDER")); ok {
-			facts.ProviderSummary += " (agent-exec preset " + preset.Name + ", " + preset.Status() + ")"
-		}
 	}
 	return facts
 }
