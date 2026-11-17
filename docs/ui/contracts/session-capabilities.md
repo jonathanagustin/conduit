@@ -61,6 +61,13 @@ report that resource: the console does not guess, adds the resource to the next
 session read, and leaves the control enabled for the Hub to decide. A control is
 disabled only on `false`, with `reason` as its stated cause.
 
+The maintenance-window scheduler asks for `change:propose` on the selected
+`environment/<id>`, matching the temporary-maintenance service. An explicit
+refusal disables preview, confirmation, and submission with the session's
+reason. It checks the current decision again before sending; editing or
+confirming a draft cannot clear a refusal. A permitted preview remains a dry
+run, and submission still requires confirmation of that exact reviewed draft.
+
 An index that came back empty is labelled "You have no grants here" when the
 session lacks `resource:read` at `platform/root`, because the Hub filters each
 index by grant before counting and such a session cannot tell an empty Hub from
