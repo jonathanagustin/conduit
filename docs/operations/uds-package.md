@@ -42,10 +42,15 @@ cluster operating after the images are already present.
 - Egress from the packaging worker to operator-supplied Temporal on 7233
   (`TEMPORAL_NAMESPACE`, `TEMPORAL_NAME_LABEL`, both defaulting to
   `temporal`).
+- Egress from the Hub to an in-cluster model endpoint
+  (`MODEL_SERVICE_NAMESPACE`, `MODEL_SERVICE_NAME_LABEL`). Both default to
+  `conduit-model-unconfigured`, which names no namespace, so the policy grants
+  nothing until an operator sets them. The entry lists no port. See
+  [HTTP model endpoint](model-http.md#zarf-and-uds).
 - Egress from the Spoke to the Kubernetes API, kubelet probes to the Hub, and
   DNS to `kube-dns` in `kube-system`.
 
-The issuer, registry and Temporal allows are checked for shape only: they
+The issuer, registry, Temporal and model allows are checked for shape only: they
 validate against the UDS Core 1.17.1 Package schema and Zarf substitutes
 their variables, but no cluster run has shown the generated NetworkPolicies
 admitting that traffic. Their default selectors (the Keycloak namespace, label

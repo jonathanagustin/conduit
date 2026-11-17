@@ -70,11 +70,44 @@ end
 # to start -- and before it refused, it signed Bundles with a key it generated
 # for itself, so a chart profile that dropped the key would have produced a Hub
 # that reported healthy while signing as a signer no target trusts.
+#
+# The match is on ALLOW_INSECURE anywhere in the name, not on a prefix. The
+# prefix form passed CONDUIT_MODEL_ALLOW_INSECURE_HTTP unseen; this form sees
+# it and refuses it in every profile checked here. Exactly one render may
+# carry that one variable, and assert_model_plaintext_opt_in! below is the only
+# place that admits it.
+def insecure_opt_ins(environment)
+  environment.keys.select { |name| name.include?("ALLOW_INSECURE") }
+end
+
 def assert_signs_as_a_trusted_signer!(deployment, profile)
   environment = deployment.dig("spec", "template", "spec", "containers", 0, "env")
     .to_h { |item| [item["name"], item["value"]] }
-  insecure = environment.keys.select { |name| name.start_with?("ALLOW_INSECURE_") }
+  insecure = insecure_opt_ins(environment)
   abort "#{profile} Hub enabled insecure opt-ins: #{insecure.join(', ')}" unless insecure.empty?
+  abort "#{profile} Hub renders no BUNDLE_SIGNING_KEY_FILE and would refuse to start" if
+    environment["BUNDLE_SIGNING_KEY_FILE"].to_s.strip.empty?
+end
+
+# The one insecure opt-in a chart-rendered Hub may carry (#807).
+#
+# A model served inside the cluster is commonly a plaintext Service (vLLM,
+# Ollama, LeapfrogAI), and under UDS Core the mesh encrypts that hop, so the
+# chart can express it. It is deliberate, not a prefix accident: the variable
+# is admitted only by name, only with the value "true", only beside an http://
+# CONDUIT_MODEL_BASE_URL (the chart refuses it with https), and only alone.
+# It weakens the model hop and nothing else: it is not an identity opt-in, and
+# the signing and mTLS inputs are still required of the same Hub.
+MODEL_PLAINTEXT_OPT_IN = "CONDUIT_MODEL_ALLOW_INSECURE_HTTP"
+
+def assert_model_plaintext_opt_in!(deployment, profile)
+  environment = deployment.dig("spec", "template", "spec", "containers", 0, "env")
+    .to_h { |item| [item["name"], item["value"]] }
+  insecure = insecure_opt_ins(environment)
+  abort "#{profile} Hub must carry exactly the model plaintext opt-in, found: #{insecure.join(', ')}" unless insecure == [MODEL_PLAINTEXT_OPT_IN]
+  abort "#{profile} Hub model plaintext opt-in must be the literal true" unless environment[MODEL_PLAINTEXT_OPT_IN] == "true"
+  abort "#{profile} Hub carries the model plaintext opt-in without an http:// model endpoint" unless
+    environment["CONDUIT_MODEL_BASE_URL"].to_s.start_with?("http://")
   abort "#{profile} Hub renders no BUNDLE_SIGNING_KEY_FILE and would refuse to start" if
     environment["BUNDLE_SIGNING_KEY_FILE"].to_s.strip.empty?
 end
@@ -392,7 +425,7 @@ abort "Hub probes must use HTTPS" unless %w[startupProbe readinessProbe liveness
 hub_env = hub_container.fetch("env").to_h { |item| [item["name"], item["value"]] }
 required_hub_env = %w[REPOSITORY_KIND POSTGRES_DSN_FILE AGENT_CLIENT_CA_FILE TLS_CERT_FILE TLS_KEY_FILE BUNDLE_SIGNING_KEY_FILE CONSOLE_BOOTSTRAP_FILE PLATFORM_BOOTSTRAP_ADMINISTRATORS]
 abort "Hub production identity/signing inputs are incomplete" unless (required_hub_env - hub_env.keys).empty?
-abort "chart enabled insecure identity" if hub_env.keys.any? { |name| name.start_with?("ALLOW_INSECURE_") }
+abort "chart enabled an insecure opt-in" unless insecure_opt_ins(hub_env).empty?
 abort "Hub console bootstrap path drifted" unless hub_env["CONSOLE_BOOTSTRAP_FILE"] == "/etc/conduit/console/bootstrap.json"
 abort "Hub PostgreSQL mode drifted" unless hub_env["REPOSITORY_KIND"] == "postgres" && hub_env["POSTGRES_DSN_FILE"] == "/run/conduit-database/dsn"
 abort "production chart must publish the shared planning frontend" unless
@@ -571,7 +604,9 @@ hub_values = File.join(charts.fetch(:hub), "ci/test-values.yaml")
 spoke_values = File.join(charts.fetch(:spoke), "ci/test-values.yaml")
 optional_hub_env = %w[METRICS_ADDRESS PLAN_ORCHESTRATOR PLAN_TEMPORAL_ADDRESS]
 abort "default Hub enables an optional feature nobody asked for" unless
-  (hub_env.keys & optional_hub_env).empty? && hub_env.keys.none? { |name| name.start_with?("NOTIFICATION_") }
+  (hub_env.keys & optional_hub_env).empty? && hub_env.keys.none? { |name| name.start_with?("NOTIFICATION_", "CONDUIT_MODEL_") }
+abort "default Hub mounts model credentials nobody configured" if
+  hub.dig("spec", "template", "spec", "volumes").any? { |item| item["name"].start_with?("conduit-model") }
 abort "default Hub declares a metrics port nothing listens on" if
   hub_container.fetch("ports").any? { |port| port["name"] == "metrics" } ||
     hub_documents.find { |item| item["kind"] == "Service" }.dig("spec", "ports").any? { |port| port["name"] == "metrics" }
@@ -670,6 +705,93 @@ abort "notification credential mounts must be read-only" unless
   ["--set", "notifications.transport=log", "--set", "repository.kind=file", "--set", "replicaCount=1"]
 ].each do |arguments|
   assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, *arguments])
+end
+
+# Model provider (#807). The chart configures the HTTP transport only. The key
+# is a Secret reference mounted as a file, the CA is a ConfigMap reference, and
+# nothing model-related renders until model.baseURL is set.
+model_pod = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set-string", "model.baseURL=https://models.example.test/v1", "--set-string", "model.name=served-model",
+   "--set-string", "model.timeout=90s", "--set", "model.apiKeySecret.name=model-api-key",
+   "--set", "model.caConfigMap.name=model-ca", "--set", "model.caConfigMap.key=bundle.pem"]
+).find { |item| item["kind"] == "Deployment" }
+validate_deployment!(model_pod)
+assert_signs_as_a_trusted_signer!(model_pod, "https model")
+model_container = model_pod.dig("spec", "template", "spec", "containers", 0)
+model_env = model_container.fetch("env").select { |item| item["name"].start_with?("CONDUIT_MODEL_") }
+abort "model environment did not render exactly" unless model_env == [
+  {"name" => "CONDUIT_MODEL_BASE_URL", "value" => "https://models.example.test/v1"},
+  {"name" => "CONDUIT_MODEL_NAME", "value" => "served-model"},
+  {"name" => "CONDUIT_MODEL_TIMEOUT", "value" => "90s"},
+  {"name" => "CONDUIT_MODEL_API_KEY_FILE", "value" => "/run/conduit-model/api-key"},
+  {"name" => "CONDUIT_MODEL_CA_FILE", "value" => "/run/conduit-model-ca/ca.pem"}
+]
+abort "the chart must not configure a model command: the Hub image carries no model CLI" if
+  model_container.fetch("env").any? { |item| item["name"] == "CONDUIT_MODEL_CMD" }
+model_volumes = model_pod.dig("spec", "template", "spec", "volumes").to_h { |item| [item["name"], item] }
+abort "model API key must be one required Secret key mounted as a file" unless
+  model_volumes.dig("conduit-model", "secret") == {
+    "secretName" => "model-api-key", "optional" => false, "items" => [{"key" => "api-key", "path" => "api-key"}]
+  }
+abort "model CA must be one ConfigMap key mounted where CONDUIT_MODEL_CA_FILE points" unless
+  model_volumes.dig("conduit-model-ca", "configMap") == {"name" => "model-ca", "items" => [{"key" => "bundle.pem", "path" => "ca.pem"}]}
+abort "model credential mounts must be read-only" unless
+  %w[conduit-model conduit-model-ca].all? do |name|
+    model_container.fetch("volumeMounts").include?({"name" => name, "mountPath" => "/run/#{name}", "readOnly" => true})
+  end
+# A keyless endpoint with the system roots mounts nothing.
+keyless_pod = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set-string", "model.baseURL=https://models.example.test/v1", "--set-string", "model.name=served-model"]
+).find { |item| item["kind"] == "Deployment" }
+abort "keyless model endpoint did not render exactly" unless
+  keyless_pod.dig("spec", "template", "spec", "containers", 0, "env").select { |item| item["name"].start_with?("CONDUIT_MODEL_") } == [
+    {"name" => "CONDUIT_MODEL_BASE_URL", "value" => "https://models.example.test/v1"},
+    {"name" => "CONDUIT_MODEL_NAME", "value" => "served-model"}
+  ] && keyless_pod.dig("spec", "template", "spec", "volumes").none? { |item| item["name"].start_with?("conduit-model") }
+# The plaintext in-cluster endpoint: the single insecure opt-in this gate
+# admits, and the general check still refuses it.
+plaintext_pod = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set-string", "model.baseURL=http://vllm.models.svc.cluster.local:8000/v1", "--set-string", "model.name=served-model",
+   "--set", "model.allowInsecureHTTP=true"]
+).find { |item| item["kind"] == "Deployment" }
+validate_deployment!(plaintext_pod)
+assert_model_plaintext_opt_in!(plaintext_pod, "plaintext model")
+plaintext_env = plaintext_pod.dig("spec", "template", "spec", "containers", 0, "env").to_h { |item| [item["name"], item["value"]] }
+abort "the general insecure check no longer sees the model plaintext opt-in" unless insecure_opt_ins(plaintext_env) == [MODEL_PLAINTEXT_OPT_IN]
+abort "the general insecure check must not see an ordinary model variable" unless
+  insecure_opt_ins({"CONDUIT_MODEL_BASE_URL" => "x", "CONDUIT_MODEL_NAME" => "y"}).empty?
+# Refused by the schema and, where the Hub itself would refuse at startup, by
+# the template too: a key in values, a missing name, plain http without the
+# opt-in, the opt-in without plain http, inline credentials, and settings that
+# would be silently inert without a base URL.
+model_base = ["--set-string", "model.baseURL=https://models.example.test/v1", "--set-string", "model.name=served-model"]
+[
+  ["--set-string", "model.baseURL=https://models.example.test/v1"],
+  ["--set-string", "model.name=served-model"],
+  ["--set", "model.apiKeySecret.name=model-api-key"],
+  ["--set", "model.allowInsecureHTTP=true"],
+  [*model_base, "--set-string", "model.apiKey=sk-literal"],
+  [*model_base, "--set-string", "model.apiKeySecret.value=sk-literal"],
+  [*model_base, "--set", "model.allowInsecureHTTP=true"],
+  [*model_base, "--set-string", "model.command=codex exec -"],
+  ["--set-string", "model.baseURL=http://vllm.models.svc.cluster.local:8000/v1", "--set-string", "model.name=served-model"],
+  ["--set-string", "model.baseURL=https://user:secret@models.example.test/v1", "--set-string", "model.name=served-model"],
+  ["--set-string", "model.baseURL=https://models.example.test/v1?key=secret", "--set-string", "model.name=served-model"],
+  ["--set-string", "model.baseURL=ftp://models.example.test/v1", "--set-string", "model.name=served-model"],
+  ["--set-string", "extraEnv.CONDUIT_MODEL_ALLOW_INSECURE_HTTP=true"]
+].each do |arguments|
+  assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, *arguments])
+end
+[
+  ["--set-string", "model.baseURL=https://models.example.test/v1"],
+  ["--set-string", "model.name=served-model"],
+  [*model_base, "--set", "model.allowInsecureHTTP=true"],
+  ["--set-string", "model.baseURL=http://vllm.models.svc.cluster.local:8000/v1", "--set-string", "model.name=served-model"]
+].each do |arguments|
+  assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--skip-schema-validation", *arguments])
 end
 
 orchestrator_env = render!(

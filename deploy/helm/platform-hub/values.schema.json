@@ -306,6 +306,56 @@
         "driver": {"type": "string", "enum": ["native", "temporal"]},
         "temporalAddress": {"type": "string", "pattern": "^$|^[^[:space:]]+:[0-9]{1,5}$"}
       }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseURL", "name", "timeout", "apiKeySecret", "caConfigMap", "allowInsecureHTTP"],
+      "properties": {
+        "baseURL": {"type": "string", "pattern": "^$|^https?://[^[:space:][:cntrl:]@?#]+$", "maxLength": 2048},
+        "name": {"type": "string", "pattern": "^$|^[^[:space:][:cntrl:]]+$", "maxLength": 256},
+        "timeout": {"type": "string", "pattern": "^$|^[1-9][0-9]*(ms|s|m)$"},
+        "apiKeySecret": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "key"],
+          "properties": {
+            "name": {"$ref": "#/definitions/optionalDnsName"},
+            "key": {"$ref": "#/definitions/secretKey"}
+          }
+        },
+        "caConfigMap": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "key"],
+          "properties": {
+            "name": {"$ref": "#/definitions/optionalDnsName"},
+            "key": {"$ref": "#/definitions/secretKey"}
+          }
+        },
+        "allowInsecureHTTP": {"type": "boolean"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"baseURL": {"minLength": 1}}},
+          "then": {"properties": {"name": {"minLength": 1}}},
+          "else": {"properties": {
+            "name": {"maxLength": 0},
+            "timeout": {"maxLength": 0},
+            "apiKeySecret": {"properties": {"name": {"maxLength": 0}}},
+            "caConfigMap": {"properties": {"name": {"maxLength": 0}}},
+            "allowInsecureHTTP": {"const": false}
+          }}
+        },
+        {
+          "if": {"properties": {"baseURL": {"pattern": "^http://"}}},
+          "then": {"properties": {"allowInsecureHTTP": {"const": true}}}
+        },
+        {
+          "if": {"properties": {"allowInsecureHTTP": {"const": true}}},
+          "then": {"properties": {"baseURL": {"pattern": "^http://"}}}
+        }
+      ]
     }
   },
   "allOf": [

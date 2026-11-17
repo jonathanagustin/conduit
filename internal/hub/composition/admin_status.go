@@ -29,7 +29,10 @@ func mountAdminStatus(legacy http.Handler, repository controlplane.Repository, o
 	if options.AfterPlanApproved != nil {
 		driver = controlplane.PlanOrchestratorTemporal
 	}
-	source := adminStatusSource{repository: repository, packaging: hub.PackagingStatus, storage: hub.AdminStorage, orchestrator: driver, now: time.Now}
+	probe := hostAIProbe()
+	source := adminStatusSource{repository: repository, packaging: hub.PackagingStatus, storage: hub.AdminStorage, orchestrator: driver, now: time.Now, ai: probe.components}
+	// The same view an administrator reads, once in the startup log.
+	logAICapabilities(probe.components())
 	mux := http.NewServeMux()
 	adminhttp.Register(mux, adminhttp.Config{Reader: adminapp.Service{Source: source}, Authorize: func(request *http.Request) int {
 		principal, ok := packagingPrincipal(request, service, options)
@@ -51,6 +54,9 @@ type adminStatusSource struct {
 	storage      map[string]adminports.CapacityReader
 	orchestrator string
 	now          func() time.Time
+	// ai reports the model provider and the AI capabilities. Nil reports
+	// none of them rather than a guess.
+	ai func() []admin.Component
 }
 
 func (source adminStatusSource) Read(ctx context.Context) (admin.Summary, error) {
@@ -124,6 +130,9 @@ func (source adminStatusSource) Read(ctx context.Context) (admin.Summary, error)
 		}
 	}
 	summary.Components = append(summary.Components, worker)
+	if source.ai != nil {
+		summary.Components = append(summary.Components, source.ai()...)
+	}
 	summary.Counters = append(summary.Counters, runs)
 	events := admin.MissingCount("auditRecords", "Audit records", "Audit store unavailable", "au01-audit")
 	if records, err := source.repository.ListAuthorizationAudit(ctx, ""); err == nil {

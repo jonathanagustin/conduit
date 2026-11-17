@@ -21,6 +21,20 @@
 {{- if and (gt (int .Values.replicaCount) 1) (ne $planningBackend "temporal") }}
 {{- fail "replicaCount greater than 1 requires planning.backend temporal; a process-local planning store is not shared across Hub replicas" }}
 {{- end }}
+{{- $model := .Values.model -}}
+{{- if $model.baseURL }}
+{{- if not $model.name }}
+{{- fail "model.name is required when model.baseURL is set" }}
+{{- end }}
+{{- if and (hasPrefix "http://" $model.baseURL) (not $model.allowInsecureHTTP) }}
+{{- fail "model.baseURL uses plain http: set model.allowInsecureHTTP=true to accept a plaintext model endpoint, or use https" }}
+{{- end }}
+{{- if and $model.allowInsecureHTTP (not (hasPrefix "http://" $model.baseURL)) }}
+{{- fail "model.allowInsecureHTTP is only accepted with an http:// model.baseURL" }}
+{{- end }}
+{{- else if or $model.name $model.timeout $model.apiKeySecret.name $model.caConfigMap.name $model.allowInsecureHTTP }}
+{{- fail "model.baseURL is required when any other model value is set" }}
+{{- end }}
 {{- $podLabels := deepCopy .Values.podLabels -}}
 {{- $_ := set $podLabels "app.kubernetes.io/name" (include "platform-hub.name" .) -}}
 {{- $_ := set $podLabels "app.kubernetes.io/instance" .Release.Name -}}
@@ -203,6 +217,22 @@ spec:
             - { name: PLAN_TEMPORAL_ADDRESS, value: {{ . | quote }} }
             {{- end }}
             {{- end }}
+            {{- if $model.baseURL }}
+            - { name: CONDUIT_MODEL_BASE_URL, value: {{ $model.baseURL | quote }} }
+            - { name: CONDUIT_MODEL_NAME, value: {{ $model.name | quote }} }
+            {{- with $model.timeout }}
+            - { name: CONDUIT_MODEL_TIMEOUT, value: {{ . | quote }} }
+            {{- end }}
+            {{- if $model.apiKeySecret.name }}
+            - { name: CONDUIT_MODEL_API_KEY_FILE, value: /run/conduit-model/api-key }
+            {{- end }}
+            {{- if $model.caConfigMap.name }}
+            - { name: CONDUIT_MODEL_CA_FILE, value: /run/conduit-model-ca/ca.pem }
+            {{- end }}
+            {{- if $model.allowInsecureHTTP }}
+            - { name: CONDUIT_MODEL_ALLOW_INSECURE_HTTP, value: "true" }
+            {{- end }}
+            {{- end }}
           ports:
             - { name: https, containerPort: {{ .Values.service.port }} }
             {{- if .Values.metrics.enabled }}
@@ -266,6 +296,12 @@ spec:
             {{- if $slack.tokenSecretName }}
             - { name: notification-slack, mountPath: /run/notification-slack, readOnly: true }
             {{- end }}
+            {{- end }}
+            {{- if and $model.baseURL $model.apiKeySecret.name }}
+            - { name: conduit-model, mountPath: /run/conduit-model, readOnly: true }
+            {{- end }}
+            {{- if and $model.baseURL $model.caConfigMap.name }}
+            - { name: conduit-model-ca, mountPath: /run/conduit-model-ca, readOnly: true }
             {{- end }}
       volumes:
         {{- if eq .Values.repository.kind "file" }}
@@ -367,6 +403,21 @@ spec:
             items:
               - { key: {{ $slack.tokenKey }}, path: token }
         {{- end }}
+        {{- end }}
+        {{- if and $model.baseURL $model.apiKeySecret.name }}
+        - name: conduit-model
+          secret:
+            secretName: {{ $model.apiKeySecret.name }}
+            optional: false
+            items:
+              - { key: {{ $model.apiKeySecret.key }}, path: api-key }
+        {{- end }}
+        {{- if and $model.baseURL $model.caConfigMap.name }}
+        - name: conduit-model-ca
+          configMap:
+            name: {{ $model.caConfigMap.name }}
+            items:
+              - { key: {{ $model.caConfigMap.key }}, path: ca.pem }
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:

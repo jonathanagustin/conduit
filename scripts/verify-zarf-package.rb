@@ -49,6 +49,13 @@ abort "Zarf runtime escaped platform-system" unless namespaces == ["platform-sys
 created_namespaces = manifests.select { |item| item["kind"] == "Namespace" }.map { |item| item.dig("metadata", "name") }
 abort "Zarf must create only its runtime namespace" unless created_namespaces == ["platform-system"]
 abort "Zarf package must not enable insecure identity" if manifest_text.match?(/ALLOW_INSECURE_.*true/)
+# The match above is by prefix and was written for identity opt-ins. The model
+# plaintext opt-in (#807) is the one insecure variable this package may name,
+# and only as an operator's deploy-time decision that defaults to off: never a
+# literal in the manifest. Anything else with ALLOW_INSECURE in its name fails.
+insecure_names = manifest_text.scan(/name:\s*([A-Z0-9_]*ALLOW_INSECURE[A-Z0-9_]*)/).flatten.uniq
+abort "Zarf package names an insecure opt-in other than the model plaintext one: #{insecure_names.join(', ')}" unless
+  insecure_names == ["CONDUIT_MODEL_ALLOW_INSECURE_HTTP"]
 %w[OPERATOR_OIDC_ISSUER OPERATOR_OIDC_CLIENT_ID OPERATOR_OIDC_USERNAME_CLAIM OPERATOR_OIDC_GROUPS_CLAIM OPERATOR_OIDC_CA_FILE].each do |name|
   abort "Hub must accept #{name} from a Zarf variable" unless manifest_text.include?("name: #{name}") && manifest_text.include?("###ZARF_VAR_#{name}###")
   variable = definition.fetch("variables").find { |item| item["name"] == name }
@@ -92,6 +99,39 @@ hub_env = hub_container.fetch("env").to_h { |item| [item["name"], item["value"]]
   abort "#{name} must default to #{default.inspect} and be constrained to #{pattern}" unless
     variable && variable["default"] == default && variable["pattern"] == pattern
 end
+# Model provider in this package (#807). Every variable defaults to "no model
+# call", the key and CA are files from optional mounts whose only accepted
+# paths are the ones mounted here, and no model command is configurable: the
+# Hub image carries no model CLI.
+{
+  "CONDUIT_MODEL_BASE_URL" => ["MODEL_BASE_URL", "", "^$|^https?://[^\\s@?#]+$"],
+  "CONDUIT_MODEL_NAME" => ["MODEL_NAME", "", "^\\S*$"],
+  "CONDUIT_MODEL_TIMEOUT" => ["MODEL_TIMEOUT", "", "^$|^[1-9][0-9]*(ms|s|m)$"],
+  "CONDUIT_MODEL_API_KEY_FILE" => ["MODEL_API_KEY_FILE", "", "^(/run/conduit-model/api-key)?$"],
+  "CONDUIT_MODEL_CA_FILE" => ["MODEL_CA_FILE", "", "^(/run/conduit-model-ca/ca.pem)?$"],
+  "CONDUIT_MODEL_ALLOW_INSECURE_HTTP" => ["MODEL_ALLOW_INSECURE_HTTP", "false", "^(true|false)$"]
+}.each do |name, (variable_name, default, pattern)|
+  abort "Hub must accept #{name} from the Zarf variable #{variable_name} and never a literal" unless hub_env[name] == "###ZARF_VAR_#{variable_name}###"
+  variable = definition.fetch("variables").find { |item| item["name"] == variable_name }
+  abort "#{variable_name} must default to #{default.inspect} and be constrained to #{pattern}" unless
+    variable && variable["default"] == default && variable["pattern"] == pattern
+end
+abort "Zarf package must not configure a model command" if manifest_text.include?("CONDUIT_MODEL_CMD")
+abort "Zarf package must not carry the model API key as an environment value" if
+  hub_container.fetch("env").any? { |item| item["name"].match?(/MODEL.*KEY/) && item["name"] != "CONDUIT_MODEL_API_KEY_FILE" }
+hub_volumes = (hub.dig("spec", "template", "spec", "volumes") || []).to_h { |item| [item["name"], item] }
+abort "model API key must be an optional Secret key mounted as a file" unless
+  hub_volumes.dig("conduit-model", "secret") == {
+    "secretName" => "###ZARF_VAR_MODEL_API_KEY_SECRET###", "optional" => true, "items" => [{"key" => "api-key", "path" => "api-key"}]
+  }
+abort "model CA must be an optional ConfigMap key mounted as a file" unless
+  hub_volumes.dig("conduit-model-ca", "configMap") == {
+    "name" => "###ZARF_VAR_MODEL_CA_CONFIGMAP###", "optional" => true, "items" => [{"key" => "ca.pem", "path" => "ca.pem"}]
+  }
+abort "model credential mounts must be read-only where the file variables point" unless
+  %w[conduit-model conduit-model-ca].all? do |name|
+    hub_container.fetch("volumeMounts").include?({"name" => name, "mountPath" => "/run/#{name}", "readOnly" => true})
+  end
 abort "Hub must read the PostgreSQL DSN from its mounted Secret" unless hub_env["POSTGRES_DSN_FILE"] == "/run/conduit-database/dsn"
 database = (hub.dig("spec", "template", "spec", "volumes") || []).find { |item| item["name"] == "database" }
 abort "Hub DSN Secret must be optional, so the file-repository default starts without it" unless
@@ -146,6 +186,13 @@ required_egress = {
     "selector" => {"app.kubernetes.io/name" => "platform-packaging-worker"},
     "remoteNamespace" => "###ZARF_VAR_TEMPORAL_NAMESPACE###",
     "remoteSelector" => {"app.kubernetes.io/name" => "###ZARF_VAR_TEMPORAL_NAME_LABEL###"}, "port" => 7233
+  },
+  # Matched whole, so a port, a remoteHost or a wider selector added to this
+  # entry fails here and has to be argued for.
+  "the Hub to reach an in-cluster model endpoint" => {
+    "selector" => {"app.kubernetes.io/name" => "platform-delivery"},
+    "remoteNamespace" => "###ZARF_VAR_MODEL_SERVICE_NAMESPACE###",
+    "remoteSelector" => {"app.kubernetes.io/name" => "###ZARF_VAR_MODEL_SERVICE_NAME_LABEL###"}
   }
 }
 required_egress.each do |purpose, expected|
@@ -157,7 +204,17 @@ end
 declared_variables = definition.fetch("variables").map { |item| item["name"] }
 undeclared = uds_text.scan(/###ZARF_VAR_([A-Z0-9_]+)###/).flatten.uniq - declared_variables
 abort "UDS Package uses undeclared Zarf variables: #{undeclared.join(', ')}" unless undeclared.empty?
-%w[OIDC_ISSUER_NAMESPACE OIDC_ISSUER_NAME_LABEL CHART_REGISTRY_NAMESPACE CHART_REGISTRY_LABEL_KEY CHART_REGISTRY_LABEL_VALUE TEMPORAL_NAMESPACE TEMPORAL_NAME_LABEL].each do |name|
+# The model egress is granted only when configured. A Zarf variable cannot
+# drop a list entry, so "not configured" is a default that names no namespace
+# and no workload: the rendered policy then selects nothing.
+%w[MODEL_SERVICE_NAMESPACE MODEL_SERVICE_NAME_LABEL].each do |name|
+  variable = definition.fetch("variables").find { |item| item["name"] == name }
+  abort "#{name} must default to the sentinel that selects nothing, so no model egress is granted until an operator sets it" unless
+    variable && variable["default"] == "conduit-model-unconfigured"
+end
+abort "only the Hub may be granted egress to the model endpoint" unless
+  allows.count { |item| item.to_s.include?("ZARF_VAR_MODEL_SERVICE_") } == 1
+%w[OIDC_ISSUER_NAMESPACE OIDC_ISSUER_NAME_LABEL CHART_REGISTRY_NAMESPACE CHART_REGISTRY_LABEL_KEY CHART_REGISTRY_LABEL_VALUE TEMPORAL_NAMESPACE TEMPORAL_NAME_LABEL MODEL_SERVICE_NAMESPACE MODEL_SERVICE_NAME_LABEL].each do |name|
   variable = definition.fetch("variables").find { |item| item["name"] == name }
   abort "#{name} must have a non-empty default and a pattern, so an unset variable cannot render an empty selector" unless
     variable && !variable["default"].to_s.empty? && !variable["pattern"].to_s.empty?

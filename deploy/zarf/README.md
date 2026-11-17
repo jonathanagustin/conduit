@@ -45,6 +45,12 @@ custom resource plus a ServiceMonitor. Selecting it without them registers a
 scrape target that stays down. The other notification, plan-orchestrator and
 material-preparer settings the Helm charts expose are not Zarf variables.
 
+The model provider is configured with the `MODEL_*` variables, all of which
+default to no model call. The API key is the `api-key` key of
+`MODEL_API_KEY_SECRET`, mounted as a file. The variables, the UDS egress allow
+for an in-cluster model, and the AI capabilities the shipped image cannot run
+are in [HTTP model endpoint](../../docs/operations/model-http.md).
+
 Create three Environment-owned Secrets in `platform-system`:
 
 | Secret | Required keys | Ownership |

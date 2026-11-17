@@ -111,6 +111,46 @@ variables:
     description: app.kubernetes.io/name value on the operator-supplied Temporal frontend Pods. Used only by the optional uds component.
     default: temporal
     pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+  - name: MODEL_BASE_URL
+    description: Base URL of an OpenAI-compatible model endpoint, for example https://models.example/v1. Leave empty for no model call. No credentials, query, or fragment.
+    default: ""
+    pattern: "^$|^https?://[^\\s@?#]+$"
+  - name: MODEL_NAME
+    description: Model id sent in each request and recorded as the configured model. Required when MODEL_BASE_URL is set; the Hub refuses to start without it.
+    default: ""
+    pattern: "^\\S*$"
+  - name: MODEL_TIMEOUT
+    description: Bound on one whole model request, for example 90s. Leave empty for the Hub default of 45s.
+    default: ""
+    pattern: "^$|^[1-9][0-9]*(ms|s|m)$"
+  - name: MODEL_API_KEY_SECRET
+    description: Existing Secret whose api-key key is the model API key. Mounted only as a file. Read only when MODEL_API_KEY_FILE is set.
+    default: platform-model-api-key
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  - name: MODEL_API_KEY_FILE
+    description: Set to /run/conduit-model/api-key to send the key from MODEL_API_KEY_SECRET. Leave empty for a keyless endpoint.
+    default: ""
+    pattern: "^(/run/conduit-model/api-key)?$"
+  - name: MODEL_CA_CONFIGMAP
+    description: Existing ConfigMap whose ca.pem key is a private CA for the model endpoint. Read only when MODEL_CA_FILE is set.
+    default: platform-model-ca
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  - name: MODEL_CA_FILE
+    description: Set to /run/conduit-model-ca/ca.pem to trust MODEL_CA_CONFIGMAP in addition to the system roots. Leave empty otherwise.
+    default: ""
+    pattern: "^(/run/conduit-model-ca/ca.pem)?$"
+  - name: MODEL_ALLOW_INSECURE_HTTP
+    description: Permit a plain http MODEL_BASE_URL. The key and every prompt then cross the cluster network unencrypted unless a service mesh encrypts that hop.
+    default: "false"
+    pattern: "^(true|false)$"
+  - name: MODEL_SERVICE_NAMESPACE
+    description: Namespace of an in-cluster model service the Hub may reach. The default names no namespace, so no egress is granted until it is set. Used only by the optional uds components.
+    default: conduit-model-unconfigured
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  - name: MODEL_SERVICE_NAME_LABEL
+    description: app.kubernetes.io/name value on the in-cluster model service Pods. Used only by the optional uds components.
+    default: conduit-model-unconfigured
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
 
 components:
   - name: runtime
