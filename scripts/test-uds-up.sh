@@ -28,6 +28,8 @@ def flag(name):
     return os.getenv("UDS_FIXTURE_" + name) == "1"
 if role in ("docker", "podman", "custom-engine"):
     record()
+    if role == "docker" and args == ["--version"]:
+        sys.exit(1 if flag("DOCKER_CLIENT_DOWN") else 0)
     if args == ["info"]:
         sys.exit(1 if flag("ENGINE_DOWN") or (role == "docker" and flag("DOCKER_DOWN")) else 0)
     if args[:2] == ["network", "inspect"]:
@@ -160,6 +162,10 @@ with tempfile.TemporaryDirectory(prefix="conduit-uds-test-") as directory:
         assert all(row["kubeconfig"] == str(config) for row in events if row["role"] in ("uds", "k3d", "kubectl")), events
         assert [row["args"] for row in events if row["role"] == "k3d"] == [["kubeconfig", "get", cluster]], events
         assert all(row["role"] == engine for row in events if row["args"][:1] == ["network"]), events
+        client_checks = [i for i, row in enumerate(events) if row["role"] == "docker" and row["args"] == ["--version"]]
+        assert len(client_checks) == 1, events
+        assert client_checks[0] < next(i for i, row in enumerate(events) if row["args"][:1] == ["network"]), events
+        assert client_checks[0] < next(i for i, row in enumerate(events) if row["role"] == "uds"), events
         kubectl = [row for row in events if row["role"] == "kubectl"]
         assert kubectl[0]["args"][4:] == ["config", "current-context"], kubectl
         assert kubectl[1]["args"][4:] == ["config", "get-contexts", "k3d-" + cluster, "-o", "name"], kubectl
@@ -186,6 +192,7 @@ with tempfile.TemporaryDirectory(prefix="conduit-uds-test-") as directory:
     result, events, _ = run("dry", flags=("--dry-run",))
     assert "docker network inspect uds-k3d || docker network create uds-k3d" in result.stdout and "--set CLUSTER_NAME=uds --set K3D_EXTRA_ARGS=" in result.stdout
     assert [(row["role"], row["args"]) for row in events] == [("docker", ["info"])]
+    assert "bundle_client_requirement=working docker --version (checked before deployment)" in result.stdout
     result, events, _ = run("unknown", flags=("--unknown",), success=False)
     assert "unknown argument: --unknown" in result.stderr and not events
     _, events, _ = run("unsafe-cluster", success=False, UDS_K3D_CLUSTER="--all")
@@ -207,6 +214,32 @@ with tempfile.TemporaryDirectory(prefix="conduit-uds-test-") as directory:
         assert not events, (name, events)
     _, events = assert_up("podman", engine="podman", UDS_FIXTURE_DOCKER_DOWN=1, DOCKER_HOST="unix:///fixture/podman.sock", DOCKER_CONTEXT="unrelated")
     assert all(row["docker_context"] is None and row["docker_host"] == "unix:///fixture/podman.sock" for row in events), events
+    # Client availability does not require a separate Docker daemon: the case
+    # above deliberately makes docker info fail while docker --version works.
+    _, events, _ = run("broken-docker-client", success=False, UDS_FIXTURE_DOCKER_CLIENT_DOWN=1)
+    assert [(row["role"], row["args"]) for row in events] == [("docker", ["info"]), ("docker", ["--version"])], events
+    (bin_dir / "docker").rename(bin_dir / "hidden-docker")
+    try:
+        for name, flags, success, extra in (
+                ("missing-docker-client", (), False, {}),
+                ("missing-client-custom-ref", (), False, {"UDS_CORE_REF": "oci://example.test/custom-core:1"}),
+                ("dry-without-client", ("--dry-run",), True, {})):
+            result, events, _ = run(name, flags=flags, success=success, CONDUIT_CONTAINER_ENGINE="podman",
+                DOCKER_HOST="unix:///fixture/podman.sock", **extra)
+            assert [(row["role"], row["args"]) for row in events] == [("podman", ["info"])], events
+            if not success:
+                assert "working Docker-compatible docker client on PATH" in result.stderr, result.stderr
+            else:
+                assert "bundle_client_requirement=" in result.stdout and "uds deploy" in result.stdout, result.stdout
+        _, events, _ = run("plan-without-client", flags=("--print-plan",))
+        assert not events, events
+        _, events, _ = run("down-without-client", script=down, CONDUIT_CONTAINER_ENGINE="podman", DOCKER_HOST="unix:///fixture/podman.sock")
+        assert all(row["role"] != "docker" for row in events), events
+    finally:
+        (bin_dir / "hidden-docker").rename(bin_dir / "docker")
+    _, events, _ = run("custom-ref-with-client", UDS_CORE_REF="oci://example.test/custom-core:1")
+    assert next(row for row in events if row["role"] == "uds")["args"][1] == "oci://example.test/custom-core:1", events
+    assert any(row["role"] == "docker" and row["args"] == ["--version"] for row in events), events
     _, events = assert_up("explicit", engine="custom-engine", cluster="task-922", CONDUIT_CONTAINER_ENGINE="custom-engine", DOCKER_HOST="unix:///fixture/custom.sock", UDS_K3D_NETWORK="task-922-net", K3D_EXTRA_ARGS="--network task-922-net -p 19443:443@loadbalancer")
     deploy = next(row for row in events if row["role"] == "uds")
     assert deploy["args"][-1] == "K3D_EXTRA_ARGS=--network task-922-net -p 19443:443@loadbalancer", deploy
@@ -228,10 +261,10 @@ with tempfile.TemporaryDirectory(prefix="conduit-uds-test-") as directory:
         assert all(row["args"][4:5] == ["config"] for row in events if row["role"] == "kubectl"), (flag, events)
     _, events, config = run("existing-wrong", success=False, existing_context="k3d-unrelated")
     assert json.loads(config.read_text())["current-context"] == "k3d-unrelated"
-    assert all(row["role"] == "kubectl" or row["args"] == ["info"] for row in events), events
+    assert all(row["role"] == "kubectl" or row["args"] in (["info"], ["--version"]) for row in events), events
     _, events, _ = run("existing-correct", existing_context="k3d-uds")
-    assert [row["role"] for row in events[:3]] == ["docker", "kubectl", "kubectl"], events
-    assert events[3]["args"][:2] == ["network", "inspect"], events
+    assert [row["role"] for row in events[:4]] == ["docker", "docker", "kubectl", "kubectl"], events
+    assert events[4]["args"][:2] == ["network", "inspect"], events
     _, events, config = run("existing-export-failure", success=False, existing_context="k3d-uds", UDS_FIXTURE_EXPORT_FAIL=1)
     assert json.loads(config.read_text())["current-context"] == "k3d-uds"
     assert not list(config.parent.glob("cluster.kubeconfig.*"))
