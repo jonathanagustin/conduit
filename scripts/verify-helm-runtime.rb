@@ -610,7 +610,8 @@ abort "default Hub mounts model credentials nobody configured" if
 abort "default Hub declares a metrics port nothing listens on" if
   hub_container.fetch("ports").any? { |port| port["name"] == "metrics" } ||
     hub_documents.find { |item| item["kind"] == "Service" }.dig("spec", "ports").any? { |port| port["name"] == "metrics" }
-abort "default Spoke configures a material preparer" if spoke_env.key?("EXTERNAL_MATERIAL_PREPARER")
+abort "default Spoke configures a material preparer" if
+  spoke_env.key?("EXTERNAL_MATERIAL_PREPARER") || spoke_env.key?("MATERIAL_PREPARER_NAMESPACES")
 assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set-string", "extraEnv.METRICS_ADDRESS=:9090"])
 
 metrics_documents = render!(
@@ -872,6 +873,15 @@ abort "Spoke material preparer tools must be an externally supplied read-only PV
     preparer_pod.dig("spec", "template", "spec", "volumes").include?(
       {"name" => "material-preparer-tools", "persistentVolumeClaim" => {"claimName" => "material-tools", "readOnly" => true}}
     )
+# A preparer is told the namespaces this chart binds the Agent's RBAC in, and
+# no others: the reference preparer refuses a request for a namespace outside
+# that list, so the list it is handed must be the one the Roles were rendered
+# for.
+preparer_namespaces = preparer_container.fetch("env").find { |item| item["name"] == "MATERIAL_PREPARER_NAMESPACES" }
+bound_namespaces = render!(helm, "platform-spoke", charts.fetch(:spoke), spoke_values, [])
+  .select { |item| item["kind"] == "Role" }.map { |item| item.dig("metadata", "namespace") }
+abort "Spoke material preparer is not told exactly the namespaces the chart binds RBAC in" unless
+  !bound_namespaces.empty? && preparer_namespaces && preparer_namespaces["value"].split(",") == bound_namespaces
 # The Agent refuses anything but a clean absolute path; so does the schema.
 assert_fails_closed!(helm, "platform-spoke", charts.fetch(:spoke), ["--values", spoke_values, "--set-string", "materialPreparer.command=bin/prepare"])
 

@@ -503,6 +503,13 @@
       "why": "#847 asks for an operator control, and the pinned CLI command contract has no agent credential commands. The group is a projection of identity.AgentRevocationHTTPSurface through the existing operator HTTP adapter and adds no authority of its own.",
       "displacedBy": "A published or sanitized Apollo agent credential management CLI contract defining command paths, arguments and revocation semantics.",
       "riskIfWrong": "Command paths and flags would be renamed. The CLI validates a revocation locally with the same domain function the Hub uses, so a divergence between them is a compile-time dependency rather than a second copy of the rule."
+    },
+    {
+      "id": "agent.KubernetesMaterialPreparer",
+      "what": "The reference EXTERNAL_MATERIAL_PREPARER executable shipped in the Agent image: the kubernetes-secret://NAME provider-reference grammar, projection of requested keys from a source Secret in one Environment-owned namespace into a Secret in a managed namespace, image pull Secrets from a dockerconfigjson source, ownership by the app.kubernetes.io/managed-by label and platform.delivery/material-* annotations, and exit statuses 1 to 7 as the failure vocabulary.",
+      "why": "#848: the Agent delegated registry and secret material to an Environment-owned executable and no implementation shipped, so every tenant had to write one. The Agent's side of the contract (internal/agent/material.go) is Conduit's own and fixes only the request; nothing recovered establishes how Apollo resolves a provider reference inside an Environment. A Kubernetes-native provider needs no dependency and composes with External Secrets Operator or any other controller that materialises a Secret.",
+      "displacedBy": "A published or sanitized Apollo agent secret-provider contract defining how an Environment resolves registry credentials and installation secrets.",
+      "riskIfWrong": "The reference grammar, the ownership metadata and the exit statuses are this implementation's and would change. The preparer keeps no history, so a rollback restores from whatever the previous reference names now; it declines image pre-pull rather than claiming it; and it acts with the Agent's ServiceAccount, so it adds no isolation between the Agent and the material it handles. ESO and Vault integration is by composition and has not been exercised."
     }
   ],
   "displaced": [
