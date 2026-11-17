@@ -37,6 +37,8 @@ test("opens straight to the operator workbench", async ({ page }) => {
 test.describe("workbench", () => {
   test("shows the workbench from hub routes", async ({ page }) => {
     test.setTimeout(60_000);
+    // The KPI strip is part of the wide layout; compact controls have their own regression.
+    await page.setViewportSize({ width: 1920, height: 1080 });
     let approved = false;
     await page.route("**/health/live", (route) =>
       route.fulfill({ json: { ok: true } }),

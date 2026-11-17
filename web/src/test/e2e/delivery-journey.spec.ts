@@ -850,7 +850,23 @@ async function keyboardReach(page: Page, target: Locator) {
   for (let attempt = 0; attempt < 100; attempt++) {
     if (await target.evaluate((element) => element === document.activeElement))
       return;
-    await page.keyboard.press("Tab");
+    // Stay inside the document instead of relying on browser-chrome Tab wrap.
+    // A refreshed view may have changed the browser's previous starting point.
+    const key = await target.evaluate((element) =>
+      (document.activeElement?.compareDocumentPosition(element) ?? 0) &
+      Node.DOCUMENT_POSITION_PRECEDING
+        ? "Shift+Tab"
+        : "Tab",
+    );
+    await page.keyboard.press(key);
+    // Let the key's focus/layout update settle without requiring every key to
+    // move focus (a closing dialog may still be restoring its trigger).
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => resolve());
+        }),
+    );
   }
   await expect(target).toBeFocused();
 }
@@ -931,6 +947,11 @@ test("keyboard-only proposal and independent approval retain both confirmations"
   await expect(propose.locator("[data-dj-outcome]")).toContainText("pln_new");
   expect(hub.writes).toHaveLength(1);
   expect(hub.writes[0].body.environment.generation).toBe("gen-2");
+  const done = propose.getByRole("button", { name: "Done", exact: true });
+  await keyboardReach(page, done);
+  // A completed Hub refresh must not strand the keyboard's tab starting point.
+  await page.evaluate(() => Reflect.get(window, "renderMainWorkspace")());
+  await expect(done).toBeFocused();
 
   await keyboardArea(page, "Change requests", "Approvals");
   const decide = page.locator('[data-dj-panel="decide"]');

@@ -39,6 +39,17 @@ export default defineConfig({
         launchOptions: localCiBrowserLaunchOptions(),
       },
     },
+    {
+      name: "firefox",
+      use: { ...devices["Desktop Firefox"] },
+      // Pixel baselines are qualified for Chromium's registered renderers.
+      testIgnore: "**/visual-areas.spec.ts",
+    },
+    {
+      name: "webkit",
+      use: { ...devices["Desktop Safari"] },
+      testIgnore: "**/visual-areas.spec.ts",
+    },
   ],
   webServer: {
     command: `pnpm build && pnpm preview --port ${PORT} --strictPort --host 127.0.0.1`,

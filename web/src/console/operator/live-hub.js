@@ -475,6 +475,7 @@ export function createLiveHub({
     if (typeof document.createElement !== "function") return;
     const chip = document.getElementById("operator-chip");
     if (!chip?.parentElement) return;
+    const controls = document.getElementById("live-events-controls");
     let node = document.getElementById("live-events-status");
     if (!node) {
       node = document.createElement("span");
@@ -483,7 +484,8 @@ export function createLiveHub({
         "kit-muted min-w-0 max-w-[72px] truncate sm:max-w-[180px]";
       node.setAttribute("role", "status");
       node.setAttribute("aria-live", "polite");
-      chip.before(node);
+      if (controls) controls.append(node);
+      else chip.before(node);
     }
     const status = state.liveEvents || idleLiveStatus;
     node.textContent =
@@ -505,7 +507,8 @@ export function createLiveHub({
       retry.className = "kit-btn";
       retry.textContent = "Retry live";
       retry.addEventListener("click", () => stream.retry());
-      chip.before(retry);
+      if (controls) controls.append(retry);
+      else chip.before(retry);
     }
     retry.hidden =
       !identityKey ||
