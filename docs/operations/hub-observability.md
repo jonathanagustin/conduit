@@ -154,12 +154,18 @@ rule or panel names a series the Hub does not export, uses a label that is not
 on the allowlist, lacks a runbook section, or when a generated copy differs
 from its source. `--write` regenerates the copies.
 
+`PROMTOOL_BIN=/path/to/promtool ruby scripts/verify-prometheus-rules.rb` parses
+the exact source groups and evaluates 21 synthetic scenarios with Prometheus
+3.16.0. Trunk downloads that version and verifies the archive SHA-256 before
+running it. The scenarios cover every shipped alert, hold durations, strict
+thresholds, quiet traffic, old exhaustion, recovery and leases on another
+replica. They use tenant-free fixture series; no running service is contacted.
+
 ### Limits of these assets
 
-- The expressions have **not** been evaluated by Prometheus or `promtool`; no
-  pinned `promtool` is available to the gate. Names, labels, functions and
-  structure are checked. Thresholds and `for` durations are judgement, not
-  measurement: nobody has tuned them against a running fleet.
+- Synthetic expression evaluation does not tune thresholds or `for` durations
+  against a running fleet. They remain operator judgement, not measured
+  production limits. Dashboard queries retain structural validation only.
 - The dashboard has not been loaded into a Grafana instance.
 - Neither the PrometheusRule nor the dashboard ConfigMap has been applied to a
   cluster. That UDS Core's Prometheus selects rules, and its Grafana sidecar

@@ -802,14 +802,29 @@ jobs:
       # in the shipped rules and dashboard to the exported-metrics manifest
       # (which a Go test holds to the code), every alert to a runbook section,
       # and the chart and Zarf copies to their sources. It checks names, labels
-      # and functions; it does not evaluate an expression, because no pinned
-      # promtool is installed here. Self-test first: the tree is correct, so a
+      # and functions. Pinned promtool separately evaluates alert behavior.
+      # Self-test first: the tree is correct, so a
       # check that stopped reading it would print the same PASS.
       - name: Validate observability assets
         if: needs.scope.outputs.checks == 'true'
         run: |
           ./scripts/verify-observability-assets.test.sh
           ruby scripts/verify-observability-assets.rb
+      - name: Install pinned Prometheus rule validator
+        if: needs.scope.outputs.checks == 'true'
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/prometheus/prometheus/releases/download/v3.16.0/prometheus-3.16.0.linux-amd64.tar.gz \
+            --output /tmp/conduit-prometheus.tar.gz
+          echo '68727009472a2c02e1ff7f062fd5b3e637285bffc8fc2d340c76fb449d6e0f34  /tmp/conduit-prometheus.tar.gz' | sha256sum --check
+          tar -xzf /tmp/conduit-prometheus.tar.gz -C /tmp --strip-components=1 \
+            prometheus-3.16.0.linux-amd64/promtool
+          rm /tmp/conduit-prometheus.tar.gz
+      - name: Evaluate Prometheus alert behavior
+        if: needs.scope.outputs.checks == 'true'
+        env:
+          PROMTOOL_BIN: /tmp/promtool
+        run: ruby scripts/verify-prometheus-rules.rb
       - name: Install pinned Zarf
         if: needs.scope.outputs.checks == 'true'
         run: |

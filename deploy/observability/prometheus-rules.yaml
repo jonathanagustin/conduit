@@ -7,10 +7,9 @@
 # the same script, without --write, fails when either has drifted.
 #
 # Every series named here must be in exported-metrics.txt, which a Go test
-# holds to what the Hub actually renders. The expressions are NOT checked by
-# promtool -- no pinned promtool is available to the gate -- so the gate
-# checks metric names, functions and structure, and does not prove an
-# expression evaluates.
+# holds to what the Hub actually renders. The asset gate checks metric names,
+# functions and structure; verify-prometheus-rules.rb also uses pinned promtool
+# to parse these groups and evaluate synthetic alert-behavior scenarios.
 #
 # The queue and delivery gauges are read from the database by whichever
 # replica is scraped, so every replica reports the same value. Expressions

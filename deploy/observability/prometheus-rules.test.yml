@@ -1,0 +1,296 @@
+# Synthetic, tenant-free alert behavior; evaluated by the pinned promtool.
+rule_files:
+- rules.yaml
+evaluation_interval: 1m
+tests:
+- name: wedged queue respects five minute hold
+  interval: 1m
+  input_series:
+  - series: conduit_reconciliation_pending{queue="reconciliation",instance="a"}
+    values: 1+0x60
+  - series: conduit_reconciliation_leased{queue="reconciliation",instance="a"}
+    values: 0+0x60
+  - series: conduit_reconciliation_oldest_pending_seconds{queue="reconciliation",instance="a"}
+    values: 600+0x60
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitHubWedged",alertstate="firing"}
+    eval_time: 4m
+    exp_samples: []
+  - expr: ALERTS{alertname="ConduitHubWedged",alertstate="firing"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="ALERTS", alertname="ConduitHubWedged", alertstate="firing", queue="reconciliation", severity="critical"}'
+      value: 1
+- name: busy queue is not wedged
+  interval: 1m
+  input_series:
+  - series: conduit_reconciliation_pending{queue="reconciliation",instance="a"}
+    values: 50+0x60
+  - series: conduit_reconciliation_leased{queue="reconciliation",instance="a"}
+    values: 1+0x60
+  - series: conduit_reconciliation_oldest_pending_seconds{queue="reconciliation",instance="a"}
+    values: 600+0x60
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitHubWedged",alertstate="firing"}
+    eval_time: 15m
+    exp_samples: []
+- name: young queue is not wedged
+  interval: 1m
+  input_series:
+  - series: conduit_reconciliation_pending{queue="reconciliation",instance="a"}
+    values: 50+0x60
+  - series: conduit_reconciliation_leased{queue="reconciliation",instance="a"}
+    values: 0+0x60
+  - series: conduit_reconciliation_oldest_pending_seconds{queue="reconciliation",instance="a"}
+    values: 299+0x60
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitHubWedged",alertstate="firing"}
+    eval_time: 15m
+    exp_samples: []
+- name: empty queue is not wedged
+  interval: 1m
+  input_series:
+  - series: conduit_reconciliation_pending{queue="reconciliation",instance="a"}
+    values: 0+0x60
+  - series: conduit_reconciliation_leased{queue="reconciliation",instance="a"}
+    values: 0+0x60
+  - series: conduit_reconciliation_oldest_pending_seconds{queue="reconciliation",instance="a"}
+    values: 600+0x60
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitHubWedged",alertstate="firing"}
+    eval_time: 15m
+    exp_samples: []
+- name: lease on another replica prevents false wedge
+  interval: 1m
+  input_series:
+  - series: conduit_reconciliation_pending{queue="reconciliation",instance="a"}
+    values: 50+0x60
+  - series: conduit_reconciliation_leased{queue="reconciliation",instance="a"}
+    values: 0+0x60
+  - series: conduit_reconciliation_oldest_pending_seconds{queue="reconciliation",instance="a"}
+    values: 600+0x60
+  - series: conduit_reconciliation_leased{queue="reconciliation",instance="b"}
+    values: 1+0x60
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitHubWedged",alertstate="firing"}
+    eval_time: 15m
+    exp_samples: []
+- name: lag requires ten minutes above threshold
+  interval: 1m
+  input_series:
+  - series: conduit_reconciliation_pending{queue="reconciliation",instance="a"}
+    values: 1+0x60
+  - series: conduit_reconciliation_leased{queue="reconciliation",instance="a"}
+    values: 1+0x60
+  - series: conduit_reconciliation_oldest_pending_seconds{queue="reconciliation",instance="a"}
+    values: 901+0x60
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitReconciliationLag",alertstate="firing"}
+    eval_time: 9m
+    exp_samples: []
+  - expr: ALERTS{alertname="ConduitReconciliationLag",alertstate="firing"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="ALERTS", alertname="ConduitReconciliationLag", alertstate="firing", queue="reconciliation",
+        severity="warning"}'
+      value: 1
+- name: lag threshold is strict
+  interval: 1m
+  input_series:
+  - series: conduit_reconciliation_pending{queue="reconciliation",instance="a"}
+    values: 1+0x60
+  - series: conduit_reconciliation_leased{queue="reconciliation",instance="a"}
+    values: 1+0x60
+  - series: conduit_reconciliation_oldest_pending_seconds{queue="reconciliation",instance="a"}
+    values: 900+0x60
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitReconciliationLag",alertstate="firing"}
+    eval_time: 20m
+    exp_samples: []
+- name: reconciliation exhaustion holds then clears
+  interval: 1m
+  input_series:
+  - series: conduit_reconciliation_exhausted{queue="reconciliation"}
+    values: 1+0x10 0+0x40
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitReconciliationExhausted",alertstate="firing"}
+    eval_time: 4m
+    exp_samples: []
+  - expr: ALERTS{alertname="ConduitReconciliationExhausted",alertstate="firing"}
+    eval_time: 5m
+    exp_samples:
+    - labels: '{__name__="ALERTS", alertname="ConduitReconciliationExhausted", alertstate="firing", queue="reconciliation",
+        severity="warning"}'
+      value: 1
+  - expr: ALERTS{alertname="ConduitReconciliationExhausted",alertstate="firing"}
+    eval_time: 11m
+    exp_samples: []
+- name: ConduitProposalExhausted fires on increase and clears after window
+  interval: 1m
+  input_series:
+  - series: conduit_reconciliation_exhausted{queue="proposal_outbox"}
+    values: 0+0x10 1+0x50
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitProposalExhausted",alertstate="firing"}
+    eval_time: 9m
+    exp_samples: []
+  - expr: ALERTS{alertname="ConduitProposalExhausted",alertstate="firing"}
+    eval_time: 11m
+    exp_samples:
+    - labels: '{__name__="ALERTS", alertname="ConduitProposalExhausted", alertstate="firing", queue="proposal_outbox",
+        severity="warning"}'
+      value: 1
+  - expr: ALERTS{alertname="ConduitProposalExhausted",alertstate="firing"}
+    eval_time: 42m
+    exp_samples: []
+- name: ConduitProposalExhausted old exhaustion does not fire forever
+  interval: 1m
+  input_series:
+  - series: conduit_reconciliation_exhausted{queue="proposal_outbox"}
+    values: 7+0x60
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitProposalExhausted",alertstate="firing"}
+    eval_time: 10m
+    exp_samples: []
+  - expr: ALERTS{alertname="ConduitProposalExhausted",alertstate="firing"}
+    eval_time: 45m
+    exp_samples: []
+- name: ConduitNotificationDeliveryExhausted fires on increase and clears after window
+  interval: 1m
+  input_series:
+  - series: conduit_notification_delivery_exhausted{transport="webhook"}
+    values: 0+0x10 1+0x50
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitNotificationDeliveryExhausted",alertstate="firing"}
+    eval_time: 9m
+    exp_samples: []
+  - expr: ALERTS{alertname="ConduitNotificationDeliveryExhausted",alertstate="firing"}
+    eval_time: 11m
+    exp_samples:
+    - labels: '{__name__="ALERTS", alertname="ConduitNotificationDeliveryExhausted", alertstate="firing", severity="warning",
+        transport="webhook"}'
+      value: 1
+  - expr: ALERTS{alertname="ConduitNotificationDeliveryExhausted",alertstate="firing"}
+    eval_time: 42m
+    exp_samples: []
+- name: ConduitNotificationDeliveryExhausted old exhaustion does not fire forever
+  interval: 1m
+  input_series:
+  - series: conduit_notification_delivery_exhausted{transport="webhook"}
+    values: 7+0x60
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitNotificationDeliveryExhausted",alertstate="firing"}
+    eval_time: 10m
+    exp_samples: []
+  - expr: ALERTS{alertname="ConduitNotificationDeliveryExhausted",alertstate="firing"}
+    eval_time: 45m
+    exp_samples: []
+- name: stalled notification hold and recovery
+  interval: 1m
+  input_series:
+  - series: conduit_notification_delivery_oldest_pending_seconds{transport="webhook"}
+    values: 1801+0x15 0+0x30
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitNotificationDeliveryStalled",alertstate="firing"}
+    eval_time: 9m
+    exp_samples: []
+  - expr: ALERTS{alertname="ConduitNotificationDeliveryStalled",alertstate="firing"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="ALERTS", alertname="ConduitNotificationDeliveryStalled", alertstate="firing", severity="warning",
+        transport="webhook"}'
+      value: 1
+  - expr: ALERTS{alertname="ConduitNotificationDeliveryStalled",alertstate="firing"}
+    eval_time: 16m
+    exp_samples: []
+- name: notification age threshold is strict
+  interval: 1m
+  input_series:
+  - series: conduit_notification_delivery_oldest_pending_seconds{transport="webhook"}
+    values: 1800+0x30
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitNotificationDeliveryStalled",alertstate="firing"}
+    eval_time: 20m
+    exp_samples: []
+- name: sustained server errors fire after hold
+  interval: 1m
+  input_series:
+  - series: conduit_http_requests_total{code_class="2xx"}
+    values: 0+90x40
+  - series: conduit_http_requests_total{code_class="5xx"}
+    values: 0+10x40
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitHTTPServerErrors",alertstate="firing"}
+    eval_time: 10m
+    exp_samples: []
+  - expr: ALERTS{alertname="ConduitHTTPServerErrors",alertstate="firing"}
+    eval_time: 11m
+    exp_samples:
+    - labels: '{__name__="ALERTS", alertname="ConduitHTTPServerErrors", alertstate="firing", severity="critical"}'
+      value: 1
+- name: high error ratio at low traffic stays quiet
+  interval: 1m
+  input_series:
+  - series: conduit_http_requests_total{code_class="2xx"}
+    values: 0+1x40
+  - series: conduit_http_requests_total{code_class="5xx"}
+    values: 0+1x40
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitHTTPServerErrors",alertstate="firing"}
+    eval_time: 20m
+    exp_samples: []
+- name: exact five percent error ratio stays quiet
+  interval: 1m
+  input_series:
+  - series: conduit_http_requests_total{code_class="2xx"}
+    values: 0+114x40
+  - series: conduit_http_requests_total{code_class="5xx"}
+    values: 0+6x40
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitHTTPServerErrors",alertstate="firing"}
+    eval_time: 20m
+    exp_samples: []
+- name: Agent throttling requires sustained failures
+  interval: 1m
+  input_series:
+  - series: conduit_rate_limit_decisions_total{class="agent",outcome="limited"}
+    values: 0+1x40
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitAgentRateLimited",alertstate="firing"}
+    eval_time: 10m
+    exp_samples: []
+  - expr: ALERTS{alertname="ConduitAgentRateLimited",alertstate="firing"}
+    eval_time: 11m
+    exp_samples:
+    - labels: '{__name__="ALERTS", alertname="ConduitAgentRateLimited", alertstate="firing", severity="warning"}'
+      value: 1
+- name: operator throttling does not claim Agent failure
+  interval: 1m
+  input_series:
+  - series: conduit_rate_limit_decisions_total{class="operator",outcome="limited"}
+    values: 0+1x40
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitAgentRateLimited",alertstate="firing"}
+    eval_time: 20m
+    exp_samples: []
+- name: missing metrics hold
+  interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitMetricsAbsent",alertstate="firing"}
+    eval_time: 9m
+    exp_samples: []
+  - expr: ALERTS{alertname="ConduitMetricsAbsent",alertstate="firing"}
+    eval_time: 10m
+    exp_samples:
+    - labels: '{__name__="ALERTS", alertname="ConduitMetricsAbsent", alertstate="firing", severity="critical"}'
+      value: 1
+- name: present build metric keeps missing alert quiet
+  interval: 1m
+  input_series:
+  - series: conduit_build_info{version="test"}
+    values: 1+0x40
+  promql_expr_test:
+  - expr: ALERTS{alertname="ConduitMetricsAbsent",alertstate="firing"}
+    eval_time: 20m
+    exp_samples: []
