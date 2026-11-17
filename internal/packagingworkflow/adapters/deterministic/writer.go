@@ -32,9 +32,13 @@ func (Writer) ProposePackage(_ context.Context, input domain.PackagingContext) (
 		if !strings.HasPrefix(digest, "sha256:") {
 			return domain.PackageProposal{}, domain.Provenance{}, fmt.Errorf("image digest is not pinned")
 		}
+		image := tag
+		if ref := strings.TrimSpace(input.ImageRef); strings.Contains(ref, "@sha256:") {
+			image = ref
+		}
 		proposal.Source = fmt.Sprintf("name: %s\nversion: 0.1.0\nport: 8080\nimage-digest: %s\n", app, digest)
-		proposal.Zarf = zarfYAML(app, tag, digest)
-		proposal.CR = packageCR(app, digest)
+		proposal.Zarf = zarfYAML(app, image, digest)
+		proposal.CR = packageCR(app, digest, image)
 		proposal.Dockerignore = dockerignore()
 	}
 	raw, err := json.Marshal(proposal)
@@ -105,7 +109,11 @@ components:
 `, app, app, digest, app, tag, app)
 }
 
-func packageCR(app, digest string) string {
+func packageCR(app, digest, image string) string {
+	recorded := digest
+	if strings.Contains(image, "@sha256:") {
+		recorded = image
+	}
 	return fmt.Sprintf(`apiVersion: uds.dev/v1alpha1
 kind: Package
 metadata:
@@ -118,7 +126,7 @@ spec:
   network:
     allow: []
   sso: []
-`, app, app, digest)
+`, app, app, recorded)
 }
 
 func appName(input domain.PackagingContext) string {

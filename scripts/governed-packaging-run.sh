@@ -36,6 +36,27 @@ if [[ -z "${PACKAGING_REPO_URL:-}" && "${PACKAGING_HUB_ONLY:-}" != "1" ]]; then
   exit 0
 fi
 
+registry="${CONDUIT_LOCAL_REGISTRY:-127.0.0.1:5000}"
+if ! curl -fsS "http://${registry}/v2/" >/dev/null 2>&1; then
+  # shellcheck source=SCRIPTDIR/lib/demo-docker-network.sh
+  source ./scripts/lib/demo-docker-network.sh
+  demo_prepare_docker_network
+  demo_start_registry "registry@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373"
+  for _ in $(seq 1 30); do
+    if curl -fsS "http://127.0.0.1:5000/v2/" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+  done
+fi
+if ! curl -fsS "http://${registry}/v2/" >/dev/null 2>&1; then
+  echo "A local registry must answer at http://${registry}/v2/." >&2
+  echo "Start one, or leave CONDUIT_LOCAL_REGISTRY unset so this script starts 127.0.0.1:5000." >&2
+  echo "Docker must allow that registry over HTTP. 127.0.0.0/8 is the usual insecure range." >&2
+  exit 69
+fi
+export CONDUIT_LOCAL_REGISTRY="${registry}"
+
 state="${PACKAGING_STATE_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/conduit-packaging.XXXXXX")}"
 port="${PACKAGING_HUB_PORT:-8081}"
 hub="http://127.0.0.1:${port}"
@@ -57,6 +78,7 @@ nohup env \
   PLATFORM_BOOTSTRAP_ADMINISTRATORS=alice \
   DEVWORKSPACE_GIT_ROOT="${state}/workspaces" \
   CONDUIT_IMAGE_BUILDER=docker \
+  CONDUIT_LOCAL_REGISTRY="${registry}" \
   CONDUIT_PACKAGING_BUILD="${build_mode}" \
   CONDUIT_DOCKER_BUILD_NETWORK="${CONDUIT_DOCKER_BUILD_NETWORK:-host}" \
   CONDUIT_HTTP_WRITE_TIMEOUT="${CONDUIT_HTTP_WRITE_TIMEOUT:-45m}" \
@@ -119,7 +141,7 @@ print(json.dumps({
     "changeRequestStatus": matched[0].get("status") if matched else "",
     "stateDir": state,
 }, indent=2))
-if not digest.startswith("sha256:") or row.get("validationOutcome") != "PASS" or not matched:
+if "@sha256:" not in digest or "/" not in digest.split("@", 1)[0] or row.get("validationOutcome") != "PASS" or not matched:
     sys.exit(1)
 PY
 echo "state: ${state}"

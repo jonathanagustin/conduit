@@ -38,7 +38,7 @@ test("governed packaging walkthrough", async ({ page }) => {
   await page.locator("[data-plan-compute]").click();
   const digest = page.locator("[data-plan-image-digest]");
   await expect(digest).toBeVisible({ timeout: 45 * 60_000 });
-  await expect(digest).toContainText("sha256:");
+  await expect(digest).toContainText("@sha256:");
   await still(page, "04-digest");
   const review = page.locator("[data-plan-open-change]");
   if (await review.count()) {

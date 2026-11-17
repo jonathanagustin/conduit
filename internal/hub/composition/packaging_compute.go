@@ -3,10 +3,13 @@ package composition
 import (
 	"context"
 	"fmt"
-	"github.com/jonathanagustin/conduit/internal/modelconfig"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/jonathanagustin/conduit/internal/modelconfig"
 	"strings"
 	"time"
 
@@ -58,9 +61,16 @@ func packagingPlanningComputer(repository controlplane.Repository, principal con
 		if err != nil {
 			return err
 		}
+		registry, err := packagingRegistry(getenv)
+		if err != nil {
+			return err
+		}
+		if err := registryAnswers(registry); err != nil {
+			return err
+		}
 		app := packagingAppName(repoURL)
 		wsID := "wsp_" + session.ID
-		tag := "conduit/" + app + ":local"
+		tag := registry + "/" + app + ":local"
 		runtime := "scratch"
 		network := "none"
 		base := ""
@@ -90,7 +100,7 @@ func packagingPlanningComputer(repository controlplane.Repository, principal con
 		defer logFile.Close()
 		engine := imagebuild.Docker{Tag: tag, Network: network}
 		packager := packagingapp.WorkspacePackager{
-			Writer: writer, Checks: workspacepkg.Checks{Zarf: packagingtools.ZarfRunner{Timeout: 20 * time.Minute}},
+			Writer: writer, Checks: workspacepkg.Checks{Zarf: packagingtools.ZarfRunner{Timeout: 20 * time.Minute, PlainHTTP: registryPlainHTTP(registry)}},
 			Store: workspacepkg.Store{}, Builder: engine, Inspector: engine, LogWriter: logFile,
 		}
 		result, err := packager.Governed(ctx, packagingapp.GovernedRequest{
@@ -157,6 +167,45 @@ func packagingSourceBuild(repoURL string, getenv func(string) string) bool {
 	default:
 		return strings.Contains(strings.ToLower(repoURL), "excalidraw")
 	}
+}
+
+func packagingRegistry(getenv func(string) string) (string, error) {
+	registry := strings.TrimSpace(getenv("CONDUIT_LOCAL_REGISTRY"))
+	if registry == "" {
+		registry = "127.0.0.1:5000"
+	}
+	if strings.Contains(registry, "://") || strings.Contains(registry, "/") {
+		return "", fmt.Errorf("CONDUIT_LOCAL_REGISTRY must be host:port")
+	}
+	if _, _, err := net.SplitHostPort(registry); err != nil {
+		return "", fmt.Errorf("CONDUIT_LOCAL_REGISTRY must be host:port")
+	}
+	return registry, nil
+}
+
+func registryAnswers(registry string) error {
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get("http://" + registry + "/v2/")
+	if err != nil {
+		return fmt.Errorf("registry %s is not answering. Start a local registry, or set CONDUIT_LOCAL_REGISTRY to one that is already running", registry)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 500 {
+		return fmt.Errorf("registry %s returned %s", registry, resp.Status)
+	}
+	return nil
+}
+
+func registryPlainHTTP(registry string) bool {
+	host, _, err := net.SplitHostPort(registry)
+	if err != nil {
+		host = registry
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func packagingAppName(repoURL string) string {

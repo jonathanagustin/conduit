@@ -32,6 +32,12 @@ type ImageBuilder interface {
 	BuildImage(ctx context.Context, dir string, logOut io.Writer) (string, error)
 }
 
+// ImagePublisher pushes a built tag and returns the repository@sha256 reference
+// the registry recorded. The engine image id is not that reference.
+type ImagePublisher interface {
+	Publish(ctx context.Context, tag string) (string, error)
+}
+
 // ImageInspector is an optional OCI image inspector run on the built or packaged image.
 type ImageInspector interface {
 	InspectImage(ctx context.Context, ref string) (domain.ImageInspect, error)
