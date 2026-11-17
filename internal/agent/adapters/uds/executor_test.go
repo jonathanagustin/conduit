@@ -24,6 +24,9 @@ var (
 	desiredDigest = "sha256:" + strings.Repeat("c", 64)
 	priorDigest   = "sha256:" + strings.Repeat("a", 64)
 	configDigest  = "sha256:" + strings.Repeat("d", 64)
+	// releaseDigest is the Hub's digest of the Release document. It is not an
+	// OCI digest and never appears in a registry reference.
+	releaseDigest = "sha256:" + strings.Repeat("e", 64)
 )
 
 // fakeRunner answers the first rule whose argv prefix matches, and records
@@ -84,9 +87,9 @@ func initialised(prior string) *fakeRunner {
 
 func executor(runner *fakeRunner) uds.Executor {
 	return uds.Executor{
-		Runner:      runner,
-		PackageName: func(controlplane.PlanStep) string { return "excalidraw" },
-		Publisher:   domain.PublisherPolicy{CertificateIssuer: issuer, CertificateIdentity: identity},
+		Runner:       runner,
+		Architecture: "amd64",
+		Publisher:    domain.PublisherPolicy{CertificateIssuer: issuer, CertificateIdentity: identity},
 	}
 }
 
@@ -94,12 +97,22 @@ func installStep() controlplane.PlanStep {
 	return controlplane.PlanStep{
 		Action:         "install",
 		InstallationID: "inst-7f3a",
-		Product:        "ghcr.io/example/excalidraw",
+		Product:        "example:excalidraw",
 		Version:        "0.2.0",
-		ReleaseDigest:  desiredDigest,
+		ReleaseDigest:  releaseDigest,
 		Namespace:      "excalidraw",
 		ConfigDigest:   configDigest,
+		Chart: controlplane.Artifact{
+			Kind: controlplane.ArtifactKindZarfPackage, Repository: "ghcr.io/example/excalidraw",
+			Digest: desiredDigest, Architectures: []string{"amd64", "arm64"}, PackageName: "excalidraw",
+		},
 	}
+}
+
+func bundleStep() controlplane.PlanStep {
+	step := installStep()
+	step.Chart.Kind = controlplane.ArtifactKindUDSBundle
+	return step
 }
 
 func source(digest string) string { return "oci://ghcr.io/example/excalidraw@" + digest }
@@ -167,11 +180,22 @@ func TestApplyRefusesBeforeRunningAnything(t *testing.T) {
 		"registry access": func(_ *uds.Executor, s *controlplane.PlanStep) {
 			s.RegistryAccess = make([]controlplane.RegistryAccess, 1)
 		},
-		"no package name resolver": func(e *uds.Executor, _ *controlplane.PlanStep) { e.PackageName = nil },
-		"invalid package name": func(e *uds.Executor, _ *controlplane.PlanStep) {
-			e.PackageName = func(controlplane.PlanStep) string { return "Inst_7F3A" }
+		"no package name":      func(_ *uds.Executor, s *controlplane.PlanStep) { s.Chart.PackageName = "" },
+		"invalid package name": func(_ *uds.Executor, s *controlplane.PlanStep) { s.Chart.PackageName = "Inst_7F3A" },
+		"a Helm chart":         func(_ *uds.Executor, s *controlplane.PlanStep) { s.Chart.Kind = "" },
+		"an unknown kind":      func(_ *uds.Executor, s *controlplane.PlanStep) { s.Chart.Kind = "oci-thing" },
+		"tag-only reference": func(_ *uds.Executor, s *controlplane.PlanStep) {
+			s.Chart.Digest, s.Chart.Tag = "", "0.2.0"
 		},
-		"bundle with keyless policy only": func(e *uds.Executor, _ *controlplane.PlanStep) { e.UseUDSBundle = true },
+		"tag beside the digest":     func(_ *uds.Executor, s *controlplane.PlanStep) { s.Chart.Tag = "0.2.0" },
+		"tag inside the repository": func(_ *uds.Executor, s *controlplane.PlanStep) { s.Chart.Repository += ":0.2.0" },
+		"no repository":             func(_ *uds.Executor, s *controlplane.PlanStep) { s.Chart.Repository = " " },
+		"architecture not built": func(_ *uds.Executor, s *controlplane.PlanStep) {
+			s.Chart.Architectures = []string{"arm64"}
+		},
+		"bundle with keyless policy only": func(_ *uds.Executor, s *controlplane.PlanStep) {
+			s.Chart.Kind = controlplane.ArtifactKindUDSBundle
+		},
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -290,8 +314,9 @@ func TestObserveReportsDeployedNotDesired(t *testing.T) {
 		t.Fatalf("Observe: %v", err)
 	}
 	assertCalls(t, runner, recordRead)
-	if entity.ReleaseDigest != priorDigest || entity.Version != "0.1.0" {
-		t.Fatalf("reported %s %s, want the deployed %s 0.1.0", entity.ReleaseDigest, entity.Version, priorDigest)
+	// A different artifact is deployed, so no Release digest is claimed for it.
+	if entity.ReleaseDigest != "" || entity.Version != "0.1.0" {
+		t.Fatalf("reported %q %s, want no Release digest and the deployed version 0.1.0", entity.ReleaseDigest, entity.Version)
 	}
 	if entity.RolloutStatus != controlplane.RolloutOutOfDate || entity.Health != controlplane.HealthHealthy {
 		t.Fatalf("rollout=%s health=%s", entity.RolloutStatus, entity.Health)
@@ -319,7 +344,7 @@ func TestObserveMatchingDeployment(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Observe: %v", err)
 			}
-			if entity.Health != tc.health || entity.RolloutStatus != tc.rollout || entity.ReleaseDigest != desiredDigest ||
+			if entity.Health != tc.health || entity.RolloutStatus != tc.rollout || entity.ReleaseDigest != releaseDigest ||
 				entity.Lifecycle != controlplane.LifecycleInstalled || entity.ConfigStatus != controlplane.ConfigIndeterminate {
 				t.Fatalf("entity = %#v", entity)
 			}
@@ -390,7 +415,6 @@ func TestUninstallRemovesZarfPackageByName(t *testing.T) {
 
 func bundleExecutor(runner *fakeRunner) uds.Executor {
 	exec := executor(runner)
-	exec.UseUDSBundle = true
 	exec.Publisher = domain.PublisherPolicy{}
 	exec.VerificationKeyPath = "/etc/conduit/bundle.pub"
 	return exec
@@ -399,7 +423,7 @@ func bundleExecutor(runner *fakeRunner) uds.Executor {
 func TestBundleDeployVerifiesThenDeploys(t *testing.T) {
 	t.Parallel()
 	inspect := []string{"uds", "inspect", source(desiredDigest), "--key", "/etc/conduit/bundle.pub"}
-	step := installStep()
+	step := bundleStep()
 	step.Values = json.RawMessage(`{"excalidraw.DOMAIN":"uds.dev","REPLICAS":2}`)
 
 	runner := initialised("").on("packages.uds.dev", nil, crdProbe...)
@@ -419,7 +443,7 @@ func TestBundleDeployVerifiesThenDeploys(t *testing.T) {
 
 func TestBundleUninstallUsesUDSRemove(t *testing.T) {
 	t.Parallel()
-	step := installStep()
+	step := bundleStep()
 	step.Action = "uninstall"
 	runner := initialised(record(priorDigest, "0.1.0", 4, "Succeeded"))
 	if _, err := bundleExecutor(runner).Apply(context.Background(), controlplane.Plan{}, step); err != nil {
@@ -431,7 +455,7 @@ func TestBundleUninstallUsesUDSRemove(t *testing.T) {
 func TestBundleObserveDoesNotBorrowThePackageDigest(t *testing.T) {
 	t.Parallel()
 	runner := initialised(record(desiredDigest, "0.2.0", 5, "Succeeded"))
-	entity, err := bundleExecutor(runner).Observe(context.Background(), installStep())
+	entity, err := bundleExecutor(runner).Observe(context.Background(), bundleStep())
 	if err != nil {
 		t.Fatalf("Observe: %v", err)
 	}
@@ -444,7 +468,7 @@ func TestBundleRollbackLeavesPriorDeploymentInPlace(t *testing.T) {
 	t.Parallel()
 	runner := initialised(record(priorDigest, "0.1.0", 4, "Succeeded")).on("packages.uds.dev", nil, crdProbe...)
 	exec := bundleExecutor(runner)
-	receipt, err := exec.Apply(context.Background(), controlplane.Plan{}, installStep())
+	receipt, err := exec.Apply(context.Background(), controlplane.Plan{}, bundleStep())
 	if err != nil {
 		t.Fatalf("Apply: %v", err)
 	}

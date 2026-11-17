@@ -46,6 +46,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -79,6 +80,8 @@ const (
 // Zarf's own rule for a deployed package name (state.DeployedPackageNameRegex).
 var zarfPackageName = regexp.MustCompile(`^[a-z0-9][a-z0-9\-]*$`)
 
+var ociDigest = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
+
 // Zarf upper-cases variable names, so two keys differing only in case would
 // collapse into one. Only the canonical form is accepted.
 var zarfVariableName = regexp.MustCompile(`^[A-Z0-9_]+$`)
@@ -88,20 +91,15 @@ var bundleVariableName = regexp.MustCompile(`^([a-z0-9][a-z0-9\-]*\.)?[A-Z0-9_]+
 
 // Executor implements agent.Executor for Zarf packages and UDS bundles.
 type Executor struct {
-	Runner       agent.CommandRunner
-	ZarfBin      string
-	UDSBin       string
-	KubectlBin   string
-	UseUDSBundle bool
-	// PackageSource resolves the artifact reference for a step. Rollback calls
-	// it with ReleaseDigest set to the prior digest and Version cleared, so it
-	// must resolve by digest.
-	PackageSource func(step controlplane.PlanStep) string
-	// PackageName resolves the Zarf package name (zarf.yaml metadata.name) the
-	// step's artifact deploys as. It is required: the Conduit InstallationID is
-	// not a Zarf package name, and guessing one would observe or remove the
-	// wrong package. In bundle mode it names the bundle's package to observe.
-	PackageName func(step controlplane.PlanStep) string
+	Runner     agent.CommandRunner
+	ZarfBin    string
+	UDSBin     string
+	KubectlBin string
+	// Architecture is the cluster architecture this Spoke deploys onto. It
+	// defaults to the architecture of the Spoke's own binary, which is the
+	// architecture of the node it runs on. A step whose artifact was not built
+	// for it is refused before anything runs.
+	Architecture string
 	// Publisher is the admitted keyless publisher policy. Its fields are
 	// anchored regular expressions, so they map to Zarf's *-regexp flags.
 	Publisher domain.PublisherPolicy
@@ -148,27 +146,60 @@ func refuse(step controlplane.PlanStep, format string, args ...any) error {
 	}}}
 }
 
-func (e Executor) sourceFor(step controlplane.PlanStep) string {
-	if e.PackageSource != nil {
-		if src := strings.TrimSpace(e.PackageSource(step)); src != "" {
-			return src
-		}
-	}
-	if strings.TrimSpace(step.ReleaseDigest) != "" && strings.TrimSpace(step.Product) != "" {
-		return fmt.Sprintf("oci://%s@%s", strings.TrimSpace(step.Product), strings.TrimSpace(step.ReleaseDigest))
-	}
-	return ""
+func (e Executor) architecture() string { return binOr(e.Architecture, runtime.GOARCH) }
+
+// isBundle reports whether the step's artifact is a UDS bundle rather than a
+// Zarf package. The Release declares it; the Spoke is not configured for one
+// or the other.
+func isBundle(step controlplane.PlanStep) bool {
+	return step.Chart.EffectiveKind() == controlplane.ArtifactKindUDSBundle
 }
 
+// admit checks the step's own artifact declaration. The Hub validates the same
+// rules at proposal, but a Plan is data that crossed a network, so the mutable
+// reference and the wrong architecture are refused here again, where refusing
+// is the last thing that happens before a command runs.
+func (e Executor) admit(step controlplane.PlanStep) error {
+	artifact := step.Chart
+	if !artifact.IsPackage() {
+		return refuse(step, "the step's artifact is a %s, which this executor does not deploy", artifact.EffectiveKind())
+	}
+	if problems := artifact.PackageProblems(); len(problems) > 0 {
+		return refuse(step, "artifact %s %s", problems[0].Field, problems[0].Message)
+	}
+	if strings.TrimSpace(artifact.Repository) == "" {
+		return refuse(step, "the artifact names no OCI repository")
+	}
+	return nil
+}
+
+// admitArchitecture refuses an artifact that was not built for this cluster.
+func (e Executor) admitArchitecture(step controlplane.PlanStep) error {
+	if !step.Chart.SupportsArchitecture(e.architecture()) {
+		return refuse(step, "the %s was built for %s, and this Spoke deploys onto %s",
+			step.Chart.Kind, strings.Join(step.Chart.Architectures, ", "), e.architecture())
+	}
+	return nil
+}
+
+// sourceAt is the digest-pinned reference for the step's repository. It never
+// carries a tag: the digest is the only part of the reference the registry
+// cannot change underneath a reviewed Plan.
+func sourceAt(step controlplane.PlanStep, digest string) string {
+	repository := strings.TrimPrefix(strings.TrimSpace(step.Chart.Repository), "oci://")
+	return "oci://" + repository + "@" + strings.TrimSpace(digest)
+}
+
+func sourceFor(step controlplane.PlanStep) string { return sourceAt(step, step.Chart.Digest) }
+
+// packageName is the Zarf package name the Release declared for its artifact.
+// The Conduit InstallationID is not one, and guessing would observe or remove
+// the wrong package.
 func (e Executor) packageName(step controlplane.PlanStep) (string, error) {
-	if e.PackageName == nil {
-		return "", refuse(step, "no Zarf package name resolver is configured, and the installationId is not a Zarf package name")
+	if err := e.admit(step); err != nil {
+		return "", err
 	}
-	name := strings.TrimSpace(e.PackageName(step))
-	if !zarfPackageName.MatchString(name) {
-		return "", refuse(step, "%q is not a valid Zarf package name", name)
-	}
-	return name, nil
+	return step.Chart.PackageName, nil
 }
 
 // zarfVerifyFlags returns the flags that make Zarf enforce the signature, or a
@@ -332,10 +363,10 @@ func (e Executor) Apply(ctx context.Context, _ controlplane.Plan, step controlpl
 		return e.uninstall(ctx, step, name)
 	}
 
-	source := e.sourceFor(step)
-	if source == "" {
-		return agent.Receipt{}, refuse(step, "package source reference is required")
+	if err := e.admitArchitecture(step); err != nil {
+		return agent.Receipt{}, err
 	}
+	source := sourceFor(step)
 	if len(step.RegistryAccess) > 0 || len(step.SecretAccess) > 0 {
 		return agent.Receipt{}, refuse(step, "the step carries registry or secret access, which this executor cannot prepare")
 	}
@@ -346,7 +377,7 @@ func (e Executor) Apply(ctx context.Context, _ controlplane.Plan, step controlpl
 	if err != nil {
 		return agent.Receipt{}, err
 	}
-	if err := e.preflight(ctx, e.UseUDSBundle || e.managesUDSPackage()); err != nil {
+	if err := e.preflight(ctx, isBundle(step) || e.managesUDSPackage()); err != nil {
 		return agent.Receipt{}, err
 	}
 	prior, err := e.deployedState(ctx, name)
@@ -398,7 +429,7 @@ func (e Executor) runAll(ctx context.Context, commands [][]string) ([]byte, erro
 // a separate `uds inspect --key` because `uds deploy` cannot verify; keyless
 // material therefore cannot authorise a bundle.
 func (e Executor) deployCommands(step controlplane.PlanStep, source string, withValues bool) ([][]string, error) {
-	if e.UseUDSBundle {
+	if isBundle(step) {
 		key := strings.TrimSpace(e.VerificationKeyPath)
 		if key == "" || e.Publisher != (domain.PublisherPolicy{}) {
 			return nil, refuse(step, "a UDS bundle can only be verified with a public key, and exactly that must be configured")
@@ -429,14 +460,10 @@ func (e Executor) deployCommands(step controlplane.PlanStep, source string, with
 }
 
 func (e Executor) removeCommand(step controlplane.PlanStep, name string) ([]string, error) {
-	if !e.UseUDSBundle {
+	if !isBundle(step) {
 		return []string{e.zarfBin(), "package", "remove", name, "--confirm"}, nil
 	}
-	source := e.sourceFor(step)
-	if source == "" {
-		return nil, refuse(step, "a bundle reference is required to remove a UDS bundle")
-	}
-	return []string{e.udsBin(), "remove", source, "--confirm"}, nil
+	return []string{e.udsBin(), "remove", sourceFor(step), "--confirm"}, nil
 }
 
 func (e Executor) uninstall(ctx context.Context, step controlplane.PlanStep, name string) (agent.Receipt, error) {
@@ -526,12 +553,21 @@ func (e Executor) Observe(ctx context.Context, step controlplane.PlanStep) (cont
 	// A bundle's digest is not the digest of the Zarf package it contains, and
 	// uds v0.41.0 has no machine-readable deployed-bundle listing, so the
 	// bundle digest is reported as not observed rather than borrowed.
-	digest := strings.TrimSpace(deployed.Digest)
-	if e.UseUDSBundle {
-		digest = ""
+	//
+	// The Release digest is the Hub's digest of the Release document, not an
+	// OCI digest, so it is never compared with what Zarf recorded. It is
+	// reported only when the artifact Zarf recorded is the one this step's
+	// Release names; otherwise it is left empty, which the Hub refuses.
+	artifactDigest := strings.TrimSpace(deployed.Digest)
+	if isBundle(step) {
+		artifactDigest = ""
+	}
+	releaseDigest := ""
+	if artifactDigest != "" && artifactDigest == step.Chart.Digest {
+		releaseDigest = step.ReleaseDigest
 	}
 	version := strings.TrimSpace(deployed.Data.Metadata.Version)
-	if rollout == controlplane.RolloutUpToDate && (digest == "" || digest != strings.TrimSpace(step.ReleaseDigest) ||
+	if rollout == controlplane.RolloutUpToDate && (releaseDigest == "" ||
 		(strings.TrimSpace(step.Version) != "" && version != strings.TrimSpace(step.Version))) {
 		rollout = controlplane.RolloutOutOfDate
 	}
@@ -539,7 +575,7 @@ func (e Executor) Observe(ctx context.Context, step controlplane.PlanStep) (cont
 		InstallationID: step.InstallationID,
 		Product:        step.Product,
 		Version:        version,
-		ReleaseDigest:  digest,
+		ReleaseDigest:  releaseDigest,
 		Namespace:      step.Namespace,
 		// Zarf does not record the variables a deployment was given, so the
 		// applied configuration cannot be read back.
@@ -600,20 +636,17 @@ func (e Executor) Rollback(ctx context.Context, receipt agent.Receipt) error {
 		}
 		return nil
 	}
-	if e.UseUDSBundle {
+	if isBundle(step) {
 		return refuse(step, "a prior deployment exists but its bundle coordinate cannot be read back; leaving it in place")
 	}
 	priorDigest := strings.TrimSpace(receipt.Fence.Generation)
-	if priorDigest == "" {
-		return refuse(step, "a prior deployment exists but recorded no digest; leaving it in place")
+	if !ociDigest.MatchString(priorDigest) {
+		return refuse(step, "a prior deployment exists but recorded no usable digest; leaving it in place")
 	}
-	prior := step
-	prior.ReleaseDigest, prior.Version = priorDigest, ""
-	source := e.sourceFor(prior)
-	if source == "" {
-		return refuse(step, "the prior package coordinate %s cannot be resolved; leaving the deployment in place", priorDigest)
-	}
-	deploy, err := e.deployCommands(prior, source, false)
+	// The prior package is assumed to live in the repository this step's
+	// Release names. Zarf records no source repository, so if it came from
+	// elsewhere the verified pull below fails and the deployment stays as it is.
+	deploy, err := e.deployCommands(step, sourceAt(step, priorDigest), false)
 	if err != nil {
 		return err
 	}

@@ -468,6 +468,13 @@
       "why": "The ACP wire protocol (@agentclientprotocol/sdk@2.6.0, protocolVersion 1) and AG-UI 1.0 event envelopes are public contracts, whereas how a Conduit Hub routes workspace editor ACP turns, classifies governed permission risk tiers, and correlates sessionId/runId/threadId across audit and console streams is unestablished in public Apollo sources.",
       "displacedBy": "a published or authorized sanitized workspace coding-agent ACP transport, governed permission mapping, and console activity projection contract.",
       "riskIfWrong": "Marked CONDUIT_NATIVE; actual file and terminal callbacks require fresh governed decisions. Transport HTTP egress filtering does not confine direct filesystem or network access by spawned agent/terminal processes. Risk-pattern matching is not an OS sandbox. The Node implementation remains draft pending enforced isolation/egress and workspace identity/branch integration evidence; no complete offline or production-governance guarantee is established."
+    },
+    {
+      "id": "catalog.PackageArtifactKind",
+      "what": "Three optional fields on a Release's deployable artifact (the existing chart coordinate): kind (helm-chart by default, zarf-package or uds-bundle), architectures, and packageName, the Zarf package name the artifact deploys as. A package kind is addressed by repository and sha256 digest only; a tag is refused.",
+      "why": "The pinned Apollo publication models carry Helm charts and services and state no Zarf or UDS artifact. Without a declared kind the Spoke's Zarf/UDS executor derived an OCI reference from the Product name, and nothing told a reviewer or the Spoke which tool a step would run. The existing coordinate was extended, rather than a second artifact added, so that scanning coverage, availability evidence, registry assignment and Bundle transfer cover a package by the rules they already apply to a chart.",
+      "displacedBy": "a published or owner-approved Product Release contract that states how a Zarf package or UDS bundle artifact, its architectures and its deployed package name are declared.",
+      "riskIfWrong": "The field names and the reuse of the chart coordinate may need replacing. Absent fields mean a Helm chart, so no stored Release changes meaning or digest. Architecture is enforced by the Spoke at execution, not at planning, because the Environment model records none. A multi-architecture index digest does not match what Zarf records and fails closed. The Apollo manifest routes cannot publish a package kind."
     }
   ],
   "displaced": [

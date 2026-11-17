@@ -1452,7 +1452,22 @@
           "chart": {
             "additionalProperties": false,
             "properties": {
+              "architectures": {
+                "items": {
+                  "type": "string"
+                },
+                "type": [
+                  "null",
+                  "array"
+                ]
+              },
               "digest": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "packageName": {
                 "type": "string"
               },
               "repository": {
@@ -1495,7 +1510,22 @@
             "items": {
               "additionalProperties": false,
               "properties": {
+                "architectures": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
                 "digest": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "packageName": {
                   "type": "string"
                 },
                 "repository": {

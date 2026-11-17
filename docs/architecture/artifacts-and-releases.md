@@ -21,6 +21,69 @@ An incremental Bundle names its dependency. A checkpoint collapses a chain
 into a complete state. Missing lineage is not repaired by guessing which prior
 Bundle the sender intended.
 
+## The deployable artifact and its kind
+
+A Release names one deployable artifact, in the field `chart`. The field keeps
+the name of the only kind that existed when it was introduced; `chart.kind` says
+what the artifact is:
+
+| `kind` | Reference | Executed by |
+| --- | --- | --- |
+| absent or `helm-chart` | `repository`, a non-`latest` `tag` and `digest` | Helm, in the Spoke |
+| `zarf-package` | `repository` and `digest`; no tag | `zarf package deploy` |
+| `uds-bundle` | `repository` and `digest`; no tag | `uds deploy` |
+
+A Release with no `kind` is a Helm chart. Its document and its Release digest
+are byte-for-byte what they were before the field existed, so nothing already
+stored or approved changes meaning.
+
+A `zarf-package` or `uds-bundle` also declares:
+
+- `architectures`: the cluster architectures it was built for, from `amd64` and
+  `arm64`. At least one is required.
+- `packageName`: the Zarf package name (`metadata.name` in `zarf.yaml`). Zarf
+  records a deployment under that name only, so this is how the Spoke finds
+  what it deployed. For a bundle it names the bundled package the Spoke
+  observes.
+
+```json
+"chart": {
+  "kind": "zarf-package",
+  "repository": "registry.example/packages/excalidraw",
+  "digest": "sha256:…",
+  "architectures": ["amd64"],
+  "packageName": "excalidraw"
+}
+```
+
+The Hub refuses, at proposal, a package artifact that has no sha256 digest, that
+carries a tag beside the digest, or whose `repository` embeds a tag or digest. A
+tag names whatever the registry currently holds. Helm rollout settings
+(`rolloutStrategy`, `resourceReadinessTimeoutSeconds`,
+`imagePrePullTimeoutSeconds`) are refused on such a Release, because nothing
+would apply them. `images[]` never carry a kind.
+
+The Plan step carries the whole artifact, and `conduit` shows it: the Plan table
+has an `artifacts` column (`helm-chart zarf-package[amd64]`), and the JSON and
+YAML bodies carry every field.
+
+Architecture is checked in the Spoke, not at planning. The Environment model
+records no architecture, and inventing one would let a document disagree with
+the cluster. The Spoke knows what it runs on, and refuses a step whose artifact
+was not built for it before any command runs. Two limits follow:
+
+- A Plan for the wrong architecture is approved and then fails at execution,
+  with a diagnostic, rather than being refused at proposal.
+- `digest` must be the manifest Zarf resolves for the cluster's architecture.
+  Zarf records the per-platform manifest digest, so a multi-architecture OCI
+  index digest never matches what is read back and the step fails closed. One
+  Release therefore pins one platform manifest in practice.
+
+These fields are Conduit-native and registered as
+`catalog.PackageArtifactKind` in
+[`conduit-inventions.json`](../evidence/conduit-inventions.json). The Apollo
+manifest publication routes still produce Helm Releases only.
+
 ## OCI release record
 
 A publish operation should produce one immutable release record containing:

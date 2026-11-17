@@ -125,7 +125,7 @@ func Validate(state DesiredState) []ValidationError {
 			add(prefix+".images", "must contain at least one immutable image")
 		}
 		for imageIndex, image := range release.Images {
-			validateArtifact(fmt.Sprintf("%s.images[%d]", prefix, imageIndex), image, &errs)
+			validateImageArtifact(fmt.Sprintf("%s.images[%d]", prefix, imageIndex), image, &errs)
 			validateArtifactRegistryAssignment(
 				fmt.Sprintf("%s.images[%d]", prefix, imageIndex), image, assignedRegistryHosts, &errs,
 			)
@@ -426,6 +426,21 @@ func validateHelmExecutionDefaults(path string, defaults *HelmExecutionDefaults,
 }
 
 func validateReleaseHelmExecution(path string, release Release, defaults *HelmExecutionDefaults, errs *[]ValidationError) {
+	if release.Chart.IsPackage() {
+		// Zarf and UDS deploy with their own waits. A Helm rollout setting on
+		// such a Release would be reviewed and then silently not applied.
+		refuse := func(field string, set bool) {
+			if set {
+				*errs = append(*errs, ValidationError{
+					Path: path + field, Message: "is a Helm execution setting and does not apply to a " + release.Chart.Kind + " Release",
+				})
+			}
+		}
+		refuse(".rolloutStrategy", release.RolloutStrategy != "")
+		refuse(".resourceReadinessTimeoutSeconds", release.ResourceReadinessTimeoutSeconds != 0)
+		refuse(".imagePrePullTimeoutSeconds", release.ImagePrePullTimeoutSeconds != 0)
+		return
+	}
 	validateRolloutStrategy(path+".rolloutStrategy", release.RolloutStrategy, errs)
 	validateReadinessTimeout(path+".resourceReadinessTimeoutSeconds", release.ResourceReadinessTimeoutSeconds, errs)
 	validateImagePrePullTimeout(path+".imagePrePullTimeoutSeconds", release.ImagePrePullTimeoutSeconds, errs)
@@ -1224,12 +1239,30 @@ func validateArtifact(path string, artifact Artifact, errs *[]ValidationError) {
 	if strings.TrimSpace(artifact.Repository) == "" {
 		add("repository", "must not be empty")
 	}
+	// A Zarf package or UDS bundle is addressed by digest alone, so its own
+	// rules replace the chart's tag-and-digest pair rather than adding to it.
+	for _, problem := range artifact.PackageProblems() {
+		add(problem.Field, problem.Message)
+	}
+	if artifact.IsPackage() {
+		return
+	}
 	if artifact.Tag == "" || artifact.Tag == "latest" {
 		add("tag", "must be a specific, non-latest tag")
 	}
 	if !digestPattern.MatchString(artifact.Digest) {
 		add("digest", "must be a lowercase sha256 digest")
 	}
+}
+
+// validateImageArtifact is validateArtifact for a workload image, which is
+// never itself the deployable artifact and so never carries a kind.
+func validateImageArtifact(path string, artifact Artifact, errs *[]ValidationError) {
+	if artifact.Kind != "" {
+		*errs = append(*errs, ValidationError{Path: path + ".kind", Message: "applies only to the Release's deployable artifact, not to an image"})
+		artifact.Kind, artifact.Architectures, artifact.PackageName = "", nil, ""
+	}
+	validateArtifact(path, artifact, errs)
 }
 
 // secretKeyClaim records which Entity first claimed a key subset for one
