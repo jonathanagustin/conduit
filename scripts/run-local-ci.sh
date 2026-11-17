@@ -36,6 +36,7 @@ env -u GH_TOKEN -u GITHUB_TOKEN "${act_bin}" workflow_dispatch \
   --workflows "${runner_root}/.github/workflows/local-ci.yml" --directory "${root}" \
   --job verify --platform conduit-local=-self-hosted \
   --env "CONDUIT_LOCAL_CI_WORKTREE=${root}" \
+  --env "CONDUIT_LOCAL_CI_BROWSER_PROFILE=${CONDUIT_LOCAL_CI_BROWSER_PROFILE:-}" \
   --env-file /dev/null --secret-file /dev/null \
   2>&1 | tee "${report_dir}/act.log"
 if [[ "$(git rev-parse HEAD)" != "${expected_sha}" ]] || [[ -n "$(git status --porcelain --untracked-files=normal)" ]] ||
@@ -49,14 +50,32 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 const [commit, directory, tooling] = process.argv.slice(2);
 const hash = path => createHash('sha256').update(readFileSync(path)).digest('hex');
 const command = (name, args) => execFileSync(name, args, {encoding: 'utf8'}).trim();
+const optionalCommand = (name, args) => {
+  try { return execFileSync(name, args, {encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore']}).trim() || null; }
+  catch { return null; }
+};
+const { localCiBrowserLaunchOptions } = await import(pathToFileURL(join(tooling, 'web/scripts/local-ci-browser-profile.mjs')));
+// The wrapper invoked act above. Validate the recorded choice through the same
+// closed profile selector the browser configs use inside that executor.
+localCiBrowserLaunchOptions({...process.env, ACT: 'true'});
 const receipt = {
   schemaVersion: 1, kind: 'CONDUIT_LOCAL_CI', result: 'PASS', commit,
   tree: command('git', ['rev-parse', 'HEAD^{tree}']),
   completedAt: new Date().toISOString(),
   executor: {name: 'nektos/act', version: '0.2.97', mode: 'host'},
+  execution: {
+    reportedUnameSystem: command('uname', ['-s']),
+    reportedUnameMachine: command('uname', ['-m']),
+    nodePlatform: process.platform, nodeArchitecture: process.arch,
+    go: JSON.parse(command('go', ['env', '-json', 'GOHOSTOS', 'GOHOSTARCH', 'GOOS', 'GOARCH', 'CGO_ENABLED'])),
+    dockerDaemonArchitecture: optionalCommand('docker', ['info', '--format', '{{.Architecture}}']),
+    qemuGuestBase: process.env.QEMU_GUEST_BASE || null,
+    chromiumProfile: process.env.CONDUIT_LOCAL_CI_BROWSER_PROFILE || 'default',
+  },
   runnerCommit: command('git', ['-C', tooling, 'rev-parse', 'HEAD']),
   workflowSha256: hash(join(tooling, '.github/workflows/local-ci.yml')),
   verifierSha256: hash('scripts/verify-local.sh'),
