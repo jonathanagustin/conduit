@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
+	"github.com/jonathanagustin/conduit/internal/localcmd"
 	"github.com/jonathanagustin/conduit/internal/modelgovernor"
 	"github.com/jonathanagustin/conduit/internal/modelgovernor/adapters/memory"
 )
@@ -448,33 +449,22 @@ func TestTranscriptsAreOffByDefaultAndAnUnauditedExportIsNotServed(t *testing.T)
 	}
 }
 
-func TestAModelCommandIsGovernedLikeAnHTTPModel(t *testing.T) {
-	dir := t.TempDir()
-	seen := filepath.Join(dir, "stdin")
-	script := filepath.Join(dir, "model")
-	if err := os.WriteFile(script, []byte("#!/bin/sh\ncat > "+seen+"\nprintf '%s' '{\"text\":\"from the command\"}'\n"), 0o700); err != nil {
+func TestRetiredModelCommandCannotStartTheGovernedHub(t *testing.T) {
+	for _, name := range governanceEnvironment {
+		t.Setenv(name, "")
+	}
+	seen := filepath.Join(t.TempDir(), "executed")
+	script := filepath.Join(t.TempDir(), "model")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\ntouch "+seen+"\n"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	handler, repository := governedHub(t, nil, nil, Options{}, map[string]string{
-		"CONDUIT_MODEL_CMD": script, "CONDUIT_MODEL_NAME": "local-model", modelgovernor.EnvDailyCallBudget: "1",
-	})
-	if response := turn(t, handler, "ada", "hi"); response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "from the command") {
-		t.Fatalf("turn = %d %s", response.Code, response.Body.String())
+	t.Setenv("CONDUIT_MODEL_CMD", script)
+	_, err := NewHub(controlplane.NewMemoryRepository(), controlplane.HandlerOptions{AllowInsecureOperatorIdentityHeaders: true})
+	if !errors.Is(err, localcmd.ErrLocalCommandUnsupported) {
+		t.Fatalf("retired command accepted: %v", err)
 	}
-	stdin, err := os.ReadFile(seen)
-	if err != nil {
-		t.Fatal(err)
-	}
-	events := auditEvents(t, repository, modelgovernor.ActionModelCall)
-	if len(events) != 1 || events[0].Context["transport"] != "cli" || events[0].Context["configuredModel"] != "local-model" ||
-		events[0].Context["providerModel"] != "" || events[0].Context["promptSha256"] != modelgovernor.Digest(stdin) ||
-		events[0].Context["responseSha256"] != modelgovernor.Digest([]byte(`{"text":"from the command"}`)) {
-		t.Fatalf("events = %+v", events)
-	}
-	// A command reports no tokens, so the call budget is what binds.
-	if refused := turn(t, handler, "ada", "again"); refused.Code != http.StatusTooManyRequests ||
-		!strings.Contains(refused.Body.String(), `"code":"MODEL_BUDGET_EXCEEDED"`) {
-		t.Fatalf("over the call budget = %d %s", refused.Code, refused.Body.String())
+	if _, err := os.Stat(seen); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("retired command ran: %v", err)
 	}
 }
 

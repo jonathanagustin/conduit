@@ -16,7 +16,7 @@ import (
 // while this package declared an unrelated error with the same text.
 func TestACredentialTheResolverRefusesIsAnswered401(t *testing.T) {
 	t.Parallel()
-	if !errors.Is(identity.ErrUnauthorized, ErrUnauthorized) {
+	if !errors.Is(ErrUnauthorized, identity.ErrUnauthorized) {
 		t.Fatal("controlplane.ErrUnauthorized is not Identity's ErrUnauthorized")
 	}
 	for name, refusal := range map[string]error{

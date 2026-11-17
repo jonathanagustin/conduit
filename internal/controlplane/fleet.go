@@ -143,10 +143,6 @@ func paginateFleetProjectionInSpace(projection FleetProjection, query FleetQuery
 	return projection, nil
 }
 
-func fleetQueryFingerprint(query FleetQuery) string {
-	return fleetQueryFingerprintInSpace(query, "")
-}
-
 func fleetQueryFingerprintInSpace(query FleetQuery, spaceID string) string {
 	normalized := struct {
 		Environment    string `json:"environment"`

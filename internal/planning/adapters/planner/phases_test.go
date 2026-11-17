@@ -41,7 +41,7 @@ func TestQuestionsAskedAnsweredThenPlanWritten(t *testing.T) {
 	replies := append(inspectReplies(askOne), toolRead, planJSON)
 	script := writeModelScript(t, replies...)
 	audit := &memoryAudit{}
-	service := application.NewService(Planner{Argv: []string{script}, Audit: audit})
+	service := application.NewService(Planner{Model: script, Audit: audit})
 	ctx := context.Background()
 	session, err := service.Create(ctx, server.URL+"/src.git", "main")
 	if err != nil {
@@ -140,7 +140,7 @@ func TestNoQuestionsWritesThePlanInTheSameTurn(t *testing.T) {
 	server := serveGit(t, fixture)
 	replies := append(inspectReplies(askNone), toolRead, planJSON)
 	audit := &memoryAudit{}
-	service := application.NewService(Planner{Argv: []string{writeModelScript(t, replies...)}, Audit: audit})
+	service := application.NewService(Planner{Model: writeModelScript(t, replies...), Audit: audit})
 	ctx := context.Background()
 	session, err := service.Create(ctx, server.URL+"/src.git", "main")
 	if err != nil {
@@ -235,7 +235,7 @@ func TestMissingReadFilePromptsOnce(t *testing.T) {
 		toolRead, planJSON,
 	}
 	script := writeModelScript(t, replies...)
-	service := application.NewService(Planner{Argv: []string{script}})
+	service := application.NewService(Planner{Model: script})
 	ctx := context.Background()
 	session, err := service.Create(ctx, server.URL+"/src.git", "main")
 	if err != nil {
@@ -271,9 +271,9 @@ func TestModelNotConfigured(t *testing.T) {
 	}
 }
 
-func readPrompt(t *testing.T, script string, n int) string {
+func readPrompt(t *testing.T, script *scriptedTextModel, n int) string {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join(filepath.Dir(script), "prompt-"+strconv.Itoa(n)+".txt"))
+	raw, err := os.ReadFile(filepath.Join(script.dir, "prompt-"+strconv.Itoa(n)+".txt"))
 	if err != nil {
 		t.Fatal(err)
 	}

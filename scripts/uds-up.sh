@@ -37,7 +37,7 @@ usage() {
 Usage: $(basename "$0") [--dry-run] [--print-plan]
 
   --print-plan  Print the network, cluster, bundle, and k3d arguments, then exit.
-  --dry-run     Create nothing. Print the commands that would run, then exit.
+  --dry-run     Probe the engine and print commands; skip bundle-client checks.
 
 Environment:
   CONDUIT_CONTAINER_ENGINE  Working Docker/Podman executable (auto-selected if unset)
@@ -49,7 +49,7 @@ Environment:
   UDS_K3D_HTTP_PORT Optional bundle HTTP port override (1-65535)
   UDS_K3D_HTTPS_PORT Optional bundle HTTPS port override (1-65535)
   UDS_CORE_VERSION  Slim-dev bundle version (default: 1.17.1)
-  UDS_CORE_REF      Full OCI reference. Overrides UDS_CORE_VERSION when set.
+  UDS_CORE_REF      Full OCI reference. Overrides UDS_CORE_VERSION; client preflight remains required.
   K3D_EXTRA_ARGS    Replaces the default k3d extra arguments when set.
 EOF
 }
@@ -70,6 +70,7 @@ print_plan_lines() {
   printf 'context=%s\n' "${kubecontext}"
   printf 'kubeconfig=%s\n' "${kubeconfig}"
   printf 'engine_request=%s\n' "${CONDUIT_CONTAINER_ENGINE:-auto}"
+  printf 'bundle_client_requirement=working docker --version (checked before deployment)\n'
   printf 'k3d_extra_args=%s\n' "$(k3d_extra_args)"
   for kind in API HTTP HTTPS; do
     variable="UDS_K3D_${kind}_PORT"
@@ -193,6 +194,14 @@ fi
 
 conduit_uds_require uds
 conduit_uds_require k3d
+# The pinned slim-dev bundle's airgap component calls docker directly to load
+# images and create its image volume. A working Podman CLI is a separate tool.
+# Keep this wrapper prerequisite with custom references; they are not qualified
+# by overriding the reference and may have additional requirements.
+conduit_host_tool_works docker --version || {
+  echo 'uds-up requires a working Docker-compatible docker client on PATH for the pinned Core slim-dev airgap workflow (docker --version). The client may use DOCKER_HOST for the selected Podman API; a separate Docker daemon is not required.' >&2
+  exit 1
+}
 conduit_host_tool_works python3 --version || { echo 'a working Python 3 is required for host adaptations' >&2; exit 1; }
 conduit_uds_kubectl_command
 umask 077

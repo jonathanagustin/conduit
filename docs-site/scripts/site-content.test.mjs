@@ -27,10 +27,13 @@ test('the landing page carries the tagline and the demo media', async () => {
   assert.match(home, /COMPUTE_BEFORE_ACCEPT/);
 });
 
-test('page copy does not name forbidden products', async () => {
+test('curated product copy does not name unrelated products', async () => {
   const files = await sourceFiles(path.join(siteRoot, 'src'));
   const hits = [];
   for (const file of files) {
+    // Generated technical references retain actual shipped command names,
+    // protocol paths and native contract text. They are not marketing copy.
+    if (file.startsWith(path.join(siteRoot, 'src/content/docs/reference') + path.sep)) continue;
     const text = await readFile(file, 'utf8');
     if (banned.test(text)) hits.push(path.relative(siteRoot, file));
   }
@@ -52,9 +55,21 @@ test('the favicon and wordmarks use the console sapphire marks', async () => {
   assert.match(light, /#1c2127/);
 });
 
-test('the roadmap links the five follow-on issues', async () => {
+test('the generated roadmap follows the reviewed open trackers', async () => {
   const roadmap = await readFile(path.join(siteRoot, 'src/content/docs/roadmap.md'), 'utf8');
-  for (const issue of [615, 616, 427, 619, 639]) {
-    assert.match(roadmap, new RegExp(`github.com/jonathanagustin/conduit/issues/${issue}`));
+  const record = JSON.parse(await readFile(path.join(siteRoot,'../docs/operations/readiness-evidence.json'),'utf8'));
+  const issues = [...roadmap.matchAll(/github\.com\/jonathanagustin\/conduit\/issues\/(\d+)/g)].map(match => Number(match[1]));
+  assert.ok(issues.length > 0);
+  for (const number of issues) {
+    assert.equal(record.issues.find(issue => issue.number === number)?.state, 'open', `stale roadmap tracker #${number}`);
+  }
+  assert.ok(!issues.includes(616));
+});
+
+test('generated native references copy no private reference corpus', async () => {
+  const files = await sourceFiles(path.join(siteRoot,'src/content/docs/reference'));
+  for (const file of files) {
+    const text = await readFile(file,'utf8');
+    assert.doesNotMatch(text, /docs\/reference-platform\/|ri\.apollo\.main\./);
   }
 });

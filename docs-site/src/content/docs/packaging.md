@@ -27,7 +27,7 @@ Problem-statement application generation. Intake is the statement, then operator
 
 The generator accepts exactly one source file: `main.go`, `main.py`, or `index.html`. A second entrypoint is rejected, and the rejection names that set. The rendered chart is a Deployment and a Service. The Deployment pins the built image by digest, runs as a non-root user, sets resource limits, and probes `/health`. The package manifest installs that chart and a Package resource that exposes the Service. `mise run appgen-deploy` deploys the package on k3d or kind and requests the Service. That probe is documented in the repository operations note and is not a trunk-gate step.
 
-The same `CONDUIT_MODEL_CMD` rule applies. Leave it unset to keep recorded proposals and make no model call. The command does not approve a change. See [Quick start](/conduit/getting-started/#recorded-proposals).
+The same HTTP model configuration applies. Leave model configuration unset to keep recorded proposals and make no model call. Host model command settings are refused. A model does not approve a change. See [Quick start](/conduit/getting-started/#recorded-proposals).
 
 ## Gates and evidence
 

@@ -20,4 +20,12 @@ describe("serving model identity", () => {
     expect(servedModelLabel({ model: "legacy" })).toBe("Model: legacy");
     expect(servedModelLabel()).toBe("Model identity unavailable");
   });
+  it("keeps arbitrary typed model names as data", () => {
+    expect(servedModelLabel({ model: "unverified-lab-v2" })).toBe(
+      "Model: unverified-lab-v2",
+    );
+    expect(servedModelLabel({ providerModel: "unverified-lab-v2" })).toBe(
+      "Model: unverified-lab-v2",
+    );
+  });
 });

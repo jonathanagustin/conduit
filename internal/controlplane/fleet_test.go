@@ -635,10 +635,10 @@ func TestFleetCursorWithoutInstallationFilterRemainsCompatible(t *testing.T) {
 	// Pinned pre-installationId encoding: adding an optional exact lookup must
 	// not invalidate an already issued continuation of an ordinary index.
 	const previous = "7318e2e4efe357767a9d73b7d566e5ee2b8c188fc5c2753c5ac6ebd5bde73e15"
-	if got := fleetQueryFingerprint(FleetQuery{}); got != previous {
+	if got := fleetQueryFingerprintInSpace(FleetQuery{}, ""); got != previous {
 		t.Fatalf("unfiltered cursor binding changed: %s", got)
 	}
-	if fleetQueryFingerprint(FleetQuery{InstallationID: "api"}) == previous || fleetQueryFingerprint(FleetQuery{InstallationID: "api"}) == fleetQueryFingerprint(FleetQuery{InstallationID: "api-extra"}) {
+	if fleetQueryFingerprintInSpace(FleetQuery{InstallationID: "api"}, "") == previous || fleetQueryFingerprintInSpace(FleetQuery{InstallationID: "api"}, "") == fleetQueryFingerprintInSpace(FleetQuery{InstallationID: "api-extra"}, "") {
 		t.Fatal("exact targets must have distinct cursor bindings")
 	}
 }

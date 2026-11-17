@@ -445,7 +445,7 @@ export function ConduitMark({ size = 18 }: { size?: number }) {
       <path
         className="cnd-mark-c1"
         d="M3.6 6.6L9 12L3.6 17.4"
-        stroke="#215db0"
+        stroke="var(--cnd-mark-1)"
         strokeWidth="2.35"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -453,7 +453,7 @@ export function ConduitMark({ size = 18 }: { size?: number }) {
       <path
         className="cnd-mark-c2"
         d="M9.3 6.6L14.7 12L9.3 17.4"
-        stroke="#4c90f0"
+        stroke="var(--cnd-mark-2)"
         strokeWidth="2.35"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -461,7 +461,7 @@ export function ConduitMark({ size = 18 }: { size?: number }) {
       <path
         className="cnd-mark-c3"
         d="M15 6.6L20.4 12L15 17.4"
-        stroke="#8abbff"
+        stroke="var(--cnd-mark-3)"
         strokeWidth="2.35"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -493,8 +493,6 @@ export function AppShell({
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const shellClass = [
-    "dark",
-    "bp6-dark",
     "conduit-shell",
     railCollapsed ? "is-rail-collapsed" : "",
     navOpen ? "is-nav-open" : "",
@@ -503,7 +501,7 @@ export function AppShell({
     .filter((name) => name.length > 0)
     .join(" ");
   return (
-    <div className={shellClass} data-theme="dark">
+    <div className={shellClass}>
       {banner}
       <header className="cd-topbar">
         <Button

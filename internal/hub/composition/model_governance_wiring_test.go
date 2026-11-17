@@ -132,22 +132,6 @@ func TestEveryCapabilityIsGovernedOverHTTP(t *testing.T) {
 	}
 }
 
-func TestEveryCapabilityIsGovernedOverTheModelCommand(t *testing.T) {
-	for _, name := range governanceEnvironment {
-		t.Setenv(name, "")
-	}
-	script := filepath.Join(t.TempDir(), "model")
-	if err := os.WriteFile(script, []byte("#!/bin/sh\ncat >/dev/null\nprintf '%s' 'not a document any capability accepts'\n"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("CONDUIT_MODEL_CMD", script)
-	repository := controlplane.NewMemoryRepository()
-	callEveryCapability(t, repository, "cli")
-	if got := strings.Join(capabilitiesAudited(t, repository, "cli"), " "); got != everyCapability {
-		t.Fatalf("capabilities audited over cli = %q, want %q", got, everyCapability)
-	}
-}
-
 // A planning turn run by the workflow worker has no request. Every round of
 // it is still audited, with the digest of that round's own prompt -- which
 // grows with tool output -- and the rounds are chained into one run.

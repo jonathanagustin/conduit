@@ -363,24 +363,27 @@ describe("modelLabel", () => {
     });
   });
 
-  it("names the adapter and the reported model", () => {
+  it("formats legacy typed identities and discloses an absent identity", () => {
     expect(modelLabel({ kind: "openai-http", model: "gpt-test" })).toEqual({
-      text: "openai-http · gpt-test",
+      text: "Model: gpt-test",
       caution: false,
     });
     expect(modelLabel({ kind: "model-cli" })).toEqual({
-      text: "model-cli",
+      text: "Model identity unavailable",
       caution: false,
     });
   });
 
-  it("marks a name the Hub calls unverified as a caution", () => {
+  it("does not infer provenance from the spelling of a typed model id", () => {
     expect(
       modelLabel({
         kind: "model-cli",
-        model: "Unverified (model CLI, CONDUIT_MODEL_NAME not set)",
+        model: "unverified-lab-v2",
       })?.caution,
-    ).toBe(true);
+    ).toBe(false);
+    expect(
+      modelLabel({ kind: "http", providerModel: "unverified-lab-v2" }),
+    ).toEqual({ text: "Model: unverified-lab-v2", caution: false });
   });
 
   it("shows nothing when the Hub reported no model", () => {

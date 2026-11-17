@@ -36,13 +36,14 @@ type Reply struct {
 	ProviderModel string
 }
 
-// CLIModel runs a local command. The prompt is written to stdin.
+// CLIModel retains the retired command adapter shape. Complete always refuses
+// without invoking its executor or returning a model reply.
 type CLIModel struct {
 	Argv    []string
 	Timeout time.Duration
 	// Name is the operator-configured model name, or empty.
 	Name string
-	// Exec wraps the run; nil runs the command directly.
+	// Exec is retained for source compatibility and is never invoked.
 	Exec localcmd.ExecFunc
 }
 
@@ -55,12 +56,11 @@ func (model CLIModel) Identity() Identity {
 }
 
 func (model CLIModel) Complete(ctx context.Context, prompt string) (Reply, error) {
-	stdout, err := model.Exec.Run(ctx, model.Argv, model.Timeout, []byte(prompt))
-	return Reply{Text: stdout}, err
+	return Reply{}, localcmd.ErrLocalCommandUnsupported
 }
 
-// HTTPModel calls an OpenAI-compatible endpoint. The whole prompt is one
-// user message, the same text a model CLI reads on stdin.
+// HTTPModel calls an OpenAI-compatible endpoint with the whole prompt in one
+// user message.
 type HTTPModel struct {
 	Client *modelhttp.Client
 }

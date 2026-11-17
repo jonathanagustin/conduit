@@ -96,7 +96,7 @@ test.describe("workbench", () => {
     await page.route("**/health/live", (route) =>
       route.fulfill({ json: { ok: true } }),
     );
-    await page.route("**/v1/session", (route) =>
+    await page.route("**/v1/session**", (route) =>
       route.fulfill({ json: { applications: APPLICATIONS } }),
     );
     await page.route("**/v1/environments**", (route) => {
@@ -4009,7 +4009,7 @@ test("operational prototype rows require a per-view example choice", async ({
       writes.push(request.url());
   });
   await page.route("**/v1/**", (route) => route.fulfill({ json: {} }));
-  await page.route("**/v1/session", (route) =>
+  await page.route("**/v1/session**", (route) =>
     route.fulfill({
       json: {
         actor: { username: operator },

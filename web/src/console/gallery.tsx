@@ -361,9 +361,10 @@ export function ComponentGallery() {
               <div
                 style={{
                   padding: 12,
-                  background: "var(--cnd-bg-1, #10161a)",
+                  background: "var(--cnd-bg-1, var(--bg-1))",
                   borderRadius: 4,
-                  border: "1px solid var(--cnd-border-subtle, #1e2830)",
+                  border:
+                    "1px solid var(--cnd-border-subtle, var(--border-subtle))",
                 }}
               >
                 Preserved Hub recorded view content during staleness.

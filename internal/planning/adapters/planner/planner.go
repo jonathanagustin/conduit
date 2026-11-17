@@ -51,15 +51,14 @@ type Record struct {
 // CloneFunc checks out a repository URL at a ref.
 type CloneFunc func(ctx context.Context, repoURL, ref string) (repoclone.Checkout, func(), error)
 
-// Planner is a planning turn runner backed by a local model command and
-// the packaging inspect_repo and read_file tools.
+// Planner runs planning turns through a model port and the packaging
+// inspect_repo and read_file tools.
 type Planner struct {
-	// Model is the model transport. When it is nil, Argv selects the local
-	// command transport.
+	// Model is the model transport. When it is nil, legacy Argv selects the
+	// retired CLI adapter, which refuses model calls.
 	Model Model
-	// Argv and Timeout configure the local command transport when Model is
-	// nil. ModelName is the operator-configured model name for it.
-	// Exec wraps every run of the local command; nil runs it directly.
+	// These fields retain the retired CLI configuration shape when Model is
+	// nil. The CLI adapter never invokes Exec or starts a command.
 	Exec      localcmd.ExecFunc
 	Argv      []string
 	Timeout   time.Duration

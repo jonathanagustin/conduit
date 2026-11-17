@@ -19,7 +19,9 @@ source boundary is recorded in [MIGRATION.md](MIGRATION.md).
 The still above is a recorded console walkthrough. The command that
 reproduces the source-packaging run is
 [`scripts/demo-excalidraw-e2e.sh`](scripts/demo-excalidraw-e2e.sh). It needs a
-running Docker daemon and `zarf` v0.82.0 on `PATH` (or `ZARF_BIN`). If either
+running Docker daemon, an explicitly configured HTTP model endpoint
+(`CONDUIT_MODEL_BASE_URL` and `CONDUIT_MODEL_NAME`), and `zarf` v0.82.0 on
+`PATH` (or `ZARF_BIN`). If either tool
 is missing, the script exits with the install location and checksum instead of
 reporting a package.
 
@@ -29,8 +31,7 @@ reporting a package.
 
 That script checks out `https://github.com/excalidraw/excalidraw` at
 `a2ec2889babf7d2295469c6d90ebe77fae57df84`, runs planning turns with the
-deterministic writer unless the Hub was started with a model provider
-(`CONDUIT_MODEL_CMD` or `CONDUIT_MODEL_BASE_URL`), records Accept, then
+explicitly configured HTTP model, records Accept, then
 runs post-accept compute. Compute commits a workspace `Dockerfile`,
 `zarf.yaml`, and UDS `Package` CR, builds the image, and runs the dockerfile
 gate, the Package CR schema gate, `zarf dev lint`, and `zarf package create`.
@@ -87,19 +88,11 @@ iptables or bridge networking, set `DEMO_DOCKER_NETWORK=host`. The seed also
 switches to that mode when the default publish or image build fails for that
 reason.
 
-Optional: live model proposals. The Hub has two model providers and accepts
-one of them. Set `CONDUIT_MODEL_CMD` to a local model CLI you installed and
-signed in to, or set `CONDUIT_MODEL_BASE_URL` and `CONDUIT_MODEL_NAME` for an
-OpenAI-compatible HTTP endpoint (vLLM, Ollama, a hosted API); the key is read
-from the file `CONDUIT_MODEL_API_KEY_FILE` names and is never a variable. With
-both set the Hub refuses to start. With neither set it keeps the recorded
-proposals and makes no model call. See
-[Local model CLI](docs/operations/local-model-cli.md) and
+Optional: live model proposals. Configure `CONDUIT_MODEL_BASE_URL` and
+`CONDUIT_MODEL_NAME` for an operator-managed HTTP endpoint before starting
+the Hub. Leave model configuration unset to keep recorded proposals and make
+no model call. Host model commands are refused. See
 [HTTP model endpoint](docs/operations/model-http.md).
-
-`mise.toml` pins `zarf` 1.0.0, so inside the repository `./install.sh` puts
-that version on `PATH`. The demo scripts' install message and the Trunk gate
-name v0.82.0. The demo scripts check only that a `zarf` binary exists.
 
 To install and verify a published release (CLI archives, SLSA provenance, SPDX
 SBOMs, digest-pinned Helm charts, container images, and air-gap Zarf packages)
