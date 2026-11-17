@@ -64,7 +64,11 @@ func NewHub(
 		options.BundlePrivateKey = key
 	}
 	options = withSpaceLookup(repository, options, hubOptions.Spaces)
-	options, err := withAnnouncements(options, hubOptions.NotificationStore, slog.Default())
+	eligibility, err := NewNotificationRecipientEligibility(repository, options)
+	if err != nil {
+		return nil, err
+	}
+	options, err = withAnnouncements(options, hubOptions.NotificationStore, eligibility, slog.Default())
 	if err != nil {
 		return nil, err
 	}

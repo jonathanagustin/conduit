@@ -144,7 +144,7 @@ func main() {
 	// Nil unless there is a notification store to record into, which is the
 	// same condition the notification routes mount on. A Hub without one still
 	// accepts recalls; it just has nobody to tell.
-	recallOpenings, err := composition.NewRecallOpenings(notifications.Store, slog.Default())
+	recallOpenings, err := composition.NewRecallOpenings(notifications.Store, notifications.Eligibility, slog.Default())
 	if err != nil {
 		slog.Error("configure recall announcements", "error", err)
 		os.Exit(1)
@@ -412,9 +412,10 @@ func appGenerationsFor(component notificationComponent) appgenapp.Store {
 }
 
 type notificationComponent struct {
-	Store      notificationports.Store
-	Contacts   notificationports.Contacts
-	Deliveries *notificationsapplication.Dispatcher
+	Store       notificationports.Store
+	Contacts    notificationports.Contacts
+	Eligibility notificationports.RecipientEligibility
+	Deliveries  *notificationsapplication.Dispatcher
 	// AssistantThreads rides with the notification store because it is opened
 	// on the same DSN and closed by the same closer.
 	AssistantThreads *assistantthreads.Store
@@ -510,7 +511,15 @@ func configureReconciliation(
 		_ = notificationStore.Close()
 		closeReconciliationStore()
 	}
-	emitter, err := notificationsapplication.NewEmitter(notificationStore)
+	eligibility, err := composition.NewNotificationRecipientEligibility(repository, controlplane.HandlerOptions{
+		BootstrapAdministrators:              splitCommaSeparated(getenv("PLATFORM_BOOTSTRAP_ADMINISTRATORS")),
+		AllowInsecureOperatorIdentityHeaders: getenv("ALLOW_INSECURE_OPERATOR_IDENTITY_HEADERS") == "true",
+	})
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, nil, notificationComponent{}, err
+	}
+	emitter, err := notificationsapplication.NewEmitter(notificationStore, eligibility)
 	if err != nil {
 		closeStore()
 		return nil, func() {}, nil, nil, notificationComponent{}, err
@@ -566,6 +575,7 @@ func configureReconciliation(
 		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	deliveryConfig := composition.DefaultDispatcherConfig()
+	deliveryConfig.Eligibility = eligibility
 	deliveryConfig.OnError = func(err error) { slog.Error("notification delivery cycle", "error", err) }
 	// Native delivery resolves the contact matching the selected channel. The
 	// existing generic relay mode retains its legacy destination/fallback policy.
@@ -583,7 +593,7 @@ func configureReconciliation(
 		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	return bridge, closeStore, supervisor, readStats, notificationComponent{
-		Store: notificationStore, Contacts: notificationStore, Deliveries: deliveries,
+		Store: notificationStore, Contacts: notificationStore, Deliveries: deliveries, Eligibility: eligibility,
 		AssistantThreads: assistantThreadStore,
 		AppGenerations:   appGenerationStore,
 	}, nil

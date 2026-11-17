@@ -43,7 +43,7 @@ func recallHub(t *testing.T) (http.Handler, *notificationStore) {
 	t.Helper()
 	repository := controlplane.NewMemoryRepository()
 	store := newNotificationStore()
-	openings, err := NewRecallOpenings(store, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	openings, err := NewRecallOpenings(store, allowRecipients{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestARecallInAnAcceptedPlanBecomesANotificationEvent(t *testing.T) {
 // must not become "this deployment refuses recalls".
 func TestAHubWithNoNotificationStoreStillAcceptsARecall(t *testing.T) {
 	t.Parallel()
-	openings, err := NewRecallOpenings(nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	openings, err := NewRecallOpenings(nil, allowRecipients{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil || openings != nil {
 		t.Fatalf("a deployment with no store got openings=%#v err=%v", openings, err)
 	}

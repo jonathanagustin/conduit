@@ -20,6 +20,10 @@ type fixedClock struct{ now time.Time }
 
 func (clock *fixedClock) Now() time.Time { return clock.now }
 
+type allowRecipients struct{}
+
+func (allowRecipients) Check(context.Context, domain.Owner, string) (bool, error) { return true, nil }
+
 // queuedEntry is one row of the fake queue, carrying the same state the
 // PostgreSQL columns carry.
 type queuedEntry struct {
@@ -143,7 +147,7 @@ func deliverableEntry(id string, channel domain.Channel) domain.InboxEntry {
 
 func dispatcher(t *testing.T, queue *fakeQueue, transport ports.Transport, clock ports.Clock) *application.Dispatcher {
 	t.Helper()
-	built, err := application.NewDispatcher(queue, transport, clock, application.DispatcherConfig{
+	built, err := application.NewDispatcher(queue, transport, clock, application.DispatcherConfig{Eligibility: allowRecipients{},
 		LeaseDuration: 30 * time.Second, MaximumAttempts: 3,
 		BaseRetryDelay: 2 * time.Second, PollInterval: time.Millisecond,
 	})
@@ -294,7 +298,7 @@ func TestDrainStopsWhenTheQueueItselfFails(t *testing.T) {
 
 func TestADispatcherWithNothingToDeliverWithIsRefused(t *testing.T) {
 	t.Parallel()
-	valid := application.DispatcherConfig{
+	valid := application.DispatcherConfig{Eligibility: allowRecipients{},
 		LeaseDuration: time.Second, MaximumAttempts: 1,
 		BaseRetryDelay: time.Second, PollInterval: time.Second,
 	}
@@ -396,7 +400,7 @@ func routingDispatcher(
 ) *application.Dispatcher {
 	t.Helper()
 	built, err := application.NewDispatcher(queue, transport, &fixedClock{now: moment()},
-		application.DispatcherConfig{
+		application.DispatcherConfig{Eligibility: allowRecipients{},
 			LeaseDuration: 30 * time.Second, MaximumAttempts: 3,
 			BaseRetryDelay: 2 * time.Second, PollInterval: time.Millisecond,
 			Destinations: resolver,

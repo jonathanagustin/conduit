@@ -57,6 +57,15 @@ type Emitter interface {
 	Emit(ctx context.Context, event domain.Event) error
 }
 
+// RecipientEligibility checks the recipient's current authority, independently
+// of whoever raised an event or created its subscription. False is a known
+// refusal; an error means authority could not be established and must be
+// retried or reported, never interpreted as an empty audience or a sent item.
+// Background callers must not reuse subscription-time identity claims.
+type RecipientEligibility interface {
+	Check(ctx context.Context, owner domain.Owner, resourceRID string) (bool, error)
+}
+
 // Contacts is the address book: one destination per (owner, kind).
 //
 // Declared apart from Store rather than folded into it, for the same reason

@@ -31,7 +31,7 @@ import (
 // by its other surfaces. Transaction-local services stay silent; the owner of
 // the transaction announces only after its writes have committed.
 func NewAnnouncements(
-	store notificationports.Store, logger *slog.Logger,
+	store notificationports.Store, eligibility notificationports.RecipientEligibility, logger *slog.Logger,
 ) (controlplane.Announcements, error) {
 	if store == nil {
 		return controlplane.Announcements{}, nil
@@ -39,7 +39,7 @@ func NewAnnouncements(
 	if logger == nil {
 		return controlplane.Announcements{}, errors.New("a logger is required: the surfaces that announce drop the error")
 	}
-	emitter, err := notifications.NewEmitter(store)
+	emitter, err := notifications.NewEmitter(store, eligibility)
 	if err != nil {
 		return controlplane.Announcements{}, err
 	}
@@ -66,9 +66,9 @@ func NewAnnouncements(
 // withAnnouncements fills in what the caller did not supply. A caller that set
 // a port keeps it, so a test can observe one site without assembling a store.
 func withAnnouncements(
-	options controlplane.HandlerOptions, store notificationports.Store, logger *slog.Logger,
+	options controlplane.HandlerOptions, store notificationports.Store, eligibility notificationports.RecipientEligibility, logger *slog.Logger,
 ) (controlplane.HandlerOptions, error) {
-	assembled, err := NewAnnouncements(store, logger)
+	assembled, err := NewAnnouncements(store, eligibility, logger)
 	if err != nil {
 		return options, err
 	}

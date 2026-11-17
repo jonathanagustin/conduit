@@ -32,6 +32,9 @@ type DispatcherConfig struct {
 	// Destinations resolves the recipient's own contact at delivery time. Nil
 	// means every delivery goes wherever the transport was configured to send.
 	Destinations ports.DestinationResolver
+	// Eligibility is required at the last boundary before external submission.
+	// A queued subscription is historical evidence, not current permission.
+	Eligibility ports.RecipientEligibility
 }
 
 // Dispatcher drains undelivered inbox entries through one transport.
@@ -59,8 +62,8 @@ type Dispatcher struct {
 func NewDispatcher(
 	queue ports.DeliveryQueue, transport ports.Transport, clock ports.Clock, config DispatcherConfig,
 ) (*Dispatcher, error) {
-	if queue == nil || transport == nil || clock == nil {
-		return nil, errors.New("a notification delivery queue, transport, and clock are required")
+	if queue == nil || transport == nil || clock == nil || config.Eligibility == nil {
+		return nil, errors.New("a notification delivery queue, transport, clock, and current recipient eligibility are required")
 	}
 	if config.LeaseDuration <= 0 || config.MaximumAttempts == 0 ||
 		config.BaseRetryDelay <= 0 || config.PollInterval <= 0 {
@@ -98,6 +101,22 @@ func (dispatcher *Dispatcher) DeliverOne(ctx context.Context) (bool, error) {
 		// would send a person's notification somewhere they did not choose,
 		// because a query failed. The attempt is spent and the entry comes back.
 		return true, dispatcher.retry(ctx, lease, fmt.Sprintf("resolve destination: %v", err), now)
+	}
+	// Recheck after destination lookup: it may have blocked while membership
+	// or grants changed. Every transport, including generic relays and logging,
+	// crosses this boundary; a resolver must never serve as authorization.
+	allowed, err := dispatcher.config.Eligibility.Check(ctx, lease.Entry.Recipient.Owner, lease.Entry.Event.ResourceRID)
+	if err != nil {
+		return true, dispatcher.retry(ctx, lease, fmt.Sprintf("authorize recipient: %v", err), now)
+	}
+	if !allowed {
+		return true, dispatcher.queue.FailDelivery(ctx, lease,
+			"recipient authorization refused: current resource:read authority is absent", now, true)
+	}
+	if err := ctx.Err(); err != nil {
+		// A cancelled worker cannot persist a new outcome. Leave the lease to
+		// expire for another worker instead of submitting after cancellation.
+		return true, err
 	}
 	if err := dispatcher.transport.Deliver(ctx, message); err != nil {
 		return true, dispatcher.fail(ctx, lease, err, now)
