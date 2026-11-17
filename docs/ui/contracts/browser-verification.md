@@ -27,6 +27,21 @@ failures are infrastructure failures, not passing or skipped assertions. A
 focused project result is not a complete local-CI receipt. Review the complete
 native hosted gate for the proposed head before merging browser changes.
 
+## Static visual frames
+
+The visual spec selects `prefers-reduced-motion: reduce` before navigation,
+using the application's supported unanimated rendering. It retains the fixed
+clock, Hub-read and font readiness checks, disabled screenshot animations,
+hidden caret and zero pixel tolerance. Functional and accessibility specs keep
+their existing motion settings.
+
+This policy makes the static frame explicit even when animations begin during
+capture. QEMU diagnostics produced different corner pixels with identical
+layout and computed styles in the animated scene; reduced-motion captures
+produced one output per case across repeated runs. Capture-policy changes need
+independent native and QEMU baseline review. This is a static-frame contract,
+not general qualification of animation behavior or a complete local-CI receipt.
+
 ## Pointer and focus stability
 
 The compact header reserves space for identity and live-status controls before

@@ -2,6 +2,10 @@ import { expect, test } from "@playwright/test";
 import { AREAS } from "../../console/operator/navigation.js";
 import { session, stubHub } from "./hub-stub";
 
+// Static frames use the application's own reduced-motion rendering before load.
+// Functional specs retain their normal motion settings.
+test.use({ reducedMotion: "reduce" });
+
 // Pixel baselines are qualified per renderer; each remains zero tolerance.
 const renderer =
   process.env["CONDUIT_LOCAL_CI_BROWSER_PROFILE"] === "qemu-x86_64-no-zygote"
