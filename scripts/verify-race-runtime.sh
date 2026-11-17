@@ -81,21 +81,22 @@ check_control() {
   if grep -Eq 'SanitizerTool:|FATAL: ThreadSanitizer|ThreadSanitizer.*(CHECK failed|failed to|unexpected memory)' "$log"; then
     fail "$name: sanitizer startup failed (exit $result); no race verification was established" "$log"
   fi
-  grep -qF -- "=== RUN   $name" "$log" && grep -qF -- "$marker" "$log" ||
+  grep -qxF -- "=== RUN   $name" "$log" &&
+    grep -qE -- "^[[:space:]]+race_runtime_test[.]go:[0-9]+: ${marker}$" "$log" ||
     fail "$name: the required test body did not execute (exit $result)" "$log"
   case "$expected" in
     pass)
-      [[ "$result" -eq 0 ]] && grep -qF -- "--- PASS: $name" "$log" && grep -qx 'PASS' "$log" ||
+      [[ "$result" -eq 0 ]] && grep -qE -- "^--- PASS: ${name} \\([0-9]+([.][0-9]+)?s\\)$" "$log" && grep -qx 'PASS' "$log" ||
         fail "$name: the positive control did not pass" "$log"
       ;;
     fail)
-      [[ "$result" -ne 0 ]] && grep -qF -- "--- FAIL: $name" "$log" ||
+      [[ "$result" -ne 0 ]] && grep -qE -- "^--- FAIL: ${name} \\([0-9]+([.][0-9]+)?s\\)$" "$log" ||
         fail "$name: the unconditional failure was not rejected" "$log"
       ;;
     race)
       # halt_on_error may exit before testing prints FAIL. The body marker,
       # actual detector warning and nonzero exit still prove race detection.
-      [[ "$result" -ne 0 ]] && grep -qF -- 'WARNING: DATA RACE' "$log" ||
+      [[ "$result" -ne 0 ]] && grep -qxF -- 'WARNING: DATA RACE' "$log" ||
         fail "$name: the intentional race was not detected and rejected" "$log"
       ;;
   esac
