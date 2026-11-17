@@ -251,8 +251,6 @@ export function preferencePayload(resourceRid, channel, draft) {
 export function preferenceProblem(resourceRid, draft, unavailable = []) {
   if (!String(resourceRid ?? "").trim())
     return "Name the resource this preference is about.";
-  if (!draft.types.length && !draft.allFutureTypes)
-    return "Enable at least one type or opt into future types. A preference that selects nothing can never deliver, and the Hub refuses it.";
   if (
     !draft.allFutureTypes &&
     draft.types.some((type) => unavailable.includes(type))
@@ -456,6 +454,7 @@ function preferenceEditor(model, decision) {
     <fieldset class="space-y-1.5"><legend class="text-[11px] uppercase tracking-[0.08em] text-[#8b96a5] mb-1">Event types</legend>${boxes}</fieldset>
     ${silent ? `<div><div class="text-[11px] uppercase tracking-[0.08em] text-[#8b96a5] mb-1">Unavailable notification types</div><ul class="space-y-1.5">${silent}</ul></div>` : ""}
     <p class="text-[11px] text-[#8b96a5]">Unavailable types remain visible as part of the known vocabulary. All future types includes types this Hub emits and consents to later implementations; it cannot make an unavailable type deliver today.</p>
+    ${!draft.types.length && !draft.allFutureTypes ? `<p class="text-[12px]" data-notifications-off>Notifications off for future events on this resource and channel. ${diff.changed ? "Save to keep this choice. " : ""}Existing inbox and queued notifications are retained.</p>` : ""}
     ${carried.length ? `<p class="text-[12px]" data-carried-types>Stored types this console does not know are carried through a save unchanged: <span class="code-id">${esc(carried.join(", "))}</span></p>` : ""}
     <label class="flex items-start gap-2 text-[12px]"><input type="checkbox" data-ntf-future data-key="future" ${draft.allFutureTypes ? "checked" : ""} ${pref.availabilityKnown ? "" : "disabled"}/><span>All future types. Include types a later Hub adds.</span></label>
     <label class="block text-[12px]">Contact
@@ -1028,7 +1027,8 @@ export function createNotifications({ state, render, capabilities }) {
     )
       stale =
         "The Hub's answer did not describe the preference being saved. Reload it before saving.";
-    else stale = staleRevision(pending.stored, current.ok ? current.body : null);
+    else
+      stale = staleRevision(pending.stored, current.ok ? current.body : null);
     if (stale) {
       prefSave = null;
       pref.saving = false;

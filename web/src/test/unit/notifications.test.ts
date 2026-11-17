@@ -309,9 +309,7 @@ describe("preference edit", () => {
 
   it("refuses first what the Hub would refuse", () => {
     const empty = { types: [], allFutureTypes: false, contactId: "" };
-    expect(preferenceProblem("product/payments", empty)).toContain(
-      "can never deliver",
-    );
+    expect(preferenceProblem("product/payments", empty)).toBe("");
     expect(preferenceProblem("", { ...empty, allFutureTypes: true })).toContain(
       "Name the resource",
     );
@@ -497,12 +495,15 @@ describe("screen markup", () => {
     expect(html).not.toMatch(/data-ntf-action="save-preference"[^>]*disabled/);
   });
 
-  it("disables Save with the reason when nothing is selected", () => {
+  it("allows saving an empty selection as explicit off consent", () => {
     const html = editor({
       draft: { types: [], allFutureTypes: false, contactId: "" },
     });
-    expect(html).toMatch(/data-ntf-action="save-preference"[^>]* disabled/);
-    expect(html).toContain("can never deliver");
+    expect(html).not.toMatch(/data-ntf-action="save-preference"[^>]* disabled/);
+    expect(html).toContain("Notifications off for future events");
+    expect(html).toContain(
+      "Existing inbox and queued notifications are retained",
+    );
   });
 
   it("disables Save with the session's reason when the grant is missing", () => {
