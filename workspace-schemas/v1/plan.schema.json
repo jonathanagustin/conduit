@@ -734,6 +734,9 @@
             "array"
           ]
         },
+        "packageArchitecture": {
+          "type": "string"
+        },
         "secrets": {
           "items": {
             "additionalProperties": false,

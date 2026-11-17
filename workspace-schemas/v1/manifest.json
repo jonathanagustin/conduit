@@ -6,7 +6,7 @@
       "file": "plan.schema.json",
       "version": "platform.delivery/v1alpha1",
       "source": "internal/controlplane/model.go",
-      "sha256": "d1f0626a2d1edebe0198e595abfe5830267bc77c39f1638e43148de803847e67"
+      "sha256": "f40390aa6c77ffebbbd02952f0032dd0ba96b6eee28f8f692be75b26b24526ce"
     },
     {
       "file": "zarf.schema.json",
