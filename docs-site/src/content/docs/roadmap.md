@@ -14,7 +14,7 @@ Generated from the same reviewed issue evidence as [Readiness](/conduit/readines
 
 ## Operator identity and console completeness
 
-[#818](https://github.com/jonathanagustin/conduit/issues/818), [#820](https://github.com/jonathanagustin/conduit/issues/820), [#823](https://github.com/jonathanagustin/conduit/issues/823), [#824](https://github.com/jonathanagustin/conduit/issues/824), [#827](https://github.com/jonathanagustin/conduit/issues/827).
+[#818](https://github.com/jonathanagustin/conduit/issues/818), [#820](https://github.com/jonathanagustin/conduit/issues/820), [#823](https://github.com/jonathanagustin/conduit/issues/823), [#827](https://github.com/jonathanagustin/conduit/issues/827).
 
 ## Packaging and cluster acceptance
 
