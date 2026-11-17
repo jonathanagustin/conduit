@@ -55,15 +55,29 @@ type validateDockerfileInput struct {
 	Dockerignore string `json:"dockerignore,omitempty" jsonschema:"dockerignore contents, if any"`
 }
 
-// NewServer registers the packaging tools on one MCP server.
+// repositoryProbe is implemented by a toolbox that knows whether a source
+// repository is bound to it.
+type repositoryProbe interface {
+	RepositoryBound() bool
+}
+
+// RepositoryTools are the tools that read the bound source repository.
+func RepositoryTools() []string { return []string{ToolInspectRepo, ToolReadFile} }
+
+// NewServer registers the packaging tools on one MCP server. The two
+// repository tools are registered only when the toolbox has a repository
+// bound: a tool that could only answer "no repository is bound" is left off
+// tools/list rather than offered and failed.
 func NewServer(tools domain.Toolbox) *Server {
 	inner := mcp.NewServer(&mcp.Implementation{Name: serverName, Version: serverVersion}, nil)
 	adapter := &Server{tools: tools, inner: inner}
 	mcp.AddTool(inner, &mcp.Tool{Name: ToolInspect, Description: "Read an image config from a registry and return ports, user, entrypoint, command, environment names, and labels."}, adapter.inspect)
 	mcp.AddTool(inner, &mcp.Tool{Name: ToolValidate, Description: "Check Kubernetes manifests against packaging conventions."}, adapter.validate)
 	mcp.AddTool(inner, &mcp.Tool{Name: ToolGates, Description: "Run the deterministic packaging and Dockerfile gates on a proposed package with no side effects."}, adapter.gates)
-	mcp.AddTool(inner, &mcp.Tool{Name: ToolInspectRepo, Description: "Inspect the bound source repository and return a file tree, detected language, package manager, build scripts, start command, ports, and whether the site is static or a server."}, adapter.inspectRepo)
-	mcp.AddTool(inner, &mcp.Tool{Name: ToolReadFile, Description: "Read one size-capped text file from inside the bound source repository."}, adapter.readFile)
+	if probe, ok := tools.(repositoryProbe); !ok || probe.RepositoryBound() {
+		mcp.AddTool(inner, &mcp.Tool{Name: ToolInspectRepo, Description: "Inspect the bound source repository and return a file tree, detected language, package manager, build scripts, start command, ports, and whether the site is static or a server."}, adapter.inspectRepo)
+		mcp.AddTool(inner, &mcp.Tool{Name: ToolReadFile, Description: "Read one size-capped text file from inside the bound source repository."}, adapter.readFile)
+	}
 	mcp.AddTool(inner, &mcp.Tool{Name: ToolValidateDockerfile, Description: "Check a Dockerfile and dockerignore against packaging containerization conventions."}, adapter.validateDockerfile)
 	return adapter
 }

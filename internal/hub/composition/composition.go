@@ -15,8 +15,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
+	"github.com/jonathanagustin/conduit/internal/identity/adapters/revocationmemory"
 )
 
 // NewHubHandler assembles the Hub HTTP surface from explicitly supplied ports.
@@ -109,6 +111,12 @@ func NewHub(
 	if err != nil {
 		return nil, err
 	}
+	governor, governanceStores, err := newModelGovernor(repository, hubOptions, os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+	defer assemblingWith(governor)()
+	handler = mountModelGovernance(handler, repository, options, governor, governanceStores)
 	if hubOptions.ModelProposer == nil {
 		proposer, err := modelProposer(os.Getenv)
 		if err != nil {
@@ -149,6 +157,9 @@ func NewHub(
 	handler = mountAttachments(handler, repository, options, hubOptions.Attachments)
 	handler = mountAppGenerationWithService(handler, repository, options, appgenService)
 	intelService := newIntelligenceService(repository, options)
+	if hubOptions.IntelligenceCases != nil {
+		intelService.Stored = hubOptions.IntelligenceCases
+	}
 	handler = mountTimeline(mountUpgrades(mountOfflineBundles(mountSiteCheckIn(mountBlackouts(mountWaves(mountDriftFix(mountChannels(mountIntelligence(mountAssistant(mountOntology(mountPackaging(handler, repository, options, hubOptions), repository, options, hubOptions, workspaces), repository, options, hubOptions, assistant, intelCases{service: intelService}), repository, options, hubOptions, intelService), repository, options), repository, options), repository, options), repository, options), options), repository, options), repository, options), repository, options)
 	handler, err = mountPlanningWithAppgenService(handler, repository, options, appgenService, os.Getenv)
 	if err != nil {
@@ -159,5 +170,18 @@ func NewHub(
 		return nil, err
 	}
 	handler = mountWorkspaceACP(handler, repository, options, workspaceACP)
-	return guardUnregisteredRoutes(handler), nil
+	// The Agent deny-list wraps everything mounted above, so no Agent route can
+	// be reached around it, and sits inside the unregistered-route guard, so a
+	// path this Hub does not have is still a 404 that examined no credential.
+	agentCredentials := hubOptions.AgentCredentials
+	if agentCredentials == nil {
+		agentCredentials = revocationmemory.New()
+	}
+	handler, err = mountAgentCredentials(handler, repository, options, agentCredentials, time.Now)
+	if err != nil {
+		return nil, err
+	}
+	handler = guardAgentCredentials(handler, options, agentCredentials, time.Now, slog.Default())
+	handler = mountSignIn(handler, hubOptions.SignIn)
+	return guardUnregisteredRoutes(withModelGovernance(handler, repository, options, governor)), nil
 }

@@ -1,0 +1,141 @@
+# Alert rules for the Conduit Hub.
+#
+# This file is the source. Two generated copies ship it:
+#   deploy/helm/platform-hub/files/prometheus-rules.yaml  (metrics.prometheusRule.enabled)
+#   deploy/zarf/manifests/observability.yaml              (the uds-observability component)
+# Regenerate both with `ruby scripts/verify-observability-assets.rb --write`;
+# the same script, without --write, fails when either has drifted.
+#
+# Every series named here must be in exported-metrics.txt, which a Go test
+# holds to what the Hub actually renders. The expressions are NOT checked by
+# promtool -- no pinned promtool is available to the gate -- so the gate
+# checks metric names, functions and structure, and does not prove an
+# expression evaluates.
+#
+# The queue and delivery gauges are read from the database by whichever
+# replica is scraped, so every replica reports the same value. Expressions
+# take max by (...) over them: a sum would multiply the backlog by the
+# replica count.
+#
+# Needs the Hub's metrics listener, which exists only with METRICS_ADDRESS set
+# and REPOSITORY_KIND=postgres. Without it ConduitMetricsAbsent fires, which
+# is the correct reading of a Hub nobody can see.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: conduit-hub
+  labels:
+    app.kubernetes.io/name: platform-delivery
+    app.kubernetes.io/component: hub
+spec:
+  groups:
+    - name: conduit-hub.reconciliation
+      rules:
+        # Wedged is not "the queue is deep". It is: something is due, nobody
+        # holds a lease, and the oldest due item keeps ageing. A busy Hub has
+        # leases and a young oldest item at any depth. This is the distinction
+        # TestAWedgedHubIsDistinguishableFromABusyOne pins.
+        - alert: ConduitHubWedged
+          expr: |
+            max by (queue) (conduit_reconciliation_pending) > 0
+            and max by (queue) (conduit_reconciliation_leased) == 0
+            and max by (queue) (conduit_reconciliation_oldest_pending_seconds) > 300
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Conduit Hub is not taking work from the {{ $labels.queue }} queue"
+            description: "Work has been due for more than five minutes and no replica holds a lease on any of it. Depth alone does not fire this alert."
+            runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduithubwedged
+        - alert: ConduitReconciliationLag
+          expr: max by (queue) (conduit_reconciliation_oldest_pending_seconds) > 900
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Conduit {{ $labels.queue }} work is waiting more than 15 minutes"
+            description: "The oldest due item in the {{ $labels.queue }} queue has waited {{ $value | humanizeDuration }}. Replicas may be working and still falling behind."
+            runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitreconciliationlag
+        # Exhausted proposal rows are kept, and the store also marks a proposal
+        # exhausted when a newer desired state supersedes it -- which is
+        # routine. So the gauge only grows and "> 0" would fire forever;
+        # delta() fires when the count rises and clears thirty minutes later.
+        # It cannot tell out-of-retries from superseded: the runbook's first
+        # check does. That is why this is a warning.
+        - alert: ConduitProposalExhausted
+          expr: max by (queue) (delta(conduit_reconciliation_exhausted{queue="proposal_outbox"}[30m])) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "A Conduit Plan proposal was retired without being proposed"
+            description: "The count of exhausted proposals rose in the last 30 minutes. Either a proposal ran out of retries, and an Environment has a decided change nothing will propose, or a newer desired state superseded it, which needs no action. The runbook says how to tell."
+            runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitproposalexhausted
+        - alert: ConduitReconciliationExhausted
+          expr: max by (queue) (conduit_reconciliation_exhausted{queue="reconciliation"}) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Conduit reconciliation work ran out of retries"
+            description: "{{ $value }} reconciliation item(s) will never be retried without an operator."
+            runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitreconciliationexhausted
+    - name: conduit-hub.notifications
+      rules:
+        # The gauge is every exhausted row there has ever been, so "> 0" would
+        # fire forever after the first one. delta() over the window fires on a
+        # new exhaustion and clears thirty minutes after the last.
+        - alert: ConduitNotificationDeliveryExhausted
+          expr: max by (transport) (delta(conduit_notification_delivery_exhausted[30m])) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "Conduit gave up delivering a notification by {{ $labels.transport }}"
+            description: "At least one notification by {{ $labels.transport }} became undeliverable in the last 30 minutes. Somebody who was to be told about a failure was not."
+            runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitnotificationdeliveryexhausted
+        - alert: ConduitNotificationDeliveryStalled
+          expr: max by (transport) (conduit_notification_delivery_oldest_pending_seconds) > 1800
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Conduit notifications by {{ $labels.transport }} are not being delivered"
+            description: "The oldest undelivered notification by {{ $labels.transport }} was raised {{ $value | humanizeDuration }} ago."
+            runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitnotificationdeliverystalled
+    - name: conduit-hub.requests
+      rules:
+        # A ratio, with a floor on traffic: one failed request out of two in a
+        # quiet five minutes is 50% and is not an incident.
+        - alert: ConduitHTTPServerErrors
+          expr: |
+            sum(rate(conduit_http_requests_total{code_class="5xx"}[5m]))
+              / sum(rate(conduit_http_requests_total[5m])) > 0.05
+            and sum(rate(conduit_http_requests_total[5m])) > 0.1
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "More than 5% of Conduit Hub requests are failing with 5xx"
+            description: "{{ $value | humanizePercentage }} of requests over the last five minutes were answered with a server error."
+            runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduithttpservererrors
+        # Agents lease, heartbeat and report on a schedule. One that is being
+        # refused is a Spoke that cannot do its job, not a noisy client.
+        - alert: ConduitAgentRateLimited
+          expr: sum(rate(conduit_rate_limit_decisions_total{class="agent",outcome="limited"}[5m])) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "The Conduit Hub is refusing Agent requests with 429"
+            description: "Agent-class requests have been rate limited continuously for ten minutes."
+            runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitagentratelimited
+    - name: conduit-hub.meta
+      rules:
+        - alert: ConduitMetricsAbsent
+          expr: absent(conduit_build_info)
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "No Conduit Hub is exporting metrics"
+            description: "No replica has reported conduit_build_info for ten minutes. Every other Conduit alert is blind while this one fires."
+            runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitmetricsabsent

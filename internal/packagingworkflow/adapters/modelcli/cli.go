@@ -30,6 +30,8 @@ type Runner struct {
 	// ModelName is the operator-configured model name, recorded in the
 	// provenance. The command's reply is never a source for it.
 	ModelName string
+	// Exec wraps the run; nil runs the command directly.
+	Exec localcmd.ExecFunc
 }
 
 func (runner Runner) Propose(ctx context.Context, input domain.PackagingContext) (domain.Proposal, domain.Provenance, error) {
@@ -40,7 +42,7 @@ func (runner Runner) Propose(ctx context.Context, input domain.PackagingContext)
 	calls := runner.inspectFacts(ctx, &input)
 	prompt := []byte(domain.Prompt(input))
 	provenance := domain.Provenance{Adapter: localcmd.CommandName(runner.Argv[0]), ConfiguredModel: strings.TrimSpace(runner.ModelName), PromptSHA256: domain.DigestText(prompt), ToolCalls: calls}.WithSkillDigest(input)
-	stdout, err := localcmd.Execute(ctx, runner.Argv, runner.Timeout, prompt)
+	stdout, err := runner.Exec.Run(ctx, runner.Argv, runner.Timeout, prompt)
 	provenance.ResponseSHA256 = domain.DigestText(stdout)
 	if err != nil {
 		return domain.Proposal{}, provenance, modelError(err)
@@ -59,7 +61,7 @@ func modelError(err error) error {
 	case errors.Is(err, localcmd.ErrNotFound), errors.Is(err, localcmd.ErrEmpty):
 		return fmt.Errorf("%w: %v", domain.ErrModelUnavailable, err)
 	default:
-		return fmt.Errorf("%w: %v", domain.ErrModelFailed, err)
+		return fmt.Errorf("%w: %w", domain.ErrModelFailed, err)
 	}
 }
 
@@ -118,7 +120,7 @@ func (runner Runner) ProposePackage(ctx context.Context, input domain.PackagingC
 	calls := runner.inspectFacts(ctx, &input)
 	prompt := []byte(domain.Prompt(input))
 	provenance := domain.Provenance{Adapter: localcmd.CommandName(runner.Argv[0]), ConfiguredModel: strings.TrimSpace(runner.ModelName), PromptSHA256: domain.DigestText(prompt), ToolCalls: calls}.WithSkillDigest(input)
-	stdout, err := localcmd.Execute(ctx, runner.Argv, runner.Timeout, prompt)
+	stdout, err := runner.Exec.Run(ctx, runner.Argv, runner.Timeout, prompt)
 	provenance.ResponseSHA256 = domain.DigestText(stdout)
 	if err != nil {
 		return domain.PackageProposal{}, provenance, modelError(err)

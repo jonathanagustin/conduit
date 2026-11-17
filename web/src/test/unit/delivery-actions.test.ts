@@ -655,9 +655,9 @@ describe("sendAction", () => {
 });
 
 describe("deliveryCapabilityHook", () => {
-  it("allows every operation until the capability helper is plugged in", () => {
+  it("does not decide until the session capabilities are bound", () => {
     expect(deliveryCapabilityHook("change:propose", "environment/dev")).toEqual(
-      { allowed: true, reason: "" },
+      { allowed: null, reason: "" },
     );
   });
 });

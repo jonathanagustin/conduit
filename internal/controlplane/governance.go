@@ -1493,7 +1493,4 @@ func errorReason(err error) string {
 	return err.Error()
 }
 
-var (
-	ErrUnauthorized = errors.New("unauthorized")
-	ErrForbidden    = errors.New("forbidden")
-)
+var ErrForbidden = errors.New("forbidden")

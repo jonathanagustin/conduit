@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/assistant/domain"
+	"github.com/jonathanagustin/conduit/internal/modelgovernor"
 	shared "github.com/jonathanagustin/conduit/internal/modelhttp"
 )
 
@@ -115,5 +116,29 @@ func TestCompleteMapsFailuresOntoThePortErrors(t *testing.T) {
 	t.Cleanup(func() { close(release) })
 	if _, _, err := slow.Complete(context.Background(), "p"); !errors.Is(err, domain.ErrModelTimeout) || !errors.Is(err, shared.ErrTimeout) {
 		t.Fatalf("timeout: %v", err)
+	}
+}
+
+// A call the governor refused is a limit, not a model failure, and an audit
+// outage is an audit outage: each keeps its own port error and the wait.
+func TestGovernorRefusalsKeepTheirOwnPortErrors(t *testing.T) {
+	refuse := func(refusal error) error {
+		built := client(t, func(http.ResponseWriter, *http.Request) { t.Error("a refused call reached the endpoint") }, time.Second)
+		adapter := Adapter{Client: built.With(func(context.Context, string, string, func(context.Context) (shared.Completion, error)) (shared.Completion, error) {
+			return shared.Completion{}, refusal
+		})}
+		_, _, err := adapter.Complete(context.Background(), "p")
+		return err
+	}
+	busy := refuse(&modelgovernor.BusyError{Scope: "owner", RetryAfter: 3 * time.Second})
+	var hint interface{ RetryAfterHint() time.Duration }
+	if !errors.Is(busy, domain.ErrModelBusy) || errors.Is(busy, domain.ErrModelFailed) || !errors.As(busy, &hint) || hint.RetryAfterHint() != 3*time.Second {
+		t.Fatalf("busy = %v", busy)
+	}
+	if budget := refuse(&modelgovernor.BudgetError{Unit: "calls", Limit: 1, Used: 1, RetryAfter: time.Hour}); !errors.Is(budget, domain.ErrModelBudgetExceeded) || errors.Is(budget, domain.ErrModelFailed) {
+		t.Fatalf("budget = %v", budget)
+	}
+	if audit := refuse(modelgovernor.ErrAuditUnavailable); !errors.Is(audit, domain.ErrAuditUnavailable) || errors.Is(audit, domain.ErrModelFailed) {
+		t.Fatalf("audit = %v", audit)
 	}
 }

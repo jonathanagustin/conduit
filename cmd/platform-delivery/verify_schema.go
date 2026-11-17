@@ -29,6 +29,10 @@ import (
 	reconciliationpostgres "github.com/jonathanagustin/conduit/internal/delivery/reconciliation/adapters/postgres"
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/resolutionlogpostgres"
 	"github.com/jonathanagustin/conduit/internal/governance/adapters/auditpostgres"
+	agentcredentials "github.com/jonathanagustin/conduit/internal/identity/adapters/revocationpostgres"
+	"github.com/jonathanagustin/conduit/internal/identity/adapters/sessionpostgres"
+	intelligencecases "github.com/jonathanagustin/conduit/internal/intelligence/adapters/casepostgres"
+	modelgovernancepg "github.com/jonathanagustin/conduit/internal/modelgovernor/adapters/postgres"
 	notificationspostgres "github.com/jonathanagustin/conduit/internal/notifications/adapters/postgres"
 	"github.com/jonathanagustin/conduit/internal/pgmigrate"
 )
@@ -53,7 +57,12 @@ func hubMigrationSets() []pgmigrate.Set {
 		{Component: notificationspostgres.Component(), Migrations: notificationspostgres.Migrations()},
 		{Component: assistantthreads.Component, Migrations: assistantthreads.Migrations()},
 		{Component: appgenpostgres.Component, Migrations: appgenpostgres.Migrations()},
+		{Component: agentcredentials.Component, Migrations: agentcredentials.Migrations()},
+		{Component: modelgovernancepg.Component, Migrations: modelgovernancepg.Migrations()},
+		{Component: intelligencecases.Component, Migrations: intelligencecases.Migrations()},
 		{Component: resolutionlogpostgres.Component(), Migrations: resolutionlogpostgres.Migrations()},
+		// Applied by every PostgreSQL Hub, whether or not sign-in is configured.
+		{Component: sessionpostgres.Component, Migrations: sessionpostgres.Migrations()},
 	}
 }
 

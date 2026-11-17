@@ -5,7 +5,7 @@
  * ask canPerform. Hiding an entry is presentation, not authorization: the Hub
  * routes still decide.
  */
-import { HUB_APPLICATIONS } from "./hub-vocabulary.js";
+import { HUB_APPLICATIONS, HUB_SESSION_OPERATIONS } from "./hub-vocabulary.js";
 import { screenEntry } from "./screen-registry.js";
 
 /**
@@ -147,6 +147,27 @@ export function filterNavItems(items, areas, capabilities) {
 }
 
 /**
+ * Whether a screen is reachable for this session, by the same table the rail
+ * uses: an area needs its own entry and at least one tab, a screen that lives
+ * in an area tab needs that area and tab, and any other screen needs only its
+ * own entry. `placement(screenId)` answers `{area, tab}` or null.
+ * @param {string} screenId
+ * @param {Record<string, {label: string, tabs: {id: string, label: string}[]}>} areas
+ * @param {(screenId: string) => ({area: string, tab: string} | null)} placement
+ */
+export function screenVisible(screenId, areas, placement, capabilities) {
+  const navigation = deriveNavigation(areas, capabilities);
+  if (Object.hasOwn(areas, screenId))
+    return Object.hasOwn(navigation.areas, screenId);
+  const placed = placement(screenId);
+  if (placed && Object.hasOwn(areas, placed.area)) {
+    const area = navigation.areas[placed.area];
+    return Boolean(area?.tabs.some((tab) => tab.id === placed.tab));
+  }
+  return navDecision(capabilities, screenId).visible;
+}
+
+/**
  * Whether the session may perform `operation` on `resourceRid`.
  * allowed is true or false only when the session answer says so; null means
  * the session did not report that resource and the Hub decides at the write.
@@ -162,6 +183,14 @@ export function decideOperation(
       allowed: null,
       reason:
         "Session capabilities are unavailable; the Hub decides when you act.",
+    };
+  // The session lists only the Hub's own operation vocabulary. Anything else
+  // (who may approve is decided by approval policy, for one) is never listed,
+  // so a missing entry is not a refusal.
+  if (!HUB_SESSION_OPERATIONS.includes(operation))
+    return {
+      allowed: null,
+      reason: `The session does not report ${operation}; the Hub decides when you act.`,
     };
   const operations =
     resourceRid === PLATFORM_ROOT
@@ -374,6 +403,9 @@ export function createCapabilities({ state, render, read = readSession }) {
     },
     navItems: (items, areas) =>
       filterNavItems(items, areas, state.capabilities),
+    /** The palette's filter: the same decision the rail makes for a screen. */
+    screenVisible: (screenId, areas, placement) =>
+      screenVisible(screenId, areas, placement, state.capabilities),
     /** The tabs to paint for an area, or the markup that replaces it. */
     gateArea(areaId, area, tabId, esc) {
       const areaDecision = navDecision(state.capabilities, areaId);

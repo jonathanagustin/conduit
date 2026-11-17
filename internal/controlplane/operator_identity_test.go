@@ -2,10 +2,36 @@ package controlplane
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
 )
+
+// The production resolver returns Identity's ErrUnauthorized. A Hub verifying
+// real tokens must answer a refused credential with 401 -- it answered 500
+// while this package declared an unrelated error with the same text.
+func TestACredentialTheResolverRefusesIsAnswered401(t *testing.T) {
+	t.Parallel()
+	if !errors.Is(identity.ErrUnauthorized, ErrUnauthorized) {
+		t.Fatal("controlplane.ErrUnauthorized is not Identity's ErrUnauthorized")
+	}
+	for name, refusal := range map[string]error{
+		"bare": identity.ErrUnauthorized, "wrapped": fmt.Errorf("%w: with a reason", identity.ErrUnauthorized),
+	} {
+		handler := NewHandler(NewMemoryRepository(), HandlerOptions{
+			OperatorIdentityResolver: func(*http.Request) (IdentityClaims, error) { return IdentityClaims{}, refusal },
+		})
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/session", nil))
+		if response.Code != http.StatusUnauthorized {
+			t.Errorf("%s: status = %d %s, want 401", name, response.Code, response.Body.String())
+		}
+	}
+}
 
 func TestOperatorIdentityStaysDisabledUntilAProviderIsConfigured(t *testing.T) {
 	t.Parallel()

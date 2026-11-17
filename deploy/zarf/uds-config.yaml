@@ -62,3 +62,7 @@ variables:
     # The issuer CA that UDS Core writes to the uds-trust-bundle ConfigMap,
     # which the Hub mounts at this path.
     OPERATOR_OIDC_CA_FILE: /etc/ssl/platform-ca/ca-bundle.pem
+    # The client secret UDS Core generates for the conduit-hub client, in the
+    # conduit-hub-sso Secret the Hub mounts. Setting the path makes the Hub
+    # sign people in as that confidential client.
+    OPERATOR_OIDC_CLIENT_SECRET_FILE: /run/conduit-sso/client-secret

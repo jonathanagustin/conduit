@@ -18,6 +18,8 @@ type Runner struct {
 	ModelName string
 	Argv      []string
 	Timeout   time.Duration
+	// Exec wraps the run; nil runs the command directly.
+	Exec localcmd.ExecFunc
 }
 
 func (runner Runner) Generate(ctx context.Context, request domain.Request) (domain.Spec, domain.Provenance, error) {
@@ -26,7 +28,7 @@ func (runner Runner) Generate(ctx context.Context, request domain.Request) (doma
 	}
 	prompt := []byte(domain.Prompt(request))
 	provenance := domain.Provenance{Adapter: localcmd.CommandName(runner.Argv[0]), ConfiguredModel: strings.TrimSpace(runner.ModelName), PromptSHA256: domain.Digest(prompt)}
-	stdout, err := localcmd.Execute(ctx, runner.Argv, runner.Timeout, prompt)
+	stdout, err := runner.Exec.Run(ctx, runner.Argv, runner.Timeout, prompt)
 	provenance.ResponseSHA256 = domain.Digest(stdout)
 	if err != nil {
 		return domain.Spec{}, provenance, modelError(err)
@@ -45,6 +47,6 @@ func modelError(err error) error {
 	case errors.Is(err, localcmd.ErrNotFound), errors.Is(err, localcmd.ErrEmpty):
 		return fmt.Errorf("%w: %v", domain.ErrModelUnavailable, err)
 	default:
-		return fmt.Errorf("%w: %v", domain.ErrModelFailed, err)
+		return fmt.Errorf("%w: %w", domain.ErrModelFailed, err)
 	}
 }

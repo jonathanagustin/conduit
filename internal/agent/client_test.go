@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
+	observability "github.com/jonathanagustin/conduit/internal/observability/domain"
 )
 
 // Every request path this client builds is absolute, so ResolveReference
@@ -452,5 +453,44 @@ func TestMaintenanceAwareAgentDoesNotFallBackToLegacyAdmission(t *testing.T) {
 	}
 	if calls != 2 {
 		t.Fatal("unexpected start retry", calls)
+	}
+}
+
+// A cycle's calls share one trace, carried in the W3C header and nowhere in
+// the protocol documents: each call is its own span of the trace on its
+// context, and a context with no trace sends no header at all.
+func TestAgentRequestsCarryTheTraceOnTheirContextAsAChildSpan(t *testing.T) {
+	t.Parallel()
+	var seen []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = append(seen, r.Header.Get("traceparent"))
+		_ = json.NewEncoder(w).Encode(controlplane.PlanRecord{ID: "pln_x"})
+	}))
+	defer server.Close()
+	client, err := NewHTTPControlPlane(server.URL, server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	trace := observability.NewTraceContext()
+	ctx := observability.ContextWithTrace(context.Background(), trace)
+	if _, err := client.Lease(ctx, "dev-use2", "agent-dev", time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Start(ctx, "dev-use2", "agent-dev", "pln_x", "token-abc"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Lease(context.Background(), "dev-use2", "agent-dev", time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if len(seen) != 3 || seen[2] != "" {
+		t.Fatalf("traceparent headers = %q, want two traced calls and one untraced", seen)
+	}
+	first, firstOK := observability.ParseTraceparent(seen[0])
+	second, secondOK := observability.ParseTraceparent(seen[1])
+	if !firstOK || !secondOK || first.TraceID != trace.TraceID || second.TraceID != trace.TraceID {
+		t.Fatalf("the calls did not share the cycle's trace: %q", seen)
+	}
+	if first.SpanID == trace.SpanID || first.SpanID == second.SpanID {
+		t.Fatalf("the calls are not distinct child spans: %q", seen)
 	}
 }

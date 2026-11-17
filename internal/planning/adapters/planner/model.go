@@ -42,6 +42,8 @@ type CLIModel struct {
 	Timeout time.Duration
 	// Name is the operator-configured model name, or empty.
 	Name string
+	// Exec wraps the run; nil runs the command directly.
+	Exec localcmd.ExecFunc
 }
 
 func (model CLIModel) Identity() Identity {
@@ -53,7 +55,7 @@ func (model CLIModel) Identity() Identity {
 }
 
 func (model CLIModel) Complete(ctx context.Context, prompt string) (Reply, error) {
-	stdout, err := localcmd.Execute(ctx, model.Argv, model.Timeout, []byte(prompt))
+	stdout, err := model.Exec.Run(ctx, model.Argv, model.Timeout, []byte(prompt))
 	return Reply{Text: stdout}, err
 }
 

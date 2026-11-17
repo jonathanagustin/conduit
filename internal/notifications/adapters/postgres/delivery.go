@@ -209,6 +209,67 @@ FROM conduit_notification_inbox`).Scan(&stats.Pending, &stats.Delivered, &stats.
 	return stats, nil
 }
 
+// ChannelBacklog is the delivery queue's state for one channel.
+//
+// Channel is the inbox's own column -- EMAIL, SLACK, IN_APP -- which is a
+// closed set and names no recipient. Nothing narrower is read: a metrics path
+// that could see an owner or an address would eventually publish one.
+type ChannelBacklog struct {
+	Channel          string
+	Pending          int64
+	Exhausted        int64
+	OldestPendingAge time.Duration
+}
+
+// DeliveryBacklog reports, per channel, what is waiting and what is dead,
+// without leasing anything.
+//
+// It is the per-channel form of Deliveries, and it adds the one number that
+// separates a busy queue from a stuck one: how long the oldest undelivered
+// entry has waited. That age is measured from occurred_at, when the event was
+// raised, and not from delivery_available_at, which every failed attempt moves
+// forward -- an entry that has been failing for six hours is six hours old,
+// not "due in forty minutes". Both replicas read the same rows, so both export
+// the same gauge.
+func (store *Store) DeliveryBacklog(ctx context.Context, now time.Time) ([]ChannelBacklog, error) {
+	if store == nil || store.database == nil {
+		return nil, errors.New("notification store is closed")
+	}
+	rows, err := store.database.QueryContext(ctx, `
+SELECT
+    channel,
+    count(*) FILTER (WHERE delivered_at IS NULL AND delivery_exhausted = false),
+    count(*) FILTER (WHERE delivery_exhausted = true),
+    COALESCE(EXTRACT(EPOCH FROM ($1::timestamptz - min(occurred_at) FILTER (
+        WHERE delivered_at IS NULL AND delivery_exhausted = false))), 0)::double precision
+FROM conduit_notification_inbox
+WHERE delivery_available_at IS NOT NULL
+GROUP BY channel
+ORDER BY channel`, now.UTC())
+	if err != nil {
+		return nil, fmt.Errorf("read notification delivery backlog: %w", err)
+	}
+	defer rows.Close()
+	backlog := []ChannelBacklog{}
+	for rows.Next() {
+		var (
+			entry   ChannelBacklog
+			seconds float64
+		)
+		if err := rows.Scan(&entry.Channel, &entry.Pending, &entry.Exhausted, &seconds); err != nil {
+			return nil, fmt.Errorf("read notification delivery backlog: %w", err)
+		}
+		if seconds > 0 {
+			entry.OldestPendingAge = time.Duration(seconds * float64(time.Second))
+		}
+		backlog = append(backlog, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read notification delivery backlog: %w", err)
+	}
+	return backlog, nil
+}
+
 func randomToken(prefix string) (string, error) {
 	buffer := make([]byte, 16)
 	if _, err := rand.Read(buffer); err != nil {

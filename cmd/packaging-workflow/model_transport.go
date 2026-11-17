@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/localcmd"
+	"github.com/jonathanagustin/conduit/internal/modelgovernor"
 	"github.com/jonathanagustin/conduit/internal/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelcli"
 	packagingmodelhttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelhttp"
@@ -25,6 +26,37 @@ type modelTransport struct {
 	// name is CONDUIT_MODEL_NAME, the only source of a model CLI's name.
 	name    string
 	timeout time.Duration
+	// governor bounds and retries this process's model calls. See
+	// workerGovernor for what it does not do here.
+	governor *modelgovernor.Governor
+}
+
+// workerGovernor builds the governor of a worker process. A worker has no
+// audit log, no usage store and no operator: it applies the concurrency
+// limits and the retry policy and counts calls in process, and nothing else.
+// Budgets, per-call audit events and transcripts are the Hub's; the settings
+// for them are read and deliberately not applied, so a worker never refuses
+// a call for want of a store it was never given.
+func workerGovernor(getenv func(string) string) (*modelgovernor.Governor, error) {
+	config, err := modelgovernor.FromEnv(getenv)
+	if err != nil {
+		return nil, err
+	}
+	config.DailyTokenBudget, config.DailyCallBudget, config.Transcripts = 0, 0, false
+	return modelgovernor.New(config, modelgovernor.Dependencies{}), nil
+}
+
+func (transport modelTransport) resolver() modelgovernor.Resolver {
+	return func() *modelgovernor.Governor { return transport.governor }
+}
+
+// governedClient is the HTTP client with one capability's calls governed.
+func (transport modelTransport) governedClient(capability modelgovernor.Capability) *modelhttp.Client {
+	return transport.client.With(modelgovernor.HTTPMiddleware(capability, transport.resolver()))
+}
+
+func (transport modelTransport) governedExec(capability modelgovernor.Capability) localcmd.ExecFunc {
+	return modelgovernor.CLIExec(capability, transport.name, transport.resolver())
 }
 
 // refuseBothModelTransports is the Hub's precedence rule, applied by every
@@ -45,8 +77,12 @@ func resolveModelTransport(getenv func(string) string) (modelTransport, error) {
 	if err != nil {
 		return modelTransport{}, err
 	}
+	governor, err := workerGovernor(getenv)
+	if err != nil {
+		return modelTransport{}, err
+	}
 	if client != nil {
-		return modelTransport{client: client}, nil
+		return modelTransport{client: client, governor: governor}, nil
 	}
 	raw := strings.TrimSpace(getenv("CONDUIT_MODEL_CMD"))
 	if raw == "" {
@@ -65,7 +101,7 @@ func resolveModelTransport(getenv func(string) string) (modelTransport, error) {
 		}
 		timeout = parsed
 	}
-	return modelTransport{argv: argv, name: strings.TrimSpace(getenv("CONDUIT_MODEL_NAME")), timeout: timeout}, nil
+	return modelTransport{argv: argv, name: strings.TrimSpace(getenv("CONDUIT_MODEL_NAME")), timeout: timeout, governor: governor}, nil
 }
 
 func (transport modelTransport) configured() bool {
@@ -75,17 +111,23 @@ func (transport modelTransport) configured() bool {
 // planner builds the planning turn runner for this transport.
 func (transport modelTransport) planner(clone planner.CloneFunc) planner.Planner {
 	if transport.client != nil {
-		return planner.Planner{Model: planner.HTTPModel{Client: transport.client}, Clone: clone}
+		return planner.Planner{Model: planner.HTTPModel{Client: transport.governedClient(modelgovernor.CapabilityPlanning)}, Clone: clone}
 	}
-	return planner.Planner{Argv: transport.argv, Timeout: transport.timeout, ModelName: transport.name, Clone: clone}
+	return planner.Planner{
+		Argv: transport.argv, Timeout: transport.timeout, ModelName: transport.name, Clone: clone,
+		Exec: transport.governedExec(modelgovernor.CapabilityPlanning),
+	}
 }
 
 // packageWriter builds the post-Accept package writer for this transport.
 func (transport modelTransport) packageWriter() packagingapp.PackageWriter {
 	if transport.client != nil {
-		return packagingmodelhttp.Adapter{Client: transport.client}
+		return packagingmodelhttp.Adapter{Client: transport.governedClient(modelgovernor.CapabilityPackaging)}
 	}
-	return modelcli.Runner{Argv: transport.argv, Timeout: transport.timeout, ModelName: transport.name}
+	return modelcli.Runner{
+		Argv: transport.argv, Timeout: transport.timeout, ModelName: transport.name,
+		Exec: transport.governedExec(modelgovernor.CapabilityPackaging),
+	}
 }
 
 // warnUnverifiedPreset logs to stderr when the model command selects an

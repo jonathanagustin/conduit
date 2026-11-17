@@ -21,6 +21,13 @@
   ],
   "packageRules": [
     {
+      "description": "Model-eval fixture repositories are test inputs; their pins are part of the recorded prompt digests and are never updated",
+      "matchFileNames": [
+        "docs/evidence/model-evals/fixtures/**"
+      ],
+      "enabled": false
+    },
+    {
       "description": "Keep captured Apollo CLI conformance fixtures immutable",
       "matchFileNames": [
         "docs/reference-platform/cli-fixtures/**"

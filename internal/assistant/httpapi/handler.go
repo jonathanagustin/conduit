@@ -8,7 +8,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jonathanagustin/conduit/internal/assistant/application"
 	"github.com/jonathanagustin/conduit/internal/assistant/domain"
@@ -199,6 +201,8 @@ func turnStatus(code string) int {
 		return http.StatusBadRequest
 	case application.CodeAuditUnavailable, application.CodeThreadsUnavailable:
 		return http.StatusServiceUnavailable
+	case application.CodeModelBusy, application.CodeModelBudgetExceeded:
+		return http.StatusTooManyRequests
 	default:
 		return http.StatusBadGateway
 	}
@@ -215,7 +219,22 @@ func writeTurnError(writer http.ResponseWriter, turn application.Turn, err error
 	if turn.Rounds > 0 {
 		body["turn"] = turn
 	}
+	if turnStatus(code) == http.StatusTooManyRequests {
+		writer.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds(err)))
+	}
 	writeJSON(writer, turnStatus(code), body)
+}
+
+// retryAfterSeconds is the wait a refused model call names, in whole seconds
+// and at least one.
+func retryAfterSeconds(err error) int {
+	var hint interface{ RetryAfterHint() time.Duration }
+	if errors.As(err, &hint) {
+		if seconds := int((hint.RetryAfterHint() + time.Second - 1) / time.Second); seconds > 1 {
+			return seconds
+		}
+	}
+	return 1
 }
 
 func authorized(cfg Config, writer http.ResponseWriter, request *http.Request) bool {
