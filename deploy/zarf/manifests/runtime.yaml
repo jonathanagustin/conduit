@@ -90,6 +90,12 @@ spec:
             # optional Secret mounted below.
             - { name: REPOSITORY_KIND, value: "###ZARF_VAR_REPOSITORY_KIND###" }
             - { name: POSTGRES_DSN_FILE, value: /run/conduit-database/dsn }
+            # Packaging workflow status and governed controls use the same
+            # frontend, namespace and queue as the optional worker. An empty
+            # address (the default) leaves the Hub client disabled.
+            - { name: PACKAGING_TEMPORAL_ADDRESS, value: "###ZARF_VAR_PACKAGING_TEMPORAL_ADDRESS###" }
+            - { name: PACKAGING_TEMPORAL_NAMESPACE, value: "###ZARF_VAR_PACKAGING_TEMPORAL_NAMESPACE###" }
+            - { name: PACKAGING_TEMPORAL_TASK_QUEUE, value: "###ZARF_VAR_PACKAGING_TEMPORAL_TASK_QUEUE###" }
             # Empty by default: no metrics listener. The Hub serves /metrics
             # only when this is set AND the repository is postgres; with the
             # file repository it logs a warning and opens nothing.
