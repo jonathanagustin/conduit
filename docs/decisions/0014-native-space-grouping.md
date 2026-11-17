@@ -182,7 +182,13 @@ preserves the prior unscoped fingerprint. An unavailable or malformed remembered
 selection fails visibly instead of widening to All Spaces. These are extensions
 of `spaces.SelectionPublication`, not private Apollo protocol compatibility.
 
-This slice does not scope Packaging's Connect transport, channel boards,
+The channel-board REST endpoint also accepts explicit `spaceId`, using the same
+validated Environment membership and independent per-row read authority. Invalid
+raw query encoding is refused before selection or publication; malformed explicit
+selection cannot become an unscoped read or metadata write. The console's global
+selector does not yet forward its selection to the channel board.
+
+This slice does not scope Packaging's Connect transport,
 workspaces, upgrades, multi-Environment rollouts or mixed-resource audit. Their
 relationships/transport and, for audit, SQL paging and projection proofs need
 separate changes. Platform governance directories and provider configuration

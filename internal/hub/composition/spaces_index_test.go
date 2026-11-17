@@ -315,12 +315,12 @@ func TestSpaceIndexesPreserveRecordAuthorityAndExactSelection(t *testing.T) {
 }
 func TestSpaceIndexesFailWithoutWideningTheSelection(t *testing.T) {
 	f := newSpaceIndexFixture(t, controlplane.NewMemoryRepository(), spacememory.New())
-	paths := []string{"/v1/environments", "/v1/products", "/v1/plans", "/v1/fleet/installations", "/v1/change-requests", "/v1/promotions", "/v1/bundles"}
+	paths := []string{"/v1/environments", "/v1/products", "/v1/plans", "/v1/fleet/installations", "/v1/change-requests", "/v1/promotions", "/v1/bundles", "/v1/channel-subscriptions"}
 	for _, path := range paths {
 		for _, probe := range []struct {
 			subject, query string
 			status         int
-		}{{"admin", "spaceId=invalid", 400}, {"admin", "spaceId=" + f.first + "&spaceId=" + f.second, 400}, {"admin", "spaceId=space_" + strings.Repeat("f", 32), 404}, {"stranger", "spaceId=" + f.first, 403}} {
+		}{{"admin", "spaceId=%zz", 400}, {"admin", "spaceId=" + f.first + "%zz", 400}, {"admin", "spaceId=" + f.first + ";ignored", 400}, {"admin", "spaceId=" + f.first + "&other=%zz", 400}, {"admin", "other=%zz", 400}, {"admin", "spaceId=invalid", 400}, {"admin", "spaceId=" + f.first + "&spaceId=" + f.second, 400}, {"admin", "spaceId=space_" + strings.Repeat("f", 32), 404}, {"stranger", "spaceId=" + f.first, 403}} {
 			status, _ := spaceIndexBody(t, f.handler, probe.subject, path+"?"+probe.query)
 			if status != probe.status {
 				t.Fatalf("%s %s: %d want %d", path, probe.query, status, probe.status)
@@ -337,5 +337,34 @@ func TestSpaceIndexesFailWithoutWideningTheSelection(t *testing.T) {
 	body := requireSpaceIndex(t, f.handler, "admin", "/v1/plans?spaceId="+empty.ID)
 	if body["total"] != float64(0) {
 		t.Fatalf("empty persisted Space: %#v", body)
+	}
+}
+
+func TestChannelSpaceSelectionPreservesResourceAuthority(t *testing.T) {
+	f := newSpaceIndexFixture(t, controlplane.NewMemoryRepository(), spacememory.New())
+	for _, probe := range []struct {
+		subject, query string
+		environments   []string
+	}{
+		{"admin", "", []string{"a-one", "b-two", "c-three", "d-four"}},
+		{"admin", "?spaceId=" + f.first, []string{"a-one", "c-three"}},
+		{"admin", "?spaceId=" + f.second, []string{"b-two", "d-four"}},
+		{"reader", "?spaceId=" + f.first, []string{"a-one"}},
+	} {
+		body := requireSpaceIndex(t, f.handler, probe.subject, "/v1/channel-subscriptions"+probe.query)
+		rows := body["rows"].([]any)
+		if len(rows) != len(probe.environments) {
+			t.Fatalf("%s %s: %#v", probe.subject, probe.query, rows)
+		}
+		for i, row := range rows {
+			if row.(map[string]any)["environment"] != probe.environments[i] {
+				t.Fatalf("selection widened: %#v", rows)
+			}
+		}
+	}
+	empty := createNativeSpace(t, f.handler, "No channels")
+	body := requireSpaceIndex(t, f.handler, "admin", "/v1/channel-subscriptions?spaceId="+empty.ID)
+	if len(body["rows"].([]any)) != 0 {
+		t.Fatalf("empty Space became global: %#v", body)
 	}
 }

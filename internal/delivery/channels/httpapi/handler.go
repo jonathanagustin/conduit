@@ -19,7 +19,9 @@ type Board interface {
 
 // Config is the route's dependencies.
 type Config struct {
-	Board     Board
+	Board Board
+	// Select narrows grouping after authentication without granting resource authority.
+	Select    func(http.ResponseWriter, *http.Request) (func(string) bool, bool)
 	Authorize func(*http.Request) error
 	Allow     func(*http.Request, string) bool
 }
@@ -33,11 +35,22 @@ func Register(mux *http.ServeMux, cfg Config) {
 				return
 			}
 		}
+		var selected func(string) bool
+		if cfg.Select != nil {
+			var ok bool
+			selected, ok = cfg.Select(w, r)
+			if !ok {
+				return
+			}
+		}
 		if cfg.Board == nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "channel subscriptions are unavailable"})
 			return
 		}
 		view, err := cfg.Board.Board(r.Context(), func(environment string) bool {
+			if selected != nil && !selected(environment) {
+				return false
+			}
 			if cfg.Allow == nil {
 				return true
 			}

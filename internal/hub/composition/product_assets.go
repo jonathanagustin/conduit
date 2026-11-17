@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
@@ -30,8 +31,12 @@ func mountProductAssets(legacy http.Handler, repository controlplane.Repository,
 			}
 			return nil, assethttp.StatusError{Status: http.StatusUnauthorized, Message: "operator identity is required"}
 		}
+		query, err := url.ParseQuery(r.URL.RawQuery)
+		if err != nil {
+			return nil, assethttp.StatusError{Status: http.StatusBadRequest, Message: "invalid query encoding"}
+		}
 		var grouping assetports.Grouping
-		if values, present := r.URL.Query()["spaceId"]; present {
+		if values, present := query["spaceId"]; present {
 			if r.Method != http.MethodPost || len(values) != 1 || !spaces.ValidID(values[0]) {
 				return nil, assethttp.StatusError{Status: http.StatusBadRequest, Message: "spaceId must select one native Space for publication"}
 			}

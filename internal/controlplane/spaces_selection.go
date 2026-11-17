@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"net/http"
+	"net/url"
 	"regexp"
 )
 
@@ -12,7 +13,12 @@ var nativeSpaceSelectionID = regexp.MustCompile(`^space_[a-f0-9]{32}$`)
 // Space selection narrows existing resource authority. The trusted composition
 // callback must establish a readable persisted Space, even for an empty page.
 func selectedSpace(w http.ResponseWriter, r *http.Request, principal Principal, options HandlerOptions) (string, bool) {
-	values, present := r.URL.Query()["spaceId"]
+	query, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid query encoding"})
+		return "", false
+	}
+	values, present := query["spaceId"]
 	if !present {
 		return "", true
 	}
