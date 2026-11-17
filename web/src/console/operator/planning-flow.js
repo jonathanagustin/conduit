@@ -771,12 +771,8 @@ function collectThreadMessages(planning) {
 
 function formatMessageHtml(item) {
   const raw = String(item.content ?? "");
-  if (item.role === "model") {
-    const match = /^(.*?)\s*\{"model":"([^"]+)"\}\s*$/s.exec(raw);
-    if (match) {
-      return `<span>${esc(match[1])}</span><span class="kit-badge kit-badge-muted code-id plan-model-tag">${esc(displayModelName(match[2]))}</span>`;
-    }
-  }
+  // Transcript messages have no per-message model provenance. Identity belongs
+  // to the server-owned accepted binding; answer text cannot supply it.
   return `<span>${esc(raw)}</span>`;
 }
 
