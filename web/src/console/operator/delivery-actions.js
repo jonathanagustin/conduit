@@ -14,21 +14,44 @@ const text = (value) => (typeof value === "string" ? value.trim() : "");
 const list = (value) => (Array.isArray(value) ? value : []);
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
+/** @typedef {{ allowed: boolean | null, reason: string }} CapabilityDecision */
+
+/** @type {null | ((operation: string, resourceRid: string) => CapabilityDecision)} */
+let canPerform = null;
+
+/**
+ * Plugs the session's `capabilities.canPerform` into the delivery journey.
+ * The engine binds it once; null unbinds.
+ * @param {null | ((operation: string, resourceRid: string) => CapabilityDecision)} decide
+ */
+export function bindDeliveryCapabilities(decide) {
+  canPerform = typeof decide === "function" ? decide : null;
+}
+
 /**
  * The one place the session's capabilities plug in. Every delivery write asks
- * here before it offers its button. Until the capability helper exists this
- * allows everything and the Hub alone refuses; replace the body with
- * `canPerform(operation, resourceRid)` and keep the return shape.
+ * here before it offers its button.
+ *
+ * `allowed` is false only when the session answer says the operation is not
+ * held; a control is disabled on false alone and shows `reason`. null means
+ * the session did not say (not bound, not read, or a resource or operation it
+ * does not report): the control stays live and the Hub decides at the write.
  *
  * @param {string} operation a Hub operation, e.g. "change:propose"
  * @param {string} resourceRid a Hub resource id, e.g. "environment/dev-use2"
- * @returns {{ allowed: boolean, reason: string }}
+ * @returns {CapabilityDecision}
  */
 export function deliveryCapabilityHook(operation, resourceRid) {
-  void operation;
-  void resourceRid;
-  return { allowed: true, reason: "" };
+  if (!canPerform || !operation || !resourceRid)
+    return { allowed: null, reason: "" };
+  const decision = canPerform(operation, resourceRid);
+  return decision?.allowed === false
+    ? { allowed: false, reason: String(decision.reason || "") }
+    : { allowed: decision?.allowed === true ? true : null, reason: "" };
 }
+
+/** Whether a gate disables its control: only a stated refusal does. */
+export const capabilityBlocks = (gate) => gate?.allowed === false;
 
 /** What the Hub said, or the status when it said nothing readable. */
 export function hubReason(status, body) {
@@ -557,7 +580,8 @@ export function buildPromotionEvaluation({
           : "none: no loaded installation reports this version",
       ],
     ],
-    capability: { operation: "resource:operate", resourceRid: "platform" },
+    // POST /v1/promotions/evaluations requires resource:operate at the root.
+    capability: { operation: "resource:operate", resourceRid: "platform/root" },
   };
 }
 
