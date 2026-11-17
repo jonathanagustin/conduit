@@ -1,5 +1,6 @@
 // Context chips and tool cards for the workbench assistant rail.
 // Tool results come from the Hub. This file does not invent them.
+import { postTool as postAssistantTool } from "./assistant-api.js";
 import { attachControl, attachmentList } from "./attachments.js";
 
 const MODES = [
@@ -244,11 +245,6 @@ function actionsFor(state, chip) {
       key: keyOf(chip),
       label: "Add eval case",
     });
-    actions.push({
-      kind: "write-memory",
-      key: keyOf(chip),
-      label: "Propose memory",
-    });
   }
   if (
     modeAllows(mode, "review_change_diff") &&
@@ -402,18 +398,13 @@ export async function runAssistantAction(state, kind, chipKey) {
       arguments: { changeRequestId: chip.id },
     });
   }
-  if (kind === "write-case" || kind === "write-memory") {
+  // There is no "propose memory" action here: the Hub has no action rule for
+  // propose_memory and refuses it, so the rail does not offer it.
+  if (kind === "write-case") {
     return postTool(state, {
       mode: "ontology",
       tool: "governed_write",
-      arguments:
-        kind === "write-memory"
-          ? {
-              action: "propose_memory",
-              targetId: chip.id,
-              environment: governedFields(state, chip).environment,
-            }
-          : { action: "add_eval_case", targetId: chip.id },
+      arguments: { action: "add_eval_case", targetId: chip.id },
     });
   }
   const actionId =
@@ -445,24 +436,9 @@ export async function runAssistantAction(state, kind, chipKey) {
   });
 }
 
-async function postTool(state, body) {
-  const response = await fetch("/v1/assistant/tools", {
-    method: "POST",
-    headers: { "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify(body),
-  });
-  const payload = await response.json();
-  if (!response.ok) {
-    return {
-      label: payload.label || "No model call",
-      tool: body.tool,
-      ok: false,
-      error: payload.error || "The tool was refused.",
-      readOps: 0,
-      writeOps: 0,
-    };
-  }
-  return payload;
+// The rail's tool calls leave through the assistant's one Hub client.
+function postTool(_state, body) {
+  return postAssistantTool(body);
 }
 
 export function rememberResult(state, result) {

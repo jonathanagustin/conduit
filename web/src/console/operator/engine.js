@@ -2098,10 +2098,6 @@ export function mountOperator(host, options) {
       rememberResult(state, result);
       renderChatRail();
     });
-    window.addEventListener("conduit-assistant-result", (event) => {
-      rememberResult(state, event.detail || {});
-      renderChatRail();
-    });
   }
 
   function renderS13FleetOverview(root) {

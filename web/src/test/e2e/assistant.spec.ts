@@ -3408,6 +3408,8 @@ test("engineer focus preserves one live conversation, draft and pending request"
     localStorage.setItem("conduit.console.dockWidth", "420"),
   );
   const writes: string[] = [];
+  // The first send opens a Hub thread, then sends the turn into it.
+  const TURN_WRITES = ["/v1/assistant/threads", "/v1/assistant/turns"];
   let calls = 0;
   let release!: () => void;
   const responseReady = new Promise<void>((resolve) => {
@@ -3420,6 +3422,16 @@ test("engineer focus preserves one live conversation, draft and pending request"
   await page.route("**/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (route.request().method() !== "GET") writes.push(path);
+    if (
+      path === "/v1/assistant/threads" &&
+      route.request().method() === "POST"
+    ) {
+      await route.fulfill({
+        status: 201,
+        json: { id: "ath_1", title: "", messageCount: 0, messages: [] },
+      });
+      return;
+    }
     if (path === "/v1/assistant/turns") {
       calls++;
       await responseReady;
@@ -3506,7 +3518,7 @@ test("engineer focus preserves one live conversation, draft and pending request"
   await capabilities.press("Enter");
   await capabilities.press("Enter");
   expect(failed).toBe(0);
-  expect(writes).toEqual(["/v1/assistant/turns"]);
+  expect(writes).toEqual(TURN_WRITES);
   await page
     .getByRole("button", { name: "Return to workbench", exact: true })
     .click();
@@ -3540,7 +3552,7 @@ test("engineer focus preserves one live conversation, draft and pending request"
   await expect(rail.locator('img[src="x"]')).toHaveCount(0);
   expect(calls).toBe(1);
   expect(failed).toBe(0);
-  expect(writes).toEqual(["/v1/assistant/turns"]);
+  expect(writes).toEqual(TURN_WRITES);
   await composer.fill("Keep this draft across Studio navigation");
   await page.setViewportSize({ width: 375, height: 812 });
   const bounds = await rail.boundingBox();
@@ -3603,7 +3615,7 @@ test("engineer focus preserves one live conversation, draft and pending request"
       localStorage.getItem("conduit.console.dockWidth"),
     ),
   ).toBe("420");
-  expect(writes).toEqual(["/v1/assistant/turns"]);
+  expect(writes).toEqual(TURN_WRITES);
   await rail
     .getByRole("button", { name: "Open engineer workspace", exact: true })
     .click();
@@ -3624,7 +3636,7 @@ test("engineer focus preserves one live conversation, draft and pending request"
   await expect(rail.locator("[data-engineer-outline] summary")).toContainText(
     "1 user turn",
   );
-  expect(writes).toEqual(["/v1/assistant/turns"]);
+  expect(writes).toEqual(TURN_WRITES);
 });
 
 test("operator badge shows only a complete native session and clears on refusal", async ({

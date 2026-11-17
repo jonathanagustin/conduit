@@ -11,6 +11,8 @@ import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource/jetbrains-mono/600.css";
 
 import { Thread } from "@/components/assistant-ui/elements/thread.aui";
+import { AssistantThreadBar, AssistantTurnFooter } from "./AssistantThreads";
+import { HubToolCard, OpenToolGroup } from "./context-tools";
 import { EngineerThreadHeader } from "./EngineerThreadHeader";
 import { ConsoleErrorBoundary } from "../embed/ErrorBoundary";
 
@@ -24,6 +26,10 @@ const RAIL_THREAD = {
   Welcome: function RailWelcome() {
     return null;
   },
+  // Every Hub tool call renders through one card, open, with its arguments.
+  ToolFallback: HubToolCard,
+  ToolGroup: OpenToolGroup,
+  AssistantMessageFooter: AssistantTurnFooter,
 };
 
 export function Workbench({ dark }: { dark: boolean }) {
@@ -49,7 +55,10 @@ export function Workbench({ dark }: { dark: boolean }) {
         ? createPortal(
             <ConsoleErrorBoundary region="assistant">
               <div className="flex h-full min-h-0 flex-col">
-                <Thread components={RAIL_THREAD} />
+                <AssistantThreadBar />
+                <div className="min-h-0 flex-1">
+                  <Thread components={RAIL_THREAD} />
+                </div>
               </div>
             </ConsoleErrorBoundary>,
             slot,
