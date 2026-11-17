@@ -4,53 +4,51 @@
 
 :root,
 [data-theme="light"] {
-  color-scheme: light;
-
   /* Conduit core token scale */
-  --cnd-bg-0: #f1f4f8;
-  --cnd-bg-1: #ffffff;
-  --cnd-bg-2: #f6f8fb;
-  --cnd-bg-3: #eaeff5;
+  --cnd-bg-0: var(--bg-0);
+  --cnd-bg-1: var(--bg-1);
+  --cnd-bg-2: var(--bg-2);
+  --cnd-bg-3: var(--bg-3);
 
-  --cnd-border-subtle: #d8e0ea;
-  --cnd-border-control: #768599;
-  --cnd-border-strong: #526277;
+  --cnd-border-subtle: var(--border-subtle);
+  --cnd-border-control: var(--border-control);
+  --cnd-border-strong: var(--border-strong);
 
-  --cnd-text-1: #0f172a;
-  --cnd-text-2: #435266;
-  --cnd-text-3: #8c9ab0;
+  --cnd-text-1: var(--text-1);
+  --cnd-text-2: var(--text-2);
+  --cnd-text-3: var(--text-3);
 
-  --cnd-accent-fill: #1d4ed8;
-  --cnd-accent-hover: #1e40af;
-  --cnd-accent-active: #1e3a8a;
-  --cnd-accent-text: #ffffff;
-  --cnd-accent-focus: #1d4ed8;
-  --cnd-accent-sel-bg: #e8f0fe;
-  --cnd-accent-sel-border: #2563eb;
+  --cnd-accent-fill: var(--accent-fill);
+  --cnd-accent-hover: var(--accent-hover);
+  --cnd-accent-active: var(--accent-active);
+  --cnd-accent-text: var(--accent-text);
+  --cnd-accent-focus: var(--accent-focus);
+  --cnd-accent-sel-bg: var(--accent-sel-bg);
+  --cnd-accent-sel-border: var(--accent-sel-border);
 
-  --cnd-ok-fill: #eafaf2;
-  --cnd-ok-border: #1f8254;
-  --cnd-ok-text: #0c5434;
+  --cnd-ok-fill: var(--ok-fill);
+  --cnd-ok-border: var(--ok-border);
+  --cnd-ok-text: var(--ok-text);
 
-  --cnd-warn-fill: #fef7e6;
-  --cnd-warn-border: #a3680e;
-  --cnd-warn-text: #734406;
+  --cnd-warn-fill: var(--warn-fill);
+  --cnd-warn-border: var(--warn-border);
+  --cnd-warn-text: var(--warn-text);
 
-  --cnd-err-fill: #fef0f1;
-  --cnd-err-border: #c43c45;
-  --cnd-err-text: #8c1921;
+  --cnd-err-fill: var(--err-fill);
+  --cnd-err-border: var(--err-border);
+  --cnd-err-text: var(--err-text);
 
-  --cnd-info-fill: #edf4ff;
-  --cnd-info-border: #2b67bd;
-  --cnd-info-text: #163e7a;
+  --cnd-info-fill: var(--info-fill);
+  --cnd-info-border: var(--info-border);
+  --cnd-info-text: var(--info-text);
 
-  --cnd-ai-fill: #f3f0ff;
-  --cnd-ai-border: #6d52cc;
-  --cnd-ai-text: #452799;
+  --cnd-ai-fill: var(--ai-fill);
+  --cnd-ai-border: var(--ai-border);
+  --cnd-ai-text: var(--ai-text);
 
-  --cnd-neutral-fill: #f1f5f9;
-  --cnd-neutral-border: #64748b;
-  --cnd-neutral-text: #2d3b4e;
+  --cnd-neutral-fill: var(--neutral-fill);
+  --cnd-neutral-border: var(--neutral-border);
+  --cnd-neutral-text: var(--neutral-text);
 
   /* Font stacks */
   --cnd-font-sans:
@@ -72,65 +70,12 @@
   --cnd-step-line-done: var(--cnd-ok-border);
   --cnd-pill-bg: var(--cnd-bg-2);
   --cnd-pill-border: var(--cnd-border-control);
-  --cnd-skeleton-base: rgba(0, 0, 0, 0.06);
-  --cnd-skeleton-highlight: rgba(0, 0, 0, 0.12);
-}
-
-.bp6-dark,
-[data-theme="dark"] {
-  color-scheme: dark;
-
-  --cnd-bg-0: #0b1113;
-  --cnd-bg-1: #10161a;
-  --cnd-bg-2: #141c22;
-  --cnd-bg-3: #19232b;
-
-  --cnd-border-subtle: #1e2830;
-  --cnd-border-control: #5e7185;
-  --cnd-border-strong: #7c90a6;
-
-  --cnd-text-1: #e2e8f0;
-  --cnd-text-2: #9fb0c4;
-  --cnd-text-3: #5e6e82;
-
-  --cnd-accent-fill: #255fb8;
-  --cnd-accent-hover: #2d6fd1;
-  --cnd-accent-active: #1e4e98;
-  --cnd-accent-text: #f8fafc;
-  --cnd-accent-focus: #63a4ff;
-  --cnd-accent-sel-bg: #16263d;
-  --cnd-accent-sel-border: #5392eb;
-
-  --cnd-ok-fill: #10261e;
-  --cnd-ok-border: #3ca374;
-  --cnd-ok-text: #6ee0a8;
-
-  --cnd-warn-fill: #281f11;
-  --cnd-warn-border: #c48a2b;
-  --cnd-warn-text: #f2be68;
-
-  --cnd-err-fill: #2b1619;
-  --cnd-err-border: #d45b64;
-  --cnd-err-text: #f9989f;
-
-  --cnd-info-fill: #132236;
-  --cnd-info-border: #4d8be0;
-  --cnd-info-text: #8cc0ff;
-
-  --cnd-ai-fill: #1d1933;
-  --cnd-ai-border: #8b78e6;
-  --cnd-ai-text: #c4b5fd;
-
-  --cnd-neutral-fill: #18202b;
-  --cnd-neutral-border: #6f829a;
-  --cnd-neutral-text: #b8c6d8;
-
-  --cnd-step-line: var(--cnd-border-subtle);
-  --cnd-step-line-done: var(--cnd-ok-border);
-  --cnd-pill-bg: var(--cnd-bg-2);
-  --cnd-pill-border: var(--cnd-border-control);
-  --cnd-skeleton-base: rgba(255, 255, 255, 0.05);
-  --cnd-skeleton-highlight: rgba(255, 255, 255, 0.12);
+  --cnd-skeleton-base: color-mix(in srgb, var(--shadow-color) 6%, transparent);
+  --cnd-skeleton-highlight: color-mix(
+    in srgb,
+    var(--shadow-color) 12%,
+    transparent
+  );
 }
 
 /* =========================================================================

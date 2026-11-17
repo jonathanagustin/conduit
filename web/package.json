@@ -20,7 +20,7 @@
     "check:deps": "syncpack lint",
     "fix:deps": "syncpack fix",
     "check:events": "node ../tools/liveevents/generate-validator.mjs --check",
-    "check:source": "node scripts/check-unused.mjs && node scripts/console-navigation.mjs --check",
+    "check:source": "node scripts/check-unused.mjs && node scripts/console-navigation.mjs --check && node scripts/check-colors.mjs",
     "docs:navigation": "node scripts/console-navigation.mjs"
   },
   "dependencies": {

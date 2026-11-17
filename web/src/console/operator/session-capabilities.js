@@ -241,7 +241,7 @@ export function grantNoticeMarkup(capabilities, hub, indexes, esc) {
 export function navNoticeMarkup(capabilities, hidden, esc) {
   const status = capabilities?.status || "loading";
   if (status === "loading")
-    return `<div role="status" data-capabilities="loading" class="px-2.5 text-[11px] text-[#8b96a5]">Reading session capabilities…</div>`;
+    return `<div role="status" data-capabilities="loading" class="px-2.5 text-[11px] text-[var(--text-2)]">Reading session capabilities…</div>`;
   if (status === "unavailable")
     return `<div role="alert" data-capabilities="unavailable" class="so-warn-card p-2 text-[11px] space-y-1">
       <div class="font-semibold">Capabilities unavailable</div>
@@ -250,7 +250,7 @@ export function navNoticeMarkup(capabilities, hidden, esc) {
     </div>`;
   const off = hidden.filter((item) => item.state === "disabled");
   if (!off.length) return "";
-  return `<div role="status" data-capabilities="restricted" class="px-2.5 text-[11px] text-[#8b96a5]" title="${esc(off.map((item) => item.label).join(", "))}">${off.length} ${off.length === 1 ? "entry is" : "entries are"} not enabled for this session.</div>`;
+  return `<div role="status" data-capabilities="restricted" class="px-2.5 text-[11px] text-[var(--text-2)]" title="${esc(off.map((item) => item.label).join(", "))}">${off.length} ${off.length === 1 ? "entry is" : "entries are"} not enabled for this session.</div>`;
 }
 
 /** What replaces an area or tab the session may not open. */
@@ -292,9 +292,9 @@ export function capabilityTableMarkup(capabilities, esc) {
     .join("");
   return `<table class="so-table mt-3" data-session-applications="ready">
     <thead><tr><th>Application</th><th>State for this session</th><th>Navigation it enables</th></tr></thead>
-    <tbody>${rows || `<tr><td colspan="3" class="text-[#8b96a5]">The Hub returned no applications for this session.</td></tr>`}</tbody>
+    <tbody>${rows || `<tr><td colspan="3" class="text-[var(--text-2)]">The Hub returned no applications for this session.</td></tr>`}</tbody>
   </table>
-  <div class="text-[11px] text-[#8b96a5] mt-2">Operations at ${esc(PLATFORM_ROOT)}: <span class="code-id">${esc(capabilities.globalOperations.join(", ") || "none")}</span></div>`;
+  <div class="text-[11px] text-[var(--text-2)] mt-2">Operations at ${esc(PLATFORM_ROOT)}: <span class="code-id">${esc(capabilities.globalOperations.join(", ") || "none")}</span></div>`;
 }
 
 async function readSession(path) {
@@ -440,7 +440,7 @@ export function createCapabilities({ state, render, read = readSession }) {
             : `${hidden.length} navigation entries are not enabled for this session.`;
       const next =
         collapsed && html
-          ? `<div role="status" data-capabilities="${esc(status)}" class="text-center text-[#eab854] text-[12px]" title="${esc(title)}">!</div>`
+          ? `<div role="status" data-capabilities="${esc(status)}" class="text-center text-[var(--warn-text)] text-[12px]" title="${esc(title)}">!</div>`
           : html;
       // The rail repaints often; an unchanged notice keeps its Retry button.
       if (notice.dataset.painted === next) return;

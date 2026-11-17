@@ -19,9 +19,9 @@ describe("Conduit brand mark", () => {
       'class="cnd-mark-c1"',
       'class="cnd-mark-c2"',
       'class="cnd-mark-c3"',
-      'stroke="#215db0"',
-      'stroke="#4c90f0"',
-      'stroke="#8abbff"',
+      'stroke="var(--cnd-mark-1)"',
+      'stroke="var(--cnd-mark-2)"',
+      'stroke="var(--cnd-mark-3)"',
     ]) {
       expect(svg).toContain(token);
     }

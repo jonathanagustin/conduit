@@ -68,10 +68,13 @@ function ToolCard({
   children: ReactNode;
 }) {
   return (
-    <div className="space-y-1.5 rounded-[6px] border border-[#1f2a35] bg-[#10161c] p-2.5 text-[11.5px] text-[#dce4ee]">
+    <div
+      data-console-tool-card
+      className="space-y-1.5 rounded-[6px] border border-[var(--border-subtle)] bg-[var(--bg-1)] p-2.5 text-[11.5px] text-[var(--text-1)]"
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium">{title}</span>
-        <span className="rounded border border-[#1f4737] bg-[#10241d] px-1.5 py-0.5 text-[10px] text-[#34d399] tabular-nums">
+        <span className="rounded border border-[var(--ok-border)] bg-[var(--bg-1)] px-1.5 py-0.5 text-[10px] text-[var(--ok-text)] tabular-nums">
           {label || "No model call"}
         </span>
       </div>
@@ -110,7 +113,7 @@ const OntologyQueryTool = makeAssistantToolUI<
             return (
               <span
                 key={String(item["id"])}
-                className="rounded border border-[#28405c] px-1.5 text-[10.5px] text-[#7cb4ff]"
+                className="rounded border border-[var(--border-subtle)] px-1.5 text-[10.5px] text-[var(--info-text)]"
               >
                 {String(item["label"] || item["id"] || "")}
               </span>

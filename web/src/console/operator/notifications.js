@@ -373,7 +373,7 @@ function inboxMarkup(model, newSince) {
     ${
       bound.bounded
         ? `<div role="status" data-inbox-bound class="so-warn-card p-2 text-[12px] flex items-center gap-2 flex-wrap"><span>${esc(bound.text)}</span>${bound.next ? `<button type="button" class="so-btn so-btn-sm" data-ntf-action="widen-inbox" data-key="widen-inbox">Show up to ${bound.next}</button>` : ""}</div>`
-        : `<div class="text-[11px] text-[#8b96a5]" data-inbox-complete>${inbox.entries.length} ${inbox.entries.length === 1 ? "entry" : "entries"}; the Hub returned fewer than its limit, so this is the whole inbox for ${esc(inbox.channel)}.</div>`
+        : `<div class="text-[11px] text-[var(--text-2)]" data-inbox-complete>${inbox.entries.length} ${inbox.entries.length === 1 ? "entry" : "entries"}; the Hub returned fewer than its limit, so this is the whole inbox for ${esc(inbox.channel)}.</div>`
     }
   </div>`;
 }
@@ -388,13 +388,13 @@ function preferenceEditor(model, decision) {
   const boxes = EVENT_TYPES.filter((type) => !unraised.includes(type))
     .map(
       (type) =>
-        `<label class="flex items-start gap-2 text-[12px]"><input type="checkbox" data-ntf-type="${esc(type)}" data-key="type-${esc(type)}" ${draft.types.includes(type) ? "checked" : ""}/><span>${esc(typeLabel(type))} <span class="code-id text-[10.5px] text-[#8b96a5]">${esc(type)}</span></span></label>`,
+        `<label class="flex items-start gap-2 text-[12px]"><input type="checkbox" data-ntf-type="${esc(type)}" data-key="type-${esc(type)}" ${draft.types.includes(type) ? "checked" : ""}/><span>${esc(typeLabel(type))} <span class="code-id text-[10.5px] text-[var(--text-2)]">${esc(type)}</span></span></label>`,
     )
     .join("");
   const silent = unraised
     .map(
       (type) =>
-        `<li class="flex items-start gap-2 text-[12px]" data-type-not-emitted="${esc(type)}"><input type="checkbox" checked disabled aria-label="${esc(typeLabel(type))}, not yet emitted by this Hub"/><span>${esc(typeLabel(type))} <span class="code-id text-[10.5px] text-[#8b96a5]">${esc(type)}</span><br/><span class="text-[#eab854]">Not yet emitted by this Hub. It is stored on your preference, and nothing in this build raises it, so silence on it does not mean nothing happened.</span></span><button type="button" class="so-btn so-btn-sm" data-ntf-remove-type="${esc(type)}" data-key="remove-${esc(type)}">Remove</button></li>`,
+        `<li class="flex items-start gap-2 text-[12px]" data-type-not-emitted="${esc(type)}"><input type="checkbox" checked disabled aria-label="${esc(typeLabel(type))}, not yet emitted by this Hub"/><span>${esc(typeLabel(type))} <span class="code-id text-[10.5px] text-[var(--text-2)]">${esc(type)}</span><br/><span class="text-[var(--warn-text)]">Not yet emitted by this Hub. It is stored on your preference, and nothing in this build raises it, so silence on it does not mean nothing happened.</span></span><button type="button" class="so-btn so-btn-sm" data-ntf-remove-type="${esc(type)}" data-key="remove-${esc(type)}">Remove</button></li>`,
     )
     .join("");
   const diff = preferenceDiff(pref.stored, draft);
@@ -431,18 +431,18 @@ function preferenceEditor(model, decision) {
         ? `Stored preference, revision <span class="code-id" data-preference-revision>${esc(pref.stored.revision)}</span>, owner <span class="code-id">${esc(ownerText(pref.stored.owner))}</span>, last updated <span class="code-id">${esc(when(pref.stored.updatedAt) || "not recorded")}</span>.`
         : `You are not subscribed to <span class="code-id">${esc(pref.resourceRid)}</span> on ${esc(model.inbox.channel)}. Saving creates the preference.`
     }</div>
-    <fieldset class="space-y-1.5"><legend class="text-[11px] uppercase tracking-[0.08em] text-[#8b96a5] mb-1">Event types</legend>${boxes}</fieldset>
-    ${silent ? `<div><div class="text-[11px] uppercase tracking-[0.08em] text-[#8b96a5] mb-1">Stored types nothing raises yet</div><ul class="space-y-1.5">${silent}</ul></div>` : ""}
-    <p class="text-[11px] text-[#8b96a5]">The Hub reports a type as not yet emitted only for types already saved on this preference, so a box above can still name a type nothing raises; the answer appears after a save.</p>
+    <fieldset class="space-y-1.5"><legend class="text-[11px] uppercase tracking-[0.08em] text-[var(--text-2)] mb-1">Event types</legend>${boxes}</fieldset>
+    ${silent ? `<div><div class="text-[11px] uppercase tracking-[0.08em] text-[var(--text-2)] mb-1">Stored types nothing raises yet</div><ul class="space-y-1.5">${silent}</ul></div>` : ""}
+    <p class="text-[11px] text-[var(--text-2)]">The Hub reports a type as not yet emitted only for types already saved on this preference, so a box above can still name a type nothing raises; the answer appears after a save.</p>
     ${carried.length ? `<p class="text-[12px]" data-carried-types>Stored types this console does not know are carried through a save unchanged: <span class="code-id">${esc(carried.join(", "))}</span></p>` : ""}
     <label class="flex items-start gap-2 text-[12px]"><input type="checkbox" data-ntf-future data-key="future" ${draft.allFutureTypes ? "checked" : ""}/><span>All future types. Include types a later Hub adds.</span></label>
     <label class="block text-[12px]">Contact
       <select class="so-select ml-2" data-ntf-contact data-key="pref-contact">${contactOptions}</select>
-      ${model.contacts.status === "ready" ? "" : `<span class="text-[11px] text-[#8b96a5] ml-2">Your contacts ${model.contacts.status === "loading" ? "are loading" : "could not be read"}.</span>`}
+      ${model.contacts.status === "ready" ? "" : `<span class="text-[11px] text-[var(--text-2)] ml-2">Your contacts ${model.contacts.status === "loading" ? "are loading" : "could not be read"}.</span>`}
     </label>
     <div class="flex items-center gap-2 flex-wrap">
       <button type="button" class="so-btn so-btn-primary" data-ntf-action="save-preference" data-key="save-preference" ${reason || pref.saving ? "disabled" : ""} ${reason ? `title="${esc(reason)}"` : ""}>${pref.saving ? "Saving…" : "Save preference"}</button>
-      <span class="text-[12px] ${decision.allowed === false || problem ? "text-[#eab854]" : "text-[#8b96a5]"}" data-save-reason>${esc(reason || `Unsaved: ${changes.join(", ") || "new preference"}`)}</span>
+      <span class="text-[12px] ${decision.allowed === false || problem ? "text-[var(--warn-text)]" : "text-[var(--text-2)]"}" data-save-reason>${esc(reason || `Unsaved: ${changes.join(", ") || "new preference"}`)}</span>
     </div>
     ${pref.error ? `<div role="alert" data-preference-error class="so-warn-card p-2 text-[12px]">${esc(pref.error)}</div>` : ""}
     ${pref.saved ? `<div role="status" data-preference-saved class="text-[12px]">${esc(pref.saved)}</div>` : ""}
@@ -456,7 +456,7 @@ function preferencesMarkup(model, decision) {
       <input class="so-input w-full mt-1" data-ntf-input="pref-rid" data-key="pref-rid" value="${esc(pref.ridDraft)}" placeholder="for example product/payments" autocomplete="off"/>
     </label>
     <button type="submit" class="so-btn" data-key="load-preference">Load preference</button>
-    <p class="basis-full text-[11px] text-[#8b96a5]">A preference is about one resource on one channel (${esc(model.inbox.channel)}). Reading or saving it needs resource:read on that resource.</p>
+    <p class="basis-full text-[11px] text-[var(--text-2)]">A preference is about one resource on one channel (${esc(model.inbox.channel)}). Reading or saving it needs resource:read on that resource.</p>
   </form>`;
   let body = "";
   if (pref.status === "idle")
@@ -523,7 +523,7 @@ function contactsMarkup(model) {
           <td class="code-id">${esc(contact.kind)}</td>
           <td class="break-all">${esc(contact.address)}</td>
           <td>${contact.optIntoFutureResources ? "Opted in" : "No"}</td>
-          <td>${contact.deliverable === false ? `<span class="kit-badge kit-badge-warn">Stored, never delivered</span><div class="text-[11px] text-[#8b96a5]">This Hub has no transport for ${esc(contact.kind)}.</div>` : contact.deliverable === true ? `<span class="kit-badge kit-badge-ok">Deliverable</span>` : "Not reported"}</td>
+          <td>${contact.deliverable === false ? `<span class="kit-badge kit-badge-warn">Stored, never delivered</span><div class="text-[11px] text-[var(--text-2)]">This Hub has no transport for ${esc(contact.kind)}.</div>` : contact.deliverable === true ? `<span class="kit-badge kit-badge-ok">Deliverable</span>` : "Not reported"}</td>
           <td class="code-id text-[11px]">${esc(when(contact.updatedAt) || when(contact.createdAt))}</td>
           <td>${
             contacts.confirmDelete === contact.kind
@@ -536,7 +536,7 @@ function contactsMarkup(model) {
   const replaces = contacts.rows.some((contact) => contact.kind === draft.kind);
   return `${list}
   <form class="so-panel p-3 space-y-2" data-ntf-form="save-contact">
-    <div class="text-[11px] uppercase tracking-[0.08em] text-[#8b96a5]">Add or replace a contact</div>
+    <div class="text-[11px] uppercase tracking-[0.08em] text-[var(--text-2)]">Add or replace a contact</div>
     <div class="flex items-end gap-2 flex-wrap">
       <label class="text-[12px]">Kind
         <select class="so-select block mt-1" data-ntf-contact-kind data-key="contact-kind">${CONTACT_KINDS.map((kind) => `<option value="${kind}" ${kind === draft.kind ? "selected" : ""}>${kind}</option>`).join("")}</select>
@@ -547,7 +547,7 @@ function contactsMarkup(model) {
       <button type="submit" class="so-btn so-btn-primary" data-key="save-contact" data-save-contact ${problem || contacts.saving ? "disabled" : ""}>${contacts.saving ? "Saving…" : replaces ? "Replace contact" : "Save contact"}</button>
     </div>
     <label class="flex items-start gap-2 text-[12px]"><input type="checkbox" data-ntf-contact-future data-key="contact-future" ${draft.optIntoFutureResources ? "checked" : ""}/><span>Use this contact for resources added later.</span></label>
-    <p class="text-[11px] text-[#8b96a5]">The Hub keeps one contact per kind for you; saving a kind you already hold replaces its address. A contact belongs to you rather than to a resource, so no resource grant applies: the Hub accepts a write only from its owner.</p>
+    <p class="text-[11px] text-[var(--text-2)]">The Hub keeps one contact per kind for you; saving a kind you already hold replaces its address. A contact belongs to you rather than to a resource, so no resource grant applies: the Hub accepts a write only from its owner.</p>
     ${contacts.writeError ? `<div role="alert" data-contact-error class="so-warn-card p-2 text-[12px]">${esc(contacts.writeError)}</div>` : ""}
     ${contacts.saved ? `<div role="status" data-contact-saved class="text-[12px]">${esc(contacts.saved)}</div>` : ""}
   </form>`;
@@ -583,7 +583,7 @@ export function notificationsMarkup(model, { decision, newSince = "" } = {}) {
           ? ""
           : `<label>Channel <select class="so-select ml-1" data-ntf-channel data-key="channel">${CHANNELS.map((channel) => `<option value="${channel}" ${channel === model.inbox.channel ? "selected" : ""}>${channel}</option>`).join("")}</select></label>`
       }
-      <span class="text-[#8b96a5]">Owner the Hub resolved: <span class="code-id" data-ntf-owner>${esc(ownerText(owner))}</span></span>
+      <span class="text-[var(--text-2)]">Owner the Hub resolved: <span class="code-id" data-ntf-owner>${esc(ownerText(owner))}</span></span>
     </div>
     ${body}
   </div>`;

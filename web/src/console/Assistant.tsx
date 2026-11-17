@@ -14,8 +14,8 @@ export const Assistant = () => {
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <ContextToolUIs />
-      <div className="dark bp6-dark h-dvh w-full">
-        <Workbench dark />
+      <div className="h-dvh w-full">
+        <Workbench />
       </div>
     </AssistantRuntimeProvider>
   );

@@ -92,12 +92,12 @@ export function spaceSelectorMarkup(hubState, selectedId) {
         `<option value="${esc(space.id)}"${space.id === active ? " selected" : ""}>${esc(space.name || space.id)}</option>`,
     )
     .join("");
-  return `<label class="hidden md:inline-flex items-center gap-1 text-[10.5px] text-[#8b96a5]" title="${esc(title)}">
+  return `<label class="hidden md:inline-flex items-center gap-1 text-[10.5px] text-[var(--text-2)]" title="${esc(title)}">
     <span>Space</span>
     <select id="space-selector" class="so-input !h-[26px] text-[11px] max-w-[160px]" aria-label="Space"${spaces.length ? "" : " disabled"}>
       <option value=""${active ? "" : " selected"}>${hubState?.spaceNote ? "Unavailable" : "All Spaces"}</option>${rows}
     </select>
-    ${active ? `<span class="code-id text-[9.5px] text-[#eab854]" data-space-scope>PARTLY SCOPED</span>` : ""}
+    ${active ? `<span class="code-id text-[9.5px] text-[var(--warn-text)]" data-space-scope>PARTLY SCOPED</span>` : ""}
   </label>`;
 }
 

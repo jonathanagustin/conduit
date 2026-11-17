@@ -35,8 +35,10 @@ partially mounted console. In development, `/console/dev/components` imports
 
 ## Component boundary
 
-The existing operator workbench is the composition owner. New navigation and
-feature integration belong in its area table and renderers rather than a new
+The chosen component system is the native operator workbench and its semantic
+token sheet, `src/console/operator/tokens.css`. It is the presentation contract
+for the shell, operator views, assistant and tool cards. The existing operator
+workbench is the composition owner. New navigation and feature integration belong in its area table and renderers rather than a new
 application shell. Shared operator markup and tokens live under
 `src/console/operator/`; use the established primitives there for operator views.
 
@@ -49,10 +51,13 @@ package (`web/package.json` is private and exports no module API).
 
 The unmounted assistant registry catalog and Next starter have been removed.
 `src/console/Assistant.tsx` and `src/styles/assistant.css` are the active runtime
-and styles moved out of the old Next directory. This cleanup does not complete
-#825's single-component-system migration or token-only light-theme acceptance.
-Those require reconciling the mounted assistant cards and packaging route with
-the operator primitives and validating their light-mode presentation.
+and styles moved out of the old Next directory. The retained React libraries
+are adapters to the native component system; they
+do not own independent color ramps or choose a theme. Assistant-ui variable
+names, Blueprint semantic variables and the legacy `--cnd-*` variables all map
+to the native tokens. New shared surfaces use the native component contract
+rather than another library catalog. This keeps the mounted, independently
+tested behavior while removing the duplicate design systems.
 
 ## State and transport
 
@@ -65,7 +70,8 @@ Area and screen selection use the hash. The source table is
 `operator/navigation.js`, imported by the engine and by the
 [navigation documentation generator](../../web/scripts/console-navigation.mjs).
 The generated [area/tab inventory](console-navigation.md) is checked by
-`pnpm --dir web check:source`.
+`pnpm --dir web check:source`. That command also rejects authored literal
+presentation colors outside the native token sheet.
 
 The assistant runtime sends turns through `POST /v1/assistant/turns` on the Hub.
 Workspace ACP traffic uses the Hub-mediated workspace routes; the browser has
@@ -100,5 +106,13 @@ bridge fixtures and complete generated protocol sources were retained.
 
 The cleanup passed the 692-test unit suite, all 51 Chromium browser cases,
 TypeScript, `pnpm check` (0 errors, 193 warnings), and the console boundary,
-contract, token and CSS-variable gates. These are local fixture checks. They do
-not establish the remaining light-theme or component-unification acceptance.
+contract, token and CSS-variable gates. These are local fixture checks.
+
+The native-token integration (2026-11-17) passes all 52 Chromium cases and
+exercises both themes in the real
+Chromium workbench, assistant conversation and native/Blueprint tool cards.
+The browser test asserts computed foreground and surface colors, uses the
+actual theme toggle and persisted preference, and captures both states. The
+light-mode pass visits every area entry and checks the visible native and
+Blueprint tool-card colors, including the warning tag. The narrower 1440px
+header overflow found during visual review is tracked separately in #827.

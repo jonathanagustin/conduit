@@ -134,13 +134,13 @@ function workspaceGuidance(mode) {
   const toolRows = tools
     .map(
       ([, label, description]) =>
-        `<li><span class="font-medium text-[#dce4ee]">${esc(label)}</span><p>${esc(description)}</p></li>`,
+        `<li><span class="font-medium text-[var(--text-1)]">${esc(label)}</span><p>${esc(description)}</p></li>`,
     )
     .join("");
-  return `<section data-engineer-guidance aria-label="Workspace guidance" class="shrink-0 max-h-[180px] overflow-y-auto text-[10.5px] text-[#8b96a5]">
-    <details class="kit-card"><summary class="cursor-pointer py-1 text-[#dce4ee]">Capabilities</summary><p>Tools shown in this mode. Each request uses your Hub permissions.</p>${toolRows ? `<ul class="space-y-2 mt-2">${toolRows}</ul>` : "<p>No tools are listed for this mode.</p>"}</details>
-    <details class="kit-card"><summary class="cursor-pointer py-1 text-[#dce4ee]">Skills</summary><p>No skills inventory is available for this workspace.</p></details>
-    <details class="kit-card"><summary class="cursor-pointer py-1 text-[#dce4ee]">Docs</summary><ul class="space-y-1"><li><a class="underline" href="https://github.com/jonathanagustin/conduit/blob/main/docs/architecture/engineer-conversation-focus.md" target="_blank" rel="noopener noreferrer">Engineer conversation guide</a></li><li><a class="underline" href="https://github.com/jonathanagustin/conduit/blob/main/docs/architecture/workspace-studio-scope.md" target="_blank" rel="noopener noreferrer">Workspace Studio scope</a></li><li><a class="underline" href="https://github.com/jonathanagustin/conduit/blob/main/docs/architecture/identity-and-governance.md" target="_blank" rel="noopener noreferrer">Identity and governed actions</a></li></ul></details>
+  return `<section data-engineer-guidance aria-label="Workspace guidance" class="shrink-0 max-h-[180px] overflow-y-auto text-[10.5px] text-[var(--text-2)]">
+    <details class="kit-card"><summary class="cursor-pointer py-1 text-[var(--text-1)]">Capabilities</summary><p>Tools shown in this mode. Each request uses your Hub permissions.</p>${toolRows ? `<ul class="space-y-2 mt-2">${toolRows}</ul>` : "<p>No tools are listed for this mode.</p>"}</details>
+    <details class="kit-card"><summary class="cursor-pointer py-1 text-[var(--text-1)]">Skills</summary><p>No skills inventory is available for this workspace.</p></details>
+    <details class="kit-card"><summary class="cursor-pointer py-1 text-[var(--text-1)]">Docs</summary><ul class="space-y-1"><li><a class="underline" href="https://github.com/jonathanagustin/conduit/blob/main/docs/architecture/engineer-conversation-focus.md" target="_blank" rel="noopener noreferrer">Engineer conversation guide</a></li><li><a class="underline" href="https://github.com/jonathanagustin/conduit/blob/main/docs/architecture/workspace-studio-scope.md" target="_blank" rel="noopener noreferrer">Workspace Studio scope</a></li><li><a class="underline" href="https://github.com/jonathanagustin/conduit/blob/main/docs/architecture/identity-and-governance.md" target="_blank" rel="noopener noreferrer">Identity and governed actions</a></li></ul></details>
   </section>`;
 }
 
@@ -172,38 +172,38 @@ export function assistantChrome(state) {
             `<button type="button" data-remove-chip="${esc(keyOf(chip))}" class="kit-chip" title="Remove ${esc(chip.objectType)} ${esc(chip.id)}">${esc(chip.objectType)} · ${esc(chip.label || chip.id)} ×</button>`,
         )
         .join("")
-    : `<span class="text-[10.5px] text-[#6d7885]">No object on this screen.</span>`;
+    : `<span class="text-[10.5px] text-[var(--text-2)]">No object on this screen.</span>`;
   const modes = MODES.map((item) => {
     const on = item.id === mode;
-    return `<button type="button" data-set-mode="${item.id}" class="h-[23px] px-2 rounded text-[10.5px] border ${on ? "bg-[#162536] border-[#355982] text-[#dce8f6]" : "bg-[#12181e] border-[#222c36] text-[#8b96a5]"}">${esc(item.label)}</button>`;
+    return `<button type="button" data-set-mode="${item.id}" class="h-[23px] px-2 rounded text-[10.5px] border ${on ? "bg-[var(--bg-2)] border-[var(--border-subtle)] text-[var(--text-1)]" : "bg-[var(--bg-1)] border-[var(--border-subtle)] text-[var(--text-2)]"}">${esc(item.label)}</button>`;
   }).join("");
   const actions = chips
     .flatMap((chip) => actionsFor(state, chip))
     .map(
       (action) =>
-        `<button type="button" data-assistant-action="${esc(action.kind)}" data-chip-key="${esc(action.key)}" class="h-[23px] px-2 rounded bg-[#12181e] border border-[#222c36] text-[10.5px] text-[#dce4ee] hover:text-white">${esc(action.label)}</button>`,
+        `<button type="button" data-assistant-action="${esc(action.kind)}" data-chip-key="${esc(action.key)}" class="h-[23px] px-2 rounded bg-[var(--bg-1)] border border-[var(--border-subtle)] text-[10.5px] text-[var(--text-1)] hover:text-[var(--text-1)]">${esc(action.label)}</button>`,
     )
     .join("");
   return `
-    <header class="h-[38px] -mx-2.5 -mt-2.5 px-3 border-b border-[#1c242c] bg-[#0d1317] flex items-center justify-between gap-2 shrink-0">
+    <header class="h-[38px] -mx-2.5 -mt-2.5 px-3 border-b border-[var(--border-subtle)] bg-[var(--bg-1)] flex items-center justify-between gap-2 shrink-0">
       <div class="flex items-center gap-2 min-w-0">
-        <span class="w-2 h-2 rounded-full bg-[#34d399]"></span>
-        <span class="text-[12.5px] font-semibold text-white truncate">${state.engineerFocus ? "Engineer workspace" : "Assistant"}</span>
+        <span class="w-2 h-2 rounded-full bg-[var(--ok-border)]"></span>
+        <span class="text-[12.5px] font-semibold text-[var(--text-1)] truncate">${state.engineerFocus ? "Engineer workspace" : "Assistant"}</span>
         <span class="kit-badge kit-badge-muted">${mode === "explore" ? "Read only" : "Governed"}</span>
       </div>
       <div class="flex items-center gap-1">
         <button type="button" data-engineer-focus-toggle data-onclick="toggleEngineerWorkspace()" class="kit-btn kit-btn-sm" aria-pressed="${Boolean(state.engineerFocus)}" aria-label="${state.engineerFocus ? "Return to workbench" : "Open engineer workspace"}">${state.engineerFocus ? "Return" : "Focus"}</button>
-        <button type="button" data-onclick="toggleChatRail()" class="h-[23px] px-1.5 rounded bg-[#12181e] border border-[#222c36] text-[#8b96a5]" aria-label="Close assistant panel">×</button>
+        <button type="button" data-onclick="toggleChatRail()" class="h-[23px] px-1.5 rounded bg-[var(--bg-1)] border border-[var(--border-subtle)] text-[var(--text-2)]" aria-label="Close assistant panel">×</button>
       </div>
     </header>
     ${state.engineerFocus ? '<nav class="flex flex-wrap gap-1" aria-label="Workspace studio"><button type="button" class="kit-btn" data-onclick="switchScreen(\'s09-source\')">Source</button><button type="button" class="kit-btn" data-onclick="switchScreen(\'s10-diff\')">Diff</button><button type="button" class="kit-btn" data-onclick="switchScreen(\'s11-preview\')">Preview</button></nav>' : ""}
     <div class="shrink-0 space-y-2">
-      <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7c8794]">Mode · ${esc(state.screen || "")}</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-2)]">Mode · ${esc(state.screen || "")}</div>
       <div class="flex flex-wrap gap-1" data-assistant-modes>${modes}</div>
-      <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7c8794]">Context</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-2)]">Context</div>
       <div class="flex flex-wrap gap-1" data-assistant-chips>${chipHtml}</div>
       <div class="flex flex-wrap gap-1" data-assistant-actions>${actions}</div>
-      <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7c8794]">Attachments (${(state.attachments?.items || []).length}) · read only</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-2)]">Attachments (${(state.attachments?.items || []).length}) · read only</div>
       <div class="max-h-[120px] overflow-y-auto">${attachmentList(state.attachments?.items)}</div>
       ${attachControl(state.attachments?.reason, "assistant")}
     </div>
@@ -262,33 +262,33 @@ function actionsFor(state, chip) {
 export function resultCard(result) {
   const label = result.label || "No model call";
   const tone = result.allowed
-    ? "text-[#34d399]"
+    ? "text-[var(--ok-text)]"
     : result.ok === false || result.allowed === false
-      ? "text-[#f5a3a6]"
-      : "text-[#dce4ee]";
+      ? "text-[var(--err-text)]"
+      : "text-[var(--text-1)]";
   const entities = (result.entities || [])
     .map(
       (entity) =>
-        `<button type="button" data-open-screen="${esc(routeFor(entity.objectType))}" class="px-1.5 py-0.5 rounded bg-[#14202e] border border-[#28405c] text-[10.5px] text-[#7cb4ff]">${esc(entity.label || entity.id)} · ${esc(entity.status || entity.objectType)}</button>`,
+        `<button type="button" data-open-screen="${esc(routeFor(entity.objectType))}" class="px-1.5 py-0.5 rounded bg-[var(--bg-2)] border border-[var(--border-subtle)] text-[10.5px] text-[var(--info-text)]">${esc(entity.label || entity.id)} · ${esc(entity.status || entity.objectType)}</button>`,
     )
     .join("");
   const constraints = (result.constraints || [])
     .map(
       (row) =>
-        `<div class="${row.status === "ALLOW" ? "text-[#34d399]" : "text-[#f5a3a6]"}">${esc(row.status)} ${esc(row.id)} — ${esc(row.reason)}</div>`,
+        `<div class="${row.status === "ALLOW" ? "text-[var(--ok-text)]" : "text-[var(--err-text)]"}">${esc(row.status)} ${esc(row.id)} — ${esc(row.reason)}</div>`,
     )
     .join("");
   const hunks = (result.hunks || [])
     .map(
       (hunk) =>
-        `<div class="font-mono text-[10.5px]"><div class="text-[#f5a3a6]">- ${esc(hunk.path)}: ${esc(hunk.before)}</div><div class="text-[#34d399]">+ ${esc(hunk.path)}: ${esc(hunk.after)}</div></div>`,
+        `<div class="font-mono text-[10.5px]"><div class="text-[var(--err-text)]">- ${esc(hunk.path)}: ${esc(hunk.before)}</div><div class="text-[var(--ok-text)]">+ ${esc(hunk.path)}: ${esc(hunk.after)}</div></div>`,
     )
     .join("");
   const ops = `R:${esc(result.readOps ?? 0)} W:${esc(result.writeOps ?? 0)}`;
   const opsTone =
     Number(result.writeOps) > 0
-      ? "bg-[#2a2012] border-[#4f391b] text-[#eab854]"
-      : "bg-[#10241d] border-[#1f4737] text-[#34d399]";
+      ? "bg-[var(--bg-2)] border-[var(--warn-border)] text-[var(--warn-text)]"
+      : "bg-[var(--bg-1)] border-[var(--ok-border)] text-[var(--ok-text)]";
   const bar = result.applied
     ? "kit-bar-ok"
     : result.needsConfirm
@@ -300,21 +300,21 @@ export function resultCard(result) {
           : "kit-bar-info";
   return `<article data-result-index="${esc(result.index ?? "")}" class="kit-card ${bar} kit-tool">
     <div class="flex items-center justify-between gap-2">
-      <span class="font-medium text-[#dce4ee]">${esc(result.tool || "tool")}</span>
+      <span class="font-medium text-[var(--text-1)]">${esc(result.tool || "tool")}</span>
       <span class="text-[10px] px-1.5 py-0.5 rounded border tabular-nums ${opsTone}">${ops}</span>
     </div>
-    <div class="text-[10px] text-[#8b96a5]">${esc(label)}</div>
-    ${result.error ? `<div class="text-[#f5a3a6]">${esc(result.error)}</div>` : ""}
+    <div class="text-[10px] text-[var(--text-2)]">${esc(label)}</div>
+    ${result.error ? `<div class="text-[var(--err-text)]">${esc(result.error)}</div>` : ""}
     ${result.reason ? `<div class="${tone}">${esc(result.reason)}</div>` : ""}
     ${constraints}
-    ${result.matchedCount != null && result.tool === "query_ontology_objects" ? `<div class="text-[#8b96a5]">${esc(result.matchedCount)} matched · ${esc(result.durationMs || 0)} ms</div>` : ""}
+    ${result.matchedCount != null && result.tool === "query_ontology_objects" ? `<div class="text-[var(--text-2)]">${esc(result.matchedCount)} matched · ${esc(result.durationMs || 0)} ms</div>` : ""}
     ${entities ? `<div class="flex flex-wrap gap-1">${entities}</div>` : ""}
-    ${result.changeRequestId ? `<div class="text-[#8b96a5]">Change request <span class="code-id text-white">${esc(result.changeRequestId)}</span> ${esc(result.changeRequestStatus || "")}</div>` : ""}
-    ${result.decisionAuditEventId ? `<div class="text-[#8b96a5]">Rule audit <span class="code-id text-white">${esc(result.decisionAuditEventId)}</span></div>` : ""}
-    ${result.auditEventId ? `<div class="text-[#8b96a5]">Tool audit <span class="code-id text-white">${esc(result.auditEventId)}</span></div>` : ""}
-    ${hunks || (result.tool === "review_change_diff" ? `<div class="text-[#8b96a5]">${result.hunks?.length ? "" : "This change request has no stored field diff."}</div>` : "")}
-    ${result.title ? `<div class="text-[#dce4ee]">${esc(result.title)}</div>` : ""}
-    ${result.objectId ? `<div class="text-[#8b96a5]">Object <a class="code-id text-white underline" href="${result.changeRequestId ? "#area-changes" : "#area-intelligence"}">${esc(result.objectId)}</a> · ${esc(result.state || "")}</div>` : ""}
+    ${result.changeRequestId ? `<div class="text-[var(--text-2)]">Change request <span class="code-id text-[var(--text-1)]">${esc(result.changeRequestId)}</span> ${esc(result.changeRequestStatus || "")}</div>` : ""}
+    ${result.decisionAuditEventId ? `<div class="text-[var(--text-2)]">Rule audit <span class="code-id text-[var(--text-1)]">${esc(result.decisionAuditEventId)}</span></div>` : ""}
+    ${result.auditEventId ? `<div class="text-[var(--text-2)]">Tool audit <span class="code-id text-[var(--text-1)]">${esc(result.auditEventId)}</span></div>` : ""}
+    ${hunks || (result.tool === "review_change_diff" ? `<div class="text-[var(--text-2)]">${result.hunks?.length ? "" : "This change request has no stored field diff."}</div>` : "")}
+    ${result.title ? `<div class="text-[var(--text-1)]">${esc(result.title)}</div>` : ""}
+    ${result.objectId ? `<div class="text-[var(--text-2)]">Object <a class="code-id text-[var(--text-1)] underline" href="${result.changeRequestId ? "#area-changes" : "#area-intelligence"}">${esc(result.objectId)}</a> · ${esc(result.state || "")}</div>` : ""}
     ${formFor(result)}
   </article>`;
 }
