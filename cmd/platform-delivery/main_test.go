@@ -498,11 +498,11 @@ func TestMetricsListenerIsOffUnlessAnAddressIsSet(t *testing.T) {
 	reader := func(context.Context) (metricsapplication.ReconciliationStats, error) {
 		return metricsapplication.ReconciliationStats{}, nil
 	}
-	if stop := startMetricsListener(t.Context(), "", reader); stop != nil {
+	if stop := startMetricsListener(t.Context(), "", reader, nil); stop != nil {
 		stop()
 		t.Error("an empty METRICS_ADDRESS started a listener")
 	}
-	if stop := startMetricsListener(t.Context(), "   ", reader); stop != nil {
+	if stop := startMetricsListener(t.Context(), "   ", reader, nil); stop != nil {
 		stop()
 		t.Error("a blank METRICS_ADDRESS started a listener")
 	}
@@ -512,7 +512,7 @@ func TestMetricsListenerIsOffUnlessAnAddressIsSet(t *testing.T) {
 // zeroes for it would tell a scraper the fleet is idle, which is a worse answer
 // than no answer.
 func TestMetricsListenerDeclinesWithoutQueueStatistics(t *testing.T) {
-	if stop := startMetricsListener(t.Context(), "127.0.0.1:0", nil); stop != nil {
+	if stop := startMetricsListener(t.Context(), "127.0.0.1:0", nil, nil); stop != nil {
 		stop()
 		t.Error("a listener started with no stats reader; it would have exported nothing but zeroes")
 	}
@@ -532,7 +532,7 @@ func TestMetricsListenerServesWhenConfigured(t *testing.T) {
 
 	stop := startMetricsListener(t.Context(), address, func(context.Context) (metricsapplication.ReconciliationStats, error) {
 		return metricsapplication.ReconciliationStats{WorkPending: 4, OldestPendingAge: 42 * time.Second}, nil
-	})
+	}, nil)
 	if stop == nil {
 		t.Fatal("no listener started")
 	}

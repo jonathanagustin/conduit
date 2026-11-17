@@ -235,27 +235,40 @@ func main() {
 		os.Exit(1)
 	}
 	defer closeLiveEventJournal()
+	// A limiter always runs. A misconfigured limit is a startup failure for
+	// the same reason a misconfigured identity is: a Hub that came up with no
+	// bound, or with one that refuses its own Agents, is found out in an
+	// incident rather than at deploy time. See docs/operations/hub-rate-limiting.md.
+	requestLimiter, err := loadRequestLimiter(os.Getenv)
+	if err != nil {
+		slog.Error("configure request rate limits", "error", err)
+		os.Exit(1)
+	}
+	handlerOptions := controlplane.HandlerOptions{
+		ConsoleHandler:                       consoleui.Handler(consoleBootstrap),
+		AllowInsecureAgentIdentityHeaders:    allowInsecureAgentIdentity,
+		AllowInsecureOperatorIdentityHeaders: allowInsecureOperatorIdentity,
+		OperatorIdentityResolver:             operatorIdentityResolver,
+		BootstrapAdministrators:              bootstrapAdministrators,
+		BundlePrivateKey:                     bundlePrivateKey,
+		TrustedBundleKeys:                    trustedBundleKeys,
+		OperatorSignIn:                       operatorSignIn,
+		ArtifactScanner:                      artifactScanner,
+		RecallOpenings:                       recallOpenings,
+		EntityConfigurationAdapters: map[string]controlplane.EntityConfigurationAdapter{
+			foundryinterop.AdapterID: foundryinterop.AdaptEntityConfiguration,
+		},
+		ExportSchedulerContext: ctx,
+		ExportSchedulerErrorHandler: func(err error) {
+			slog.Error("run scheduled Export Pipeline", "error", err)
+		},
+	}
 	server := &http.Server{
 		Addr: address,
-		Handler: composition.NewHubHandler(repository, controlplane.HandlerOptions{
-			ConsoleHandler:                       consoleui.Handler(consoleBootstrap),
-			AllowInsecureAgentIdentityHeaders:    allowInsecureAgentIdentity,
-			AllowInsecureOperatorIdentityHeaders: allowInsecureOperatorIdentity,
-			OperatorIdentityResolver:             operatorIdentityResolver,
-			BootstrapAdministrators:              bootstrapAdministrators,
-			BundlePrivateKey:                     bundlePrivateKey,
-			TrustedBundleKeys:                    trustedBundleKeys,
-			OperatorSignIn:                       operatorSignIn,
-			ArtifactScanner:                      artifactScanner,
-			RecallOpenings:                       recallOpenings,
-			EntityConfigurationAdapters: map[string]controlplane.EntityConfigurationAdapter{
-				foundryinterop.AdapterID: foundryinterop.AdaptEntityConfiguration,
-			},
-			ExportSchedulerContext: ctx,
-			ExportSchedulerErrorHandler: func(err error) {
-				slog.Error("run scheduled Export Pipeline", "error", err)
-			},
-		}, composition.Options{
+		// The limiter is the outermost handler: it resolves who is asking the
+		// way the routes beneath it do, then spends from that caller's bucket
+		// before any of them runs.
+		Handler: composition.RateLimit(composition.NewHubHandler(repository, handlerOptions, composition.Options{
 			LiveEventJournal:     liveEventJournal,
 			LiveEventContext:     ctx,
 			AdminStorage:         adminStorageForRepository(repository, os.Getenv),
@@ -267,7 +280,7 @@ func main() {
 			NotificationContacts: notifications.Contacts,
 			PackagingStatus:      packagingReader,
 			PackagingControls:    packagingReader,
-		}),
+		}), handlerOptions, requestLimiter),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      httpWriteTimeout(),
@@ -335,7 +348,7 @@ func main() {
 	// turn an authenticated surface into a partly public one. An empty
 	// METRICS_ADDRESS adds no reachable surface at all, which is what an
 	// existing deployment gets until somebody decides otherwise.
-	if stopMetrics := startMetricsListener(ctx, os.Getenv("METRICS_ADDRESS"), readStats); stopMetrics != nil {
+	if stopMetrics := startMetricsListener(ctx, os.Getenv("METRICS_ADDRESS"), readStats, requestLimiterMetrics(requestLimiter)); stopMetrics != nil {
 		defer stopMetrics()
 	}
 
@@ -843,7 +856,9 @@ func loadTrustedBundleKeys(path string) (map[string]ed25519.PublicKey, error) {
 // zeroes there would tell a scraper the fleet is idle rather than that this mode
 // has nothing to say. Both are logged, because a silently absent metrics
 // endpoint is exactly the kind of thing somebody debugs for an hour.
-func startMetricsListener(ctx context.Context, address string, readStats metricsapplication.ReadStats) func() {
+func startMetricsListener(
+	ctx context.Context, address string, readStats metricsapplication.ReadStats, rateLimits metricsapplication.ReadRateLimits,
+) func() {
 	address = strings.TrimSpace(address)
 	if address == "" {
 		return nil
@@ -854,8 +869,10 @@ func startMetricsListener(ctx context.Context, address string, readStats metrics
 		return nil
 	}
 	server := &http.Server{
-		Addr:              address,
-		Handler:           httpmetrics.Handler(metricsapplication.Gather(buildinfo.Version, readStats), httpmetrics.Options{}),
+		Addr: address,
+		Handler: httpmetrics.Handler(
+			metricsapplication.WithRateLimits(metricsapplication.Gather(buildinfo.Version, readStats), rateLimits), httpmetrics.Options{},
+		),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {

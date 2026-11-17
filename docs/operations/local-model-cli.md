@@ -2,7 +2,13 @@
 
 Set `CONDUIT_MODEL_CMD` to the argv of a local command. The documented default is `codex exec --skip-git-repo-check --sandbox read-only --ephemeral -`.
 
+A model served over HTTP is configured with `CONDUIT_MODEL_BASE_URL` instead; see [HTTP model endpoint](model-http.md). The Hub refuses to start when both are set.
+
 Leave `CONDUIT_MODEL_CMD` unset to keep the recorded proposals and the recorded HTTP application, and make no model call. App generation uses the same command and timeout. A confirmed request asks for one JSON spec, then the Hub renders the image definition, chart values, and package documents and runs the gates. The command does not approve a change. `CONDUIT_MODEL_TIMEOUT` defaults to 45s. Set `PACKAGING_FIXTURE_DIR` to the worker fixture directory so the prompt includes that run's chart values or resources excerpt, memory request, memory limit, image ref, and image digest. The Hub writes that packaging context to the command's standard input, validates one JSON object, and runs the same memory ceiling as the packaging gate. A passing proposal is stored as a change request that still needs a person. Credentials stay in the command's own configuration on the machine that runs the Hub.
+
+## Environment allowlist
+
+The model command does not inherit the Hub's environment. It receives only an allowlist: `PATH`, `HOME`, `USER`, the locale, `TZ` and temp-directory variables, the `XDG_*` base directories, the proxy and CA variables (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`, `SSL_CERT_FILE`, `SSL_CERT_DIR`, `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE`, `CURL_CA_BUNDLE`), the provider variables the CLIs read (`ANTHROPIC_*` key, token, base URL and model, `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CONFIG_DIR`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_ORG_ID`, `CODEX_HOME`, `CODEX_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_GENAI_USE_VERTEXAI`, `XAI_API_KEY`, `GROK_API_KEY`), and `CONDUIT_AGENT_PROVIDER`, `CONDUIT_MODEL_TIMEOUT` and `CONDUIT_PROVIDER_<NAME>_CMD` for `agent-exec`. Hub settings such as database DSNs, bundle signing keys, OIDC client secrets and notification credentials never reach it. To pass anything else (for example `AWS_PROFILE` and `AWS_REGION` for a Bedrock-backed CLI), set `CONDUIT_MODEL_ENV_ALLOW` on the Hub to a comma-separated list of exact variable names; the list is the operator's decision, so do not name a Hub secret in it. The exact list is `internal/localcmd/env.go`.
 
 ## Provider presets
 

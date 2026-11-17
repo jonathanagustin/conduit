@@ -34,6 +34,20 @@ command requiring database access, not a new HTTP authorization bypass.
 Memory/file development repositories remain trusted-store logs; these at-rest
 checks apply to PostgreSQL.
 
+`GET /v1/authorization-audit` is cursor-paginated and time-bounded (issue
+#841): `limit` (default 100, maximum 200), `cursor`, `since`, `until` and
+`resourceRid`, under `docs/ui/contracts/pagination.md`. On PostgreSQL the limit,
+the seek and the time window are part of the SQL statement and rows come back
+in chain `sequence` order, so the Hub holds one page however long the log is.
+The time window has no index — the table has no time column and its rows are
+immutable — so a windowed read or count still scans the rows it filters.
+`view=chain` remains a projection folded from genesis in read order, not the
+stored chain. The verifier below does not use this read: it walks every row
+inside one snapshot and is unaffected by paging. Other in-process readers
+(timeline, live events, administrator status) still use the unpaginated
+repository read. Export sinks, archival, pruning and scheduled checkpoints are
+not provided.
+
 ## Verification and checkpoint custody
 
 Use the Hub's shipped binary with the deployment's mounted `POSTGRES_DSN_FILE`.

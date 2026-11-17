@@ -149,3 +149,63 @@ packagingWorkflow:
   apiKeySecretName: ""
   worker:
     enabled: false
+
+# Prometheus metrics. Off by default: the Hub opens no metrics listener and the
+# chart renders no metrics port. The Hub serves /metrics only for the
+# PostgreSQL repository (the file repository has no queue statistics), so the
+# chart refuses metrics.enabled with repository.kind=file rather than render a
+# port nothing listens on. The listener is plain HTTP on its own port.
+metrics:
+  enabled: false
+  port: 9090
+  service:
+    port: 9090
+  # Needs the Prometheus Operator CRDs, which this chart does not install.
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    labels: {}
+
+# Notification delivery. `none` builds no transport and sends nothing. The Hub
+# accepts exactly one of webhook, log, or native (SMTP and/or Slack), and only
+# with repository.kind=postgres, whose durable queue delivery leases from.
+# Credentials are never chart values: each is a reference to a
+# deployment-owned Secret.
+notifications:
+  transport: none
+  webhook:
+    # Secret key holding the full http(s) endpoint. Webhook URLs commonly embed
+    # a token, so the URL is read from a Secret and never from values.
+    urlSecretName: ""
+    urlSecretKey: url
+    # Bounds one attempt, e.g. 10s. Empty keeps the Hub default.
+    timeout: ""
+  native:
+    # Bounds one SMTP or Slack attempt. Must stay under the 30s delivery lease.
+    timeout: ""
+    smtp:
+      # host:port. Setting it enables the email channel and requires `from`.
+      address: ""
+      from: ""
+      # "" (STARTTLS), starttls, or tls. Plaintext delivery is not supported.
+      tlsMode: ""
+      # Optional. Both keys must exist; they are mounted as files.
+      credentialsSecretName: ""
+      usernameKey: username
+      passwordKey: password
+      # Optional private CA appended to the system roots.
+      caConfigMapName: ""
+      caKey: ca.pem
+    slack:
+      # Setting it enables the Slack channel. The token is mounted as a file.
+      tokenSecretName: ""
+      tokenKey: token
+
+# Plan lifecycle sequencing. `native` renders nothing and keeps today's path.
+# `temporal` starts one in-process worker against an operator-supplied Temporal
+# frontend. The Hub dials it without TLS or an API key and uses the `default`
+# Temporal namespace, so the address must be a plaintext frontend this Pod can
+# reach. An empty temporalAddress falls back to packagingWorkflow.address.
+planOrchestrator:
+  driver: native
+  temporalAddress: ""

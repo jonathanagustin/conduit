@@ -165,6 +165,59 @@ func EventTypes() []EventType {
 	return types
 }
 
+// raisedTypes are the types some emit site in this build actually raises.
+//
+// Valid answers "does this build know the type", and for a long time that was
+// read as "will this build ever tell me about it" -- Preference.Validate's own
+// message says "never emits" of an unknown type, which implied the known ones
+// are emitted. Seven of ten were not. This set is the second question, kept
+// apart from the first because the vocabulary is Apollo's and the emit sites
+// are Conduit's: a type stays subscribable whether or not anything raises it,
+// since the console's checkbox list is held to the vocabulary and a preference
+// naming an unraised type is a statement about the future, not an error.
+//
+// Each entry has an adapter that raises it:
+//   - PLAN_FAILURES: delivery/reconciliation (proposal exhausted) and
+//     delivery/plan (an Agent reported the Plan FAILED)
+//   - PRODUCT_IN_OPEN_ENDED_RECALL, PRODUCT_RECALLS: catalog (recall in force)
+//   - PRODUCT_RELEASE_PROMOTION_FAILED: catalog (promotion run aborted)
+//   - CHANGE_REQUEST_PENDING_APPROVAL, ROLE_CHANGE: governance
+//
+// The absences are deliberate. Nothing in Conduit rescans a published or
+// installed Release and observes its vulnerability findings change, so the two
+// vulnerability-update types have no event to describe; Conduit has no
+// blue/green upgrade; and RBAC_CHANGE is not raised beside ROLE_CHANGE because
+// nothing establishes what distinguishes them. TestRaisedTypesHaveAnEmitSite
+// holds this set to the adapters in both directions.
+var raisedTypes = map[EventType]struct{}{
+	EventPlanFailures:                 {},
+	EventProductOpenEndedRecall:       {},
+	EventProductRecalls:               {},
+	EventPromotionFailed:              {},
+	EventChangeRequestPendingApproval: {},
+	EventRoleChange:                   {},
+}
+
+// Raised reports whether any emit site in this build raises the type. False for
+// a known type means a preference naming it is stored and matches nothing yet.
+func (eventType EventType) Raised() bool {
+	_, raised := raisedTypes[eventType]
+	return raised
+}
+
+// NotYetRaised returns, in the order given, the known types among those named
+// that no emit site raises. Unknown types are left out: they are what
+// AllFutureTypes is for, and this build cannot say anything about them.
+func NotYetRaised(types []EventType) []EventType {
+	var unraised []EventType
+	for _, eventType := range types {
+		if eventType.Valid() && !eventType.Raised() {
+			unraised = append(unraised, eventType)
+		}
+	}
+	return unraised
+}
+
 // Channel is where a notification is delivered.
 //
 // The captured resource settings establish email and in-app preferences. Native

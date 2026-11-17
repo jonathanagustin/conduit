@@ -1260,11 +1260,165 @@ test("plan inspector loads the selected environment timeline and preserves audit
   const inspector = page.locator("[data-release-plan-inspector]");
   await expect(inspector).toContainText("Recorded denial");
   await expect(inspector).toContainText("Hub-verified chain link 7");
+  // Plans detail is read from the Hub and must say so (#822).
+  await expect(page.locator("#example-data-badge")).toHaveText("LIVE");
+  await expect(page.locator("#example-data-badge")).toHaveAttribute(
+    "data-mode",
+    "live",
+  );
   await inspector.locator("[data-release-plan]").selectOption("native-plan-b");
   await expect(inspector).toContainText("native-plan-event-b");
   await expect(inspector).not.toContainText("native-audit-a");
   await expect(inspector).not.toContainText("Hub-verified chain link");
   expect(requests).toContain("/v1/environments/env-b/timeline");
+});
+
+test("an index past the read bound lists what was read and says more exist", async ({
+  page,
+}) => {
+  const planPages: string[] = [];
+  const scoped: string[] = [];
+  await page.route("**/v1/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/v1/plans") {
+      const cursor = Number(url.searchParams.get("cursor") || 0);
+      planPages.push(url.search);
+      return route.fulfill({
+        json: {
+          plans: Array.from({ length: 20 }, (_, row) => ({
+            id: `bulk-plan-${cursor}-${row}`,
+            status: "AWAITING_APPROVAL",
+            plan: { environment: "edge-a", steps: [] },
+          })),
+          total: 240,
+          pageSize: 20,
+          limit: 20,
+          nextCursor: String(cursor + 1),
+        },
+      });
+    }
+    if (url.pathname === "/v1/environments")
+      return route.fulfill({
+        json: { environments: [{ environment: { id: "edge-a" } }], total: 1 },
+      });
+    if (url.pathname.endsWith("/timeline") || url.pathname === "/v1/blackouts")
+      scoped.push(url.pathname + url.search);
+    return route.fulfill({ json: {} });
+  });
+  await hydrate(page);
+  await page.goto("/console/");
+  await page.evaluate(() =>
+    (window as unknown as { switchScreen: (id: string) => void }).switchScreen(
+      "s16-approvals-board",
+    ),
+  );
+  const board = page.locator("[data-approvals-board]");
+  await expect(board).toContainText("Needs review · 100");
+  await expect(board).toContainText("bulk-plan-4-19");
+  await expect(board).not.toContainText("Hub did not return plans.");
+  await expect(page.locator("[data-index-truncation]")).toHaveText(
+    "Showing the first 100 of 240 plans. The rest are not loaded in this view.",
+  );
+  expect(planPages.slice(0, 5)).toEqual([
+    "",
+    "?cursor=1",
+    "?cursor=2",
+    "?cursor=3",
+    "?cursor=4",
+  ]);
+  // Environment-scoped refresh reads name the environment the Hub returned.
+  expect(scoped).toContain("/v1/environments/edge-a/timeline");
+  expect(scoped).toContain("/v1/blackouts?environment=edge-a");
+  expect(scoped.some((path) => /\/dev\/|=dev$/.test(path))).toBe(false);
+});
+
+test("a view whose renderer throws is contained and the shell stays usable", async ({
+  page,
+}) => {
+  const records: Record<string, unknown>[] = [];
+  page.on("console", (message) => {
+    if (message.type() !== "error") return;
+    void message
+      .args()[0]
+      ?.jsonValue()
+      .then((value) => {
+        if (value?.event === "conduit.console.client_error")
+          records.push(value);
+      })
+      .catch(() => {});
+  });
+  // A plan row the approvals board cannot read: its renderer throws.
+  await page.route("**/v1/**", (route) =>
+    new URL(route.request().url()).pathname === "/v1/plans"
+      ? route.fulfill({ json: { plans: [null] } })
+      : route.fulfill({ json: {} }),
+  );
+  await hydrate(page);
+  await page.goto("/console/");
+  await page.evaluate(() =>
+    (window as unknown as { switchScreen: (id: string) => void }).switchScreen(
+      "s16-approvals-board",
+    ),
+  );
+  const failure = page.locator('[data-render-failure="s16-approvals-board"]');
+  await expect(failure).toContainText("This view failed to render");
+  await expect(failure.locator("[data-render-failure-screen]")).toHaveText(
+    "s16-approvals-board",
+  );
+  await expect(failure.getByRole("button", { name: "Reload" })).toBeVisible();
+  await expect(page.locator("[data-approvals-board]")).toHaveCount(0);
+  // A failed view is not a Hub read and must not carry the live label.
+  await expect(page.locator("#example-data-badge")).toHaveText("UNAVAILABLE");
+  await expect
+    .poll(
+      () =>
+        records.filter(
+          (record) =>
+            record.kind === "render" && record.screen === "s16-approvals-board",
+        ).length,
+    )
+    .toBeGreaterThan(0);
+  // The contained failure is the only client error this session logged.
+  expect(records.map((record) => record.kind)).toEqual(["render"]);
+  expect(Object.keys(records[0]!).sort()).toEqual([
+    "build",
+    "event",
+    "kind",
+    "message",
+    "name",
+    "screen",
+    "stack",
+  ]);
+  expect(String(records[0]!.build)).toMatch(/^index-[\w-]+\.js$/);
+
+  // The area tabs beside the failed view still switch.
+  await page.locator('[data-area-tab="gate"]').click();
+  await expect(page.locator("#area-body")).toContainText(
+    "Action constraint gate",
+  );
+  await expect(page.locator("[data-render-failure]")).toHaveCount(0);
+  // And so does the left navigation.
+  await page
+    .getByRole("button", { name: "Audit", exact: true })
+    .first()
+    .click();
+  await expect(page.locator('[data-area-tab="chain"]')).toBeVisible();
+  await expect(page.locator("[data-render-failure]")).toHaveCount(0);
+
+  // Reload returns to a working console.
+  await page.evaluate(() =>
+    (window as unknown as { switchScreen: (id: string) => void }).switchScreen(
+      "s16-approvals-board",
+    ),
+  );
+  await Promise.all([
+    page.waitForEvent("load"),
+    failure.getByRole("button", { name: "Reload" }).click(),
+  ]);
+  await expect(page.locator("#operator-root")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Command Center" }).first(),
+  ).toBeVisible();
 });
 
 test("environment hub scopes header, installations, blackout and timeline to selection", async ({
@@ -1849,10 +2003,17 @@ test("change review binds confirmation to request, revision and Hub identity", a
     ),
   );
   await expect(page.locator("[data-cr-diff]")).toContainText("128Mi");
+  await expect(page.locator("#example-data-badge")).toHaveText("LIVE");
   await expect(page.locator("#area-body")).not.toContainText("do-not-expose");
   await page.locator('[data-area-tab="approvals"]').click();
   await expect(page.locator("[data-approvals-board]")).toContainText(
     "Recorded only",
+  );
+  // The Approvals board lists Hub plans and must say so (#822).
+  await expect(page.locator("#example-data-badge")).toHaveText("LIVE");
+  await expect(page.locator("#example-data-badge")).toHaveAttribute(
+    "data-mode",
+    "live",
   );
   await expect(page.locator("[data-approvals-board]")).toContainText(
     "native-recorded-plan",

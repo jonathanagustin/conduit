@@ -66,6 +66,13 @@ import { createAdminStatus } from "./admin-status.js";
 import { productRows, productsMarkup } from "./release-products.js";
 import { createSettings } from "./settings.js";
 import { createLiveHub } from "./live-hub.js";
+import {
+  classifyRenderers,
+  screenBadge,
+  truncationMarkup,
+} from "./screen-registry.js";
+import { renderContained } from "./render-containment.js";
+import { logClientError } from "../../runtime/client-errors.js";
 import { createIntelligence } from "./intelligence.js";
 import { createDevWorkspaces } from "./dev-workspaces.js";
 import {
@@ -1361,42 +1368,6 @@ export function mountOperator(host, options) {
   // =========================================================================
   // AUTHENTIC Conduit LEFT RAIL + TOP BAR + PLAIN RIGHT CHAT
   // =========================================================================
-  // Screens whose body is read from the Hub. Everything else is example data
-  // until it is wired, and says so in the header badge.
-  const LIVE_SCREENS = new Set([
-    "s19-ontology",
-    "s09-source",
-    "s11-preview",
-    "s12-lifecycle",
-    "s17-spokes-audit",
-    "s01-intake",
-    "cc-overview",
-    "pkg-runs",
-    "s08-staged-run",
-    "s07-pipeline",
-    "s02-workspaces",
-    "rm08-bundle-preview",
-    "s14-env-detail",
-    "rel-products",
-    "rm-channels",
-    "rm-waves",
-    "rm06-promotion-pipe",
-    "rm09-recalls",
-    "rm07-change-requests",
-    "flt-environments",
-    "au01-audit",
-    "adm-platform-status",
-    "ai01-logic",
-    "ai02-evals",
-    "ai04-courses",
-    "ai03-events",
-  ]);
-  // Screens that label each section Hub or Example data themselves.
-  const SECTION_LABELLED = new Set([
-    "adm02-org-control-panel",
-    "pt02-proposals-evals",
-  ]);
-
   /** The screen actually on view: an area's current tab, or the screen. */
   function visibleScreen() {
     const area = AREAS[state.screen];
@@ -1410,39 +1381,31 @@ export function mountOperator(host, options) {
     const badge = document.getElementById("example-data-badge");
     if (!badge) return;
     const screen = visibleScreen();
-    const live =
-      LIVE_SCREENS.has(screen) ||
-      (screen === "pt01-proposal-trace" &&
-        (state.hub?.packaging || []).some((run) => run?.runId)) ||
-      (screen === "og01-ontology-graph" && state.graphLive === true);
-    if (SECTION_LABELLED.has(screen)) {
+    // The classification comes from the registry the renderer tables are
+    // built from, so a screen with a renderer always has one.
+    const view = screenBadge(screen, {
+      hub: state.hub,
+      graphLive: state.graphLive,
+      unavailable:
+        ((screen === "pt01-proposal-trace" ||
+          screen === "pt02-proposals-evals") &&
+          !state.proposalExamples) ||
+        (isOperationalExample(screen) &&
+          !operationalExamples.enabled(screen)) ||
+        document.getElementById("main-workspace")?.dataset.unavailableScreen ===
+          screen,
+      failed:
+        document.getElementById("main-workspace")?.dataset.renderFailed ===
+        screen,
+    });
+    if (view.hidden) {
       badge.style.display = "none";
       return;
     }
     badge.style.display = "";
-    const proposalUnavailable =
-      ((screen === "pt01-proposal-trace" ||
-        screen === "pt02-proposals-evals") &&
-        !live &&
-        !state.proposalExamples) ||
-      (isOperationalExample(screen) && !operationalExamples.enabled(screen)) ||
-      document.getElementById("main-workspace")?.dataset.unavailableScreen ===
-        screen;
-    badge.dataset.mode = live
-      ? "live"
-      : proposalUnavailable
-        ? "unavailable"
-        : "example";
-    badge.textContent = live
-      ? "LIVE"
-      : proposalUnavailable
-        ? "UNAVAILABLE"
-        : "EXAMPLE DATA";
-    badge.title = live
-      ? "This view is read from the Hub"
-      : proposalUnavailable
-        ? "No native operational data is available for this view; example mode is off"
-        : "This view shows example data, not this Hub's records";
+    badge.dataset.mode = view.mode;
+    badge.textContent = view.text;
+    badge.title = view.title;
   }
 
   function renderKpiStrip() {
@@ -4829,6 +4792,34 @@ export function mountOperator(host, options) {
     if (state.cmdOmnibarOpen) renderPaletteResults();
   }
 
+  /**
+   * Paint one view so that a throwing renderer leaves a stated failure in
+   * `node` instead of a blank or half-painted workspace. The shell, the
+   * navigation and the area tabs are painted outside this and stay usable.
+   */
+  let loggedRenderFailure = "";
+  function containView(node, screen, paint) {
+    return (
+      renderContained(node, screen, paint, {
+        esc: escAttr,
+        log: (failed, error) => {
+          // A background refresh repaints the same failing view; one record
+          // per failure, not one per repaint.
+          const key = `${failed}\n${error?.message}`;
+          if (key === loggedRenderFailure) return;
+          loggedRenderFailure = key;
+          logClientError("render", error, failed);
+        },
+        reload: () => window.location.reload(),
+      }) || markRenderFailed(screen)
+    );
+  }
+  function markRenderFailed(screen) {
+    const main = document.getElementById("main-workspace");
+    if (main) main.dataset.renderFailed = screen;
+    return false;
+  }
+
   let previousScreen = "";
   function renderMainWorkspace() {
     if (state.screen !== "au01-audit" && state.screen !== "area-audit")
@@ -4836,9 +4827,11 @@ export function mountOperator(host, options) {
     const root = document.getElementById("main-workspace");
     if (!root) return;
     delete root.dataset.unavailableScreen;
+    delete root.dataset.renderFailed;
     operationalExamples.sync(visibleScreen());
     if (AREAS[state.screen]) {
-      renderArea(root);
+      containView(root, visibleScreen(), () => renderArea(root));
+      if (!root.dataset.renderFailed) loggedRenderFailure = "";
       updateExampleBadge();
       settings.applyChrome();
       settings.ensureLoaded();
@@ -4847,51 +4840,54 @@ export function mountOperator(host, options) {
     const screenChanged =
       previousScreen !== "" && previousScreen !== state.screen;
     previousScreen = state.screen;
-    const m = {
-      "s01-intake": renderS01Intake,
-      "s02-workspaces": renderS02Workspaces,
-      "s03-saved-views": renderS03SavedViews,
-      "s04-scope-plan": renderS04ScopePlan,
-      "s05-backlog": renderS05Backlog,
-      "s06-active-work": renderS06ActiveWork,
-      "s07-pipeline": renderS07Pipeline,
-      "s08-staged-run": renderS08StagedRun,
-      "au01-audit": renderAuditLedger,
-      "adm-platform-status": (node) => void adminStatus.render(node),
-      "s09-source": renderS09Source,
-      "s10-diff": renderS10Diff,
-      "s11-preview": renderS11Preview,
-      "s12-lifecycle": renderS12Lifecycle,
-      "s13-fleet-overview": renderS13FleetOverview,
-      "s14-env-detail": renderS14EnvDetail,
-      "s15-plan-detail": renderS15PlanDetail,
-      "s16-approvals-board": renderS16ApprovalsBoard,
-      "s17-spokes-audit": renderS17SpokesAudit,
-      "s18-components": renderS18Components,
-      "s19-ontology": renderS19Ontology,
-      "rm01-env-page": renderRM01EnvPage,
-      "rm02-env-activity": renderRM02EnvActivity,
-      "rm03-plan-detail": renderRM03PlanDetail,
-      "rm04-constraints": renderRM04Constraints,
-      "rm05-release-rollout": renderRM05ReleaseRollout,
-      "rm06-promotion-pipe": renderRM06PromotionPipe,
-      "rm07-change-requests": renderRM07ChangeRequests,
-      "rm08-bundle-preview": renderRM08BundlePreview,
-      "ai01-logic": (root) => intelligence.renderLogic(root),
-      "ai02-evals": (root) => intelligence.renderEvals(root),
-      "ai03-events": (root) => intelligence.renderEvents(root),
-      "ai04-courses": (root) => intelligence.renderCourses(root),
-      ...releaseGates.renderers,
-      ...ontologyGraph.renderers,
-      ...settings.renderers,
-    };
-    const renderer = m[state.screen];
-    if (!renderer) {
-      root.dataset.unavailableScreen = state.screen;
-      root.innerHTML = `<section class="so-panel p-3" aria-label="View unavailable">This view is unavailable. Choose a view from the navigation.</section>`;
-    } else if (!operationalExamples.paint(root, state.screen, renderer)) {
-      renderer(root);
-    }
+    containView(root, state.screen, () => {
+      const m = classifyRenderers({
+        "s01-intake": renderS01Intake,
+        "s02-workspaces": renderS02Workspaces,
+        "s03-saved-views": renderS03SavedViews,
+        "s04-scope-plan": renderS04ScopePlan,
+        "s05-backlog": renderS05Backlog,
+        "s06-active-work": renderS06ActiveWork,
+        "s07-pipeline": renderS07Pipeline,
+        "s08-staged-run": renderS08StagedRun,
+        "au01-audit": renderAuditLedger,
+        "adm-platform-status": (node) => void adminStatus.render(node),
+        "s09-source": renderS09Source,
+        "s10-diff": renderS10Diff,
+        "s11-preview": renderS11Preview,
+        "s12-lifecycle": renderS12Lifecycle,
+        "s13-fleet-overview": renderS13FleetOverview,
+        "s14-env-detail": renderS14EnvDetail,
+        "s15-plan-detail": renderS15PlanDetail,
+        "s16-approvals-board": renderS16ApprovalsBoard,
+        "s17-spokes-audit": renderS17SpokesAudit,
+        "s18-components": renderS18Components,
+        "s19-ontology": renderS19Ontology,
+        "rm01-env-page": renderRM01EnvPage,
+        "rm02-env-activity": renderRM02EnvActivity,
+        "rm03-plan-detail": renderRM03PlanDetail,
+        "rm04-constraints": renderRM04Constraints,
+        "rm05-release-rollout": renderRM05ReleaseRollout,
+        "rm06-promotion-pipe": renderRM06PromotionPipe,
+        "rm07-change-requests": renderRM07ChangeRequests,
+        "rm08-bundle-preview": renderRM08BundlePreview,
+        "ai01-logic": (root) => intelligence.renderLogic(root),
+        "ai02-evals": (root) => intelligence.renderEvals(root),
+        "ai03-events": (root) => intelligence.renderEvents(root),
+        "ai04-courses": (root) => intelligence.renderCourses(root),
+        ...releaseGates.renderers,
+        ...ontologyGraph.renderers,
+        ...settings.renderers,
+      });
+      const renderer = m[state.screen];
+      if (!renderer) {
+        root.dataset.unavailableScreen = state.screen;
+        root.innerHTML = `<section class="so-panel p-3" aria-label="View unavailable">This view is unavailable. Choose a view from the navigation.</section>`;
+      } else if (!operationalExamples.paint(root, state.screen, renderer)) {
+        renderer(root);
+      }
+    });
+    if (!root.dataset.renderFailed) loggedRenderFailure = "";
     updateExampleBadge();
     settings.applyChrome();
     settings.ensureLoaded();
@@ -4944,9 +4940,10 @@ export function mountOperator(host, options) {
         .join("")}</div>
       <div data-area-object-header>${header}</div>
       <div id="area-kit">${extra}</div>
+      ${truncationMarkup(state.hub, current.screen, escAttr)}
       <div id="area-body"></div>
     </div>`;
-    const renderer = {
+    const renderer = classifyRenderers({
       "s02-workspaces": renderS02Workspaces,
       "s09-source": renderS09Source,
       "s11-preview": renderS11Preview,
@@ -5069,11 +5066,13 @@ export function mountOperator(host, options) {
       "s17-spokes-audit": renderS17SpokesAudit,
       "au01-audit": renderAuditLedger,
       "adm-platform-status": (node) => void adminStatus.render(node),
-    }[current.screen];
+    })[current.screen];
     if (renderer) {
       const body = root.querySelector("#area-body");
-      if (!operationalExamples.paint(body, current.screen, renderer))
-        renderer(body);
+      containView(body, current.screen, () => {
+        if (!operationalExamples.paint(body, current.screen, renderer))
+          renderer(body);
+      });
     }
     root.querySelectorAll("[data-area-tab]").forEach((button) => {
       button.addEventListener("click", () => {

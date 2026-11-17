@@ -74,3 +74,38 @@ func TestDomainDoesNotImportProcesses(t *testing.T) {
 		}
 	}
 }
+
+func TestChangeRequestActionsAskForTheirTarget(t *testing.T) {
+	for _, action := range []string{"promote", "recall", "cancel_packaging_run", "propose_memory", "select_course"} {
+		names := map[string]bool{}
+		for _, field := range MissingFields(WriteArgs{Action: action}) {
+			names[field.Name] = true
+		}
+		for _, want := range []string{"environment", "installationId", "productId"} {
+			if !names[want] {
+				t.Fatalf("%s does not ask for %s", action, want)
+			}
+		}
+		full := WriteArgs{
+			Action: action, TargetID: "t", Value: "512Mi", Justification: "j",
+			Environment: "prod", InstallationID: "billing-api", ProductID: "com.acme:billing",
+		}
+		if left := MissingFields(full); len(left) != 0 {
+			t.Fatalf("%s still asks for %#v", action, left)
+		}
+	}
+}
+
+func TestPromptDescribesGovernedWriteAndEveryAction(t *testing.T) {
+	prompt := Prompt(ModeOntology, "cancel it", nil)
+	for _, want := range append(WriteActions(), `"installationId"`, `"productId"`, "Approving it does not run the named action") {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt does not mention %s", want)
+		}
+	}
+	for _, action := range WriteActions() {
+		if _, err := ParseToolCall(ToolWrite, []byte(`{"action":"`+action+`","installationId":"a","productId":"b"}`)); err != nil {
+			t.Fatalf("%s: %v", action, err)
+		}
+	}
+}

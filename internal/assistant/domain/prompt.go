@@ -22,10 +22,13 @@ Allowed tools in mode %s: %s.
 query_ontology_objects arguments: {"objectType":"Environment","filter":{"field":"id","value":"dev"},"links":[]}
 propose_governed_action arguments: {"actionId":"cancel_packaging_run","targetEntityId":"sample-app-1","targetObjectType":"PackagingRun","environment":"dev","installationId":"sample-app","productId":"app.example:sample-app"}
 review_change_diff arguments: {"changeRequestId":"crq_example"}
+governed_write arguments: {"action":"cancel_packaging_run","targetId":"sample-app-1","environment":"dev","installationId":"sample-app","productId":"app.example:sample-app","justification":"why"}
+governed_write actions: %s. Name the environment, installationId, and productId the operator gave; the server does not fill them in and asks for any that are missing.
 A propose_governed_action call does not apply the action. It asks the server to evaluate the action rules and, when they allow it, to open a change request that still needs a person.
+A change request opened by propose_governed_action or governed_write records the proposal and the approval. Approving it does not run the named action. Never tell the operator an action was applied unless the tool result says applied.
 Context:
 %s
-Operator: %s`, mode, strings.Join(toolsForMode(mode), ", "), strings.Join(lines, "\n"), one(message)))
+Operator: %s`, mode, strings.Join(toolsForMode(mode), ", "), strings.Join(WriteActions(), ", "), strings.Join(lines, "\n"), one(message)))
 }
 
 func one(value string) string {

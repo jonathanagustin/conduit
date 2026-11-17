@@ -76,6 +76,11 @@ var labelNames = map[string]struct{}{
 	"queue": {},
 	// Terminal outcome of a unit of work. Closed set.
 	"outcome": {},
+	// The kind of caller a request-limiter decision was made for: operator,
+	// agent or anonymous. A kind of caller, never a caller -- the exporter
+	// that uses it refuses any value outside that closed set, so a principal,
+	// an Agent or an address cannot arrive here as a label value.
+	"class": {},
 }
 
 // Registry is a snapshot of metrics ready to render.

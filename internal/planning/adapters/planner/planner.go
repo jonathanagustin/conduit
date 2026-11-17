@@ -159,7 +159,7 @@ func (planner Planner) Turn(ctx context.Context, session *domain.Session, messag
 			})
 			return result, toolErr
 		}
-		prompt = prompt + "\n\nTool results:\n" + facts + skippedNote(skipped) + "\nContinue. You may call tools again the same way, or reply with the short inspection summary.\n"
+		prompt = prompt + frameToolResults(facts) + skippedNote(skipped) + "\nContinue. You may call tools again the same way, or reply with the short inspection summary.\n"
 	}
 	result.Inspection = cloneInspection(inspection)
 	result.InspectionEvents = events
@@ -205,12 +205,12 @@ func runToolRequests(ctx context.Context, tools *packagingtools.Service, request
 				return body.String(), calls, inspection, observeErr
 			}
 			if err != nil {
-				fmt.Fprintf(&body, "inspect_repo error: %v\n", err)
+				body.WriteString(toolErrorLine("inspect_repo", err.Error()))
 				continue
 			}
 			encoded, err := json.Marshal(got)
 			if err != nil {
-				fmt.Fprintf(&body, "inspect_repo error: %v\n", err)
+				body.WriteString(toolErrorLine("inspect_repo", err.Error()))
 				continue
 			}
 			fmt.Fprintf(&body, "inspect_repo: %s\n", encoded)
@@ -228,7 +228,7 @@ func runToolRequests(ctx context.Context, tools *packagingtools.Service, request
 					if observeErr := application.ToolFinished(ctx, callID, false); observeErr != nil {
 						return body.String(), calls, inspection, observeErr
 					}
-					fmt.Fprintf(&body, "read_file error: %v\n", err)
+					body.WriteString(toolErrorLine("read_file", err.Error()))
 					continue
 				}
 			}
@@ -237,12 +237,12 @@ func runToolRequests(ctx context.Context, tools *packagingtools.Service, request
 				return body.String(), calls, inspection, observeErr
 			}
 			if err != nil {
-				fmt.Fprintf(&body, "read_file error: %v\n", err)
+				body.WriteString(toolErrorLine("read_file", err.Error()))
 				continue
 			}
 			encoded, err := json.Marshal(got)
 			if err != nil {
-				fmt.Fprintf(&body, "read_file error: %v\n", err)
+				body.WriteString(toolErrorLine("read_file", err.Error()))
 				continue
 			}
 			fmt.Fprintf(&body, "read_file: %s\n", encoded)
@@ -260,7 +260,7 @@ func runToolRequests(ctx context.Context, tools *packagingtools.Service, request
 			if observeErr := application.ToolFinished(ctx, callID, false); observeErr != nil {
 				return body.String(), calls, inspection, observeErr
 			}
-			fmt.Fprintf(&body, "%s error: tool is not allowed during planning inspection\n", request.Name)
+			body.WriteString(toolErrorLine(request.Name, "tool is not allowed during planning inspection"))
 		}
 	}
 	return body.String(), calls, inspection, nil
@@ -318,7 +318,9 @@ func inspectionPrompt(session *domain.Session, message string) string {
 	b.WriteString(`You may call tools by replying with {"toolCalls":[{"name":"inspect_repo","arguments":{}},{"name":"read_file","arguments":{"path":"relative/path"}}]}.
 Call inspect_repo first. Each reply may contain at most 4 tool calls; extra calls are skipped and you can ask for them again. Use read_file for files you need to understand the project.
 Reply with only that JSON object when you need tools.
-When you are done inspecting, reply with a short text summary of the language, package manager, kind, start command, ports, and whether a Dockerfile is present. Do not write a plan, package, or Dockerfile.
+`)
+	b.WriteString(untrustedRule)
+	b.WriteString(`When you are done inspecting, reply with a short text summary of the language, package manager, kind, start command, ports, and whether a Dockerfile is present. Do not write a plan, package, or Dockerfile.
 `)
 	return b.String()
 }

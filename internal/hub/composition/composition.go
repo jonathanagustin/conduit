@@ -12,6 +12,7 @@
 package composition
 
 import (
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -63,6 +64,10 @@ func NewHub(
 		options.BundlePrivateKey = key
 	}
 	options = withSpaceLookup(repository, options, hubOptions.Spaces)
+	options, err := withAnnouncements(options, hubOptions.NotificationStore, slog.Default())
+	if err != nil {
+		return nil, err
+	}
 	sequencer, err := planSequencer(repository, hubOptions, os.Getenv)
 	if err != nil {
 		return nil, err

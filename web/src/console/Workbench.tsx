@@ -12,6 +12,7 @@ import "@fontsource/jetbrains-mono/600.css";
 
 import { Thread } from "@/components/assistant-ui/elements/thread.aui";
 import { EngineerThreadHeader } from "./EngineerThreadHeader";
+import { ConsoleErrorBoundary } from "../embed/ErrorBoundary";
 
 import { mountOperator } from "./operator/engine.js";
 import "./operator/console.css";
@@ -46,9 +47,11 @@ export function Workbench({ dark }: { dark: boolean }) {
     >
       {slot
         ? createPortal(
-            <div className="flex h-full min-h-0 flex-col">
-              <Thread components={RAIL_THREAD} />
-            </div>,
+            <ConsoleErrorBoundary region="assistant">
+              <div className="flex h-full min-h-0 flex-col">
+                <Thread components={RAIL_THREAD} />
+              </div>
+            </ConsoleErrorBoundary>,
             slot,
           )
         : null}

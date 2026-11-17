@@ -310,6 +310,10 @@ func readRepoFile(root, rel string) (domain.RepoFile, error) {
 	if err != nil {
 		return domain.RepoFile{}, err
 	}
+	// Refuse by the requested name and by the name a symlink resolves to.
+	if secretPath(strings.TrimSpace(rel)) || secretPath(resolvedRel(root, clean)) {
+		return domain.RepoFile{}, ErrSecretPath
+	}
 	file, err := os.Open(clean)
 	if err != nil {
 		return domain.RepoFile{}, fmt.Errorf("read file: %w", err)
@@ -341,10 +345,23 @@ func readRepoFile(root, rel string) (domain.RepoFile, error) {
 	}
 	return domain.RepoFile{
 		Path:      filepath.ToSlash(display),
-		Content:   string(data),
+		Content:   redactSecrets(string(data)),
 		SHA256:    hex.EncodeToString(sum[:]),
 		Truncated: truncated,
 	}, nil
+}
+
+// resolvedRel is the symlink-resolved path relative to the repository root.
+// It falls back to the file name when the relation cannot be computed.
+func resolvedRel(root, abs string) string {
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = resolved
+	}
+	rel, err := filepath.Rel(root, abs)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return filepath.Base(abs)
+	}
+	return rel
 }
 
 func confinedPath(root, rel string) (string, error) {

@@ -74,6 +74,9 @@ type HandlerOptions struct {
 	// force, so that a person learns one opened. Nil is a deployment with no
 	// notification store, which raises nothing rather than failing.
 	RecallOpenings catalogports.RecallOpenings
+	// Announcements are the other things a person is told about. Each is nil in
+	// a deployment with no notification store, which raises nothing.
+	Announcements Announcements
 	// AfterPlanApproved sequences an approved Plan. Nil leaves the existing
 	// lifecycle path unchanged and does not approve, lease, or report state.
 	AfterPlanApproved func(context.Context, string) error
@@ -94,6 +97,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 	}
 	lifecycle := NewLifecycle(repository)
 	governance := NewGovernanceService(repository)
+	governance.SetAnnouncements(configuration.Announcements)
 	modules := NewModuleService(repository)
 	profiles := NewEnvironmentProfileService(repository)
 	retirements := NewCatalogRetirementService(repository)
@@ -1930,21 +1934,23 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !requireGovernanceAdministrator(w, request, governance, principal, configuration) {
 			return
 		}
-		events, err := repository.ListAuthorizationAudit(request.Context(), request.URL.Query().Get("resourceRid"))
+		// The read is bounded in the repository query: a page, a seek cursor
+		// and an optional time window. See docs/ui/contracts/pagination.md.
+		read, err := parseAuthorizationAuditRead(request.URL.Query())
+		if err != nil {
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+			return
+		}
+		page, err := readAuthorizationAuditPage(request.Context(), repository, read)
+		if errors.Is(err, errInvalidAuthorizationAuditCursor) {
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+			return
+		}
 		if err != nil {
 			writeLifecycleError(w, err)
 			return
 		}
-		if request.URL.Query().Get("view") == "chain" {
-			entries, chainErr := ChainAuthorizationAudit(events)
-			if chainErr != nil {
-				writeLifecycleError(w, chainErr)
-				return
-			}
-			writeJSON(w, http.StatusOK, map[string]any{"entries": entries})
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{"events": events})
+		writeJSON(w, http.StatusOK, page)
 	})
 	registerPromotionStageControl := func(pattern string, paused bool) {
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, request *http.Request) {
@@ -2007,6 +2013,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			writeLifecycleError(w, err)
 			return
 		}
+		configuration.Announcements.promotionEvaluated(request.Context(), record)
 		writeJSON(w, http.StatusCreated, record)
 	})
 	mux.HandleFunc("GET /v1/promotions/{promotionID}", func(w http.ResponseWriter, request *http.Request) {
@@ -2497,6 +2504,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			writeLifecycleError(w, err)
 			return
 		}
+		configuration.Announcements.planFinished(request.Context(), record)
 		writeJSON(w, http.StatusOK, redactLeaseToken(record))
 	})
 	// The Report names every installation, its release and config digests, the

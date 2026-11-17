@@ -29,11 +29,21 @@ be replaced by Zarf's supported external-registry flags. These are Zarf-owned
 bootstrap services, not resources duplicated by the Conduit runtime package.
 
 The optional `uds` component applies a UDS Package custom resource for the
-Hub: a Keycloak client, network allows, and a metrics ServiceMonitor. It is
-not selected by `zarf package deploy --confirm`. Select it with
-`--components uds` only on a cluster that already has UDS Core. A plain Zarf
-install leaves the component out. The commands and the limits of that check
-are in [the UDS package note](../../docs/operations/uds-package.md).
+Hub: a Keycloak client and network allows, including egress to the OIDC
+issuer, the chart registry and Temporal. It is not selected by
+`zarf package deploy --confirm`. Select it with `--components uds` only on a
+cluster that already has UDS Core. A plain Zarf install leaves the component
+out. The commands and the limits of that check are in
+[the UDS package note](../../docs/operations/uds-package.md).
+
+The Hub in this package is file-backed by default and serves no metrics, so
+`uds` registers no monitor. `/metrics` needs both
+`--set-variables REPOSITORY_KIND=postgres` (the DSN is the `dsn` key of
+`PACKAGING_POSTGRES_SECRET`) and `--set-variables METRICS_ADDRESS=:9090`.
+With those set, select `uds-metrics` instead of `uds`: it is the same Package
+custom resource plus a ServiceMonitor. Selecting it without them registers a
+scrape target that stays down. The other notification, plan-orchestrator and
+material-preparer settings the Helm charts expose are not Zarf variables.
 
 Create three Environment-owned Secrets in `platform-system`:
 

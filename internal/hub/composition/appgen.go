@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/appgen/adapters/modelcli"
+	appmodelhttp "github.com/jonathanagustin/conduit/internal/appgen/adapters/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/appgen/adapters/recorded"
 	"github.com/jonathanagustin/conduit/internal/appgen/adapters/registry"
 	"github.com/jonathanagustin/conduit/internal/appgen/adapters/sandbox"
@@ -33,6 +34,11 @@ import (
 func appGenerator(getenv func(string) string) (appdomain.AppGenerator, error) {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
+	}
+	if client, err := modelHTTPClient(getenv); err != nil {
+		return nil, err
+	} else if client != nil {
+		return appmodelhttp.Adapter{Client: client}, nil
 	}
 	raw := strings.TrimSpace(getenv("CONDUIT_MODEL_CMD"))
 	if raw == "" {

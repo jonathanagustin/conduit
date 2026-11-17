@@ -92,6 +92,36 @@ It is not a supported production registry configuration.
 Setting `serviceAccount.create=false` requires an explicit pre-existing
 ServiceAccount name. Neither chart silently invents an external identity.
 
+## Optional features
+
+Neither chart has a free-form `extraEnv`; both schemas reject unknown keys.
+Each feature below is a typed value that is off by default, and the default
+render is unchanged by their existence.
+
+| Value | Sets | Notes |
+| --- | --- | --- |
+| `metrics.enabled`, `metrics.port`, `metrics.service.port` | `METRICS_ADDRESS`, a `metrics` container port and Service port | Requires `repository.kind=postgres`: the Hub serves `/metrics` only for the PostgreSQL repository, so the chart refuses the file profile rather than render a port nothing listens on. Plain HTTP. |
+| `metrics.serviceMonitor.enabled` | a `monitoring.coreos.com/v1` ServiceMonitor | Requires `metrics.enabled` and the Prometheus Operator CRDs, which the chart does not install. |
+| `notifications.transport` = `webhook` | `NOTIFICATION_WEBHOOK_URL` from `notifications.webhook.urlSecretName`/`urlSecretKey` via `secretKeyRef`, optional `NOTIFICATION_WEBHOOK_TIMEOUT` | The URL is never a value: webhook URLs commonly embed a token. |
+| `notifications.transport` = `log` | `NOTIFICATION_DELIVERY_LOG=true` | For a deployment whose logs somebody already watches. |
+| `notifications.transport` = `native` | `NOTIFICATION_SMTP_*` and/or `NOTIFICATION_SLACK_TOKEN_FILE`, optional `NOTIFICATION_NATIVE_TIMEOUT` | SMTP username/password and the Slack token are Secrets mounted as read-only files; an optional SMTP CA is a ConfigMap. At least one of `native.smtp.address` (with `from`) or `native.slack.tokenSecretName` is required. |
+| `planOrchestrator.driver` = `temporal` | `PLAN_ORCHESTRATOR=temporal`, `PLAN_TEMPORAL_ADDRESS` | The Hub dials this frontend without TLS or an API key, in Temporal namespace `default`. An empty `temporalAddress` falls back to `packagingWorkflow.address`. |
+| Spoke `materialPreparer.command` | `EXTERNAL_MATERIAL_PREPARER` | A clean absolute path. The Agent image ships no preparer; `materialPreparer.toolsPersistentVolumeClaimName` mounts an existing PVC read-only at `toolsMountPath` to supply one. |
+
+Every notification transport requires `repository.kind=postgres`, whose
+durable queue delivery leases from; the Hub refuses to start otherwise and so
+does the chart. The Hub accepts exactly one transport, which is why
+`notifications.transport` is a single choice rather than three switches.
+
+`CONDUIT_TEMPORAL_ADDRESS` (planning workflows) is deliberately not a value.
+The Hub refuses any non-loopback address for it, and this chart deploys no
+Temporal sidecar, so no value could make it work.
+
+These values are checked by rendering. No Hub or Agent was started against
+them here: delivery to a real webhook, SMTP server or Slack workspace, a
+Prometheus scrape, a Temporal-sequenced Plan, and a preparer run on a mounted
+PVC are each unexercised by `verify-helm-runtime.rb`.
+
 ## The Agent's RBAC floor
 
 The Spoke Agent mounts a ServiceAccount token and mutates a tenant's cluster

@@ -20,7 +20,7 @@ version = File.read(File.join(root, "VERSION")).strip
 
 abort "Zarf package API must be pinned" unless definition["apiVersion"] == "zarf.dev/v1alpha1"
 abort "Zarf package version must come from the release" unless definition.dig("metadata", "version") == "###ZARF_PKG_TMPL_PLATFORM_VERSION###"
-abort "Zarf package components drifted" unless definition.fetch("components").map { |item| [item["name"], item["required"], item["default"]] } == [["runtime", true, nil], ["packaging-worker", false, nil], ["uds", false, false]]
+abort "Zarf package components drifted" unless definition.fetch("components").map { |item| [item["name"], item["required"], item["default"]] } == [["runtime", true, nil], ["packaging-worker", false, nil], ["uds", false, false], ["uds-metrics", false, false]]
 worker = definition.fetch("components").find { |item| item["name"] == "packaging-worker" }
 abort "optional packaging worker must reuse the Hub image" unless worker&.dig("images") == ["###ZARF_PKG_TMPL_HUB_IMAGE###"]
 abort "optional packaging worker must not be required" if worker["required"]
@@ -28,8 +28,13 @@ uds_component = definition.fetch("components").find { |item| item["name"] == "ud
 abort "UDS component must stay optional and unselected by a plain install" if uds_component["required"] || uds_component["default"]
 abort "UDS component must not carry images" if uds_component["images"]
 abort "UDS component must apply only the Package CR" unless uds_component.dig("manifests", 0, "files") == ["manifests/uds-package.yaml"]
+uds_metrics_component = definition.fetch("components").find { |item| item["name"] == "uds-metrics" }
+abort "UDS metrics component must stay optional and unselected by a plain install" if uds_metrics_component["required"] || uds_metrics_component["default"]
+abort "UDS metrics component must not carry images" if uds_metrics_component["images"]
+abort "UDS metrics component must apply only the Package CR that carries the monitor" unless
+  uds_metrics_component["manifests"].map { |item| item["files"] } == [["manifests/uds-package-metrics.yaml"]]
 runtime_files = definition.dig("components", 0, "manifests", 0, "files")
-abort "runtime component must not apply the UDS Package CR" if runtime_files.include?("manifests/uds-package.yaml")
+abort "runtime component must not apply the UDS Package CR" if runtime_files.any? { |file| file.include?("uds-package") }
 
 images = definition.dig("components", 0, "images")
 abort "Zarf package must contain exactly Hub and Agent images" unless images&.length == 2
@@ -76,6 +81,23 @@ abort "Zarf removal must retain durable Hub state" unless pvc&.dig("metadata", "
 health_checks = definition.dig("components", 0, "healthChecks") || []
 abort "Zarf package must health-check both runtime deployments" unless health_checks.map { |item| item["name"] }.sort == %w[platform-delivery platform-spoke-agent]
 service = manifests.find { |item| item["kind"] == "Service" && item.dig("metadata", "name") == "platform-delivery" }
+# Metrics in this package (#838). The Hub serves /metrics only when
+# METRICS_ADDRESS is set and the repository is postgres, so both are deploy
+# variables, both default to "off", and the address can only be the port the
+# Service and container already name.
+hub_env = hub_container.fetch("env").to_h { |item| [item["name"], item["value"]] }
+{"REPOSITORY_KIND" => ["file", "^(file|postgres)$"], "METRICS_ADDRESS" => ["", "^(:9090)?$"]}.each do |name, (default, pattern)|
+  abort "Hub must accept #{name} from a Zarf variable" unless hub_env[name] == "###ZARF_VAR_#{name}###"
+  variable = definition.fetch("variables").find { |item| item["name"] == name }
+  abort "#{name} must default to #{default.inspect} and be constrained to #{pattern}" unless
+    variable && variable["default"] == default && variable["pattern"] == pattern
+end
+abort "Hub must read the PostgreSQL DSN from its mounted Secret" unless hub_env["POSTGRES_DSN_FILE"] == "/run/conduit-database/dsn"
+database = (hub.dig("spec", "template", "spec", "volumes") || []).find { |item| item["name"] == "database" }
+abort "Hub DSN Secret must be optional, so the file-repository default starts without it" unless
+  database&.dig("secret") == {"secretName" => "###ZARF_VAR_PACKAGING_POSTGRES_SECRET###", "optional" => true, "items" => [{"key" => "dsn", "path" => "dsn"}]}
+abort "Hub DSN Secret must be mounted read-only where POSTGRES_DSN_FILE points" unless
+  hub_container.fetch("volumeMounts").include?({"name" => "database", "mountPath" => "/run/conduit-database", "readOnly" => true})
 abort "Hub Service must label itself for the UDS monitor" unless service&.dig("metadata", "labels", "app.kubernetes.io/name") == "platform-delivery"
 abort "Hub Service must name the metrics port" unless service&.dig("spec", "ports")&.any? { |port| port["name"] == "metrics" && port["port"] == 9090 }
 abort "Hub container must declare the metrics port" unless hub_container&.dig("ports")&.any? { |port| port["name"] == "metrics" && port["containerPort"] == 9090 }
@@ -101,6 +123,45 @@ required_allows.each do |direction, namespace, port|
   abort "UDS Package missing #{direction} allow to #{namespace}:#{port}" unless allows.any? { |item| item["direction"] == direction && item["remoteNamespace"] == namespace && item["port"] == port }
 end
 abort "UDS Package must allow the Spoke to call the Kubernetes API" unless allows.any? { |item| item["direction"] == "Egress" && item["remoteGenerated"] == "KubeAPI" }
+# Egress the runtime needs and UDS Core denies by default (#829). Each is
+# matched whole, source selector included: an allow that names the right
+# destination from the wrong workload grants nothing where it is needed, and
+# reads exactly like a grant.
+required_egress = {
+  "the Hub to reach the OIDC issuer through the tenant gateway" => {
+    "selector" => {"app.kubernetes.io/name" => "platform-delivery"},
+    "remoteNamespace" => "istio-tenant-gateway", "remoteSelector" => {"app" => "tenant-ingressgateway"}, "ports" => [443, 8443]
+  },
+  "the Hub to reach the in-cluster OIDC issuer" => {
+    "selector" => {"app.kubernetes.io/name" => "platform-delivery"},
+    "remoteNamespace" => "###ZARF_VAR_OIDC_ISSUER_NAMESPACE###",
+    "remoteSelector" => {"app.kubernetes.io/name" => "###ZARF_VAR_OIDC_ISSUER_NAME_LABEL###"}, "port" => 8080
+  },
+  "the Spoke to pull charts from the OCI registry" => {
+    "selector" => {"app.kubernetes.io/name" => "platform-spoke-agent"},
+    "remoteNamespace" => "###ZARF_VAR_CHART_REGISTRY_NAMESPACE###",
+    "remoteSelector" => {"###ZARF_VAR_CHART_REGISTRY_LABEL_KEY###" => "###ZARF_VAR_CHART_REGISTRY_LABEL_VALUE###"}, "ports" => [443, 5000]
+  },
+  "the packaging worker to reach Temporal" => {
+    "selector" => {"app.kubernetes.io/name" => "platform-packaging-worker"},
+    "remoteNamespace" => "###ZARF_VAR_TEMPORAL_NAMESPACE###",
+    "remoteSelector" => {"app.kubernetes.io/name" => "###ZARF_VAR_TEMPORAL_NAME_LABEL###"}, "port" => 7233
+  }
+}
+required_egress.each do |purpose, expected|
+  abort "UDS Package must allow #{purpose}" unless
+    allows.any? { |item| item["direction"] == "Egress" && item.reject { |key, _| %w[direction description].include?(key) } == expected }
+end
+# A placeholder with no declared variable is deployed as its literal text: a
+# NetworkPolicy naming the namespace "###ZARF_VAR_...###" selects nothing.
+declared_variables = definition.fetch("variables").map { |item| item["name"] }
+undeclared = uds_text.scan(/###ZARF_VAR_([A-Z0-9_]+)###/).flatten.uniq - declared_variables
+abort "UDS Package uses undeclared Zarf variables: #{undeclared.join(', ')}" unless undeclared.empty?
+%w[OIDC_ISSUER_NAMESPACE OIDC_ISSUER_NAME_LABEL CHART_REGISTRY_NAMESPACE CHART_REGISTRY_LABEL_KEY CHART_REGISTRY_LABEL_VALUE TEMPORAL_NAMESPACE TEMPORAL_NAME_LABEL].each do |name|
+  variable = definition.fetch("variables").find { |item| item["name"] == name }
+  abort "#{name} must have a non-empty default and a pattern, so an unset variable cannot render an empty selector" unless
+    variable && !variable["default"].to_s.empty? && !variable["pattern"].to_s.empty?
+end
 sso = uds_package.dig("spec", "sso") || []
 client = sso.find { |item| item["clientId"] == "conduit-hub" }
 abort "UDS Package must register the Hub SSO client" unless client
@@ -109,8 +170,23 @@ abort "UDS Package must not put authservice in front of the Agent mTLS port" if 
 groups_mapper = (client["protocolMappers"] || []).find { |item| item["protocolMapper"] == "oidc-group-membership-mapper" && item.dig("config", "claim.name") == "groups" }
 abort "UDS Package must map Keycloak groups into the token" unless groups_mapper
 abort "UDS Package must write the issuer CA bundle for operator OIDC" unless uds_package.dig("spec", "caBundle", "configMap", "name") == "uds-trust-bundle"
-monitor = uds_package.dig("spec", "monitor") || []
-abort "UDS Package must declare a ServiceMonitor for the metrics port" unless monitor.any? { |item| item["kind"] == "ServiceMonitor" && item["portName"] == "metrics" && item["targetPort"] == 9090 && item["path"] == "/metrics" }
+# The default Hub is file-backed and serves no /metrics. A monitor registered
+# against it is a target that is down for the life of the deployment, so the
+# monitor lives only in the variant an operator selects together with a
+# working metrics configuration.
+abort "default UDS Package must not register a monitor the file-backed Hub cannot serve" if uds_package["spec"].key?("monitor")
+metrics_text = File.read(File.join(root, "deploy/zarf/manifests/uds-package-metrics.yaml"))
+metrics_package = YAML.safe_load(metrics_text)
+monitor = metrics_package.dig("spec", "monitor") || []
+abort "UDS metrics Package must declare exactly the Hub ServiceMonitor" unless monitor == [{
+  "description" => "Hub metrics", "kind" => "ServiceMonitor",
+  "selector" => {"app.kubernetes.io/name" => "platform-delivery"},
+  "portName" => "metrics", "targetPort" => 9090, "path" => "/metrics"
+}]
+without_monitor = metrics_package.merge("spec" => metrics_package["spec"].reject { |key, _| key == "monitor" })
+abort "UDS metrics Package must equal the default Package apart from its monitor" unless without_monitor == uds_package
+undeclared_metrics = metrics_text.scan(/###ZARF_VAR_([A-Z0-9_]+)###/).flatten.uniq - declared_variables
+abort "UDS metrics Package uses undeclared Zarf variables: #{undeclared_metrics.join(', ')}" unless undeclared_metrics.empty?
 
 abort "UDS bundle must carry the Conduit package" unless bundle["kind"] == "UDSBundle"
 abort "UDS bundle version must track VERSION" unless bundle.dig("metadata", "version") == version

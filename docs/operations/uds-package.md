@@ -4,7 +4,8 @@ The Zarf package `platform-runtime` carries the Hub, the Spoke Agent, and an
 optional UDS Package custom resource. The `uds` component is not selected by
 `zarf package deploy --confirm`. Select it with `--components uds` only after
 UDS Core is already installed. The Package CR registers a Keycloak client for
-the console, allows the traffic below, and declares a ServiceMonitor.
+the console and allows the traffic below. A ServiceMonitor is declared only
+by the separate `uds-metrics` component; see [Metrics](#metrics).
 
 These steps were run on a connected machine. They pull the Zarf init package
 and, for the UDS path, the published `k3d-core-slim-dev` bundle from a public
@@ -27,13 +28,65 @@ cluster operating after the images are already present.
   on 5432. The namespace and `app.kubernetes.io/name` value default to
   `postgres` (`POSTGRES_NAMESPACE`, `POSTGRES_NAME_LABEL`). The Zarf baseline
   itself uses the file repository and does not open a database connection.
+- Egress from the Hub to the OIDC issuer, by two in-cluster routes. One is the
+  tenant ingress gateway Pods on 443 and 8443, which is where an issuer such
+  as `https://sso.uds.dev/realms/uds` resolves inside the cluster. The other
+  is the Keycloak Pods on 8080 (`OIDC_ISSUER_NAMESPACE`,
+  `OIDC_ISSUER_NAME_LABEL`, both defaulting to `keycloak`). An issuer outside
+  the cluster is not covered and needs its own `remoteHost` allow.
+- Egress from the Spoke to the OCI registry it runs `helm pull oci://`
+  against, on 443 and 5000 (`CHART_REGISTRY_NAMESPACE`,
+  `CHART_REGISTRY_LABEL_KEY`, `CHART_REGISTRY_LABEL_VALUE`, defaulting to
+  `zarf` and `app: docker-registry`). Set them to wherever the Plans' charts
+  live.
+- Egress from the packaging worker to operator-supplied Temporal on 7233
+  (`TEMPORAL_NAMESPACE`, `TEMPORAL_NAME_LABEL`, both defaulting to
+  `temporal`).
 - Egress from the Spoke to the Kubernetes API, kubelet probes to the Hub, and
   DNS to `kube-dns` in `kube-system`.
-- A ServiceMonitor for Service port `metrics` (9090, path `/metrics`). The
-  process does not listen on that port in this baseline. `/metrics` starts
-  only when `METRICS_ADDRESS` is set and `REPOSITORY_KIND=postgres`. The file
-  repository has no queue statistics, and exporting zeroes would report an
-  idle fleet. The monitor can be registered while the scrape has no series.
+
+The issuer, registry and Temporal allows are checked for shape only: they
+validate against the UDS Core 1.17.1 Package schema and Zarf substitutes
+their variables, but no cluster run has shown the generated NetworkPolicies
+admitting that traffic. Their default selectors (the Keycloak namespace, label
+and port; the Zarf registry namespace, label and port; which gateway port a
+policy must name) are recalled UDS Core and Zarf defaults, not values read
+from this repository. Confirm them against the cluster with
+`uds zarf tools kubectl get pods -A --show-labels` before relying on them.
+- No metrics monitor. The default Hub uses the file repository, which serves
+  no `/metrics`, so a ServiceMonitor would be a target that is down for the
+  life of the deployment.
+
+## Metrics
+
+`/metrics` starts only when `METRICS_ADDRESS` is set and
+`REPOSITORY_KIND=postgres`. The file repository has no queue statistics, and
+exporting zeroes would report an idle fleet. Both are deploy variables, and
+both default to off:
+
+```sh
+uds zarf package deploy zarf-package-platform-runtime-*.tar.zst \
+  --components uds-metrics \
+  --set-variables REPOSITORY_KIND=postgres \
+  --set-variables METRICS_ADDRESS=:9090 \
+  --set-variables PACKAGING_POSTGRES_SECRET=platform-postgres \
+  --confirm
+```
+
+`REPOSITORY_KIND=postgres` reads the DSN from the `dsn` key of
+`PACKAGING_POSTGRES_SECRET`, the Secret the packaging worker already uses.
+`uds-metrics` applies the same Package CR as `uds` plus a ServiceMonitor for
+Service port `metrics` (9090, path `/metrics`). The two components carry the
+same Package object: select one, not both. Zarf cannot check one variable
+against another, so `METRICS_ADDRESS=:9090` with the file repository is
+accepted at deploy time; the Hub then logs that metrics need
+`REPOSITORY_KIND=postgres` and opens no listener.
+
+This path is checked by rendering only. `zarf dev inspect manifests`
+substitutes the variables and the Package validates against the UDS Core
+1.17.1 schema. No cluster run has shown the Zarf-packaged Hub running against
+Postgres, a scrape succeeding, or what Zarf does when both `uds` and
+`uds-metrics` are selected.
 
 ## Tool versions used here
 
@@ -190,6 +243,7 @@ uds zarf tools kubectl -n platform-system get package platform-runtime
 uds zarf tools kubectl -n platform-system get networkpolicy
 uds zarf tools kubectl -n platform-system get virtualservice
 uds zarf tools kubectl -n platform-system get secret conduit-hub-sso
+# Lists a Conduit monitor only when `uds-metrics` was selected instead of `uds`.
 uds zarf tools kubectl get servicemonitor -A
 ```
 

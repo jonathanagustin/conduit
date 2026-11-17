@@ -71,11 +71,20 @@ spec:
             - { name: OPERATOR_OIDC_USERNAME_CLAIM, value: "###ZARF_VAR_OPERATOR_OIDC_USERNAME_CLAIM###" }
             - { name: OPERATOR_OIDC_GROUPS_CLAIM, value: "###ZARF_VAR_OPERATOR_OIDC_GROUPS_CLAIM###" }
             - { name: OPERATOR_OIDC_CA_FILE, value: "###ZARF_VAR_OPERATOR_OIDC_CA_FILE###" }
+            # `file` by default, which is the baseline this package ships and
+            # ignores POSTGRES_DSN_FILE. `postgres` reads the DSN from the
+            # optional Secret mounted below.
+            - { name: REPOSITORY_KIND, value: "###ZARF_VAR_REPOSITORY_KIND###" }
+            - { name: POSTGRES_DSN_FILE, value: /run/conduit-database/dsn }
+            # Empty by default: no metrics listener. The Hub serves /metrics
+            # only when this is set AND the repository is postgres; with the
+            # file repository it logs a warning and opens nothing.
+            - { name: METRICS_ADDRESS, value: "###ZARF_VAR_METRICS_ADDRESS###" }
           ports:
             - { name: https, containerPort: 8081 }
-            # Named so a UDS ServiceMonitor has a port to select. The process
-            # does not listen here unless METRICS_ADDRESS is set and the
-            # repository is postgres. This baseline sets neither.
+            # Declared so the Service port has a target when metrics are on.
+            # Nothing listens here in the default profile, and the package
+            # registers no monitor for it unless `uds-metrics` is selected.
             - { name: metrics, containerPort: 9090 }
           startupProbe:
             httpGet: { path: /health/live, port: https, scheme: HTTPS }
@@ -97,10 +106,20 @@ spec:
             - { name: oidc-ca, mountPath: /etc/ssl/platform-ca, readOnly: true }
             - { name: hub-tls, mountPath: /run/platform-tls, readOnly: true }
             - { name: bundle-signing, mountPath: /run/platform-signing, readOnly: true }
+            - { name: database, mountPath: /run/conduit-database, readOnly: true }
       volumes:
         - name: state
           persistentVolumeClaim:
             claimName: platform-delivery-state
+        # Optional so the file-repository default starts without it. With
+        # REPOSITORY_KIND=postgres a missing Secret is a startup failure that
+        # names POSTGRES_DSN_FILE, not a silent fallback to the file store.
+        - name: database
+          secret:
+            secretName: "###ZARF_VAR_PACKAGING_POSTGRES_SECRET###"
+            optional: true
+            items:
+              - { key: dsn, path: dsn }
         - name: hub-tls
           secret:
             secretName: "###ZARF_VAR_HUB_TLS_SECRET###"
