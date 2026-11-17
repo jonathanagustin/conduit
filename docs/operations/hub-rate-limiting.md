@@ -110,7 +110,7 @@ tokens. These two bounds are not configurable.
   which renders no variable, so the defaults above apply. The chart schema
   holds `rps` to a number above 0 and `burst` to a whole number from 1, both at
   most 1000000, and has no key that disables the limiter.
-- **Zarf:** the package variables of the same names as the environment
+- **Zarf:** the native package values of the same names as the environment
   variables, empty by default. An empty value is read as unset.
 
 ## Limits of this control
@@ -144,3 +144,19 @@ that expression as an alert; its runbook is
 
 Source anchors: `internal/hub/ratelimit`, `internal/hub/composition/rate_limit.go`,
 `cmd/platform-delivery/rate_limit.go`, `internal/observability/application/ratelimit.go`.
+
+## Executable startup verification
+
+`cmd/platform-delivery/rate_limit_startup_test.go` starts the real Hub entrypoint
+in a child test process with explicit development identity and signing opt-ins.
+It checks configured bursts, per-principal and per-Agent isolation, anonymous
+refusals on an unregistered route, positive `Retry-After`, exempt probes, and
+startup refusal of an invalid limit. An admitted Agent poll returns the real
+lease handler's empty work queue; this is not evidence of a granted lease or
+executed Plan.
+
+`TestPostgresHubRequestLimiterEntrypointMetrics` runs in the PostgreSQL integration
+gate, uses a private schema, and reads the separate metrics listener after the
+same traffic. It checks exact class counters and absence of caller identifiers.
+These local process checks establish bootstrap wiring, not production capacity,
+TLS authentication, or multi-replica quota enforcement.
