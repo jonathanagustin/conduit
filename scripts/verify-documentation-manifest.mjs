@@ -15,12 +15,13 @@
 //
 // This is deliberately NOT wired into the ordinary build. It reaches a third
 // party's website, so running it on every commit would be both flaky and rude.
-// It skips cleanly when the network is unavailable, exactly like the cluster
-// acceptance checks skip without a cluster, so it can sit in a scheduled or
-// manually dispatched job without breaking anything offline.
+// Optional local reads skip when the network is unavailable. Scheduled
+// verification uses --require-network: an unreachable corpus is unknown and
+// must fail, rather than being accepted as evidence of no drift.
 //
 //   node scripts/verify-documentation-manifest.mjs            # report drift, exit 1 on any
 //   node scripts/verify-documentation-manifest.mjs --write    # refresh the manifest in place
+//   node scripts/verify-documentation-manifest.mjs --require-network # strict scheduled read
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -121,8 +122,8 @@ if (!existsSync(MANIFEST)) {
 // That is not hypothetical here. This documentation site answers HTTP 200 for
 // paths that do not exist, serving a "Page Not Found" shell, so the status code
 // cannot be used to detect removal at all. The only reliable signal is whether
-// the response carries `pageProps.markdown`. Seed failures still skip -- if the
-// four entry points are unreachable there is nothing to compare against -- but
+// the response carries `pageProps.markdown`. Seed failures skip only for an
+// optional local read; --require-network rejects an unavailable comparison, but
 // a page that answers without content is drift and is reported as such.
 const contentless = [];
 let crawled;

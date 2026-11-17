@@ -37,16 +37,16 @@ test('offline result explicitly reports the committed snapshot boundary',async t
 });
 
 test('stale dates, forged bounds and closed tracker snapshots fail',async t => {
-  for(const mutate of [
-    record=>{record.reviewedAt='2026-08-17';},
-    record=>{record.reviewedAt='2026-02-31';},
-    record=>{record.maximumAgeDays='forever';},
-    record=>{record.issueSnapshotAt='2026-08-17T00:00:00Z';},
-    record=>{record.issues[0].state='closed';},
-    record=>{record.gaps.pop();},
+  for(const [mutate,reason] of [
+    [record=>{record.reviewedAt='2026-08-17';},/readiness review is stale or future-dated/],
+    [record=>{record.reviewedAt='2026-02-31';},/review dates must be real/],
+    [record=>{record.maximumAgeDays='forever';},/maximumAgeDays must be a bounded positive integer/],
+    [record=>{record.issueSnapshotAt='2026-08-17T00:00:00Z';},/committed issue-state snapshot is stale or invalid/],
+    [record=>{record.issues[0].state='closed';},/active tracker #[0-9]+ is absent or closed/],
+    [record=>{record.gaps.pop();},/each historical gap number 1 through 9/],
   ]){
     const {root,record,save}=await fixture(t);mutate(record);save();
-    await assert.rejects(verifyReadiness({root,today}));
+    await assert.rejects(verifyReadiness({root,today}),reason);
   }
 });
 
