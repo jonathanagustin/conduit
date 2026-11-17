@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/jonathanagustin/conduit/internal/localcmd"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/packagingtools"
 	"github.com/jonathanagustin/conduit/internal/planning/adapters/repoclone"
 	"github.com/jonathanagustin/conduit/internal/planning/application"
@@ -70,11 +69,7 @@ func (planner Planner) planTurn(ctx context.Context, session *domain.Session, me
 	if session.ResolvedCommit != "" && checkout.SHA != session.ResolvedCommit {
 		return nil, fmt.Errorf("the ref %q now resolves to %s, not the inspected commit %s; start a new session", session.Intake.Ref, checkout.SHA, session.ResolvedCommit)
 	}
-	model := session.Model
-	if model == "" {
-		model = domain.DefaultModelLabel
-	}
-	result := &application.TurnResult{Model: model, Profile: onboardProfile()}
+	result := &application.TurnResult{Model: planner.turnLabel(), Profile: onboardProfile()}
 	return planner.writeInto(ctx, session, message, checkout, tools, result)
 }
 
@@ -95,11 +90,7 @@ func (planner Planner) writeInto(ctx context.Context, session *domain.Session, m
 
 func (planner Planner) askQuestions(ctx context.Context, session *domain.Session, message string, checkout repoclone.Checkout, tools *packagingtools.Service) ([]domain.Question, string, error) {
 	var questions []domain.Question
-	var reportedModel string
 	err := planner.runPhase(ctx, session, checkout, tools, ActionQuestions, questionsPrompt(session, message), func(reply []byte) error {
-		if m := extractReportedModel(reply, planner.Argv); m != "" {
-			reportedModel = m
-		}
 		parsed, err := parseQuestions(reply)
 		questions = parsed
 		if err != nil {
@@ -107,20 +98,14 @@ func (planner Planner) askQuestions(ctx context.Context, session *domain.Session
 		}
 		return application.QuestionsObserved(ctx, parsed)
 	})
-	if err != nil {
-		return questions, reportedModel, err
-	}
-	return questions, reportedModel, nil
+	// The name comes from configuration and provider metadata only.
+	return questions, planner.turnLabel(), err
 }
 
 func (planner Planner) writePlan(ctx context.Context, session *domain.Session, message string, checkout repoclone.Checkout, tools *packagingtools.Service) (*domain.Plan, []domain.Question, string, error) {
 	var plan *domain.Plan
 	var questions []domain.Question
-	var reportedModel string
 	err := planner.runPhase(ctx, session, checkout, tools, ActionPlan, planPrompt(session, message), func(reply []byte) error {
-		if m := extractReportedModel(reply, planner.Argv); m != "" {
-			reportedModel = m
-		}
 		parsedQuestions, found, err := parseFieldErrors(reply, session.NeedsInput)
 		if found {
 			questions = parsedQuestions
@@ -133,17 +118,18 @@ func (planner Planner) writePlan(ctx context.Context, session *domain.Session, m
 		plan = parsed
 		return err
 	})
-	if err != nil {
-		return plan, questions, reportedModel, err
-	}
-	return plan, questions, reportedModel, nil
+	return plan, questions, planner.turnLabel(), err
 }
 
 // runPhase drives one model phase: it feeds tool results back until the
 // model gives a final reply, hands that reply to parse, and writes one
 // audit record whatever the outcome.
 func (planner Planner) runPhase(ctx context.Context, session *domain.Session, checkout repoclone.Checkout, tools *packagingtools.Service, action, prompt string, parse func([]byte) error) error {
-	adapter := localcmd.CommandName(planner.Argv[0])
+	model := planner.configuredModel()
+	if model == nil {
+		return domain.ErrModelNotConfigured
+	}
+	adapter := model.Identity().Adapter
 	prompt = application.GroundRunPrompt(ctx, prompt)
 	promptDigest := digestText([]byte(prompt))
 	var (
@@ -164,7 +150,8 @@ func (planner Planner) runPhase(ctx context.Context, session *domain.Session, ch
 		return err
 	}
 	for round := 0; round < phaseRounds; round++ {
-		stdout, err := localcmd.Execute(ctx, planner.Argv, planner.Timeout, []byte(prompt))
+		reply, err := model.Complete(ctx, prompt)
+		stdout := reply.Text
 		last = stdout
 		if err != nil {
 			return fail(modelError(err))
@@ -487,26 +474,4 @@ func publishFrontendCalls(ctx context.Context, raw []byte) (bool, error) {
 		return len(*reply.Calls) > 0, nil
 	}
 	return false, nil
-}
-
-func extractReportedModel(raw []byte, argv []string) string {
-	var cmdRaw, cmdName string
-	if len(argv) > 0 {
-		cmdRaw = strings.TrimSpace(argv[0])
-		cmdName = localcmd.CommandName(argv[0])
-	}
-	for _, candidate := range replyObjects(raw) {
-		var envelope struct {
-			Model string `json:"model"`
-		}
-		if err := json.Unmarshal(candidate, &envelope); err != nil {
-			continue
-		}
-		model := collapse(envelope.Model)
-		if model == "" || model == cmdRaw || model == cmdName {
-			continue
-		}
-		return model
-	}
-	return ""
 }

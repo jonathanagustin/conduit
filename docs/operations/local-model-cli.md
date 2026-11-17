@@ -14,19 +14,25 @@ The model command does not inherit the Hub's environment. It receives only an al
 
 `packaging-workflow agent-exec` is a ready-made `CONDUIT_MODEL_CMD`. Its `--provider` flag (or `CONDUIT_AGENT_PROVIDER`) chooses the engine:
 
-| Provider | Delegates to | Default argv |
-| --- | --- | --- |
-| `deterministic` (default) | built-in offline agent | none |
-| `codex` | Codex CLI | `codex exec --skip-git-repo-check --sandbox read-only --ephemeral -` |
-| `claude` | Claude Code CLI | `claude -p --output-format text` |
-| `gemini` | Gemini CLI | `gemini -p "<instruction>"` (prompt on stdin) |
-| `grok` | Grok CLI | `grok -p` |
+| Provider | Delegates to | Default argv | Status | Evidence |
+| --- | --- | --- | --- | --- |
+| `deterministic` (default) | built-in offline agent | none | VERIFIED | Exercised by the `cmd/packaging-workflow` tests in CI. |
+| `codex` | Codex CLI | `codex exec --skip-git-repo-check --sandbox read-only --ephemeral -` | UNVERIFIED | The argv is this document's contract. No run against the real CLI is recorded in this repository. |
+| `claude` | Claude Code CLI | `claude -p --output-format text` | UNVERIFIED | No run against the real CLI is recorded in this repository. |
+| `gemini` | Gemini CLI | `gemini -p "<instruction>"` (prompt on stdin) | UNVERIFIED | No run against the real CLI is recorded in this repository. |
+| `grok` | Grok CLI | `grok -p` | UNVERIFIED | No run against the real CLI is recorded in this repository. |
+
+VERIFIED means this repository holds a recorded run of the preset against the real engine. A test that uses a fake CLI does not count, and that is all the four delegating presets have. The table is `Presets` in `internal/localcmd/presets.go`; a test fails when this document and that table disagree.
+
+Selecting an UNVERIFIED preset is allowed and is logged. The Hub and the `packaging-workflow` worker log one warning at startup when `CONDUIT_MODEL_CMD` names such a preset, and `agent-exec` writes the same warning to its standard error on every turn. Confirm the preset with a local run before you rely on it. To move a preset to VERIFIED, record that run in this repository and change the table and its test together.
 
 Example: `CONDUIT_MODEL_CMD="packaging-workflow agent-exec --provider claude"`.
 
 Each turn's prompt goes to the CLI on stdin. Markdown fences are stripped and, where JSON is expected, the first balanced JSON object is extracted from surrounding prose. Replace any default argv with `CONDUIT_PROVIDER_<NAME>_CMD`. Credentials stay in each CLI's own configuration.
 
-Only the `codex` argv comes from this document's existing contract. The `claude`, `gemini` and `grok` defaults are unverified against real installs, so confirm them with a local run before relying on them. The adapter is covered by tests that use a fake CLI.
+## Model name
+
+A model CLI does not tell the Hub which model it ran. Set `CONDUIT_MODEL_NAME` to the name you configured in the CLI; the Hub binds that name at Accept and writes it to the audit event as `configuredModel`. With `CONDUIT_MODEL_NAME` unset the binding reads `unverified (model CLI, CONDUIT_MODEL_NAME not set)`. The Hub never takes the name from the model's reply: a `"model"` field in a reply is model-authored text and is ignored. The name is the operator's statement, so the Hub records it and does not check it against the CLI. An [HTTP model endpoint](model-http.md) also records the id the provider returned.
 
 ## Workspace editor ACP agent
 

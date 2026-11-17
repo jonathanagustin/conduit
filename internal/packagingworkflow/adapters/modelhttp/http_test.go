@@ -6,9 +6,11 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	shared "github.com/jonathanagustin/conduit/internal/modelhttp"
+	"github.com/jonathanagustin/conduit/internal/packagingworkflow/application"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 )
 
@@ -45,6 +47,59 @@ func TestProposeParsesTheProposalFromTheCompletion(t *testing.T) {
 	if provenance.Adapter != "openai-http" || provenance.PromptSHA256 == "" || provenance.SkillSHA256 == "" ||
 		provenance.ResponseSHA256 != domain.DigestText([]byte(reply)) {
 		t.Fatalf("provenance = %+v", provenance)
+	}
+	// The ids are the configured name and the response's model field.
+	if provenance.ConfiguredModel != "asked" || provenance.ProviderModel != "served" {
+		t.Fatalf("model ids = %q/%q", provenance.ConfiguredModel, provenance.ProviderModel)
+	}
+}
+
+type imageTools struct{ domain.Toolbox }
+
+func (imageTools) InspectImage(context.Context, string) (domain.ImageInspect, error) {
+	return domain.ImageInspect{Digest: "sha256:" + strings.Repeat("7", 64)}, nil
+}
+
+func TestProposePackageIsThePackageWriterOverHTTP(t *testing.T) {
+	var _ application.PackageWriter = Adapter{}
+	reply := `{"source":"src","zarf":"kind: ZarfPackageConfig","cr":"kind: Package","rationale":"one service"}`
+	var prompt string
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		var body struct {
+			Messages []struct {
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		_ = json.NewDecoder(request.Body).Decode(&body)
+		if len(body.Messages) == 1 {
+			prompt = body.Messages[0].Content
+		}
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"model": "served", "choices": []any{map[string]any{"message": map[string]any{"content": reply}}},
+		})
+	}))
+	t.Cleanup(server.Close)
+	client, err := shared.New(shared.Config{BaseURL: server.URL, Model: "asked"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := domain.PackagingContext{RunID: "run-1", ImageRef: "registry.example/app:v1"}
+	proposal, provenance, err := Adapter{Client: client, Tools: imageTools{}}.ProposePackage(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proposal.Source != "src" || proposal.CR != "kind: Package" {
+		t.Fatalf("proposal = %+v", proposal)
+	}
+	if provenance.ConfiguredModel != "asked" || provenance.ProviderModel != "served" {
+		t.Fatalf("model ids = %q/%q", provenance.ConfiguredModel, provenance.ProviderModel)
+	}
+	if len(provenance.ToolCalls) != 1 || provenance.ToolCalls[0].Name != "inspect_image" {
+		t.Fatalf("tool calls = %+v", provenance.ToolCalls)
+	}
+	// The digest covers the prompt that was sent, inspected facts included.
+	if provenance.PromptSHA256 != domain.DigestText([]byte(prompt)) || !strings.Contains(prompt, "inspect_image: ") {
+		t.Fatalf("prompt digest does not match the sent prompt")
 	}
 }
 

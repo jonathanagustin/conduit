@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/localcmd"
+	"github.com/jonathanagustin/conduit/internal/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/packagingtools"
 	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	"github.com/jonathanagustin/conduit/internal/planning/adapters/repoclone"
@@ -31,9 +32,13 @@ type Auditor interface {
 // Record is the digest and tool list written to the audit log.
 type Record struct {
 	// Action is the audit action. Empty means planning.inspect.
-	Action         string
-	SessionID      string
-	Adapter        string
+	Action    string
+	SessionID string
+	Adapter   string
+	// ConfiguredModel is the operator-configured model name, or empty.
+	ConfiguredModel string
+	// ProviderModel is the id from provider response metadata, or empty.
+	ProviderModel  string
 	PromptSHA256   string
 	ResponseSHA256 string
 	RepoURL        string
@@ -49,10 +54,16 @@ type CloneFunc func(ctx context.Context, repoURL, ref string) (repoclone.Checkou
 // Planner is a planning turn runner backed by a local model command and
 // the packaging inspect_repo and read_file tools.
 type Planner struct {
-	Argv    []string
-	Timeout time.Duration
-	Audit   Auditor
-	Clone   CloneFunc
+	// Model is the model transport. When it is nil, Argv selects the local
+	// command transport.
+	Model Model
+	// Argv and Timeout configure the local command transport when Model is
+	// nil. ModelName is the operator-configured model name for it.
+	Argv      []string
+	Timeout   time.Duration
+	ModelName string
+	Audit     Auditor
+	Clone     CloneFunc
 	// OnTool is notified after a successful inspect_repo or read_file call.
 	// Path is set only for read_file.
 	OnTool func(name, path string)
@@ -67,9 +78,14 @@ func (planner Planner) Turn(ctx context.Context, session *domain.Session, messag
 	if session.Profile.Name == domain.ProfileAppgen {
 		return application.BuildAppgenTurnResult(session, message, ""), nil
 	}
-	if len(planner.Argv) == 0 || strings.TrimSpace(planner.Argv[0]) == "" {
+	configured := planner.configuredModel()
+	if configured == nil {
 		return nil, domain.ErrModelNotConfigured
 	}
+	// One wrapper per turn records the provider-reported id for the audit
+	// records and the turn result.
+	turn := &turnModel{Model: configured}
+	planner.Model = turn
 	if session.Inspection != nil && domain.PendingRequired(session.NeedsInput, session.Answers) {
 		// Required questions are still open; the plan waits for the answers.
 		return &application.TurnResult{}, nil
@@ -89,12 +105,8 @@ func (planner Planner) Turn(ctx context.Context, session *domain.Session, messag
 	if session.Inspection != nil {
 		return planner.planTurn(ctx, session, message, checkout, tools)
 	}
-	adapter := localcmd.CommandName(planner.Argv[0])
-	model := session.Model
-	if model == "" {
-		model = domain.DefaultModelLabel
-	}
-	result := &application.TurnResult{ResolvedCommit: checkout.SHA, Model: model, Profile: onboardProfile()}
+	adapter := turn.Identity().Adapter
+	result := &application.TurnResult{ResolvedCommit: checkout.SHA, Model: turn.label(), Profile: onboardProfile()}
 	prompt := application.GroundRunPrompt(ctx, inspectionPrompt(session, message))
 	promptDigest := digestText([]byte(prompt))
 	var (
@@ -104,8 +116,10 @@ func (planner Planner) Turn(ctx context.Context, session *domain.Session, messag
 		events       []*domain.Inspection
 	)
 	for round := 0; round < maxRounds; round++ {
-		stdout, err := localcmd.Execute(ctx, planner.Argv, planner.Timeout, []byte(prompt))
+		reply, err := turn.Complete(ctx, prompt)
+		stdout := reply.Text
 		lastResponse = stdout
+		result.Model = turn.label()
 		if err != nil {
 			_ = planner.record(ctx, Record{
 				SessionID: session.ID, Adapter: adapter, PromptSHA256: promptDigest,
@@ -114,9 +128,6 @@ func (planner Planner) Turn(ctx context.Context, session *domain.Session, messag
 				Outcome: "fail", Reason: err.Error(),
 			})
 			return result, modelError(err)
-		}
-		if reported := extractReportedModel(stdout, planner.Argv); reported != "" {
-			result.Model = reported
 		}
 		requests, skipped, isTools, parseErr := parseModelReply(stdout)
 		if isTools {
@@ -187,7 +198,31 @@ func (planner Planner) record(ctx context.Context, record Record) error {
 	if planner.Audit == nil {
 		return nil
 	}
+	if turn, ok := planner.Model.(*turnModel); ok {
+		record.ConfiguredModel = turn.Identity().ConfiguredModel
+		record.ProviderModel = turn.provider
+	}
 	return planner.Audit.Record(ctx, record)
+}
+
+// configuredModel is the transport this planner was built with, or nil.
+func (planner Planner) configuredModel() Model {
+	if planner.Model != nil {
+		return planner.Model
+	}
+	if len(planner.Argv) == 0 || strings.TrimSpace(planner.Argv[0]) == "" {
+		return nil
+	}
+	return CLIModel{Argv: planner.Argv, Timeout: planner.Timeout, Name: planner.ModelName}
+}
+
+// turnLabel is the model name for the turn result. It is never read from a
+// model reply.
+func (planner Planner) turnLabel() string {
+	if turn, ok := planner.Model.(*turnModel); ok {
+		return turn.label()
+	}
+	return domain.UnverifiedModelLabel
 }
 
 func runToolRequests(ctx context.Context, tools *packagingtools.Service, requests []packagingdomain.ToolRequest, calls []string, current *domain.Inspection, onTool func(name, path string)) (string, []string, *domain.Inspection, error) {
@@ -456,9 +491,9 @@ func balancedObjects(raw []byte) [][]byte {
 
 func modelError(err error) error {
 	switch {
-	case errors.Is(err, localcmd.ErrTimeout):
+	case errors.Is(err, localcmd.ErrTimeout), errors.Is(err, modelhttp.ErrTimeout):
 		return fmt.Errorf("planning model timed out: %w", err)
-	case errors.Is(err, localcmd.ErrNotFound), errors.Is(err, localcmd.ErrEmpty):
+	case errors.Is(err, localcmd.ErrNotFound), errors.Is(err, localcmd.ErrEmpty), errors.Is(err, modelhttp.ErrNotConfigured):
 		return fmt.Errorf("%w: %v", domain.ErrModelNotConfigured, err)
 	default:
 		return fmt.Errorf("planning model failed: %w", err)

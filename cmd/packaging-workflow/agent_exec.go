@@ -10,10 +10,14 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/jonathanagustin/conduit/internal/localcmd"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	"github.com/jonathanagustin/conduit/internal/planning/adapters/repoclone"
 )
 
+// agentExecModelName is written into the deterministic agent's replies. It is
+// model-authored text: the planner ignores it and binds the operator's
+// CONDUIT_MODEL_NAME or the unverified marker instead.
 const agentExecModelName = "conduit-packaging-agent-v1"
 
 func addAgentExecCommand(root *cobra.Command) {
@@ -29,6 +33,11 @@ func addAgentExecCommand(root *cobra.Command) {
 			raw, err := io.ReadAll(cmd.InOrStdin())
 			if err != nil {
 				return err
+			}
+			// A preset with no recorded run says so on stderr every turn;
+			// stdout carries only the reply.
+			if preset, ok := localcmd.PresetByName(provider); ok && !preset.Verified {
+				warnPreset(preset)
 			}
 			var reply string
 			if provider == "" || provider == providerDeterministic {

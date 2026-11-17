@@ -61,6 +61,12 @@ type WorkspaceAudit struct {
 	ToolCalls        []string `json:"toolCalls"`
 	PromptSHA256     string   `json:"promptSha256"`
 	ResponseSHA256   string   `json:"responseSha256"`
+	// Adapter is the model transport. ConfiguredModel and ProviderModel are
+	// the operator-configured name and the provider-reported id; all three
+	// are omitted when the writer recorded none.
+	Adapter         string `json:"adapter,omitempty"`
+	ConfiguredModel string `json:"configuredModel,omitempty"`
+	ProviderModel   string `json:"providerModel,omitempty"`
 }
 
 // Metadata returns the audit fields as a governance metadata map.
@@ -69,7 +75,7 @@ func (audit WorkspaceAudit) Metadata() map[string]any {
 	if calls == nil {
 		calls = []string{}
 	}
-	return map[string]any{
+	metadata := map[string]any{
 		"outcome":          audit.Outcome,
 		"repo":             audit.Repo,
 		"repoUrl":          audit.RepoURL,
@@ -82,6 +88,14 @@ func (audit WorkspaceAudit) Metadata() map[string]any {
 		"promptSha256":     audit.PromptSHA256,
 		"responseSha256":   audit.ResponseSHA256,
 	}
+	for key, value := range map[string]string{
+		"adapter": audit.Adapter, "configuredModel": audit.ConfiguredModel, "providerModel": audit.ProviderModel,
+	} {
+		if value != "" {
+			metadata[key] = value
+		}
+	}
+	return metadata
 }
 
 // WorkspaceResult is one packaging attempt after gates and a git commit.
@@ -334,6 +348,9 @@ func buildWorkspaceAudit(provenance domain.Provenance, outcome string) Workspace
 		ToolCalls:        calls,
 		PromptSHA256:     provenance.PromptSHA256,
 		ResponseSHA256:   provenance.ResponseSHA256,
+		Adapter:          provenance.Adapter,
+		ConfiguredModel:  provenance.ConfiguredModel,
+		ProviderModel:    provenance.ProviderModel,
 	}
 }
 

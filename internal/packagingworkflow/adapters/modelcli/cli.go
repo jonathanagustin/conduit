@@ -27,6 +27,9 @@ type Runner struct {
 	Argv    []string
 	Timeout time.Duration
 	Tools   domain.Toolbox
+	// ModelName is the operator-configured model name, recorded in the
+	// provenance. The command's reply is never a source for it.
+	ModelName string
 }
 
 func (runner Runner) Propose(ctx context.Context, input domain.PackagingContext) (domain.Proposal, domain.Provenance, error) {
@@ -36,7 +39,7 @@ func (runner Runner) Propose(ctx context.Context, input domain.PackagingContext)
 	input = input.WithSkill(packagingskill.Source, packagingskill.SHA256())
 	calls := runner.inspectFacts(ctx, &input)
 	prompt := []byte(domain.Prompt(input))
-	provenance := domain.Provenance{Adapter: localcmd.CommandName(runner.Argv[0]), PromptSHA256: domain.DigestText(prompt), ToolCalls: calls}.WithSkillDigest(input)
+	provenance := domain.Provenance{Adapter: localcmd.CommandName(runner.Argv[0]), ConfiguredModel: strings.TrimSpace(runner.ModelName), PromptSHA256: domain.DigestText(prompt), ToolCalls: calls}.WithSkillDigest(input)
 	stdout, err := localcmd.Execute(ctx, runner.Argv, runner.Timeout, prompt)
 	provenance.ResponseSHA256 = domain.DigestText(stdout)
 	if err != nil {
@@ -67,7 +70,13 @@ func ParseArgv(line string) ([]string, error) {
 }
 
 func (runner Runner) inspectFacts(ctx context.Context, input *domain.PackagingContext) []domain.ToolCallRecord {
-	if runner.Tools == nil {
+	return InspectFacts(ctx, runner.Tools, input)
+}
+
+// InspectFacts adds the inspected image facts to the prompt context. Both
+// model transports use it, so the prompt does not depend on the transport.
+func InspectFacts(ctx context.Context, tools domain.Toolbox, input *domain.PackagingContext) []domain.ToolCallRecord {
+	if tools == nil {
 		return nil
 	}
 	ref := strings.TrimSpace(input.ImageRef)
@@ -77,7 +86,7 @@ func (runner Runner) inspectFacts(ctx context.Context, input *domain.PackagingCo
 	if ref == "" {
 		return nil
 	}
-	got, err := runner.Tools.InspectImage(ctx, ref)
+	got, err := tools.InspectImage(ctx, ref)
 	calls := []domain.ToolCallRecord{{Name: "inspect_image"}}
 	var body strings.Builder
 	if err != nil {
@@ -108,7 +117,7 @@ func (runner Runner) ProposePackage(ctx context.Context, input domain.PackagingC
 	input = input.WithSkill(packagingskill.Source, packagingskill.SHA256())
 	calls := runner.inspectFacts(ctx, &input)
 	prompt := []byte(domain.Prompt(input))
-	provenance := domain.Provenance{Adapter: localcmd.CommandName(runner.Argv[0]), PromptSHA256: domain.DigestText(prompt), ToolCalls: calls}.WithSkillDigest(input)
+	provenance := domain.Provenance{Adapter: localcmd.CommandName(runner.Argv[0]), ConfiguredModel: strings.TrimSpace(runner.ModelName), PromptSHA256: domain.DigestText(prompt), ToolCalls: calls}.WithSkillDigest(input)
 	stdout, err := localcmd.Execute(ctx, runner.Argv, runner.Timeout, prompt)
 	provenance.ResponseSHA256 = domain.DigestText(stdout)
 	if err != nil {
