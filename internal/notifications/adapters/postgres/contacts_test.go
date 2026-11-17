@@ -187,7 +187,7 @@ func TestPostgresADeliveryResolvesToTheSubscribersOwnAddress(t *testing.T) {
 	if err := store.SavePreference(ctx, preference("pref-1", alice(), domain.ChannelEmail)); err != nil {
 		t.Fatal(err)
 	}
-	emitter, err := application.NewEmitter(store)
+	emitter, err := application.NewEmitter(store, allowRecipients{})
 	if err != nil {
 		t.Fatal(err)
 	}

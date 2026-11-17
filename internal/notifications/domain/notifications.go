@@ -515,10 +515,11 @@ type InboxEntry struct {
 // one owner reached twice on the same channel, because being told the same
 // thing twice in the same place teaches people to ignore it.
 //
-// A pure function of its inputs: the caller supplies the preferences it has
-// already authorized this reader to see, exactly as Reporting's ports require,
-// because filtering after fanning out would let an inbox hold an entry its
-// owner cannot account for.
+// This pure function resolves subscription consent, not resource authority.
+// Before recording any resulting inbox or delivery row, the caller must check
+// each recipient's current read authority. Filtering only when reading the
+// inbox would leave inaccessible events stored for delivery; external
+// submission therefore checks current authority again.
 // CONDUIT-INVENTED: notifications.Fan
 // Displaced-by: a capture of how Apollo resolves one event to its recipients,
 // in particular whether it deduplicates a recipient reached by two preferences

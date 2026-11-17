@@ -61,7 +61,7 @@ func TestAlternateHubSurfacesAnnouncePersistedHumanProposals(t *testing.T) {
 				t.Fatal(err)
 			}
 			store := newNotificationStore()
-			ports, err := NewAnnouncements(store, slog.New(slog.NewTextHandler(io.Discard, nil)))
+			ports, err := NewAnnouncements(store, allowRecipients{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 			if err != nil {
 				t.Fatal(err)
 			}

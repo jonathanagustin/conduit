@@ -51,10 +51,10 @@
     },
     {
       "id": "notifications.Fan",
-      "what": "Resolution of one event to its recipients, deduplicated per owner and channel.",
-      "why": "Deduplication is a judgement, not a recovery: being told the same thing twice in the same place teaches people to ignore it. The channel half of the key is grounded -- Apollo configures email and in-app independently, so reaching one person on both is intended -- but collapsing one owner reached by two preferences on one channel is Conduit's own choice, and Apollo may well fan out per preference instead.",
-      "displacedBy": "A capture of how Apollo resolves one event to its recipients, in particular whether it deduplicates a recipient reached by two preferences.",
-      "riskIfWrong": "Low. Changing the fan-out rule changes delivery volume, not stored shape."
+      "what": "Resolution of one event to its recipients, deduplicated per owner and channel, with current resource-read authority checked before recording fan-out rows and before external submission.",
+      "why": "Deduplication is a judgement, not a recovery: being told the same thing twice in the same place teaches people to ignore it. The channel half of the key is grounded -- Apollo configures email and in-app independently, so reaching one person on both is intended -- but collapsing one owner reached by two preferences on one channel is Conduit's own choice, and Apollo may well fan out per preference instead. Conduit also treats a subscription as interest, not permanent authorization: current native memberships, grants and standing bootstrap policy decide whether it can receive new resource events. External group-only user authority is explicitly unavailable without a trusted current directory; stale subscription claims and the emitting actor are never substitutes.",
+      "displacedBy": "A capture of how Apollo resolves one event to its recipients, including deduplication and authorization after permissions change; and a trusted current group-directory integration for background user eligibility.",
+      "riskIfWrong": "Moderate availability impact: fail-closed unknown authority can block fan-out or retry a queued delivery. Known refusals are recorded as terminal delivery failures, never as delivered; historical inbox entries are retained."
     },
     {
       "id": "notifications.Message",
