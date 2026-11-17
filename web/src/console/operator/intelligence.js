@@ -1,3 +1,7 @@
+import {
+  capabilityBlocks,
+  deliveryCapabilityHook,
+} from "./delivery-actions.js";
 // Native memory-gate evidence and mandatory-human-review proposals.
 const esc = (value) =>
   String(value ?? "").replace(
@@ -180,22 +184,48 @@ export function createIntelligence({
           (row) => row.id === form.elements.namedItem("value").value,
         ),
       });
-      form.oninput = (event) => {
-        if (busy) return;
-        if (event.target !== confirm) confirm.checked = false;
+      const capability = () => {
+        const target = selected().target;
+        return target
+          ? deliveryCapabilityHook(
+              "change:propose",
+              `installation/${target.environment}/${target.installationId}`,
+            )
+          : { allowed: null, reason: "" };
+      };
+      const sync = () => {
         const choice = selected();
+        const gate = capability();
         button.disabled =
           !confirm.checked ||
           !caller ||
           getOperator() !== caller ||
           !choice.target ||
-          !canStageCourse(choice.option);
+          !canStageCourse(choice.option) ||
+          capabilityBlocks(gate);
+        button.title = capabilityBlocks(gate) ? gate.reason : "";
+        const reason = form.querySelector("[data-intel-capability]");
+        reason.textContent = capabilityBlocks(gate) ? gate.reason : "";
       };
+      const reason = document.createElement("p");
+      reason.setAttribute("role", "status");
+      reason.setAttribute("data-intel-capability", "");
+      button.after(reason);
+      form.oninput = (event) => {
+        if (busy) return;
+        if (event.target !== confirm) confirm.checked = false;
+        sync();
+      };
+      sync();
       form.onsubmit = async (event) => {
         event.preventDefault();
         if (busy || !confirm.checked || !caller || getOperator() !== caller)
           return;
         const choice = selected();
+        if (capabilityBlocks(capability())) {
+          sync();
+          return;
+        }
         if (!choice.target || !canStageCourse(choice.option)) return;
         const fresh = intelligenceTargets(getHub()?.installations).find(
           (row) => row.id === choice.target.id,
