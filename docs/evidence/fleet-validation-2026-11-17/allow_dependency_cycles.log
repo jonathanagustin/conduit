@@ -1,0 +1,5 @@
+--- FAIL: TestGeneratedFleetPlannerRefusesCycles (0.00s)
+    fleet_invariants_test.go:136: #1: failed on input 0x8b3792af630c4677
+FAIL
+FAIL	github.com/jonathanagustin/conduit/internal/controlplane	0.432s
+FAIL

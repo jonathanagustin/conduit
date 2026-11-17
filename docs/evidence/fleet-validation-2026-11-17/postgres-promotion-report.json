@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "configuration": {
+    "backend": "postgres",
+    "environments": 2,
+    "agents_per_environment": 2,
+    "generations_per_environment": 0,
+    "hub_handlers": 2,
+    "duration_ns": 20000000000,
+    "poll_interval_ns": 30000000,
+    "simulated_apply_delay_ns": 1000000,
+    "drain_timeout_ns": 30000000000,
+    "run_timeout_ns": 60000000000,
+    "allow_transient_errors": true
+  },
+  "commit": "e2a4518658cf9660938ca928b56ca1cb96bdf7c7",
+  "goos": "darwin",
+  "goarch": "arm64",
+  "go_version": "go1.27.4",
+  "visible_cpus": 18,
+  "gomaxprocs": 2,
+  "elapsed_seconds": 20.469393541,
+  "completed_plans": 69,
+  "plans_per_second": 3.3708863851678683,
+  "completions_per_environment": [
+    16,
+    53
+  ],
+  "rpc_full_response_latency": {
+    "finish": {
+      "requests": 70,
+      "errors": 1,
+      "empty_polls": 0,
+      "mean_ms": 64.2823619,
+      "max_ms": 322.971875,
+      "p50_upper_ms": 50,
+      "p95_upper_ms": 250,
+      "p99_upper_ms": 500
+    },
+    "leases": {
+      "requests": 923,
+      "errors": 82,
+      "empty_polls": 771,
+      "mean_ms": 46.16156869122427,
+      "max_ms": 399.390708,
+      "p50_upper_ms": 50,
+      "p95_upper_ms": 250,
+      "p99_upper_ms": 500
+    },
+    "start": {
+      "requests": 70,
+      "errors": 0,
+      "empty_polls": 0,
+      "mean_ms": 66.9344149,
+      "max_ms": 240.616334,
+      "p50_upper_ms": 100,
+      "p95_upper_ms": 250,
+      "p99_upper_ms": 250
+    }
+  },
+  "allocation_bytes": 2427288352,
+  "heap_end_bytes": 16127392,
+  "passed": true,
+  "component_classes": {
+    "agent_client_and_worker": "real",
+    "hub_http": "real",
+    "kubernetes": "unavailable",
+    "planner_and_lifecycle": "real",
+    "repository": "real",
+    "workload_executor": "simulated"
+  }
+}

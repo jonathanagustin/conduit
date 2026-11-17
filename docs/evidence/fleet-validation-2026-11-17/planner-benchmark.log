@@ -1,0 +1,10 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/jonathanagustin/conduit/internal/controlplane
+cpu: Apple M5 Pro
+BenchmarkGeneratedFleetPlanner/installations-1-2         	   10000	     10403 ns/op	    6798 B/op	      67 allocs/op
+BenchmarkGeneratedFleetPlanner/installations-10-2        	     826	    144000 ns/op	   81888 B/op	     482 allocs/op
+BenchmarkGeneratedFleetPlanner/installations-100-2       	     163	    823430 ns/op	  754857 B/op	    4277 allocs/op
+BenchmarkGeneratedFleetPlanner/installations-170-2       	     133	    892612 ns/op	 1349133 B/op	    7224 allocs/op
+PASS
+ok  	github.com/jonathanagustin/conduit/internal/controlplane	0.896s

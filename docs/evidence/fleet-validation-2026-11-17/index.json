@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "classification": "CONDUIT_NATIVE",
+  "purpose": "Contended workstation functional evidence, not a production capacity admission",
+  "run_topology": {
+    "host": "Apple M5 Pro macOS arm64",
+    "go": "1.27.4",
+    "gomaxprocs": 2,
+    "concurrent_work": "Other repository checks and Podman-based act/fixture work were active; no uncontended baseline or peak-memory claim.",
+    "executors": "simulated; no workload Helm/Kubernetes operation"
+  },
+  "profiles": [
+    {
+      "profile": "one",
+      "commit": "e2a4518658cf9660938ca928b56ca1cb96bdf7c7",
+      "tree": "81e6030af35478e8d7c827f0380882c63d0841a2",
+      "passed": true,
+      "receipt": "one-receipt.json"
+    },
+    {
+      "profile": "ten",
+      "commit": "e2a4518658cf9660938ca928b56ca1cb96bdf7c7",
+      "tree": "81e6030af35478e8d7c827f0380882c63d0841a2",
+      "passed": true,
+      "receipt": "ten-receipt.json"
+    },
+    {
+      "profile": "twentyfive",
+      "commit": "e2a4518658cf9660938ca928b56ca1cb96bdf7c7",
+      "tree": "81e6030af35478e8d7c827f0380882c63d0841a2",
+      "passed": true,
+      "receipt": "twentyfive-receipt.json"
+    },
+    {
+      "profile": "sustained",
+      "commit": "e2a4518658cf9660938ca928b56ca1cb96bdf7c7",
+      "tree": "81e6030af35478e8d7c827f0380882c63d0841a2",
+      "passed": true,
+      "receipt": "sustained-receipt.json"
+    },
+    {
+      "profile": "postgres-promotion",
+      "commit": "e2a4518658cf9660938ca928b56ca1cb96bdf7c7",
+      "tree": "81e6030af35478e8d7c827f0380882c63d0841a2",
+      "passed": true,
+      "receipt": "postgres-promotion-receipt.json"
+    }
+  ],
+  "failure_assertions": {
+    "postgres_promotion": {
+      "completed_plans": 69,
+      "post_promotion_plans_by_environment": [
+        15,
+        52
+      ],
+      "postgres_containers": 2,
+      "per_container_memory_limit_bytes": 201326592,
+      "per_container_cpu_limit": 1,
+      "replication": "synchronous remote_apply",
+      "endpoint": "test TCP switch, same-process Hub handlers with separate pools"
+    },
+    "network_partition": "real TCP dial refusal/recovery; exercised in native touched-package race run",
+    "agent_disconnect": "real Worker cancellation, unreachable detached finish,10s lease expiry, second Agent attempt, stale finish rejection; exercised in native touched-package race run"
+  },
+  "unexercised": [
+    "production fleet limits",
+    "long-duration production soak",
+    "managed PostgreSQL/DNS failover or split-brain prevention",
+    "production multi-process Hub topology",
+    "Kubernetes workloads"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "classification": "CONDUIT_NATIVE",
+  "source_blob_shas": {
+    "internal/controlplane/plan.go": "97770ff8d51511ff1d9fbf52cc4091d4a60349c2",
+    "internal/controlplane/fleet_invariants_test.go": "049845f769265d95318ad71284c7562d7646bb23",
+    "internal/hub/composition/fleet_capacity_test.go": "4fc5b05f65a8e55c18903132026f32d2533cb770",
+    "internal/hub/composition/fleet_failover_test.go": "942d411ebd7e8c130078f3b14fb18b05583d8001",
+    "internal/hub/composition/fleet_faults_test.go": "ae50d681ffc478347e20ff5725eaa5e5be7af6d9"
+  },
+  "native_go": "1.27.4",
+  "goos": "darwin",
+  "goarch": "arm64",
+  "CGO_ENABLED": "0",
+  "GOMAXPROCS": "2",
+  "passed_commands": [
+    "go test -race -p 2 ./internal/controlplane ./internal/hub/composition -run '^Test(GeneratedFleetPlanner|Fleet)' -count=1",
+    "go vet -p 2 ./...",
+    "node scripts/verify-domain-boundaries.mjs",
+    "bash -n scripts/test-fleet-capacity.sh scripts/test-fleet-failover.sh",
+    "go test ./internal/controlplane -run '^$' -bench '^BenchmarkGeneratedFleetPlanner$' -benchtime=100ms -count=1"
+  ],
+  "log_sha256": "6f8570805af545689f1b822d942f9db346527a72fb8f45152cd1cc6b7a18ac9b",
+  "benchmark_log_sha256": "701ef1dc1a30f1735d8ed4f0e11419f7863b78ecc167a75757344301c89a81db",
+  "full_native_race": {
+    "result": "FAIL",
+    "reason": "Existing internal/devworkspace/adapters/container tests hardcode docker and that executable is absent on this Podman-only Mac. Two tests failed; full success is not claimed.",
+    "failing_tests": [
+      "TestIsolatedWorkspaceDeniesEgressAndHidesCredentials",
+      "TestRuntimeStartIsIsolatedAndStopRemovesIt"
+    ]
+  }
+}
