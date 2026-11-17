@@ -73,7 +73,20 @@ func NewHub(
 	if err != nil {
 		return nil, err
 	}
-	options, err = withAnnouncements(options, hubOptions.NotificationStore, eligibility, slog.Default())
+	durableNotifications, err := ConfigureNotificationIntents(repository, hubOptions.NotificationStore, slog.Default())
+	if err != nil {
+		return nil, err
+	}
+	announcementStore := hubOptions.NotificationStore
+	if durableNotifications {
+		// Default live emitters must not race the committed consent snapshot.
+		// Explicit caller-supplied observers remain post-commit observers.
+		announcementStore = nil
+		if _, defaultRecall := options.RecallOpenings.(loggedRecallOpenings); defaultRecall {
+			options.RecallOpenings = nil
+		}
+	}
+	options, err = withAnnouncements(options, announcementStore, eligibility, slog.Default())
 	if err != nil {
 		return nil, err
 	}

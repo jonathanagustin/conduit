@@ -1626,7 +1626,6 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			writeLifecycleError(w, err)
 			return
 		}
-		releaseCompatibilityAPI.syncDesiredState(request.Context(), body.DesiredState)
 		writeJSON(w, http.StatusCreated, redactLeaseToken(record))
 	})
 	mux.HandleFunc("GET /v1/environments/{environmentID}/commands", func(w http.ResponseWriter, request *http.Request) {

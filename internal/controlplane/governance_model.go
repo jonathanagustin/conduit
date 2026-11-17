@@ -11,6 +11,19 @@ func (service *GovernanceService) ProposeHumanChange(
 	ctx context.Context, targetKind, targetID, environment string, changes []EntityChange,
 	author Principal, title, description string,
 ) (ChangeRequest, error) {
+	if needsNotificationTransaction(service.repository) {
+		var request ChangeRequest
+		err := service.withNotificationTransaction(ctx, func(working *GovernanceService) error {
+			var err error
+			request, err = working.ProposeHumanChange(ctx, targetKind, targetID, environment, changes, author, title, description)
+			return err
+		})
+		if err != nil {
+			return ChangeRequest{}, err
+		}
+		_ = service.announceAwaitingApproval(ctx, request)
+		return request, nil
+	}
 	if strings.TrimSpace(targetKind) == "" || strings.TrimSpace(targetID) == "" ||
 		strings.TrimSpace(environment) == "" || len(changes) == 0 || strings.TrimSpace(author.Username) == "" {
 		return ChangeRequest{}, ValidationErrors{{Path: "changeRequest", Message: "target, Environment, changes, and author are required"}}
@@ -35,7 +48,7 @@ func (service *GovernanceService) ProposeHumanChange(
 	request, err = service.repository.CreateChangeRequest(ctx, request)
 	if err == nil {
 		service.auditRequestCreated(ctx, request)
-		service.announceAwaitingApproval(ctx, request)
+		err = service.announceAwaitingApproval(ctx, request)
 	}
 	return request, err
 }

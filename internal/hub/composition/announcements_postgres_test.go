@@ -18,6 +18,7 @@ import (
 	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	notificationpostgres "github.com/jonathanagustin/conduit/internal/notifications/adapters/postgres"
+	notificationapp "github.com/jonathanagustin/conduit/internal/notifications/application"
 	"github.com/jonathanagustin/conduit/internal/notifications/domain"
 )
 
@@ -284,10 +285,23 @@ func (fixture *postgresAnnouncementHub) assertNoEvents(t *testing.T) {
 	if err != nil || len(events) != 0 {
 		t.Fatalf("a non-event was announced: %#v, %v", events, err)
 	}
+	stats, err := fixture.store.Intents(t.Context())
+	if err != nil || stats.Pending != 0 || stats.Completed != 0 || stats.Exhausted != 0 {
+		t.Fatalf("a non-event left notification intent: %#v, %v", stats, err)
+	}
 }
 
 func (fixture *postgresAnnouncementHub) assertEvent(t *testing.T, eventType domain.EventType, summary string) {
 	t.Helper()
+	before, err := fixture.store.EventsForResource(t.Context(), fixture.resource, 10)
+	if err != nil || len(before) != 0 {
+		t.Fatalf("source commit admitted an inbox event before the intent worker: %#v, %v", before, err)
+	}
+	stats, err := fixture.store.Intents(t.Context())
+	if err != nil || stats.Pending != 1 || stats.Completed != 0 {
+		t.Fatalf("source did not commit exactly one durable intent: %#v, %v", stats, err)
+	}
+	fixture.admit(t, controlplane.HandlerOptions{AllowInsecureOperatorIdentityHeaders: true})
 	events, err := fixture.store.EventsForResource(t.Context(), fixture.resource, 10)
 	if err != nil || len(events) != 1 || events[0].Type != eventType || !strings.Contains(events[0].Summary, summary) {
 		t.Fatalf("durable %s event = %#v, %v", eventType, events, err)
@@ -303,5 +317,20 @@ func (fixture *postgresAnnouncementHub) assertEvent(t *testing.T, eventType doma
 	}, 10)
 	if err != nil || len(unrelated) != 0 {
 		t.Fatalf("subscriber to another resource received this event: %#v, %v", unrelated, err)
+	}
+}
+
+func (fixture *postgresAnnouncementHub) admit(t *testing.T, options controlplane.HandlerOptions) {
+	t.Helper()
+	eligibility, err := NewNotificationRecipientEligibility(fixture.repository, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker, err := NewNotificationIntentDrainer(fixture.store, eligibility, notificationapp.SystemClock{}, DefaultIntentDrainerConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.Drain(t.Context()); err != nil {
+		t.Fatal(err)
 	}
 }

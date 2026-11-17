@@ -259,8 +259,8 @@ carried to the residual list as item 5.
    `ROLE_CHANGE` is raised when a resource grant's authority changes, on the
    resource the grant names. Each follows the recall shape: a port in the owning
    context (`governance/ports`, `delivery/plan/ports`, `catalog/ports`), an
-   adapter beside it, called after the write commits with the error dropped at
-   the call and logged in `internal/hub/composition`. The selections are
+   adapter beside it. The original best-effort postcommit boundary is superseded
+   by the PostgreSQL source-intent handoff described below (#869). The selections are
    registered as `governance.NotificationEventSelection` and
    `catalog.PromotionFailureSelection`.
 
@@ -271,11 +271,10 @@ carried to the residual list as item 5.
    maintenance and module-override operations announce after their transaction
    commits. A failed transaction emits nothing; repeating the same review
    round retains the notification's deterministic identity.
-   Services over a transaction-local repository remain silent, including a
-   successfully released nested savepoint: that is not the outer commit. A
-   caller composing these services in a larger transaction must announce the
-   committed result after its own boundary. The normal Hub routes use the root
-   repository; this guard prevents a later outer rollback from notifying anyone.
+   Optional live observers over a transaction-local repository remain silent:
+   releasing a nested savepoint is not the outer commit. With durable intents
+   configured, those services instead bind private ports to their exact source
+   SQL transaction; an outer rollback removes both the source and its intent.
 
    Four declared types are still raised by
    nothing — `LATEST_PRODUCT_RELEASE_VULNERABILITY_UPDATE`,
@@ -295,10 +294,27 @@ carried to the residual list as item 5.
    An approver is told by subscribing to the Environment, not by being eligible
    to approve: nothing resolves a reviewer requirement to recipients. Requests
    with no Environment are logged without an event on an invented resource.
-   Emission remains best effort after the primary write: failures are logged,
-   without a transactional outbox guaranteeing a later retry
-   ([#869](https://github.com/jonathanagustin/conduit/issues/869)). File-backed Hubs
-   with no notification store emit no notifications.
+   **Source interruption recovery (#869).** PostgreSQL Hub and production
+   packaging-worker startup install the transaction-bound notification factory
+   before source workers run. Pending-review, authority-change, Plan-failure,
+   aborted-promotion and accepted recall transitions commit immutable intent
+   together with their source and audit writes. Intent failure aborts that
+   source transaction before success is acknowledged. A cancelled child
+   savepoint cannot leave source metadata behind after its intent rolls back
+   (#908). Manual command input is not an accepted recall declaration and raises
+   no recall event (#904).
+
+   Consent candidates are frozen through the source SQL transaction, including
+   an empty audience; later subscriptions cannot widen them. Admission checks
+   current resource-read authority and never re-reads preferences. It runs even
+   without an external transport, retries retained intents after restart, and
+   uses immutable event recording to tolerate a lost acknowledgment. External
+   submission separately checks current authority and destination policy.
+   Pending, completed and exhausted intents remain distinguishable in SQL;
+   admission retries/exhaustion are logged. No notification queue metric or
+   alert is claimed. See `native-notification-delivery.md` for bounds and
+   diagnostics. There is no historical backfill. File-backed Hubs with no
+   notification store emit no notifications.
 
 2. **Observability is partial.** Tracked in #839. Metrics exist for the three
    things an operator has to tell apart. The wedge signal:

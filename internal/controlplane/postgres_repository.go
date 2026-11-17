@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -85,8 +86,9 @@ type TransactionalRepository interface {
 // auditable correctness boundary for the cutover; future context-owned tables
 // can split contention without changing domain behavior.
 type PostgresRepository struct {
-	database        *sql.DB
-	transactionView func(Repository) Repository
+	database            *sql.DB
+	transactionView     func(Repository) Repository
+	notificationFactory atomic.Pointer[TransactionAnnouncementFactory]
 }
 
 func NewPostgresRepository(ctx context.Context, dataSourceName string) (*PostgresRepository, error) {
@@ -134,11 +136,22 @@ func (repository *PostgresRepository) Transaction(
 		return errors.New("repository transaction operation is required")
 	}
 	return repository.withStateTransaction(ctx, true, func(memory *MemoryRepository, transaction *sql.Tx) error {
-		view := Repository(&authorizationAuditView{Repository: memory, audit: auditpostgres.New(transaction)})
-		if repository.transactionView != nil {
-			view = repository.transactionView(view)
+		view := &authorizationAuditView{Repository: memory, audit: auditpostgres.New(transaction)}
+		if factory := repository.notificationFactory.Load(); factory != nil {
+			announcements, err := (*factory)(transaction)
+			if err != nil {
+				return fmt.Errorf("configure transactional notifications: %w", err)
+			}
+			if !announcements.complete() {
+				return errors.New("transactional notification ports are incomplete")
+			}
+			view.notificationIntents, view.hasNotificationIntents = announcements, true
 		}
-		return operation(view)
+		working := Repository(view)
+		if repository.transactionView != nil {
+			working = repository.transactionView(working)
+		}
+		return operation(working)
 	})
 }
 

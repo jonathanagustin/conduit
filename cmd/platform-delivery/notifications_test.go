@@ -63,6 +63,9 @@ func TestPostgresANotificationTransportIsOffUnlessConfigured(t *testing.T) {
 			if (notifications.Deliveries != nil) != test.expected {
 				t.Fatalf("%s produced a dispatcher = %v, want %v", name, notifications.Deliveries != nil, test.expected)
 			}
+			if notifications.Intents == nil {
+				t.Fatalf("%s disabled durable inbox admission with its external transport", name)
+			}
 		})
 	}
 }

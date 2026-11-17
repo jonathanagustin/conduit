@@ -73,6 +73,7 @@ func TestPostgresAnnouncementsRecheckAuthorityBeforeExternalDelivery(t *testing.
 			if written.Code != http.StatusOK {
 				t.Fatalf("raise event = %d %s", written.Code, written.Body)
 			}
+			fixture.admit(t, options)
 			stats, err := fixture.store.Deliveries(t.Context())
 			if err != nil || stats.Pending != 1 {
 				t.Fatalf("fixture did not queue one eligible recipient: %#v %v", stats, err)
