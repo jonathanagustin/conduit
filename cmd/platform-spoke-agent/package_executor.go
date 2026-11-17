@@ -20,6 +20,7 @@ import (
 //	PACKAGE_PUBLISHER_CERTIFICATE_IDENTITY  Publisher.CertificateIdentity (anchored regexp)
 //	PACKAGE_VERIFICATION_KEY_PATH           VerificationKeyPath (public key file)
 //	PACKAGE_ARCHITECTURE                    Architecture (default: this binary's)
+//	UDS_NATIVE_BUNDLES                     NativeBundles (explicit NextMode opt-in)
 //	ZARF_BIN, UDS_BIN, KUBECTL_BIN          ZarfBin, UDSBin, KubectlBin (default: PATH lookup)
 //
 // Exactly one of the publisher pair and the key path must be set: the executor
@@ -33,7 +34,7 @@ const (
 
 var packageExecutorVariables = []string{
 	"PACKAGE_PUBLISHER_CERTIFICATE_ISSUER", "PACKAGE_PUBLISHER_CERTIFICATE_IDENTITY",
-	"PACKAGE_VERIFICATION_KEY_PATH", "PACKAGE_ARCHITECTURE", "ZARF_BIN", "UDS_BIN",
+	"PACKAGE_VERIFICATION_KEY_PATH", "PACKAGE_ARCHITECTURE", "ZARF_BIN", "UDS_BIN", "UDS_NATIVE_BUNDLES",
 }
 
 // packageExecutorFromEnvironment builds the Zarf/UDS executor, or returns nil
@@ -66,6 +67,13 @@ func packageExecutorFromEnvironment(getenv func(string) string) (agent.Executor,
 			CertificateIdentity: value("PACKAGE_PUBLISHER_CERTIFICATE_IDENTITY"),
 		},
 		VerificationKeyPath: value("PACKAGE_VERIFICATION_KEY_PATH"),
+	}
+	switch native := value("UDS_NATIVE_BUNDLES"); native {
+	case "", "false":
+	case "true":
+		executor.NativeBundles = true
+	default:
+		return nil, errors.New("UDS_NATIVE_BUNDLES must be true or false")
 	}
 	keyless := executor.Publisher != (domain.PublisherPolicy{})
 	switch {

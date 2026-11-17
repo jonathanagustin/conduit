@@ -27,7 +27,7 @@ func (scopedRunner) Run(ctx context.Context, name string, arguments ...string) (
 	}
 	args := append([]string(nil), arguments...)
 	for i := 0; i+1 < len(args); i++ {
-		if args[i] == "--key" || args[i] == "-f" {
+		if args[i] == "--key" || args[i] == "--public-key" || args[i] == "--config" || args[i] == "-f" {
 			args[i+1], err = filepath.Abs(args[i+1])
 			if err != nil {
 				return nil, err

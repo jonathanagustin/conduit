@@ -10,6 +10,7 @@ export const requiredProofTests = Object.freeze([
   `${policy}/matching_publisher`, `${policy}/wrong_identity`, `${policy}/wrong_issuer`,
   'TestDefaultRunnerIsolatesConfigurationAndPreservesExplicitAccess',
   'TestPinnedCLINativeValuesPreserveReviewedTypes',
+  'TestPinnedCLINativeBundleValuesPreserveReviewedTypes',
 ]);
 
 // A zero process exit or a package-level PASS is not test execution evidence.

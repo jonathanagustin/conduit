@@ -94,7 +94,7 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 		// Zarf records the digest it deployed and adds one to the generation.
 		digest := call[3][strings.LastIndex(call[3], "@")+1:]
 		f.zarf = record(digest, f.deployedVersion, f.generation()+1, "Succeeded")
-	case hasPrefix(call, "uds", "deploy"):
+	case hasPrefix(call, "uds", "deploy"), hasPrefix(call, "uds", "--features", "NextMode", "bundle", "deploy"):
 		f.zarf = record(bundledDigest, "9.9.9", f.generation()+1, "Succeeded")
 	case hasPrefix(call, "zarf", "package", "remove"), hasPrefix(call, "uds", "remove"):
 		f.zarf = ""

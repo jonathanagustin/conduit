@@ -135,3 +135,20 @@ controls pass. Wrong model bindings, mismatched sealed images, a removed image
 guard and broadened plaintext admission each make the structural gate fail;
 the restored baseline passes. This validates structure and native lint, not the
 legacy UDS bundle's deploy-value forwarding.
+
+## Native bundle adapter checkpoint
+
+The Spoke can explicitly select UDS NextMode with `UDS_NATIVE_BUNDLES=true`;
+legacy remains the default, without automatic verification fallback. The native
+commands retain the configured public key and architecture. Reviewed global
+scalar inputs use a private HCL configuration, with string interpolation escaped
+as literal data. Legacy package-scoped keys are refused in this mode.
+
+An actual action-only native bundle fixture carries strings, booleans, integers
+and literal `${...}`/`%{...}` sequences through HCL configuration and values files
+without changing their types or bytes. It contains no cluster resources. Native
+unsigned-artifact refusal is part of that CLI regression. Separately, the pinned
+CLI accepted a local fixture signed with an ephemeral test key, rejected the
+wrong key and rejected an unsigned fixture. These fixture signatures are not
+production signing or release publication. The owned runtime bundle source and
+operator route still need migration before this PR can be promoted.

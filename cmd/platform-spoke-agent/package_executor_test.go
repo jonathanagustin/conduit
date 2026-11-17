@@ -44,13 +44,14 @@ func TestPackageExecutorConfigurationMapsOntoTheExecutor(t *testing.T) {
 	keyed, err := packageExecutorFromEnvironment(environmentOf(map[string]string{
 		"PACKAGE_EXECUTOR_ENABLED": "true", "PACKAGE_VERIFICATION_KEY_PATH": key,
 		"ZARF_BIN": "/opt/zarf", "UDS_BIN": "/opt/uds", "KUBECTL_BIN": "/opt/kubectl", "PACKAGE_ARCHITECTURE": "arm64",
+		"UDS_NATIVE_BUNDLES": "true",
 	}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	got, ok := keyed.(uds.Executor)
 	if !ok || got.VerificationKeyPath != key || got.ZarfBin != "/opt/zarf" || got.UDSBin != "/opt/uds" ||
-		got.KubectlBin != "/opt/kubectl" || got.Architecture != "arm64" {
+		got.KubectlBin != "/opt/kubectl" || got.Architecture != "arm64" || !got.NativeBundles {
 		t.Fatalf("executor = %#v", keyed)
 	}
 
@@ -83,7 +84,9 @@ func TestPackageExecutorMisconfigurationIsRefusedAtStartup(t *testing.T) {
 		"settings without the switch": {
 			"PACKAGE_PUBLISHER_CERTIFICATE_ISSUER": testIssuer, "PACKAGE_PUBLISHER_CERTIFICATE_IDENTITY": testIdentity,
 		},
-		"a binary without the switch": {"ZARF_BIN": "/opt/zarf"},
+		"a binary without the switch":    {"ZARF_BIN": "/opt/zarf"},
+		"native bundle without executor": {"UDS_NATIVE_BUNDLES": "true"},
+		"invalid native bundle switch":   {"PACKAGE_EXECUTOR_ENABLED": "true", "UDS_NATIVE_BUNDLES": "yes", "PACKAGE_PUBLISHER_CERTIFICATE_ISSUER": testIssuer, "PACKAGE_PUBLISHER_CERTIFICATE_IDENTITY": testIdentity},
 		"a switch that is not a boolean": {
 			"PACKAGE_EXECUTOR_ENABLED": "yes", "PACKAGE_PUBLISHER_CERTIFICATE_ISSUER": testIssuer,
 			"PACKAGE_PUBLISHER_CERTIFICATE_IDENTITY": testIdentity,

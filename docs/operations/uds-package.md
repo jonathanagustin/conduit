@@ -397,6 +397,19 @@ replace the Spoke check or assert that cluster hardware was discovered.
 | `PACKAGE_ARCHITECTURE` | `amd64` or `arm64`. Defaults to the Spoke binary's own. |
 | `ZARF_BIN`, `UDS_BIN`, `KUBECTL_BIN` | Binary paths. Default: looked up on `PATH`. |
 
+`UDS_NATIVE_BUNDLES=true` explicitly selects UDS 0.41's NextMode HCL bundle
+contract on this Spoke. The default retains legacy bundles. There is no format
+fallback after verification failure. Native bundle verify, deploy and remove
+all receive the configured public key and admitted architecture. Keyless bundle
+execution remains outside this adapter's supported policy.
+
+Native bundle inputs are global scalar HCL variables supplied through a private
+absolute `config.uds.hcl`, preserving JSON string/boolean/number types and
+escaping HCL interpolation as literal data. Legacy package-scoped keys are
+refused before authentication in native mode. Bundle authors must connect their
+variables through `values_files`; declaring a variable alone does not forward it
+to a beta package. The private configuration is removed after Apply finishes.
+
 Exactly one of the publisher pair and the key path is required. `uds deploy`
 has no verification flags, so a bundle is checked with `uds inspect --key`
 first and can only be deployed by a Spoke configured with a key.
@@ -416,8 +429,8 @@ therefore refuse a numeric input where the package requires a string. The file
 is absolute so isolated CLI working directories can read it; its directory is
 private, and it is removed after success, preflight refusal or deployment
 failure. Nested inputs and characters outside the existing scalar admission
-contract remain refused. This package support does not migrate legacy UDS
-bundles to the separate NextMode command tree.
+contract remain refused. Legacy bundle artifacts are not automatically converted to NextMode. Select
+the explicit native bundle option only for artifacts authored for that format.
 
 The Spoke image does not contain `zarf` or `uds`. Mount pinned binaries and
 point `ZARF_BIN` and `UDS_BIN` at them. The chart in `deploy/helm/platform-spoke`

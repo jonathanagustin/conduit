@@ -124,6 +124,9 @@ type Executor struct {
 	ZarfBin    string
 	UDSBin     string
 	KubectlBin string
+	// NativeBundles selects UDS 0.41's explicit NextMode command tree and HCL
+	// variables. False preserves the legacy bundle contract; no fallback occurs.
+	NativeBundles bool
 	// Architecture is the cluster architecture this Spoke deploys onto. It
 	// defaults to the architecture of the Spoke's own binary, which is the
 	// architecture of the node it runs on. A step whose artifact was not built
@@ -464,7 +467,14 @@ func (e Executor) Apply(ctx context.Context, _ controlplane.Plan, step controlpl
 	if err != nil {
 		return agent.Receipt{}, agent.DiagnosticError{Err: fmt.Errorf("verify: %w", err), Output: strings.TrimSpace(string(definition))}
 	}
-	if !isBundle(step) {
+	if isBundle(step) && e.NativeBundles {
+		command, cleanup, err := prepareNativeBundleDeployment(step, deploy[len(deploy)-1])
+		if err != nil {
+			return agent.Receipt{}, err
+		}
+		defer cleanup()
+		deploy[len(deploy)-1] = command
+	} else if !isBundle(step) {
 		command, cleanup, err := e.prepareZarfDeployment(step, source, definition)
 		if err != nil {
 			return agent.Receipt{}, err
@@ -556,6 +566,19 @@ func (e Executor) deployCommands(step controlplane.PlanStep, source string, with
 		if key == "" || e.Publisher != (domain.PublisherPolicy{}) {
 			return nil, refuse(step, "a UDS bundle can only be verified with a public key, and exactly that must be configured")
 		}
+		if e.NativeBundles {
+			if withValues {
+				// Native bundle variables are global scalar HCL inputs. Legacy
+				// package-scoped names must not silently become unused settings.
+				if _, err := setFlags(step, "--set", zarfVariableName); err != nil {
+					return nil, err
+				}
+			}
+			prefix := []string{e.udsBin(), "--features", "NextMode", "bundle"}
+			check := append(append([]string{}, prefix...), "verify", source, "--public-key", key, "--architecture", e.architecture())
+			deploy := append(append([]string{}, prefix...), "deploy", source, "--public-key", key, "--architecture", e.architecture())
+			return [][]string{check, deploy}, nil
+		}
 		deploy := []string{e.udsBin(), "deploy", source, "--confirm"}
 		if withValues {
 			sets, err := setFlags(step, "--set", bundleVariableName)
@@ -589,6 +612,13 @@ func (e Executor) deployCommands(step controlplane.PlanStep, source string, with
 func (e Executor) removeCommand(step controlplane.PlanStep, name string) ([]string, error) {
 	if !isBundle(step) {
 		return []string{e.zarfBin(), "package", "remove", name, "--confirm"}, nil
+	}
+	if e.NativeBundles {
+		key := strings.TrimSpace(e.VerificationKeyPath)
+		if key == "" || e.Publisher != (domain.PublisherPolicy{}) {
+			return nil, refuse(step, "native bundle removal requires exactly one public verification key")
+		}
+		return []string{e.udsBin(), "--features", "NextMode", "bundle", "remove", sourceFor(step), "--public-key", key, "--architecture", e.architecture()}, nil
 	}
 	return []string{e.udsBin(), "remove", sourceFor(step), "--confirm"}, nil
 }
