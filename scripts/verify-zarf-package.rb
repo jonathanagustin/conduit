@@ -101,6 +101,45 @@ required_allows.each do |direction, namespace, port|
   abort "UDS Package missing #{direction} allow to #{namespace}:#{port}" unless allows.any? { |item| item["direction"] == direction && item["remoteNamespace"] == namespace && item["port"] == port }
 end
 abort "UDS Package must allow the Spoke to call the Kubernetes API" unless allows.any? { |item| item["direction"] == "Egress" && item["remoteGenerated"] == "KubeAPI" }
+# Egress the runtime needs and UDS Core denies by default (#829). Each is
+# matched whole, source selector included: an allow that names the right
+# destination from the wrong workload grants nothing where it is needed, and
+# reads exactly like a grant.
+required_egress = {
+  "the Hub to reach the OIDC issuer through the tenant gateway" => {
+    "selector" => {"app.kubernetes.io/name" => "platform-delivery"},
+    "remoteNamespace" => "istio-tenant-gateway", "remoteSelector" => {"app" => "tenant-ingressgateway"}, "ports" => [443, 8443]
+  },
+  "the Hub to reach the in-cluster OIDC issuer" => {
+    "selector" => {"app.kubernetes.io/name" => "platform-delivery"},
+    "remoteNamespace" => "###ZARF_VAR_OIDC_ISSUER_NAMESPACE###",
+    "remoteSelector" => {"app.kubernetes.io/name" => "###ZARF_VAR_OIDC_ISSUER_NAME_LABEL###"}, "port" => 8080
+  },
+  "the Spoke to pull charts from the OCI registry" => {
+    "selector" => {"app.kubernetes.io/name" => "platform-spoke-agent"},
+    "remoteNamespace" => "###ZARF_VAR_CHART_REGISTRY_NAMESPACE###",
+    "remoteSelector" => {"###ZARF_VAR_CHART_REGISTRY_LABEL_KEY###" => "###ZARF_VAR_CHART_REGISTRY_LABEL_VALUE###"}, "ports" => [443, 5000]
+  },
+  "the packaging worker to reach Temporal" => {
+    "selector" => {"app.kubernetes.io/name" => "platform-packaging-worker"},
+    "remoteNamespace" => "###ZARF_VAR_TEMPORAL_NAMESPACE###",
+    "remoteSelector" => {"app.kubernetes.io/name" => "###ZARF_VAR_TEMPORAL_NAME_LABEL###"}, "port" => 7233
+  }
+}
+required_egress.each do |purpose, expected|
+  abort "UDS Package must allow #{purpose}" unless
+    allows.any? { |item| item["direction"] == "Egress" && item.reject { |key, _| %w[direction description].include?(key) } == expected }
+end
+# A placeholder with no declared variable is deployed as its literal text: a
+# NetworkPolicy naming the namespace "###ZARF_VAR_...###" selects nothing.
+declared_variables = definition.fetch("variables").map { |item| item["name"] }
+undeclared = uds_text.scan(/###ZARF_VAR_([A-Z0-9_]+)###/).flatten.uniq - declared_variables
+abort "UDS Package uses undeclared Zarf variables: #{undeclared.join(', ')}" unless undeclared.empty?
+%w[OIDC_ISSUER_NAMESPACE OIDC_ISSUER_NAME_LABEL CHART_REGISTRY_NAMESPACE CHART_REGISTRY_LABEL_KEY CHART_REGISTRY_LABEL_VALUE TEMPORAL_NAMESPACE TEMPORAL_NAME_LABEL].each do |name|
+  variable = definition.fetch("variables").find { |item| item["name"] == name }
+  abort "#{name} must have a non-empty default and a pattern, so an unset variable cannot render an empty selector" unless
+    variable && !variable["default"].to_s.empty? && !variable["pattern"].to_s.empty?
+end
 sso = uds_package.dig("spec", "sso") || []
 client = sso.find { |item| item["clientId"] == "conduit-hub" }
 abort "UDS Package must register the Hub SSO client" unless client

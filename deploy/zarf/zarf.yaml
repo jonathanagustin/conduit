@@ -75,6 +75,34 @@ variables:
     description: app.kubernetes.io/name value on the operator-supplied Postgres pods. Used only by the optional uds component.
     default: postgres
     pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+  - name: OIDC_ISSUER_NAMESPACE
+    description: Namespace of the in-cluster OIDC issuer (Keycloak) Pods. Used only by the optional uds component.
+    default: keycloak
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  - name: OIDC_ISSUER_NAME_LABEL
+    description: app.kubernetes.io/name value on the in-cluster OIDC issuer Pods. Used only by the optional uds component.
+    default: keycloak
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+  - name: CHART_REGISTRY_NAMESPACE
+    description: Namespace of the in-cluster OCI registry the Spoke pulls charts from. Used only by the optional uds component.
+    default: zarf
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  - name: CHART_REGISTRY_LABEL_KEY
+    description: Pod label key that selects the chart registry. Used only by the optional uds component.
+    default: app
+    pattern: "^([A-Za-z0-9][A-Za-z0-9.-]{0,252}/)?[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+  - name: CHART_REGISTRY_LABEL_VALUE
+    description: Pod label value that selects the chart registry. Used only by the optional uds component.
+    default: docker-registry
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+  - name: TEMPORAL_NAMESPACE
+    description: Kubernetes namespace of the operator-supplied Temporal frontend. Used only by the optional uds component.
+    default: temporal
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  - name: TEMPORAL_NAME_LABEL
+    description: app.kubernetes.io/name value on the operator-supplied Temporal frontend Pods. Used only by the optional uds component.
+    default: temporal
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
 
 components:
   - name: runtime

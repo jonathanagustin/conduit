@@ -27,8 +27,31 @@ cluster operating after the images are already present.
   on 5432. The namespace and `app.kubernetes.io/name` value default to
   `postgres` (`POSTGRES_NAMESPACE`, `POSTGRES_NAME_LABEL`). The Zarf baseline
   itself uses the file repository and does not open a database connection.
+- Egress from the Hub to the OIDC issuer, by two in-cluster routes. One is the
+  tenant ingress gateway Pods on 443 and 8443, which is where an issuer such
+  as `https://sso.uds.dev/realms/uds` resolves inside the cluster. The other
+  is the Keycloak Pods on 8080 (`OIDC_ISSUER_NAMESPACE`,
+  `OIDC_ISSUER_NAME_LABEL`, both defaulting to `keycloak`). An issuer outside
+  the cluster is not covered and needs its own `remoteHost` allow.
+- Egress from the Spoke to the OCI registry it runs `helm pull oci://`
+  against, on 443 and 5000 (`CHART_REGISTRY_NAMESPACE`,
+  `CHART_REGISTRY_LABEL_KEY`, `CHART_REGISTRY_LABEL_VALUE`, defaulting to
+  `zarf` and `app: docker-registry`). Set them to wherever the Plans' charts
+  live.
+- Egress from the packaging worker to operator-supplied Temporal on 7233
+  (`TEMPORAL_NAMESPACE`, `TEMPORAL_NAME_LABEL`, both defaulting to
+  `temporal`).
 - Egress from the Spoke to the Kubernetes API, kubelet probes to the Hub, and
   DNS to `kube-dns` in `kube-system`.
+
+The issuer, registry and Temporal allows are checked for shape only: they
+validate against the UDS Core 1.17.1 Package schema and Zarf substitutes
+their variables, but no cluster run has shown the generated NetworkPolicies
+admitting that traffic. Their default selectors (the Keycloak namespace, label
+and port; the Zarf registry namespace, label and port; which gateway port a
+policy must name) are recalled UDS Core and Zarf defaults, not values read
+from this repository. Confirm them against the cluster with
+`uds zarf tools kubectl get pods -A --show-labels` before relying on them.
 - A ServiceMonitor for Service port `metrics` (9090, path `/metrics`). The
   process does not listen on that port in this baseline. `/metrics` starts
   only when `METRICS_ADDRESS` is set and `REPOSITORY_KIND=postgres`. The file

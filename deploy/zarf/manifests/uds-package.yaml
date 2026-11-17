@@ -75,6 +75,66 @@ spec:
         remoteSelector:
           app.kubernetes.io/name: "###ZARF_VAR_POSTGRES_NAME_LABEL###"
         port: 5432
+      # Operator sign-in. The Hub fetches discovery and JWKS from
+      # OPERATOR_OIDC_ISSUER. Two in-cluster routes are allowed because which
+      # one carries the request depends on how the issuer host resolves:
+      #   - an issuer on the tenant gateway (https://sso.<domain>/realms/uds)
+      #     resolves in-cluster to the tenant ingress gateway Pods. The
+      #     selector is the one this file already uses for gateway ingress.
+      #     ASSUMPTION: whether the policy must name the gateway Service port
+      #     (443) or its Pod port (8443) is not established by anything in
+      #     this repository, so both are listed.
+      #   - the Keycloak Pods directly. ASSUMPTION: namespace `keycloak`,
+      #     label `app.kubernetes.io/name: keycloak`, and port 8080 are UDS
+      #     Core's defaults as recalled, not read from a file in this
+      #     repository. OIDC_ISSUER_NAMESPACE and OIDC_ISSUER_NAME_LABEL
+      #     override the first two.
+      # An issuer outside the cluster needs a `remoteHost` entry instead. None
+      # is shipped: a Zarf variable cannot make a list entry optional, and an
+      # entry with an empty host is not one this file can justify.
+      - description: Hub to the OIDC issuer through the tenant gateway
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-delivery
+        remoteNamespace: istio-tenant-gateway
+        remoteSelector:
+          app: tenant-ingressgateway
+        ports:
+          - 443
+          - 8443
+      - description: Hub to the OIDC issuer
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-delivery
+        remoteNamespace: "###ZARF_VAR_OIDC_ISSUER_NAMESPACE###"
+        remoteSelector:
+          app.kubernetes.io/name: "###ZARF_VAR_OIDC_ISSUER_NAME_LABEL###"
+        port: 8080
+      # `helm pull oci://` in internal/agent/helm.go. The registry is whatever
+      # the Plans reference, so its namespace and Pod label are variables.
+      # ASSUMPTION: the defaults name the Zarf-managed registry (`zarf`,
+      # `app: docker-registry`, Pod port 5000) as recalled, not read from a
+      # file in this repository. 443 covers an in-cluster registry behind TLS.
+      - description: Spoke to the chart registry
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-spoke-agent
+        remoteNamespace: "###ZARF_VAR_CHART_REGISTRY_NAMESPACE###"
+        remoteSelector:
+          "###ZARF_VAR_CHART_REGISTRY_LABEL_KEY###": "###ZARF_VAR_CHART_REGISTRY_LABEL_VALUE###"
+        ports:
+          - 443
+          - 5000
+      # PACKAGING_TEMPORAL_ADDRESS. Temporal is operator-supplied, like
+      # Postgres, and 7233 is the frontend port that variable defaults to.
+      - description: Packaging worker to Temporal
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-packaging-worker
+        remoteNamespace: "###ZARF_VAR_TEMPORAL_NAMESPACE###"
+        remoteSelector:
+          app.kubernetes.io/name: "###ZARF_VAR_TEMPORAL_NAME_LABEL###"
+        port: 7233
       - description: Spoke to the Kubernetes API
         direction: Egress
         selector:
