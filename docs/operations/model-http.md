@@ -71,10 +71,12 @@ The model name the Hub records comes from two sources only: the operator's confi
 
 | Source | Where it is recorded |
 | --- | --- |
-| `CONDUIT_MODEL_NAME` | `configuredModel` in the planning audit events (`planning.inspect`, `planning.questions`, `planning.plan`) and in the packaging proposal and workspace package audit events. |
+| Effective `CONDUIT_MODEL_NAME`, including a capability override | `configuredModel` in the planning audit events (`planning.inspect`, `planning.questions`, `planning.plan`) and in the packaging proposal and workspace package audit events. |
 | The `model` field of the provider's HTTP response | `providerModel` in the same events. It is bounded to 128 bytes and control characters are dropped. |
 
-The Accept binding has one `model` field. It holds the configured name. When the provider reported a different id it holds both, as `configured (provider reported served-id)`. That same string is the `model` value in the `planning.accept` audit event. A separate field for the provider id in the binding needs a change to the planning domain types and is not made here.
+Planning sessions and immutable Accept bindings retain separate `configuredModel` and `providerModel` fields alongside the existing `model` display field. The `planning.accept` audit event records both identities separately as well. A provider that omits its id leaves it absent for that call; an earlier response cannot supply it. Historical records leave the additive fields absent.
+
+Assistant, planning, packaging and app-generation model names and deadlines can override the global defaults. See [per-capability selection](local-model-cli.md#per-capability-selection) for the environment, Helm and Zarf settings and their shared endpoint/key boundary.
 
 A provider that reports a different id than the one requested is recorded, not refused. Aliases make that normal: a request for `my-model` can be served by `my-model-2026-01`.
 
