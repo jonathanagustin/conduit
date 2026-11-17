@@ -13,7 +13,10 @@ Living documentation is organized by responsibility:
   public compatibility profile.
 - `operations/` contains the orchestration doctrine, assurance and harness
   requirements, tenant-fidelity, verification, and release guidance.
-- `security/` states the trusted-technology and authority boundaries.
+- `security/` states the trusted-technology and authority boundaries, including
+  the [threat model](security/THREAT-MODEL.md), [selected control
+  evidence](security/CONTROL-EVIDENCE.md), and [external review commissioning
+  scope](security/EXTERNAL-REVIEW-SCOPE.md).
 - `ui/` contains current interface contracts.
 
 Evidence is different from documentation. Pinned upstream contracts, fixtures,
