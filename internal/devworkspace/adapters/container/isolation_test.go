@@ -3,12 +3,24 @@ package container
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/devworkspace/domain"
 )
+
+func isolationTestEnv(key string) string {
+	switch key {
+	case "DEVWORKSPACE_GIT_HOST":
+		return "git.example.internal"
+	case "DEVWORKSPACE_CONTAINER_BIN":
+		return os.Getenv(key)
+	default:
+		return ""
+	}
+}
 
 func TestNewFromEnvRequiresGitHost(t *testing.T) {
 	_, err := NewFromEnv(func(string) string { return "" })
@@ -38,16 +50,7 @@ func TestIsolatedWorkspaceDeniesEgressAndHidesCredentials(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	runtime, err := NewFromEnv(func(key string) string {
-		switch key {
-		case "DEVWORKSPACE_GIT_HOST":
-			return "git.example.internal"
-		case "DEVWORKSPACE_CONTAINER_BIN":
-			return "docker"
-		default:
-			return ""
-		}
-	})
+	runtime, err := NewFromEnv(isolationTestEnv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,20 +70,16 @@ func TestIsolatedWorkspaceDeniesEgressAndHidesCredentials(t *testing.T) {
 	if report.User != "65534:65534" || !report.ReadOnly || report.Privileged {
 		t.Fatalf("observed launch user=%s readOnly=%v privileged=%v", report.User, report.ReadOnly, report.Privileged)
 	}
-	if report.NetworkMode == "" || report.NetworkMode == "host" || report.NetworkMode == "bridge" || report.NetworkMode == "default" {
-		t.Fatalf("workspace network %q is not a dedicated internal network", report.NetworkMode)
+	if report.NetworkMode == "host" || len(report.Networks) != 1 || !strings.HasPrefix(report.Networks[0], "cws-in-") || !report.NetworkInternal {
+		t.Fatalf("workspace networks %v (mode %q, internal %v) are not one dedicated internal network", report.Networks, report.NetworkMode, report.NetworkInternal)
 	}
 	if len(report.Binds) != 0 {
 		t.Fatalf("workspace has host mounts: %v", report.Binds)
 	}
-	dropped := false
-	for _, cap := range report.CapDrop {
-		if cap == "ALL" {
-			dropped = true
-		}
-	}
-	if !dropped {
-		t.Fatalf("capabilities were not dropped: %v", report.CapDrop)
+	// Docker retains the literal ALL while Podman expands the dropped names.
+	// Check the kernel's effective and bounding masks inside the container.
+	if report.CapEff != "0000000000000000" || report.CapBnd != "0000000000000000" {
+		t.Fatalf("capabilities remain: effective=%s bounding=%s drop=%v", report.CapEff, report.CapBnd, report.CapDrop)
 	}
 	if report.PolicyWriteError == "" {
 		t.Fatal("workspace wrote a network policy file")
@@ -114,15 +113,7 @@ func TestIsolatedWorkspaceDeniesEgressAndHidesCredentials(t *testing.T) {
 func TestRuntimeStartIsIsolatedAndStopRemovesIt(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	runtime, err := NewFromEnv(func(key string) string {
-		if key == "DEVWORKSPACE_GIT_HOST" {
-			return "git.example.internal"
-		}
-		if key == "DEVWORKSPACE_CONTAINER_BIN" {
-			return "docker"
-		}
-		return ""
-	})
+	runtime, err := NewFromEnv(isolationTestEnv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,8 +142,8 @@ func TestRuntimeStartIsIsolatedAndStopRemovesIt(t *testing.T) {
 	if observed.User != "65534:65534" || observed.Privileged || !observed.ReadOnly || len(observed.Binds) != 0 {
 		t.Fatalf("running container is not isolated: %+v", observed)
 	}
-	if observed.NetworkMode == "host" || !strings.HasPrefix(observed.NetworkMode, "cws-in-") {
-		t.Fatalf("running container network %q", observed.NetworkMode)
+	if observed.NetworkMode == "host" || len(observed.Networks) != 1 || observed.Networks[0] != box.internalNet || !observed.NetworkInternal {
+		t.Fatalf("running container networks %v (mode %q, internal %v)", observed.Networks, observed.NetworkMode, observed.NetworkInternal)
 	}
 	stopped, err := runtime.Stop(ctx, "ws-live")
 	if err != nil {
