@@ -70,14 +70,17 @@ func TestAgentExecRefusesEveryDelegatedProviderBeforeReading(t *testing.T) {
 	clearModelConfiguration(t)
 	for _, provider := range []string{"claude", "codex", "gemini", "grok", "custom"} {
 		t.Setenv("CONDUIT_PROVIDER_"+strings.ToUpper(provider)+"_CMD", "/bin/sh -c exit")
-		root := newRoot()
-		root.SetArgs([]string{"agent-exec", "--provider", provider})
-		root.SetIn(refuseRead{})
-		var out bytes.Buffer
-		root.SetOut(&out)
-		root.SetErr(&out)
-		if err := root.Execute(); !errors.Is(err, localcmd.ErrLocalCommandUnsupported) {
-			t.Fatalf("%s: %v", provider, err)
+		t.Setenv("CONDUIT_AGENT_PROVIDER", provider)
+		for _, args := range [][]string{{"agent-exec"}, {"agent-exec", "--provider", provider}} {
+			root := newRoot()
+			root.SetArgs(args)
+			root.SetIn(refuseRead{})
+			var out bytes.Buffer
+			root.SetOut(&out)
+			root.SetErr(&out)
+			if err := root.Execute(); !errors.Is(err, localcmd.ErrLocalCommandUnsupported) {
+				t.Fatalf("%s: %v", provider, err)
+			}
 		}
 	}
 }

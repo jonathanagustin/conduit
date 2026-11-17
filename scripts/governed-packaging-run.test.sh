@@ -41,7 +41,11 @@ for key in CONDUIT_MODEL_CMD CONDUIT_ASSISTANT_MODEL_CMD CONDUIT_PLANNING_MODEL_
   export "${key}=private-command-value"
   status=0
   bash "${root}/scripts/demo-generate.sh" >"${stage}/output" 2>&1 || status=$?
-  [[ "${status}" == 64 && ! -e "${MODEL_GUARD_MARKER}" ]]
+  if [[ "${status}" != 64 || -e "${MODEL_GUARD_MARKER}" ]]; then
+    echo "FAIL recorded generation did not refuse before tools (status ${status})"
+    cat "${stage}/output"
+    exit 1
+  fi
   grep -qF "Recorded generation requires ${key} to be unset" "${stage}/output"
   ! grep -qF 'private-command-value' "${stage}/output"
   unset "${key}"
