@@ -457,7 +457,7 @@ test("a turn streams its tool call, its result and the answer", async ({
       threadId: "ath_1",
       model: {
         kind: "model-cli",
-        model: "unverified (model CLI, CONDUIT_MODEL_NAME not set)",
+        configuredModel: "cli-model",
       },
     }),
   );
@@ -467,10 +467,10 @@ test("a turn streams its tool call, its result and the answer", async ({
   await expect(answers(page)).toContainText("One environment: zeta.");
   await expect(rail(page).locator("[data-tool-call-id]")).toHaveCount(1);
 
-  // The model that served the turn, with the Hub's "unverified" as a caution.
+  // Explicit configured-only provenance cannot establish the provider id.
   const meta = rail(page).locator("[data-assistant-turn-meta]");
   await expect(meta.locator("[data-assistant-model]")).toContainText(
-    "model-cli · unverified (model CLI",
+    "Model: cli-model (operator configured; provider id unavailable)",
   );
   await expect(meta.locator("[data-assistant-model-caution]")).toHaveText(
     "Model name not verified",
@@ -497,7 +497,7 @@ test("a reported model is shown without a caution", async ({ page, hub }) => {
   finishToolCall(turn, "ath_1", turnDocument({ threadId: "ath_1" }));
   const meta = rail(page).locator("[data-assistant-turn-meta]");
   await expect(meta.locator('[data-assistant-model="reported"]')).toHaveText(
-    "Model: openai-http · gpt-test",
+    "Model: gpt-test",
   );
   await expect(meta.locator("[data-assistant-model-caution]")).toHaveCount(0);
 });

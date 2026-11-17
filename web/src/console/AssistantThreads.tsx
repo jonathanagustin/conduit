@@ -164,7 +164,7 @@ export function AssistantTurnFooter() {
       {meta.label ? <span>{meta.label}</span> : null}
       {model ? (
         <span data-assistant-model={model.caution ? "unverified" : "reported"}>
-          Model: {model.text}
+          {model.text}
         </span>
       ) : null}
       {model?.caution ? (
