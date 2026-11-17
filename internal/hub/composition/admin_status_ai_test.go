@@ -77,7 +77,7 @@ func TestAIProbeNeverEchoesAnInvalidConfiguration(t *testing.T) {
 	}{
 		"both transports": {
 			env:  map[string]string{"CONDUIT_MODEL_CMD": "codex exec -", "CONDUIT_MODEL_BASE_URL": "https://models.example/v1", "CONDUIT_MODEL_NAME": "m"},
-			want: "CONDUIT_MODEL_CMD and CONDUIT_MODEL_BASE_URL are both set",
+			want: "local model commands are unsupported; configure an HTTP model endpoint",
 		},
 		"inline credentials": {
 			env:  map[string]string{"CONDUIT_MODEL_BASE_URL": "https://user:hunter2-password@models.example/v1", "CONDUIT_MODEL_NAME": "m"},
@@ -97,11 +97,11 @@ func TestAIProbeNeverEchoesAnInvalidConfiguration(t *testing.T) {
 		},
 		"shell syntax in the command": {
 			env:  map[string]string{"CONDUIT_MODEL_CMD": "codex exec; cat /etc/passwd"},
-			want: "CONDUIT_MODEL_CMD is not a valid command line", leak: []string{"passwd"},
+			want: "local model commands are unsupported; configure an HTTP model endpoint", leak: []string{"passwd"},
 		},
 		"command not installed": {
 			env:  map[string]string{"CONDUIT_MODEL_CMD": "/opt/private-tools/codex exec -"},
-			want: "the model command codex was not found", leak: []string{"private-tools"},
+			want: "local model commands are unsupported; configure an HTTP model endpoint", leak: []string{"private-tools"},
 		},
 	}
 	for name, c := range cases {
@@ -123,24 +123,12 @@ func TestAIProbeNeverEchoesAnInvalidConfiguration(t *testing.T) {
 	}
 }
 
-func TestAIProbeReportsTheCommandProviderAndItsPreset(t *testing.T) {
-	plain := componentsByID(probeWith(map[string]string{"CONDUIT_MODEL_CMD": "/usr/local/bin/codex exec -"}, "/usr/local/bin/codex", "git").components())
-	if plain["modelProvider"].Status != admin.Configured || !strings.Contains(plain["modelProvider"].Detail, "kind cli: command codex;") ||
-		!strings.Contains(plain["modelProvider"].Detail, "unverified") || strings.Contains(plain["modelProvider"].Detail, "/usr/local") {
-		t.Fatalf("provider = %+v", plain["modelProvider"])
-	}
-	if plain["aiPlanning"].Status != admin.Configured {
-		t.Fatalf("planning with a command and git = %+v", plain["aiPlanning"])
-	}
-	preset := componentsByID(probeWith(map[string]string{
-		"CONDUIT_MODEL_CMD": "packaging-workflow agent-exec --provider claude", "CONDUIT_MODEL_NAME": "operator-chosen",
-	}, "packaging-workflow").components())
-	if detail := preset["modelProvider"].Detail; !strings.Contains(detail, "agent-exec preset claude, UNVERIFIED") || !strings.Contains(detail, "configured model operator-chosen") {
-		t.Fatalf("preset provider = %q", detail)
-	}
-	none := componentsByID(probeWith(nil).components())
-	if none["modelProvider"].Status != admin.Unconfigured || !strings.Contains(none["modelProvider"].Detail, "kind none") {
-		t.Fatalf("no provider = %+v", none["modelProvider"])
+func TestAIProbeReportsRetiredCommandsUnavailable(t *testing.T) {
+	got := componentsByID(probeWith(map[string]string{"CONDUIT_MODEL_CMD": "/private/operator-command --secret value"}, "/private/operator-command", "git").components())
+	for _, id := range []string{"modelProvider", "aiPlanning", "aiAssistant"} {
+		if got[id].Status != admin.Unavailable || !strings.Contains(got[id].Detail, "local model commands are unsupported") || strings.Contains(got[id].Detail, "/private") {
+			t.Fatalf("%s=%+v", id, got[id])
+		}
 	}
 }
 

@@ -1,8 +1,9 @@
 // Products and versions: each catalog product with its newest release per
 // channel and how many reported installations run the newest release.
 
+import { artifactMarkup as compactArtifactMarkup } from "./artifact-display.js";
 import { emptyState } from "./empty-states.js";
-import { artifactMarkup } from "./package-artifact.js";
+import { artifactMarkup as declaredArtifactMarkup } from "./package-artifact.js";
 const CHANNEL_ORDER = ["DEV", "CANDIDATE", "STABLE"];
 
 const defaultEsc = (value) =>
@@ -62,6 +63,7 @@ export function productRows(products, installations) {
       releases: releases.length,
       latest: latest?.version || "",
       latestDigest: latest?.chart?.digest || "",
+      // The newest release's deployable artifact, as the Hub returned it.
       latestArtifact: latest?.chart || null,
       channels,
       installations: running.length,
@@ -101,7 +103,7 @@ export function productsMarkup(rows, { esc = defaultEsc, note = "" } = {}) {
       return `<tr>
         <td class="code-id">${esc(row.product)}</td>
         <td class="code-id" title="${esc(row.latestDigest)}">${esc(row.latest)}</td>
-        <td>${artifactMarkup(row.latestArtifact)}</td>
+        <td>${compactArtifactMarkup(row.latestArtifact, esc)}${declaredArtifactMarkup(row.latestArtifact)}</td>
         ${cells}
         <td>${esc(row.releases)}</td>
         <td><span class="kit-badge kit-badge-${tone}">${esc(row.onLatest)} of ${esc(row.installations)}</span></td>
@@ -110,9 +112,9 @@ export function productsMarkup(rows, { esc = defaultEsc, note = "" } = {}) {
     .join("");
   return `<div class="so-panel kit-view-panel">
     <div class="kit-view-head"><h2>Products and versions</h2><span class="kit-count" title="${rows.length} in the catalog">${rows.length}</span></div>
-    <p class="kit-muted">Newest release per channel. The last column counts reported installations that run the newest release.</p>
+    <p class="kit-muted">Newest release per channel. The declared artifact shows the newest release's full coordinates as the Hub returned them. The last column counts reported installations that run the newest release.</p>
     <div class="overflow-x-auto"><table class="so-table">
-      <thead><tr><th>Product</th><th>Newest</th><th>Newest artifact</th>${head}<th>Releases</th><th>On newest</th></tr></thead>
+      <thead><tr><th>Product</th><th>Newest</th><th>Artifact</th>${head}<th>Releases</th><th>On newest</th></tr></thead>
       <tbody>${body}</tbody>
     </table></div>
   </div>`;

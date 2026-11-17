@@ -1,0 +1,46 @@
+# The one grant the reference material preparer needs beyond what the Spoke
+# chart already binds: read, by name, on the source Secrets.
+#
+# NOT applied to a cluster by this repository. The rules themselves are the
+# ones the preparer is tested under -- internal/materialpreparer and
+# cmd/platform-material-preparer run it against an API that enforces exactly
+# these and refuses everything else.
+#
+# `get` only, and only the Secrets named. No `list` and no `watch`: Kubernetes
+# cannot scope those by name, so granting either would let the Agent read every
+# Secret in this namespace, including its own client key. The preparer never
+# lists.
+#
+# In each managed namespace the preparer needs get, create, update and delete
+# on Secrets. The Spoke chart's Role (rbac.create) already grants the Agent
+# those there for Helm's release records, so nothing is added.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform-material-preparer-source
+  # The source namespace: the Agent's own, unless
+  # MATERIAL_PREPARER_SOURCE_NAMESPACE says otherwise.
+  namespace: environment-system
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+    resourceNames:
+      - database-source
+      - registry-source
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-material-preparer-source
+  namespace: environment-system
+subjects:
+  # The ServiceAccount the Agent runs as. The preparer has no identity of its
+  # own: it is a process in the Agent's Pod.
+  - kind: ServiceAccount
+    name: platform-spoke
+    namespace: environment-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: platform-material-preparer-source

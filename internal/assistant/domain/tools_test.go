@@ -76,7 +76,7 @@ func TestDomainDoesNotImportProcesses(t *testing.T) {
 }
 
 func TestChangeRequestActionsAskForTheirTarget(t *testing.T) {
-	for _, action := range []string{"promote", "recall", "cancel_packaging_run", "propose_memory", "select_course"} {
+	for _, action := range []string{"cancel_packaging_run", "rerun_packaging_run"} {
 		names := map[string]bool{}
 		for _, field := range MissingFields(WriteArgs{Action: action}) {
 			names[field.Name] = true
@@ -98,7 +98,7 @@ func TestChangeRequestActionsAskForTheirTarget(t *testing.T) {
 
 func TestPromptDescribesGovernedWriteAndEveryAction(t *testing.T) {
 	prompt := Prompt(ModeOntology, "cancel it", nil)
-	for _, want := range append(WriteActions(), `"installationId"`, `"productId"`, "Approving it does not run the named action") {
+	for _, want := range append(WriteActions(), `"installationId"`, `"productId"`, "Approval dispatches the exact reviewed packaging command") {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("prompt does not mention %s", want)
 		}
@@ -106,6 +106,15 @@ func TestPromptDescribesGovernedWriteAndEveryAction(t *testing.T) {
 	for _, action := range WriteActions() {
 		if _, err := ParseToolCall(ToolWrite, []byte(`{"action":"`+action+`","installationId":"a","productId":"b"}`)); err != nil {
 			t.Fatalf("%s: %v", action, err)
+		}
+	}
+}
+
+func TestProposalsOnlyAdvertiseExecutablePackagingActions(t *testing.T) {
+	for _, action := range []string{"promote_release_manual", "workspace_create", "execute_plan"} {
+		_, err := ParseToolCall(ToolPropose, []byte(`{"actionId":"`+action+`","targetEntityId":"r","targetObjectType":"PackagingRun","environment":"dev","installationId":"a","productId":"p"}`))
+		if err == nil {
+			t.Fatalf("inert proposal %s accepted", action)
 		}
 	}
 }

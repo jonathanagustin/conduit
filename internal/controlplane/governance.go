@@ -57,11 +57,14 @@ type EntityChange struct {
 }
 
 type ChangeReview struct {
-	Subject   string    `json:"subject"`
-	Decision  string    `json:"decision"`
-	Rationale string    `json:"rationale"`
-	Teams     []string  `json:"teams,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
+	Subject string `json:"subject"`
+	// Native action recovery binds both the credential carrier and the human
+	// represented at approval; changing a delegation is not the same review.
+	EffectiveSubject string    `json:"effectiveSubject,omitempty"`
+	Decision         string    `json:"decision"`
+	Rationale        string    `json:"rationale"`
+	Teams            []string  `json:"teams,omitempty"`
+	CreatedAt        time.Time `json:"createdAt"`
 }
 
 type ChangeRequest struct {
@@ -110,11 +113,13 @@ type ChangeExecution struct {
 }
 
 type ChangeExecutionItem struct {
-	ChangeID    string `json:"changeId"`
-	ResourceRID string `json:"resourceRid"`
-	Status      string `json:"status"`
-	ResultID    string `json:"resultId,omitempty"`
-	Error       string `json:"error,omitempty"`
+	ChangeID       string `json:"changeId"`
+	ResourceRID    string `json:"resourceRid"`
+	Status         string `json:"status"`
+	ResultID       string `json:"resultId,omitempty"`
+	Error          string `json:"error,omitempty"`
+	CommandOutcome string `json:"commandOutcome,omitempty"`
+	ObservedState  string `json:"observedState,omitempty"`
 }
 
 type GovernanceService struct {
@@ -122,14 +127,16 @@ type GovernanceService struct {
 	lifecycle  *Lifecycle
 	now        func() time.Time
 	trust      PolicyTrust
-	// announcements is zero unless SetAnnouncements was called. A service built
-	// over a transaction's repository never has it set, which is what keeps an
-	// announcement from leaving before its write commits.
-	announcements governanceAnnouncements
+	// Live announcements are optional post-commit observers. A transaction-local
+	// service may instead hold only its repository's private intent recorders.
+	announcements       governanceAnnouncements
+	afterChangeApproved AfterChangeApproved
 }
 
 func NewGovernanceService(repository Repository) *GovernanceService {
-	return &GovernanceService{repository: repository, lifecycle: NewLifecycle(repository), now: time.Now}
+	service := &GovernanceService{repository: repository, lifecycle: NewLifecycle(repository), now: time.Now}
+	service.SetAnnouncements(Announcements{})
+	return service
 }
 
 // SetPolicyTrust declares which automation identities the published
@@ -314,6 +321,44 @@ func (service *GovernanceService) PutGrant(ctx context.Context, grant ResourceGr
 func (service *GovernanceService) PutGrantAs(
 	ctx context.Context, grant ResourceGrant, subject string,
 ) (ResourceGrant, error) {
+	// An attributed permission change and its audit are one operation even
+	// when notifications are disabled. Always take a private transaction (or
+	// nested savepoint), so a caller that catches our error cannot commit a
+	// partially applied grant in its enclosing transaction.
+	if subject != "" || needsNotificationTransaction(service.repository) {
+		var stored ResourceGrant
+		var before *ResourceGrant
+		err := service.withNotificationTransaction(ctx, func(working *GovernanceService) error {
+			// Read the observer's before-image under the same serialization as
+			// the write. A root read could describe another writer's revision.
+			grants, err := working.repository.ListResourceGrants(ctx, grant.ResourceRID)
+			if err != nil {
+				return err
+			}
+			for _, existing := range grants {
+				if existing.Team == grant.Team {
+					previous := existing
+					before = &previous
+					break
+				}
+			}
+			stored, err = working.putGrantAs(ctx, grant, subject)
+			return err
+		})
+		if err != nil {
+			return ResourceGrant{}, err
+		}
+		if subject != "" && !service.repository.InTransaction() {
+			_ = service.announceGrantChanged(ctx, subject, before, stored)
+		}
+		return stored, nil
+	}
+	return service.putGrantAs(ctx, grant, subject)
+}
+
+func (service *GovernanceService) putGrantAs(
+	ctx context.Context, grant ResourceGrant, subject string,
+) (ResourceGrant, error) {
 	if strings.TrimSpace(grant.ResourceRID) == "" || !identifierPattern.MatchString(grant.Team) ||
 		(len(grant.Roles)+len(grant.Operations) == 0 && grant.Relationship == "") {
 		return ResourceGrant{}, ValidationErrors{{Path: "grant", Message: "resourceRid, team, and a relationship, role, or operation are required"}}
@@ -354,7 +399,9 @@ func (service *GovernanceService) PutGrantAs(
 	if auditErr := service.auditGrantConfigured(ctx, subject, existing, stored); auditErr != nil {
 		return ResourceGrant{}, auditErr
 	}
-	service.announceGrantChanged(ctx, subject, existing, stored)
+	if err := service.announceGrantChanged(ctx, subject, existing, stored); err != nil {
+		return ResourceGrant{}, err
+	}
 	return stored, nil
 }
 
@@ -438,6 +485,20 @@ func (service *GovernanceService) proposePlan(
 func (service *GovernanceService) proposePlanWithAdditionalChanges(
 	ctx context.Context, state DesiredState, author Principal, title, description string, optimizer *OptimizerPlanProvenance, additional []EntityChange,
 ) (PlanRecord, ChangeRequest, error) {
+	if needsNotificationTransaction(service.repository) {
+		var record PlanRecord
+		var request ChangeRequest
+		err := service.withNotificationTransaction(ctx, func(working *GovernanceService) error {
+			var err error
+			record, request, err = working.proposePlanWithAdditionalChanges(ctx, state, author, title, description, optimizer, additional)
+			return err
+		})
+		if err != nil {
+			return PlanRecord{}, ChangeRequest{}, err
+		}
+		_ = service.announceAwaitingApproval(ctx, request)
+		return record, request, nil
+	}
 	if strings.TrimSpace(author.Username) == "" {
 		return PlanRecord{}, ChangeRequest{}, ErrUnauthorized
 	}
@@ -469,7 +530,12 @@ func (service *GovernanceService) proposePlanWithAdditionalChanges(
 	service.auditRequestCreated(ctx, request)
 	record, err = service.syncPlanAs(ctx, request, verdict)
 	if err == nil {
-		service.announceAwaitingApproval(ctx, request)
+		err = service.announceAwaitingApproval(ctx, request)
+	}
+	if err == nil && service.repository.InTransaction() {
+		if announcements, configured := service.repository.TransactionAnnouncements(); configured && announcements.RecallOpenings != nil {
+			err = announcements.RecallOpenings.RecallsInForce(ctx, state.Environment.ID, state.Recalls)
+		}
 	}
 	return record, request, err
 }
@@ -624,6 +690,20 @@ func (service *GovernanceService) ProposeChanges(
 	ctx context.Context, targetKind, targetID, environment string, changes []EntityChange,
 	author Principal, title, description string,
 ) (ChangeRequest, bool, error) {
+	if needsNotificationTransaction(service.repository) {
+		var request ChangeRequest
+		var policyApproves bool
+		err := service.withNotificationTransaction(ctx, func(working *GovernanceService) error {
+			var err error
+			request, policyApproves, err = working.ProposeChanges(ctx, targetKind, targetID, environment, changes, author, title, description)
+			return err
+		})
+		if err != nil {
+			return ChangeRequest{}, false, err
+		}
+		_ = service.announceAwaitingApproval(ctx, request)
+		return request, policyApproves, nil
+	}
 	if strings.TrimSpace(targetKind) == "" || strings.TrimSpace(targetID) == "" ||
 		strings.TrimSpace(environment) == "" || len(changes) == 0 || strings.TrimSpace(author.Username) == "" {
 		return ChangeRequest{}, false, ValidationErrors{{Path: "changeRequest", Message: "target, Environment, changes, and author are required"}}
@@ -648,7 +728,7 @@ func (service *GovernanceService) ProposeChanges(
 	request, err = service.repository.CreateChangeRequest(ctx, request)
 	if err == nil {
 		service.auditRequestCreated(ctx, request)
-		service.announceAwaitingApproval(ctx, request)
+		err = service.announceAwaitingApproval(ctx, request)
 	}
 	return request, policyApproves, err
 }
@@ -743,13 +823,42 @@ func (service *GovernanceService) evaluateChangeRequest(
 	if request.RequirementsSatisfied && !hasDoNotMerge(request.Labels) {
 		request.Status = ChangeApproved
 	}
+	if request.TargetKind == AssistantActionTarget && request.Status != ChangeRejected {
+		request = holdForAPerson(request)
+	}
 	return request, nil
 }
 
 func (service *GovernanceService) Approve(
 	ctx context.Context, changeRequestID string, principal Principal, rationale string,
 ) (ChangeRequest, PlanRecord, error) {
-	return service.approveTransactional(ctx, changeRequestID, principal, rationale, nil)
+	// Repeating approval of this native target is an explicit recovery request,
+	// not another review. Only a still-eligible reviewer who already approved
+	// may resume a lost acknowledgement or failed dispatch.
+	if stored, err := service.repository.GetChangeRequest(ctx, changeRequestID); err == nil && stored.TargetKind == AssistantActionTarget && stored.Status == ChangeApproved {
+		if strings.TrimSpace(rationale) == "" || governance.SameHuman(principal, stored.Author) || !principalCanReview(ctx, service.repository, stored.Requirements, principal) {
+			return ChangeRequest{}, PlanRecord{}, ErrForbidden
+		}
+		approved := false
+		for _, review := range stored.Reviews {
+			if review.Subject == principal.Username && review.EffectiveSubject == governance.EffectivePrincipal(principal).Username && review.Decision == "APPROVE" {
+				approved = true
+			}
+		}
+		if !approved {
+			return ChangeRequest{}, PlanRecord{}, ErrForbidden
+		}
+		if err := service.audit(ctx, principal.Username, "ASSISTANT_ACTION_RESUME", stored.ID, "ALLOW", rationale, nil); err != nil {
+			return stored, PlanRecord{}, err
+		}
+		stored, err = service.dispatchApproved(ctx, stored)
+		return stored, PlanRecord{}, err
+	}
+	request, plan, err := service.approveTransactional(ctx, changeRequestID, principal, rationale, nil)
+	if err == nil {
+		request, err = service.dispatchApproved(ctx, request)
+	}
+	return request, plan, err
 }
 
 type optimizerApprovalPermit struct {
@@ -926,10 +1035,14 @@ func (service *GovernanceService) approveOnce(
 		if err := recordModuleOverrideReviewer(request, principal, eligible, reviewedAt); err != nil {
 			return err
 		}
-		request.Reviews = append(request.Reviews, ChangeReview{
+		review := ChangeReview{
 			Subject: principal.Username, Decision: "APPROVE", Rationale: rationale,
 			Teams: append([]string(nil), principal.Teams...), CreatedAt: reviewedAt,
-		})
+		}
+		if request.TargetKind == AssistantActionTarget {
+			review.EffectiveSubject = governance.EffectivePrincipal(principal).Username
+		}
+		request.Reviews = append(request.Reviews, review)
 		request.RequirementsSatisfied = allRequirementsSatisfied(request.Requirements)
 		if request.RequirementsSatisfied && !hasDoNotMerge(request.Labels) {
 			request.Status = ChangeApproved
@@ -1008,6 +1121,39 @@ func (service *GovernanceService) Reject(
 func (service *GovernanceService) Reopen(
 	ctx context.Context, id string, principal Principal,
 ) (ChangeRequest, PlanRecord, error) {
+	if needsNotificationTransaction(service.repository) {
+		var request ChangeRequest
+		var plan PlanRecord
+		var nonAuthorDenied bool
+		err := service.withNotificationTransaction(ctx, func(working *GovernanceService) error {
+			var err error
+			request, plan, err = working.reopen(ctx, id, principal, &nonAuthorDenied)
+			return err
+		})
+		if err != nil {
+			// The denied attempt's audit was rolled back with the source
+			// transaction. Preserve this existing denial after rollback, just
+			// as approveTransactional preserves its refused approval record.
+			if nonAuthorDenied && errors.Is(err, ErrForbidden) {
+				if auditErr := service.audit(ctx, principal.Username, "CHANGE_REQUEST_REOPEN", id, "DENY", reopenNonAuthorReason, nil); auditErr != nil {
+					return ChangeRequest{}, PlanRecord{}, errors.Join(err, fmt.Errorf("persist denied reopening audit: %w", auditErr))
+				}
+			}
+			return ChangeRequest{}, PlanRecord{}, err
+		}
+		_ = service.announceAwaitingApproval(ctx, request)
+		return request, plan, nil
+	}
+	return service.reopen(ctx, id, principal, nil)
+}
+
+const reopenNonAuthorReason = "only the author may reopen"
+
+// nonAuthorDenied records the actual refusal branch so the root wrapper can
+// preserve that denial after rollback without repeating an authorization check.
+func (service *GovernanceService) reopen(
+	ctx context.Context, id string, principal Principal, nonAuthorDenied *bool,
+) (ChangeRequest, PlanRecord, error) {
 	request, err := service.repository.GetChangeRequest(ctx, id)
 	if err != nil {
 		return ChangeRequest{}, PlanRecord{}, err
@@ -1016,7 +1162,10 @@ func (service *GovernanceService) Reopen(
 		return ChangeRequest{}, PlanRecord{}, fmt.Errorf("%w: create a fresh Module override proposal instead of reopening an expired binding", ErrInvalidTransition)
 	}
 	if request.Author.Username != principal.Username {
-		service.audit(ctx, principal.Username, "CHANGE_REQUEST_REOPEN", id, "DENY", "only the author may reopen", nil)
+		if nonAuthorDenied != nil {
+			*nonAuthorDenied = true
+		}
+		service.audit(ctx, principal.Username, "CHANGE_REQUEST_REOPEN", id, "DENY", reopenNonAuthorReason, nil)
 		return ChangeRequest{}, PlanRecord{}, ErrForbidden
 	}
 	// ERROR is admitted alongside the two decisions because it is not one. A
@@ -1068,7 +1217,7 @@ func (service *GovernanceService) Reopen(
 	service.audit(ctx, principal.Username, "CHANGE_REQUEST_REOPEN", id, "ALLOW", "author reopened request", nil)
 	plan, err := service.syncPlan(ctx, request)
 	if err == nil {
-		service.announceAwaitingApproval(ctx, request)
+		err = service.announceAwaitingApproval(ctx, request)
 	}
 	return request, plan, err
 }
@@ -1454,7 +1603,4 @@ func errorReason(err error) string {
 	return err.Error()
 }
 
-var (
-	ErrUnauthorized = errors.New("unauthorized")
-	ErrForbidden    = errors.New("forbidden")
-)
+var ErrForbidden = errors.New("forbidden")

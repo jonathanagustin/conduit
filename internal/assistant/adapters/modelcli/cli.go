@@ -1,41 +1,33 @@
-// Package modelcli runs a local command behind the assistant model port.
-// It does not interpret a vendor protocol and it does not approve a change.
+// Package modelcli retains the retired command adapter as an explicit refusal.
 package modelcli
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/assistant/domain"
 	"github.com/jonathanagustin/conduit/internal/localcmd"
 )
 
-// Runner starts one local command. The prompt is written to stdin.
-// The process working directory is temporary and is removed afterwards.
+// Runner is a compatibility shape; model methods refuse without calling tools or processes.
 type Runner struct {
-	Argv    []string
-	Timeout time.Duration
+	ModelName string
+	Argv      []string
+	Timeout   time.Duration
+	// Exec is retained for source compatibility and is never invoked.
+	Exec localcmd.ExecFunc
 }
 
 func (runner Runner) Complete(ctx context.Context, prompt string) (string, domain.Provenance, error) {
-	if len(runner.Argv) == 0 || strings.TrimSpace(runner.Argv[0]) == "" {
-		return "", domain.Provenance{}, domain.ErrModelUnavailable
-	}
-	body := []byte(prompt)
-	provenance := domain.Provenance{Adapter: localcmd.CommandName(runner.Argv[0]), PromptSHA256: domain.Digest(body)}
-	stdout, err := localcmd.Execute(ctx, runner.Argv, runner.Timeout, body)
-	provenance.ResponseSHA256 = domain.Digest(stdout)
-	if err != nil {
-		return "", provenance, modelError(err)
-	}
-	return string(stdout), provenance, nil
+	return "", domain.Provenance{}, modelError(localcmd.ErrLocalCommandUnsupported)
 }
 
 func modelError(err error) error {
 	switch {
+	case errors.Is(err, localcmd.ErrLocalCommandUnsupported):
+		return fmt.Errorf("%w: %w", domain.ErrModelUnavailable, err)
 	case errors.Is(err, localcmd.ErrTimeout):
 		return domain.ErrModelTimeout
 	case errors.Is(err, localcmd.ErrNotFound), errors.Is(err, localcmd.ErrEmpty):

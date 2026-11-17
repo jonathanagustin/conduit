@@ -60,6 +60,7 @@ func (s *TemporaryMaintenanceService) CreateMaintenanceOverrides(ctx context.Con
 		}
 		seen[target] = true
 		var receipt maintenance.OverrideReceipt
+		var opening ChangeRequest
 		submit := func(repository Repository) error {
 			service := NewGovernanceService(repository)
 			service.now = s.now
@@ -123,6 +124,7 @@ func (s *TemporaryMaintenanceService) CreateMaintenanceOverrides(ctx context.Con
 				}
 			}
 			receipt = maintenance.OverrideReceipt{ChangeRequestID: request.ID, EntityTarget: target, Status: request.Status, StartsAt: start, EndsAt: window.EndsAt, Type: kind}
+			opening = request
 			return nil
 		}
 		if draft.DryRun {
@@ -144,6 +146,11 @@ func (s *TemporaryMaintenanceService) CreateMaintenanceOverrides(ctx context.Con
 				return result, err
 			}
 			return result, nil
+		}
+		if !draft.DryRun && !s.repository.InTransaction() {
+			service := NewGovernanceService(s.repository)
+			service.SetAnnouncements(s.options.Announcements)
+			_ = service.announceAwaitingApproval(ctx, opening)
 		}
 		result.Requests = append(result.Requests, receipt)
 	}

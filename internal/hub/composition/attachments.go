@@ -26,7 +26,7 @@ func newAttachmentService(repository controlplane.Repository) *attachapp.Service
 func mountAttachments(
 	legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, service *attachapp.Service,
 ) http.Handler {
-	governanceService := controlplane.NewGovernanceService(repository)
+	governanceService := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	attachhttp.Register(mux, attachhttp.Config{
 		Service: service,

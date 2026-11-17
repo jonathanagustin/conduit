@@ -405,7 +405,7 @@ func moduleOverrideBoundary(ctx context.Context, repository Repository, operatio
 	if file, ok := repository.(*FileRepository); ok {
 		file.mu.Lock()
 		defer file.mu.Unlock()
-		if err := operation(&FileRepository{root: file.root}); err != nil {
+		if err := operation(&FileRepository{root: file.root, transactionLocal: true}); err != nil {
 			return err
 		}
 		return ctx.Err()
@@ -415,6 +415,7 @@ func moduleOverrideBoundary(ctx context.Context, repository Repository, operatio
 
 func (a *moduleOverrideAuthority) CreateReview(ctx context.Context, p override.Proposal) (overrideports.ReviewAck, error) {
 	var ack overrideports.ReviewAck
+	var opening ChangeRequest
 	err := moduleOverrideBoundary(ctx, a.repository, func(repository Repository) error {
 		working := *a
 		working.repository = repository
@@ -457,9 +458,18 @@ func (a *moduleOverrideAuthority) CreateReview(ctx context.Context, p override.P
 		if err := working.audit(ctx, "MODULE_OVERRIDE_PROPOSED", stored.ID, p.ID); err != nil {
 			return err
 		}
+		if err := service.announceAwaitingApproval(ctx, stored); err != nil {
+			return err
+		}
 		ack = overrideports.ReviewAck{ReviewID: stored.ID, ProposalID: p.ID, Status: stored.Status}
+		opening = stored
 		return nil
 	})
+	if err == nil && !a.repository.InTransaction() {
+		service := NewGovernanceService(a.repository)
+		service.SetAnnouncements(a.options.Announcements)
+		_ = service.announceAwaitingApproval(ctx, opening)
+	}
 	return ack, err
 }
 

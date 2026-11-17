@@ -3,6 +3,7 @@ package composition
 import (
 	"context"
 	"fmt"
+	"github.com/jonathanagustin/conduit/internal/modelconfig"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,10 +14,8 @@ import (
 	devchange "github.com/jonathanagustin/conduit/internal/devworkspace/adapters/changerequest"
 	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/gitstore"
 	devdomain "github.com/jonathanagustin/conduit/internal/devworkspace/domain"
-	"github.com/jonathanagustin/conduit/internal/localcmd"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/deterministic"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/imagebuild"
-	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelcli"
 	packagingmodelhttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/packagingtools"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/workspacepkg"
@@ -26,7 +25,7 @@ import (
 	planningdomain "github.com/jonathanagustin/conduit/internal/planning/domain"
 )
 
-func packagingPlanningComputer(repository controlplane.Repository, principal controlplane.Principal, getenv func(string) string) planningapp.AppgenComputer {
+func packagingPlanningComputer(repository controlplane.Repository, principal controlplane.Principal, getenv func(string) string, handlerOptions ...controlplane.HandlerOptions) planningapp.AppgenComputer {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
@@ -124,7 +123,7 @@ func packagingPlanningComputer(repository controlplane.Repository, principal con
 		}
 		fmt.Fprintf(logFile, "pinned image digest %s\n", result.Audit.ImageDigest)
 		if repository != nil && strings.TrimSpace(principal.Username) != "" {
-			receipt, err := devchange.New(controlplane.NewGovernanceService(repository)).Submit(ctx, devWorkspaceCaller(principal), devdomain.Submission{
+			receipt, err := devchange.New(newGovernanceService(repository, handlerOptions...)).Submit(ctx, devWorkspaceCaller(principal), devdomain.Submission{
 				WorkspaceID: wsID, EnvironmentID: "dev", Revision: result.Head,
 				SourceDigest: result.Audit.ImageDigest,
 				Title:        "Package " + app,
@@ -140,48 +139,13 @@ func packagingPlanningComputer(repository controlplane.Repository, principal con
 }
 
 func packagingWriter(getenv func(string) string) (packagingapp.PackageWriter, error) {
-	if client, err := modelHTTPClient(getenv); err != nil {
+	getenv = modelconfig.ForCapability(getenv, modelconfig.Packaging)
+	if client, err := packagingModelHTTPClient(getenv); err != nil {
 		return nil, err
 	} else if client != nil {
 		return packagingmodelhttp.Adapter{Client: client}, nil
 	}
-	raw := strings.TrimSpace(getenv("CONDUIT_MODEL_CMD"))
-	if raw == "" {
-		return deterministic.Writer{}, nil
-	}
-	argv, err := localcmd.ParseArgv(raw)
-	if err != nil {
-		return nil, fmt.Errorf("CONDUIT_MODEL_CMD: %w", err)
-	}
-	if deterministicCommand(argv, getenv("CONDUIT_AGENT_PROVIDER")) {
-		return deterministic.Writer{}, nil
-	}
-	timeout := 45 * time.Second
-	if text := strings.TrimSpace(getenv("CONDUIT_MODEL_TIMEOUT")); text != "" {
-		parsed, err := time.ParseDuration(text)
-		if err != nil || parsed <= 0 {
-			return nil, fmt.Errorf("CONDUIT_MODEL_TIMEOUT must be a positive duration")
-		}
-		timeout = parsed
-	}
-	return modelcli.Runner{Argv: argv, Timeout: timeout, ModelName: configuredModelName(getenv)}, nil
-}
-
-func deterministicCommand(argv []string, providerEnv string) bool {
-	joined := strings.Join(argv, " ")
-	if !strings.Contains(joined, "agent-exec") {
-		return false
-	}
-	provider := strings.TrimSpace(providerEnv)
-	for i, arg := range argv {
-		if arg == "--provider" && i+1 < len(argv) {
-			provider = argv[i+1]
-		}
-		if strings.HasPrefix(arg, "--provider=") {
-			provider = strings.TrimPrefix(arg, "--provider=")
-		}
-	}
-	return provider == "" || provider == "deterministic"
+	return deterministic.Writer{}, nil
 }
 
 func packagingSourceBuild(repoURL string, getenv func(string) string) bool {

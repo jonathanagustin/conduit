@@ -49,13 +49,14 @@ func TestAcceptRecordsBindingAndRefusesComputeUntilThen(t *testing.T) {
 	t.Parallel()
 	frozen := time.Date(2026, 11, 14, 16, 0, 0, 0, time.UTC)
 	service := NewService(scriptedPlanner{result: &TurnResult{
-		Messages:       []domain.Message{{Role: domain.RoleModel, Text: "Plan follows."}},
-		Inspection:     &domain.Inspection{Language: "TypeScript", Kind: "static", ToolCalls: []string{"inspect_repo"}},
-		NeedsInput:     []domain.Question{{ID: "sso", Name: "sso", Label: "Does this need SSO?", Type: domain.QuestionBoolean, Required: true}},
-		Plan:           &domain.Plan{Text: "Package the static site.", SHA256: "abc"},
-		ResolvedCommit: "0123456789abcdef0123456789abcdef01234567",
-		Model:          "recorded-model",
-		Profile:        domain.ProfileRef{Name: domain.ProfileOnboard, Version: "1", Hash: "deadbeef"},
+		Messages:        []domain.Message{{Role: domain.RoleModel, Text: "Plan follows."}},
+		Inspection:      &domain.Inspection{Language: "TypeScript", Kind: "static", ToolCalls: []string{"inspect_repo"}},
+		NeedsInput:      []domain.Question{{ID: "sso", Name: "sso", Label: "Does this need SSO?", Type: domain.QuestionBoolean, Required: true}},
+		Plan:            &domain.Plan{Text: "Package the static site.", SHA256: "abc"},
+		ResolvedCommit:  "0123456789abcdef0123456789abcdef01234567",
+		Model:           "recorded-model",
+		ConfiguredModel: "configured-alias", ProviderModel: "provider-version",
+		Profile: domain.ProfileRef{Name: domain.ProfileOnboard, Version: "1", Hash: "deadbeef"},
 	}})
 	service.now = func() time.Time { return frozen }
 	session, err := service.Create(context.Background(), "https://github.com/org/app", "v1")
@@ -111,6 +112,9 @@ func TestAcceptRecordsBindingAndRefusesComputeUntilThen(t *testing.T) {
 	}
 	if binding.ResolvedCommit != "0123456789abcdef0123456789abcdef01234567" {
 		t.Fatalf("commit = %q", binding.ResolvedCommit)
+	}
+	if binding.ConfiguredModel != "configured-alias" || binding.ProviderModel != "provider-version" {
+		t.Fatalf("separate model ids missing from binding: %+v", binding)
 	}
 	if binding.Model != "recorded-model" || binding.Plan.Text != "Package the static site." {
 		t.Fatalf("model/plan = %+v", binding)

@@ -3,6 +3,7 @@ package composition
 import (
 	"context"
 	"fmt"
+	"github.com/jonathanagustin/conduit/internal/modelconfig"
 	"log/slog"
 	"net/http"
 	"os"
@@ -11,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jonathanagustin/conduit/internal/appgen/adapters/modelcli"
 	appmodelhttp "github.com/jonathanagustin/conduit/internal/appgen/adapters/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/appgen/adapters/recorded"
 	"github.com/jonathanagustin/conduit/internal/appgen/adapters/registry"
@@ -26,7 +26,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/gitstore"
 	devdomain "github.com/jonathanagustin/conduit/internal/devworkspace/domain"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
-	"github.com/jonathanagustin/conduit/internal/localcmd"
+	"github.com/jonathanagustin/conduit/internal/modelgovernor"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/workspacepkg"
 	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	planningapp "github.com/jonathanagustin/conduit/internal/planning/application"
@@ -34,31 +34,16 @@ import (
 )
 
 func appGenerator(getenv func(string) string) (appdomain.AppGenerator, error) {
+	getenv = modelconfig.ForCapability(getenv, modelconfig.Appgen)
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
-	if client, err := modelHTTPClient(getenv); err != nil {
+	if client, err := governedModelHTTPClient(getenv, modelgovernor.CapabilityAppgen); err != nil {
 		return nil, err
 	} else if client != nil {
 		return appmodelhttp.Adapter{Client: client}, nil
 	}
-	raw := strings.TrimSpace(getenv("CONDUIT_MODEL_CMD"))
-	if raw == "" {
-		return recorded.Adapter{}, nil
-	}
-	argv, err := localcmd.ParseArgv(raw)
-	if err != nil {
-		return nil, fmt.Errorf("CONDUIT_MODEL_CMD: %w", err)
-	}
-	timeout := 45 * time.Second
-	if text := strings.TrimSpace(getenv("CONDUIT_MODEL_TIMEOUT")); text != "" {
-		parsed, err := time.ParseDuration(text)
-		if err != nil || parsed <= 0 {
-			return nil, fmt.Errorf("CONDUIT_MODEL_TIMEOUT must be a positive duration")
-		}
-		timeout = parsed
-	}
-	return modelcli.Runner{Argv: argv, Timeout: timeout}, nil
+	return recorded.Adapter{}, nil
 }
 
 func newAppGenerationService(
@@ -174,7 +159,7 @@ func appGenerationBuildExecutor(sbx application.Sandbox) AppGenerationBuildExecu
 func mountAppGenerationWithService(
 	legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, service application.Service,
 ) http.Handler {
-	governanceService := controlplane.NewGovernanceService(repository)
+	governanceService := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	apphttp.Register(mux, apphttp.Config{
 		Service: service,
@@ -198,6 +183,7 @@ func mountAppGenerationWithService(
 
 func appgenPlanningComputer(
 	service application.Service, repository controlplane.Repository, principal controlplane.Principal, getenv func(string) string,
+	handlerOptions ...controlplane.HandlerOptions,
 ) planningapp.AppgenComputer {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
@@ -320,7 +306,7 @@ func appgenPlanningComputer(
 			}
 		}
 		if repository != nil && strings.TrimSpace(principal.Username) != "" {
-			submitter := devchange.New(controlplane.NewGovernanceService(repository))
+			submitter := devchange.New(newGovernanceService(repository, handlerOptions...))
 			sourceDigest := res.ImageDigest
 			if sourceDigest == "" {
 				sourceDigest = res.Provenance.ResponseSHA256
@@ -393,7 +379,7 @@ func (audit appAudit) Record(ctx context.Context, event application.Audit) error
 		time.Now().UTC(), "app-generation", "app.generate", "app-generation/"+event.ID, decision, event.Reason,
 		map[string]any{
 			"attempt": event.Attempt, "planRevisionId": event.PlanRevisionID, "planDigest": event.PlanDigest,
-			"adapter": event.Adapter, "promptSha256": event.PromptSHA256, "responseSha256": event.ResponseSHA256,
+			"adapter": event.Adapter, "configuredModel": event.ConfiguredModel, "providerModel": event.ProviderModel, "promptSha256": event.PromptSHA256, "responseSha256": event.ResponseSHA256,
 			"files": event.Files, "buildPassed": event.BuildPassed, "buildReason": event.BuildReason,
 			"healthPassed": event.HealthPassed, "healthReason": event.HealthReason,
 			"attachmentSha256": event.AttachmentSHA256,

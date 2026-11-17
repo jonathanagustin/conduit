@@ -135,7 +135,7 @@
     "operatorOIDC": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "profile", "issuer", "jwksURL", "clientID", "usernameClaim", "groupsClaim", "serviceAccountClaim", "audienceClaim", "tokenPurposeClaim", "expectedTokenPurpose", "scopeClaim", "requiredScopes", "signingAlgorithms", "caFile"],
+      "required": ["enabled", "profile", "issuer", "jwksURL", "clientID", "usernameClaim", "groupsClaim", "serviceAccountClaim", "audienceClaim", "tokenPurposeClaim", "expectedTokenPurpose", "scopeClaim", "requiredScopes", "signingAlgorithms", "caFile", "signIn"],
       "properties": {
         "enabled": {"type": "boolean"},
         "profile": {"type": "string", "enum": ["generic", "multipass", "cognito-access"]},
@@ -151,9 +151,33 @@
         "scopeClaim": {"type": "string", "maxLength": 128},
         "requiredScopes": {"type": "array", "maxItems": 32, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 128}},
         "signingAlgorithms": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "enum": ["RS256", "ES256", "EdDSA"]}},
-        "caFile": {"type": "string", "pattern": "^/.+$"}
+        "caFile": {"type": "string", "pattern": "^/.+$"},
+        "signIn": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "publicURL", "clientSecret", "sessionMaxLifetime", "loginScopes"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "publicURL": {"type": "string", "pattern": "^$|^https://[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]{1,5})?$"},
+            "clientSecret": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["secretName", "key"],
+              "properties": {
+                "secretName": {"$ref": "#/definitions/optionalDnsName"},
+                "key": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$", "minLength": 1, "maxLength": 253}
+              }
+            },
+            "sessionMaxLifetime": {"type": "string", "pattern": "^$|^([0-9]{1,4}h)?([0-9]{1,4}m)?([0-9]{1,5}s)?$"},
+            "loginScopes": {"type": "array", "maxItems": 16, "uniqueItems": true, "items": {"type": "string", "pattern": "^[\\x21\\x23-\\x5B\\x5D-\\x7E]{1,128}$"}}
+          },
+          "allOf": [{"if": {"properties": {"enabled": {"const": true}}}, "then": {"properties": {"publicURL": {"minLength": 1}}}}]
+        }
       },
-      "allOf": [{"if": {"properties": {"enabled": {"const": true}}}, "then": {"properties": {"issuer": {"minLength": 1}, "clientID": {"minLength": 1}}}}]
+      "allOf": [
+        {"if": {"properties": {"enabled": {"const": true}}}, "then": {"properties": {"issuer": {"minLength": 1}, "clientID": {"minLength": 1}}}},
+        {"if": {"properties": {"enabled": {"const": false}}}, "then": {"properties": {"signIn": {"properties": {"enabled": {"const": false}}}}}}
+      ]
     },
     "artifactScanner": {
       "type": "object",
@@ -247,7 +271,7 @@
     "metrics": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "port", "service", "serviceMonitor"],
+      "required": ["enabled", "port", "service", "serviceMonitor", "prometheusRule", "dashboard"],
       "properties": {
         "enabled": {"type": "boolean"},
         "port": {"type": "integer", "minimum": 1024, "maximum": 65535},
@@ -266,7 +290,35 @@
             "interval": {"type": "string", "pattern": "^[1-9][0-9]*(s|m)$"},
             "labels": {"type": "object", "additionalProperties": {"type": "string"}}
           }
+        },
+        "prometheusRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "labels"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "labels": {"type": "object", "additionalProperties": {"type": "string"}}
+          }
+        },
+        "dashboard": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "labels"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "labels": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string"}}
+          }
         }
+      }
+    },
+    "rateLimit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operator", "agent", "anonymous"],
+      "properties": {
+        "operator": {"$ref": "#/definitions/rateLimitClass"},
+        "agent": {"$ref": "#/definitions/rateLimitClass"},
+        "anonymous": {"$ref": "#/definitions/rateLimitClass"}
       }
     },
     "notifications": {
@@ -336,6 +388,88 @@
         "baseURL": {"type": "string", "pattern": "^$|^https?://[^[:space:][:cntrl:]@?#]+$", "maxLength": 2048},
         "name": {"type": "string", "pattern": "^$|^[^[:space:][:cntrl:]]+$", "maxLength": 256},
         "timeout": {"type": "string", "pattern": "^$|^[1-9][0-9]*(ms|s|m)$"},
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "assistant": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "timeout"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "^$|^[^[:space:][:cntrl:]]+$",
+                  "maxLength": 256
+                },
+                "timeout": {
+                  "type": "string",
+                  "pattern": "^$|^[1-9][0-9]*(ms|s|m)$"
+                }
+              }
+            },
+            "planning": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "timeout"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "^$|^[^[:space:][:cntrl:]]+$",
+                  "maxLength": 256
+                },
+                "timeout": {
+                  "type": "string",
+                  "pattern": "^$|^[1-9][0-9]*(ms|s|m)$"
+                }
+              }
+            },
+            "packaging": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "timeout"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "^$|^[^[:space:][:cntrl:]]+$",
+                  "maxLength": 256
+                },
+                "timeout": {
+                  "type": "string",
+                  "pattern": "^$|^[1-9][0-9]*(ms|s|m)$"
+                }
+              }
+            },
+            "appgen": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "timeout"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "^$|^[^[:space:][:cntrl:]]+$",
+                  "maxLength": 256
+                },
+                "timeout": {
+                  "type": "string",
+                  "pattern": "^$|^[1-9][0-9]*(ms|s|m)$"
+                }
+              }
+            }
+          }
+        },
         "apiKeySecret": {
           "type": "object",
           "additionalProperties": false,
@@ -361,6 +495,7 @@
           "if": {"properties": {"baseURL": {"minLength": 1}}},
           "then": {"properties": {"name": {"minLength": 1}}},
           "else": {"properties": {
+            "capabilities": {"properties":{"assistant":{"properties":{"name":{"maxLength":0},"timeout":{"maxLength":0}}},"planning":{"properties":{"name":{"maxLength":0},"timeout":{"maxLength":0}}},"packaging":{"properties":{"name":{"maxLength":0},"timeout":{"maxLength":0}}},"appgen":{"properties":{"name":{"maxLength":0},"timeout":{"maxLength":0}}}}},
             "name": {"maxLength": 0},
             "timeout": {"maxLength": 0},
             "apiKeySecret": {"properties": {"name": {"maxLength": 0}}},
@@ -390,6 +525,14 @@
     },
     {
       "if": {"required": ["metrics"], "properties": {"metrics": {"required": ["serviceMonitor"], "properties": {"serviceMonitor": {"required": ["enabled"], "properties": {"enabled": {"const": true}}}}}}},
+      "then": {"properties": {"metrics": {"properties": {"enabled": {"const": true}}}}}
+    },
+    {
+      "if": {"required": ["metrics"], "properties": {"metrics": {"required": ["prometheusRule"], "properties": {"prometheusRule": {"required": ["enabled"], "properties": {"enabled": {"const": true}}}}}}},
+      "then": {"properties": {"metrics": {"properties": {"enabled": {"const": true}}}}}
+    },
+    {
+      "if": {"required": ["metrics"], "properties": {"metrics": {"required": ["dashboard"], "properties": {"dashboard": {"required": ["enabled"], "properties": {"enabled": {"const": true}}}}}}},
       "then": {"properties": {"metrics": {"properties": {"enabled": {"const": true}}}}}
     },
     {
@@ -436,6 +579,14 @@
     }
   ],
   "definitions": {
+    "rateLimitClass": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rps": {"type": ["number", "null"], "exclusiveMinimum": 0, "maximum": 1000000},
+        "burst": {"type": ["integer", "null"], "minimum": 1, "maximum": 1000000}
+      }
+    },
     "displayText80": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[^<>[:cntrl:]]+$"},
     "displayText120": {"type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[^<>[:cntrl:]]+$"},
     "localObjectReference": {

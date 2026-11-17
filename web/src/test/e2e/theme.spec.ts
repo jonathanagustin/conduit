@@ -12,8 +12,23 @@ test("native light tokens reach workbench, assistant and rendered tool cards", a
       localStorage.setItem("conduit.console.theme", "light");
     localStorage.setItem("conduit.console.dockWidth", "520");
   });
-  await stubHub(page, (_request, url) => {
+  await stubHub(page, (request, url) => {
     if (url.pathname === "/v1/session") return { json: session() };
+    if (url.pathname === "/v1/assistant/threads")
+      return request.method() === "POST"
+        ? {
+            status: 201,
+            json: {
+              id: "ath_theme",
+              title: "Theme fixture",
+              createdAt: "2026-11-17T09:00:00Z",
+              updatedAt: "2026-11-17T09:00:00Z",
+              messageCount: 0,
+              messages: [],
+            },
+          }
+        : { json: { threads: [] } };
+
     if (url.pathname === "/v1/assistant/turns")
       return {
         json: {
@@ -72,10 +87,8 @@ test("native light tokens reach workbench, assistant and rendered tool cards", a
   ).toBe(true);
   await composer.fill("Show recorded tool results");
   await composer.press("Enter");
-  await thread
-    .getByRole("button", { name: "2 tool calls", exact: true })
-    .click();
-  const nativeCard = thread.locator("[data-console-tool-card]");
+  const nativeCard = thread.locator("[data-console-tool-card]").first();
+  await expect(thread.locator("[data-console-tool-card]")).toHaveCount(1);
   await expect(
     thread.getByText("Theme environment", { exact: true }),
   ).toBeVisible();
@@ -103,6 +116,8 @@ test("native light tokens reach workbench, assistant and rendered tool cards", a
   await expect(blueprintCard).toHaveCSS("background-color", "rgb(16, 22, 26)");
   await expect(warning).toHaveCSS("color", "rgb(242, 190, 104)");
   await expect(warning).toHaveCSS("background-color", "rgb(40, 31, 17)");
+  await expect(nativeCard).toHaveCSS("color", "rgb(226, 232, 240)");
+  await expect(nativeCard).toHaveCSS("background-color", "rgb(16, 22, 26)");
   await page.screenshot({
     path: testInfo.outputPath("dark-workbench-assistant.png"),
     fullPage: true,
@@ -131,6 +146,9 @@ test("gallery primitive aliases follow a local theme opposite the document", asy
     const gallery = page.locator(".conduit-shell");
     const card = gallery.locator(".cnd-switch-card");
     const label = gallery.locator(".cnd-switch-card-label");
+    const warning = gallery.locator(".bp6-tag.bp6-intent-warning").first();
+    await expect(warning).toHaveCSS("color", "rgb(242, 190, 104)");
+    await expect(warning).toHaveCSS("background-color", "rgb(40, 31, 17)");
     await expect(gallery).toHaveAttribute("data-theme", "dark");
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
     await expect(card).toHaveCSS("background-color", "rgb(16, 22, 26)");
@@ -142,6 +160,8 @@ test("gallery primitive aliases follow a local theme opposite the document", asy
     await expect(gallery).toHaveAttribute("data-theme", "light");
     await expect(card).toHaveCSS("background-color", "rgb(255, 255, 255)");
     await expect(label).toHaveCSS("color", "rgb(15, 23, 42)");
+    await expect(warning).toHaveCSS("color", "rgb(115, 68, 6)");
+    await expect(warning).toHaveCSS("background-color", "rgb(254, 247, 230)");
   } finally {
     await server.close();
   }

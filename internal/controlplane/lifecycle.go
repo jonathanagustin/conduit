@@ -95,6 +95,13 @@ const (
 )
 
 type Repository interface {
+	// InTransaction identifies a transaction-local view, whose successful writes
+	// remain subject to an enclosing commit. Repository decorators preserve it.
+	InTransaction() bool
+	// TransactionAnnouncements exposes only transaction-bound intent recorders.
+	// The boolean also identifies a root with durable notification intents
+	// configured; root handles return no callable transaction ports.
+	TransactionAnnouncements() (Announcements, bool)
 	ModuleRepository
 	ArtifactRepository
 	ProductPublicationRepository
@@ -684,6 +691,11 @@ func (lifecycle *Lifecycle) FinishPlan(
 		scoped.repository = repository
 		var opErr error
 		record, opErr = scoped.finishPlanOnce(ctx, planID, leaseToken, succeeded, failure, failedInstallationID, execution, report)
+		if opErr == nil {
+			if announcements, configured := repository.TransactionAnnouncements(); configured {
+				opErr = announcements.planFinished(ctx, record)
+			}
+		}
 		return opErr
 	})
 	if err != nil {

@@ -6,16 +6,19 @@
 package gitstore
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -600,6 +603,7 @@ func (store *Store) ListDir(ctx context.Context, id, prefix, cursor string, limi
 		}
 	}
 	store.mu.Lock()
+	store.refreshCatalogLocked()
 	ws, ok := store.rows[id]
 	store.mu.Unlock()
 	if !ok {
@@ -643,6 +647,7 @@ func (store *Store) Read(ctx context.Context, id, requestPath, revision string) 
 		return domain.FileView{}, err
 	}
 	store.mu.Lock()
+	store.refreshCatalogLocked()
 	ws, ok := store.rows[id]
 	store.mu.Unlock()
 	if !ok {
@@ -703,6 +708,7 @@ func (store *Store) Write(ctx context.Context, id, requestPath string, content [
 // Snapshot returns a copy of all committed files at HEAD in the workspace Git repository.
 func (store *Store) Snapshot(ctx context.Context, id string) (map[string][]byte, error) {
 	store.mu.Lock()
+	store.refreshCatalogLocked()
 	ws, ok := store.rows[id]
 	store.mu.Unlock()
 	if !ok {
@@ -719,6 +725,7 @@ func (store *Store) Snapshot(ctx context.Context, id string) (map[string][]byte,
 // Uncommitted working-tree edits and files outside /repo are never included.
 func (store *Store) Diff(ctx context.Context, id string) (domain.Diff, error) {
 	store.mu.Lock()
+	store.refreshCatalogLocked()
 	ws, ok := store.rows[id]
 	store.mu.Unlock()
 	if !ok {
@@ -897,7 +904,13 @@ func (store *Store) readCommittedSnapshot(ctx context.Context, repoDir, ref stri
 	if err != nil {
 		return nil, err
 	}
-	files := map[string][]byte{}
+	type blobRef struct {
+		path string
+		sha  string
+	}
+	var refs []blobRef
+	var uniqueSHAs []string
+	seenSHA := map[string]struct{}{}
 	for _, entry := range strings.Split(out, "\x00") {
 		if strings.TrimSpace(entry) == "" {
 			continue
@@ -910,11 +923,65 @@ func (store *Store) readCommittedSnapshot(ctx context.Context, repoDir, ref stri
 		if len(fields) < 3 || fields[1] != "blob" {
 			continue
 		}
-		content, err := gitRawOut(ctx, repoDir, "cat-file", "blob", fields[2])
-		if err != nil {
-			return nil, err
+		sha := fields[2]
+		refs = append(refs, blobRef{path: filePath, sha: sha})
+		if _, dup := seenSHA[sha]; !dup {
+			seenSHA[sha] = struct{}{}
+			uniqueSHAs = append(uniqueSHAs, sha)
 		}
-		files[filePath] = content
+	}
+	files := make(map[string][]byte, len(refs))
+	if len(uniqueSHAs) == 0 {
+		return files, nil
+	}
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+	}
+	var stdinBuf bytes.Buffer
+	for _, sha := range uniqueSHAs {
+		stdinBuf.WriteString(sha)
+		stdinBuf.WriteByte('\n')
+	}
+	cmd := exec.CommandContext(ctx, "git", "cat-file", "--batch")
+	if repoDir != "" {
+		cmd.Dir = repoDir
+	}
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_NOSYSTEM=1")
+	cmd.Stdin = &stdinBuf
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("git cat-file --batch: %w\n%s", err, strings.TrimSpace(stderr.String()))
+	}
+	reader := bufio.NewReader(&stdout)
+	blobs := make(map[string][]byte, len(uniqueSHAs))
+	for _, sha := range uniqueSHAs {
+		header, err := reader.ReadString('\n')
+		if err != nil {
+			return nil, fmt.Errorf("git cat-file --batch header %s: %w", sha, err)
+		}
+		parts := strings.Fields(header)
+		if len(parts) < 3 || parts[1] != "blob" {
+			return nil, fmt.Errorf("git cat-file --batch unexpected header %q", strings.TrimSpace(header))
+		}
+		size, err := strconv.Atoi(parts[2])
+		if err != nil || size < 0 {
+			return nil, fmt.Errorf("git cat-file --batch invalid size %q", parts[2])
+		}
+		buf := make([]byte, size)
+		if _, err := io.ReadFull(reader, buf); err != nil {
+			return nil, fmt.Errorf("git cat-file --batch body %s: %w", sha, err)
+		}
+		if nl, err := reader.ReadByte(); err != nil || nl != '\n' {
+			return nil, fmt.Errorf("git cat-file --batch delimiter %s: %w", sha, err)
+		}
+		blobs[sha] = buf
+	}
+	for _, ref := range refs {
+		files[ref.path] = bytes.Clone(blobs[ref.sha])
 	}
 	return files, nil
 }

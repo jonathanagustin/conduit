@@ -10,6 +10,7 @@
 set -euo pipefail
 
 repository_root="$(git rev-parse --show-toplevel)"
+source "${repository_root}/scripts/testdata/cluster-qualification-fixture.sh"
 preconditions="${repository_root}/scripts/verify-release-preconditions.sh"
 publication_ref="${repository_root}/scripts/verify-publication-ref.sh"
 verifier="${repository_root}/scripts/verify-release-workflow.rb"
@@ -29,35 +30,14 @@ trap cleanup EXIT
 # The precondition script reads everything about the release through `gh api`,
 # which is what makes it testable at all: a scenario is four small JSON files.
 mkdir -p "${fixture}/bin"
-cat > "${fixture}/bin/gh" <<'SCRIPT'
-#!/usr/bin/env bash
-set -uo pipefail
-if [[ "${1:-}" != api ]]; then
-  echo "gh: this stand-in only answers api calls, got: $*" >&2
-  exit 1
-fi
-path="$2"
-file=""
-case "${path}" in
-  */git/matching-refs/tags/*) file=tags.json ;;
-  */compare/*) file=compare.json ;;
-  */commits/*/status) sha="${path#*/commits/}"; file="status-${sha%/status}.json" ;;
-  */commits/*/pulls) sha="${path#*/commits/}"; file="pulls-${sha%/pulls}.json" ;;
-esac
-if [[ -z "${file}" || ! -f "${RELEASE_FIXTURE}/${file}" ]]; then
-  # Shaped like gh's own permanent failure so retry-github-api.sh reports it at
-  # once instead of retrying an answer that is never coming.
-  echo "gh: Not Found (HTTP 404) ${path}" >&2
-  exit 1
-fi
-cat "${RELEASE_FIXTURE}/${file}"
-SCRIPT
+cluster_qualification_fake_gh >"${fixture}/bin/gh"
 chmod 0755 "${fixture}/bin/gh"
 
 scenario() {
   local name="$1" tags="$2" compare="$3" commit_status="$4" pulls="$5" head_status="$6"
   local directory="${fixture}/${name}"
   mkdir -p "${directory}"
+  cluster_qualification_fixture "${directory}" "${commit}"
   printf '%s\n' "${tags}" > "${directory}/tags.json"
   printf '%s\n' "${compare}" > "${directory}/compare.json"
   printf '%s\n' "${commit_status}" > "${directory}/status-${commit}.json"
@@ -142,7 +122,9 @@ expect_preconditions_refusal 'tag already exists' "${taken}" "${version}" \
 
 printf 'publication ref\n'
 run_publication_ref() {
-  GITHUB_REF="$1" GITHUB_REF_NAME="$2" "${publication_ref}"
+  PATH="${fixture}/bin:${PATH}" RELEASE_FIXTURE="${direct}" GITHUB_API_MAX_ATTEMPTS=1 \
+    GITHUB_REPOSITORY=jonathanagustin/conduit GITHUB_SHA="${commit}" \
+    GITHUB_REF="$1" GITHUB_REF_NAME="$2" "${publication_ref}"
 }
 expect_publication_refusal() {
   local name="$1" ref="$2" ref_name="$3" expected="$4"
@@ -166,6 +148,19 @@ expect_publication_refusal 'unversioned tag' refs/tags/nightly nightly \
 expect_publication_refusal 'tag disagrees with VERSION' refs/tags/v9.9.9 v9.9.9 \
   "VERSION at this commit says ${version}"
 
+# Both independently reachable entry points must consult the same exact-SHA
+# qualification oracle; preserving Trunk's squash bridge must not bridge E2E.
+cp "${direct}/platform-e2e.yml-runs.json" "${fixture}/saved-runs.json"
+printf '{"total_count":0,"workflow_runs":[]}' >"${direct}/platform-e2e.yml-runs.json"
+expect_preconditions_refusal 'cluster qualification missing' "${direct}" "${version}" \
+  'no complete, valid exact-commit dispatch history'
+expect_publication_refusal 'direct publication unqualified' "refs/tags/v${version}" "v${version}" \
+  'no complete, valid exact-commit dispatch history'
+cp "${fixture}/saved-runs.json" "${direct}/platform-e2e.yml-runs.json"
+
+"${repository_root}/scripts/verify-cluster-qualification.test.sh"
+"${repository_root}/scripts/test-gitless-qualification.sh"
+
 # --- the workflow files keep the shape the guards assume ----------------
 
 printf 'release workflow contract\n'
@@ -181,11 +176,13 @@ expect_workflow_refusal() {
   local directory="${fixture}/workflow-${name}"
   mkdir -p "${directory}"
   cp "${workflows}/platform-release.yml" "${workflows}/platform-images.yml" \
-    "${workflows}/platform-ci.yml" "${directory}/"
+    "${workflows}/platform-ci.yml" "${workflows}/platform-e2e.yml" \
+    "${workflows}/platform-gitless-e2e.yml" "${directory}/"
   "$@" "${directory}"
   local output
   if output="$(ruby "${verifier}" "${directory}/platform-release.yml" \
-    "${directory}/platform-images.yml" "${directory}/platform-ci.yml" 2>&1)"; then
+    "${directory}/platform-images.yml" "${directory}/platform-ci.yml" \
+    "${directory}/platform-e2e.yml" "${directory}/platform-gitless-e2e.yml" 2>&1)"; then
     printf 'expected the workflow mutation to fail: %s\n' "${name}" >&2
     exit 1
   fi
@@ -194,6 +191,15 @@ expect_workflow_refusal() {
     exit 1
   fi
   printf '  refused %-28s %s\n' "${name}" "${output}"
+}
+
+edit_workflow() {
+  ruby -ryaml -e '
+    path, edit = ARGV
+    document = YAML.safe_load_file(path, aliases: true)
+    eval(edit)
+    File.write(path, YAML.dump(document))
+  ' "$1" "$2"
 }
 
 drop_trunk_activity() {
@@ -211,13 +217,13 @@ drop_trunk_activity() {
 }
 
 automatic_release_trigger() {
-  sed -i '/^  workflow_dispatch:/i\  push:\n    tags: ["v*"]' "$1/platform-release.yml"
+  edit_workflow "$1/platform-release.yml" '(document["on"] || document[true])["push"] = {"tags" => ["v*"]}'
 }
 automatic_publication_trigger() {
-  sed -i '/^  workflow_dispatch:/i\  workflow_run:\n    workflows: [Trunk gate]' "$1/platform-images.yml"
+  edit_workflow "$1/platform-images.yml" '(document["on"] || document[true])["workflow_run"] = {"workflows" => ["Trunk gate"]}'
 }
 drop_preconditions() {
-  sed -i '/verify-release-preconditions.sh/d' "$1/platform-release.yml"
+  edit_workflow "$1/platform-release.yml" 'document["jobs"]["release"]["steps"].reject! { |step| step["run"].to_s.include?("verify-release-preconditions.sh") }'
 }
 tag_before_verifying() {
   # The steps in the other order: a refusal that arrives after the tag exists
@@ -232,19 +238,37 @@ tag_before_verifying() {
   ' "$1/platform-release.yml"
 }
 drop_publication_ref_guard() {
-  sed -i '\|./scripts/verify-publication-ref.sh|d' "$1/platform-images.yml"
+  edit_workflow "$1/platform-images.yml" 'document["jobs"]["verify-publication-ref"]["steps"].reject! { |step| step["run"].to_s.include?("verify-publication-ref.sh") }'
 }
 detach_build_from_preflight() {
-  sed -i '0,/^    needs: verify-publication-ref$/s///' "$1/platform-images.yml"
+  edit_workflow "$1/platform-images.yml" 'document["jobs"].values.find { |job| job["needs"] == "verify-publication-ref" }.delete("needs")'
 }
 rename_trunk_status_context() {
-  sed -i "s/context='Trunk gate'/context='Trunk verification'/g" "$1/platform-ci.yml"
+  ruby -e 'File.write(ARGV[0], File.read(ARGV[0]).gsub("context=\x27Trunk gate\x27", "context=\x27Trunk verification\x27"))' "$1/platform-ci.yml"
 }
 widen_release_permissions() {
-  sed -i 's/^      statuses: read$/      statuses: read\n      packages: write/' "$1/platform-release.yml"
+  edit_workflow "$1/platform-release.yml" 'document["jobs"]["release"]["permissions"]["packages"] = "write"'
 }
 drop_pull_request_permission() {
-  sed -i '/^      pull-requests: read$/d' "$1/platform-release.yml"
+  edit_workflow "$1/platform-release.yml" 'document["jobs"]["release"]["permissions"].delete("pull-requests")'
+}
+skip_publication_guard() {
+  edit_workflow "$1/platform-images.yml" 'document["jobs"]["verify-publication-ref"]["if"] = false'
+}
+ignore_spoke_failure() {
+  edit_workflow "$1/platform-e2e.yml" 'document["jobs"]["spoke"]["steps"].find { |step| step["name"] == "Run Hub and Spoke acceptance" }["continue-on-error"] = true'
+}
+drop_helm_matrix_job() {
+  edit_workflow "$1/platform-e2e.yml" 'document["jobs"]["spoke"]["strategy"]["matrix"]["helm"].pop'
+}
+skip_gitless_followups() {
+  edit_workflow "$1/platform-gitless-e2e.yml" 'document["jobs"]["acceptance"]["steps"].find { |step| step["run"] == "./scripts/test-gitless-clean-cluster.sh" }.delete("env")'
+}
+ignore_gitless_registry_failure() {
+  edit_workflow "$1/platform-gitless-e2e.yml" 'document["jobs"]["acceptance"]["steps"].last["continue-on-error"] = true'
+}
+automatic_acceptance_trigger() {
+  edit_workflow "$1/platform-gitless-e2e.yml" '(document["on"] || document[true])["schedule"] = [{"cron" => "0 0 * * *"}]'
 }
 
 # A reordered block-style list is the same contract; parse YAML rather than
@@ -278,5 +302,11 @@ expect_workflow_refusal detached_publication_job detach_build_from_preflight
 expect_workflow_refusal renamed_status_context rename_trunk_status_context
 expect_workflow_refusal widened_release_permissions widen_release_permissions
 expect_workflow_refusal missing_pull_request_permission drop_pull_request_permission
+expect_workflow_refusal skipped_publication_guard --reason 'must run unconditionally and propagate failure' skip_publication_guard
+expect_workflow_refusal ignored_spoke_failure --reason 'must run unconditionally and propagate failure' ignore_spoke_failure
+expect_workflow_refusal missing_helm_matrix_job --reason 'Spoke qualification must cover both supported Helm matrix jobs' drop_helm_matrix_job
+expect_workflow_refusal missing_gitless_followups --reason 'Gitless workflow must run strict followups inside the owning cluster lifetime' skip_gitless_followups
+expect_workflow_refusal ignored_gitless_registry_failure --reason 'must run unconditionally and propagate failure' ignore_gitless_registry_failure
+expect_workflow_refusal automatic_acceptance_trigger --reason 'must remain manual-only with read-only authority' automatic_acceptance_trigger
 
 printf 'release path guards: pass\n'

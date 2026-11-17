@@ -761,7 +761,7 @@
 }
 @media (min-width: 1025px) and (max-width: 1360px) {
   #left-nav:not(.is-rail-collapsed) {
-    width: 206px !important;
+    width: 220px !important;
   }
   #right-chat-rail:not(.hidden) {
     width: 244px !important;
@@ -769,7 +769,7 @@
 }
 @media (min-width: 1024px) and (max-width: 1239px) {
   #left-nav:not(.is-rail-collapsed) {
-    width: 206px !important;
+    width: 220px !important;
   }
   #right-chat-rail:not(.hidden) {
     width: 244px !important;

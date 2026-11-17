@@ -72,9 +72,21 @@ profiles:
       # The chart's default planning frontend, so the chart side can leave
       # planning.temporal entirely to its defaults.
       PLANNING_TEMPORAL_ADDRESS: planning-frontend.platform-system.svc:7233
+      # Deliberately non-default, so both processes must forward all three.
+      PACKAGING_TEMPORAL_ADDRESS: "[fd00::1]:7233"
+      PACKAGING_TEMPORAL_NAMESPACE: packaging-production
+      PACKAGING_TEMPORAL_TASK_QUEUE: packaging-reviewed
       MODEL_BASE_URL: https://models.example.test/v1
       MODEL_NAME: example-model
       MODEL_TIMEOUT: 90s
+      ASSISTANT_MODEL_NAME: assistant-model
+      ASSISTANT_MODEL_TIMEOUT: 2m
+      PLANNING_MODEL_NAME: planning-model
+      PLANNING_MODEL_TIMEOUT: 2m
+      PACKAGING_MODEL_NAME: packaging-model
+      PACKAGING_MODEL_TIMEOUT: 2m
+      APPGEN_MODEL_NAME: appgen-model
+      APPGEN_MODEL_TIMEOUT: 2m
       MODEL_API_KEY_FILE: /run/conduit-model/api-key
       MODEL_CA_FILE: /run/conduit-model-ca/ca.pem
     hubValues:
@@ -90,6 +102,11 @@ profiles:
         baseURL: https://models.example.test/v1
         name: example-model
         timeout: 90s
+        capabilities:
+          assistant: { name: assistant-model, timeout: 2m }
+          planning: { name: planning-model, timeout: 2m }
+          packaging: { name: packaging-model, timeout: 2m }
+          appgen: { name: appgen-model, timeout: 2m }
         apiKeySecret:
           name: platform-model-api-key
         caConfigMap:
@@ -98,7 +115,9 @@ profiles:
       bundleSigningSecretName: platform-bundle-signing
       packagingWorkflow:
         enabled: true
-        address: "127.0.0.1:7233"
+        address: "[fd00::1]:7233"
+        namespace: packaging-production
+        taskQueue: packaging-reviewed
         worker:
           enabled: true
     spokeValues: *spoke
@@ -135,6 +154,46 @@ chartObjectNames:
     zarf: Deployment/platform-packaging-worker
     reason: The package named its worker before the chart had one; the UDS Package CR selects Pods by the package's name.
 allow:
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[CONDUIT_ASSISTANT_MODEL_NAME]"
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "An empty capability model setting inherits the global value; raw Zarf variables render an empty value, while Helm omits it. The postgres profile sets and compares every override."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[CONDUIT_ASSISTANT_MODEL_TIMEOUT]"
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "An empty capability model setting inherits the global value; raw Zarf variables render an empty value, while Helm omits it. The postgres profile sets and compares every override."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[CONDUIT_PLANNING_MODEL_NAME]"
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "An empty capability model setting inherits the global value; raw Zarf variables render an empty value, while Helm omits it. The postgres profile sets and compares every override."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[CONDUIT_PLANNING_MODEL_TIMEOUT]"
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "An empty capability model setting inherits the global value; raw Zarf variables render an empty value, while Helm omits it. The postgres profile sets and compares every override."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[CONDUIT_PACKAGING_MODEL_NAME]"
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "An empty capability model setting inherits the global value; raw Zarf variables render an empty value, while Helm omits it. The postgres profile sets and compares every override."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[CONDUIT_PACKAGING_MODEL_TIMEOUT]"
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "An empty capability model setting inherits the global value; raw Zarf variables render an empty value, while Helm omits it. The postgres profile sets and compares every override."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[CONDUIT_APPGEN_MODEL_NAME]"
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "An empty capability model setting inherits the global value; raw Zarf variables render an empty value, while Helm omits it. The postgres profile sets and compares every override."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[CONDUIT_APPGEN_MODEL_TIMEOUT]"
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "An empty capability model setting inherits the global value; raw Zarf variables render an empty value, while Helm omits it. The postgres profile sets and compares every override."
   - object: ConfigMap/platform-delivery-console-bootstrap
     path: ""
     side: chart-only
@@ -206,6 +265,11 @@ allow:
     profiles: [file, postgres, postgres-single]
     reason: "The package ships the Hub's built-in console bootstrap; CONSOLE_BOOTSTRAP_FILE unset selects consoleui.DefaultBootstrap. The chart always renders a tenant bootstrap ConfigMap."
   - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[CONSOLE_PUBLIC_URL]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "Browser sign-in is a deploy variable in the package: the public address is inert and the other two default to empty while OPERATOR_OIDC_ISSUER is empty. The chart renders these only when operatorOIDC.signIn.enabled."
+  - object: Deployment/platform-delivery
     path: "spec.template.spec.containers[delivery-control-plane].env[DATA_DIRECTORY]"
     side: chart-only
     profiles: [file]
@@ -216,6 +280,36 @@ allow:
     profiles: [file, postgres, postgres-single]
     reason: "The package always names the metrics port so METRICS_ADDRESS can be a deploy variable; nothing listens unless it is set with the postgres profile. The chart renders the port only when metrics.enabled."
   - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[RATE_LIMIT_OPERATOR_RPS]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "Request limits are deploy variables that default to empty, and the Hub reads an empty RATE_LIMIT_* as unset and keeps its built-in limit. The chart renders one only when rateLimit.<class> sets it."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[RATE_LIMIT_OPERATOR_BURST]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "Request limits are deploy variables that default to empty, and the Hub reads an empty RATE_LIMIT_* as unset and keeps its built-in limit. The chart renders one only when rateLimit.<class> sets it."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[RATE_LIMIT_AGENT_RPS]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "Request limits are deploy variables that default to empty, and the Hub reads an empty RATE_LIMIT_* as unset and keeps its built-in limit. The chart renders one only when rateLimit.<class> sets it."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[RATE_LIMIT_AGENT_BURST]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "Request limits are deploy variables that default to empty, and the Hub reads an empty RATE_LIMIT_* as unset and keeps its built-in limit. The chart renders one only when rateLimit.<class> sets it."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[RATE_LIMIT_ANONYMOUS_RPS]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "Request limits are deploy variables that default to empty, and the Hub reads an empty RATE_LIMIT_* as unset and keeps its built-in limit. The chart renders one only when rateLimit.<class> sets it."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[RATE_LIMIT_ANONYMOUS_BURST]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "Request limits are deploy variables that default to empty, and the Hub reads an empty RATE_LIMIT_* as unset and keeps its built-in limit. The chart renders one only when rateLimit.<class> sets it."
+  - object: Deployment/platform-delivery
     path: "spec.template.spec.containers[delivery-control-plane].env[OPERATOR_OIDC_CA_FILE]"
     side: zarf-only
     profiles: [file, postgres, postgres-single]
@@ -225,6 +319,11 @@ allow:
     side: zarf-only
     profiles: [file, postgres, postgres-single]
     reason: "Operator OIDC is a deploy variable that defaults to empty; the Hub treats an all-empty OIDC environment as disabled. The chart renders these only when operatorOIDC.enabled."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[OPERATOR_OIDC_CLIENT_SECRET_FILE]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "Browser sign-in is a deploy variable in the package: the public address is inert and the other two default to empty while OPERATOR_OIDC_ISSUER is empty. The chart renders these only when operatorOIDC.signIn.enabled."
   - object: Deployment/platform-delivery
     path: "spec.template.spec.containers[delivery-control-plane].env[OPERATOR_OIDC_GROUPS_CLAIM]"
     side: zarf-only
@@ -241,20 +340,25 @@ allow:
     profiles: [file, postgres, postgres-single]
     reason: "Operator OIDC is a deploy variable that defaults to empty; the Hub treats an all-empty OIDC environment as disabled. The chart renders these only when operatorOIDC.enabled."
   - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[OPERATOR_SESSION_MAX_LIFETIME]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "Browser sign-in is a deploy variable in the package: the public address is inert and the other two default to empty while OPERATOR_OIDC_ISSUER is empty. The chart renders these only when operatorOIDC.signIn.enabled."
+  - object: Deployment/platform-delivery
     path: "spec.template.spec.containers[delivery-control-plane].env[PACKAGING_TEMPORAL_ADDRESS]"
-    side: chart-only
-    profiles: [postgres]
-    reason: "KNOWN GAP (#828 follow-up): the package's Hub is given no Temporal frontend, so it cannot start packaging workflows; the packaging-worker component only executes workflows another client starts."
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "The package always renders this variable, empty in these profiles; an empty address disables the packaging client. The chart omits it when packagingWorkflow.enabled=false."
   - object: Deployment/platform-delivery
     path: "spec.template.spec.containers[delivery-control-plane].env[PACKAGING_TEMPORAL_NAMESPACE]"
-    side: chart-only
-    profiles: [postgres]
-    reason: "KNOWN GAP (#828 follow-up): the package's Hub is given no Temporal frontend, so it cannot start packaging workflows; the packaging-worker component only executes workflows another client starts."
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "The package always renders the shared namespace variable. It is inert while the address is empty; the chart omits it when packagingWorkflow.enabled=false."
   - object: Deployment/platform-delivery
     path: "spec.template.spec.containers[delivery-control-plane].env[PACKAGING_TEMPORAL_TASK_QUEUE]"
-    side: chart-only
-    profiles: [postgres]
-    reason: "KNOWN GAP (#828 follow-up): the package's Hub is given no Temporal frontend, so it cannot start packaging workflows; the packaging-worker component only executes workflows another client starts."
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "The package always renders the shared task queue variable. It is inert while the address is empty; the chart omits it when packagingWorkflow.enabled=false."
   - object: Deployment/platform-delivery
     path: "spec.template.spec.containers[delivery-control-plane].env[POSTGRES_DSN_FILE]"
     side: zarf-only
@@ -300,6 +404,11 @@ allow:
     side: zarf-only
     profiles: [file, postgres, postgres-single]
     reason: "UDS Core writes the issuer CA to the uds-trust-bundle ConfigMap; the package mounts it, optionally, where OPERATOR_OIDC_CA_FILE can point. The chart mounts its Agent CA ConfigMap at that path instead."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].volumeMounts[operator-sso]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "UDS Core writes the conduit-hub client secret to the conduit-hub-sso Secret; the package mounts it, optionally, where OPERATOR_OIDC_CLIENT_SECRET_FILE can point. The chart mounts a client secret only when operatorOIDC.signIn.clientSecret.secretName names one."
   - object: Deployment/platform-delivery
     path: "spec.template.spec.containers[delivery-control-plane].volumeMounts[server-tls]"
     side: chart-only
@@ -371,6 +480,11 @@ allow:
     profiles: [file, postgres, postgres-single]
     reason: "Optional uds-trust-bundle ConfigMap written by UDS Core, absent on a plain Zarf cluster. The chart has no UDS trust-bundle mount."
   - object: Deployment/platform-delivery
+    path: "spec.template.spec.volumes[operator-sso]"
+    side: zarf-only
+    profiles: [file, postgres, postgres-single]
+    reason: "UDS Core writes the conduit-hub client secret to the conduit-hub-sso Secret; the package mounts it, optionally, where OPERATOR_OIDC_CLIENT_SECRET_FILE can point. The chart mounts a client secret only when operatorOIDC.signIn.clientSecret.secretName names one."
+  - object: Deployment/platform-delivery
     path: "spec.template.spec.volumes[server-tls]"
     side: chart-only
     profiles: [file, postgres, postgres-single]
@@ -395,16 +509,6 @@ allow:
     side: differs
     profiles: [postgres]
     reason: "Follows the worker's own name label; see metadata.labels."
-  - object: Deployment/platform-packaging-worker
-    path: "spec.template.spec.containers[packaging-worker].env[PACKAGING_TEMPORAL_NAMESPACE]"
-    side: chart-only
-    profiles: [postgres]
-    reason: "The package exposes only the Temporal address as a variable; the worker's built-in namespace default equals the chart default."
-  - object: Deployment/platform-packaging-worker
-    path: "spec.template.spec.containers[packaging-worker].env[PACKAGING_TEMPORAL_TASK_QUEUE]"
-    side: chart-only
-    profiles: [postgres]
-    reason: "The package exposes only the Temporal address as a variable; the worker's built-in task queue default equals the chart default."
   - object: Deployment/platform-packaging-worker
     path: "spec.template.spec.volumes[database].secret.optional"
     side: chart-only

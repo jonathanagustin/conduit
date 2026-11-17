@@ -67,32 +67,49 @@ happened". A 403 renders as a refusal. A 404 on a preference is
 this" — so it renders as a state.
 
 **The event-type vocabulary is open, and the console does not close it.** The
-checkbox list is the set this Hub accepts, held to the `domain.EventType`
+checkbox list is the vocabulary this Hub knows, held to the `domain.EventType`
 consts by `scripts/verify-console-contract.mjs` in both directions. Growth
 beyond it is what `allFutureTypes` is for. An inbox entry whose type this build
 has never heard of still renders, because a row shows the string the Hub sent,
-and a stored preference naming such a type is carried through a save unchanged
-and reported rather than silently dropped.
+and the browser carries a stored unknown selection into the proposed edit
+unchanged rather than silently dropping it. Hub write validation remains
+authoritative; a type unknown to the server is refused with 422.
 
 **A known type is not necessarily a raised one.** `GET` and `PUT
 /v1/notifications/preferences` answer with an additional
-`typesNotYetEmitted` array naming those of the preference's `types` that no
-emit site in this build raises (`domain.EventType.Raised`). The field is absent
-when every named type is raised. Such a type is still accepted and stored — the
-checkbox list is the vocabulary, not the set of live emitters — so the field is
-how a subscriber learns that silence on that type means "nothing raises it",
-not "nothing happened". The console renders each such type apart from the
-working checkboxes: disabled, labelled "Not yet emitted by this Hub", with a
-Remove control so it is not a subscription the operator cannot leave. Because
-the field covers only types already saved, an unsaved box can still name a type
-nothing raises, and the editor says that the answer appears after a save.
+`typeAvailabilityScope: "ALL_KNOWN"` marker and a `typesNotYetEmitted` array
+naming the complete known set that no emit site in
+this build raises (`domain.EventType.Raised`). A missing preference's 404
+response also carries it, so the editor can disable those choices before a
+first save. Saving an explicit selection of an unavailable type returns 422;
+legacy stored preferences remain readable so they can be repaired. The console
+renders each unavailable type disabled and labelled "Not yet emitted by this
+Hub", with a Remove control for a saved selection. Opting into all future types
+keeps its forward-consent meaning and does not imply an emitter exists today.
+An older Hub response without the complete-scope marker disables preference
+edits even if it carries a partial `typesNotYetEmitted` list for saved choices.
+The editor explains that the Hub must report its supported emitters first and
+requires complete coverage again during the pre-save re-read, so a different
+older replica cannot silently admit a selection the first response refused.
+This availability and write policy is a Conduit extension; the captured Apollo
+vocabulary does not establish server-side emitter availability.
 
-**An edit the Hub would refuse is refused first.**
-`domain.Preference.Validate` rejects a preference that enables no types and has
-not opted into future ones, because it could never deliver anything. The Save
-control is disabled in that state and says why, rather than being a button whose
-only outcome is a 422. A 422 the console did not predict is shown with the
-Hub's message.
+**An empty selection can record explicit off consent.** Saving `types: []`
+with `allFutureTypes: false` turns off future notifications for the same
+(resource, owner, channel) tuple. The stored ID and creation time remain stable,
+and the revision advances. It can be loaded and subscribed again later; it is
+distinct from a missing preference's 404. Removing a sole legacy unavailable
+selection can therefore be saved without opting into other notifications.
+The editor identifies off consent before Save and retains its loaded contact.
+An inactive team preference needs no contact; active team consent still does.
+This is a registered Conduit policy, not a recovered private Apollo API rule.
+
+Off consent affects subsequent fan-out using the updated preference. It does
+not delete historical inbox entries or cancel an audience already selected,
+recorded or queued for delivery. Empty `types` with `allFutureTypes: true`
+retains its existing forward-consent meaning. Unknown named types and missing
+owner/resource authority remain refused. A 422 the console did not predict is
+shown with the Hub's message.
 
 **A save is explicit, and is refused locally when the preference moved.** The
 editor sends nothing until Save, shows what the save would add and remove, and
@@ -102,12 +119,35 @@ preference immediately before the write and refuses to save when the stored
 `revision` differs from the one it loaded. That narrows a lost update to the
 interval between the two requests; it does not close it.
 
+The controller binds a Save to the resource, channel, loaded revision, draft,
+and operator identity reviewed when the button was pressed. Changing that
+scope, editing the draft, navigating away, or disposing the console cancels
+the pending request. A late reply cannot update a replacement editor, even if
+the transport ignores cancellation. Edits made during a save remain unsaved
+until another explicit Save. If the write had already started, cancellation
+cannot establish whether it committed: the editor asks for a reload and never
+replays the write automatically.
+
 **Save is disabled when the session says the write would be refused.** Reading
 or writing a preference needs `resource:read` on its resource. The editor asks
 `GET /v1/session?resourceRid=…` for that resource and disables Save with the
 reason when the operation is absent. When the session does not report the
 resource, the control stays enabled and the Hub decides. Contacts belong to
 their owner rather than to a resource, so no operation gates them.
+
+**Environment identifiers share authorization, not storage keys.** Existing
+Environment events and preferences retain their opaque `EnvironmentRID` values.
+For authorization, the Hub forward-matches that value against its durable native
+Environment catalog and checks `resource:read` at `environment/<id>`. This lets an
+ordinary native Environment viewer subscribe, read events and receive new
+notifications without a second grant on an opaque ID. HTTP, background delivery
+and the requested-resource capabilities in `GET /v1/session` use the same
+resolver. Capability responses keep the queried opaque key; this metadata does
+not change authorization on mutating routes. Unknown, invalid or ambiguous
+aliases fail closed; `Event.Environment` cannot confer authority. Native scopes remain
+unchanged, and no event, subscription, inbox or delivery identity is migrated
+or backfilled. This rule is the registered Conduit extension
+`notifications.EnvironmentAuthorizationAlias`.
 
 **A contact the Hub will never deliver to is labelled.** `deliverable: false`
 (a PAGERDUTY contact today) renders as "Stored, never delivered".

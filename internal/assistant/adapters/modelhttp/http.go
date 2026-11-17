@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/jonathanagustin/conduit/internal/assistant/domain"
+	"github.com/jonathanagustin/conduit/internal/modelgovernor"
 	"github.com/jonathanagustin/conduit/internal/modelhttp"
 )
 
@@ -20,8 +21,9 @@ func (adapter Adapter) Complete(ctx context.Context, prompt string) (string, dom
 	if adapter.Client == nil {
 		return "", domain.Provenance{}, domain.ErrModelUnavailable
 	}
-	provenance := domain.Provenance{Adapter: modelhttp.AdapterName, PromptSHA256: domain.Digest([]byte(prompt))}
+	provenance := domain.Provenance{Adapter: modelhttp.AdapterName, ConfiguredModel: adapter.Client.RequestedModel(), PromptSHA256: domain.Digest([]byte(prompt))}
 	completion, err := adapter.Client.Complete(ctx, prompt)
+	provenance.ProviderModel = completion.Model
 	provenance.ResponseSHA256 = domain.Digest([]byte(completion.Text))
 	if err != nil {
 		return "", provenance, modelError(err)
@@ -29,12 +31,14 @@ func (adapter Adapter) Complete(ctx context.Context, prompt string) (string, dom
 	return completion.Text, provenance, nil
 }
 
-// ReportedModel is the model id from the most recent response. The port has
-// no field for it.
-func (adapter Adapter) ReportedModel() string { return adapter.Client.ReportedModel() }
-
 func modelError(err error) error {
 	switch {
+	case errors.Is(err, modelgovernor.ErrBusy):
+		return fmt.Errorf("%w: %w", domain.ErrModelBusy, err)
+	case errors.Is(err, modelgovernor.ErrBudgetExceeded):
+		return fmt.Errorf("%w: %w", domain.ErrModelBudgetExceeded, err)
+	case errors.Is(err, modelgovernor.ErrAuditUnavailable):
+		return fmt.Errorf("%w: %w", domain.ErrAuditUnavailable, err)
 	case errors.Is(err, modelhttp.ErrTimeout):
 		return fmt.Errorf("%w: %w", domain.ErrModelTimeout, err)
 	case errors.Is(err, modelhttp.ErrNotConfigured):

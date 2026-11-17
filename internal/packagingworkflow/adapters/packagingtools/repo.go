@@ -60,6 +60,13 @@ func (service *Service) boundRoot() (string, error) {
 	return abs, nil
 }
 
+// RepositoryBound reports whether inspect_repo and read_file have a source
+// checkout to read: a root was given and it is an existing directory.
+func (service *Service) RepositoryBound() bool {
+	_, err := service.boundRoot()
+	return err == nil
+}
+
 func (service *Service) InspectRepo(ctx context.Context) (domain.RepoInspect, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.RepoInspect{}, err

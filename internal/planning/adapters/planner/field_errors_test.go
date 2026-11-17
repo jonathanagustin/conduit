@@ -32,7 +32,7 @@ func TestScriptedPlanValidationReturnsErrorsThenAcceptsCorrection(t *testing.T) 
 	server := serveGit(t, fixture)
 	replies := append(inspectReplies(askOne), toolRead, `{"fieldErrors":[{"id":"node_version","message":"Choose the other offered version."}]}`, toolRead, planJSON)
 	script := writeModelScript(t, replies...)
-	service := application.NewService(Planner{Argv: []string{script}, Audit: &memoryAudit{}})
+	service := application.NewService(Planner{Model: script, Audit: &memoryAudit{}})
 	session, err := service.Create(t.Context(), server.URL+"/src.git", "main")
 	if err != nil {
 		t.Fatal(err)

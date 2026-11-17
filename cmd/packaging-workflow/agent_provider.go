@@ -3,16 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"os"
 	"strings"
-	"time"
 
 	"github.com/jonathanagustin/conduit/internal/localcmd"
 )
 
-// Provider names accepted by `agent-exec --provider`. "deterministic" is the
-// built-in offline agent; the rest delegate one turn to a local model CLI.
+// Only the deterministic offline utility remains selectable. The legacy
+// provider functions refuse both vendor and arbitrary operator labels.
 const (
 	providerDeterministic = "deterministic"
 	providerClaude        = "claude"
@@ -21,51 +18,14 @@ const (
 	providerGrok          = "grok"
 )
 
-// providerArgv returns the argv for a provider. Each can be replaced with
-// CONDUIT_PROVIDER_<NAME>_CMD (whitespace-separated argv). Credentials stay in
-// the CLI's own configuration; Conduit never reads or forwards them.
-//
-// The defaults and whether each has been exercised are one table,
-// localcmd.Presets. Every delegating preset is UNVERIFIED there: no run
-// against a real codex, claude, gemini or grok CLI is recorded in this
-// repository (none is installed in CI), and selecting one logs a warning.
-// Override the argv if your version differs.
-func providerArgv(name string) ([]string, error) {
-	env := "CONDUIT_PROVIDER_" + strings.ToUpper(name) + "_CMD"
-	if raw := strings.Fields(os.Getenv(env)); len(raw) > 0 {
-		return raw, nil
-	}
-	if preset, ok := localcmd.PresetByName(name); ok && name != "" && len(preset.Argv) > 0 {
-		return append([]string(nil), preset.Argv...), nil
-	}
-	return nil, fmt.Errorf("unknown agent provider %q (want deterministic, claude, codex, gemini or grok)", name)
-}
+func providerArgv(name string) ([]string, error) { return nil, localcmd.ErrLocalCommandUnsupported }
 
 const providerReplyRule = "\n\nReply with the requested output only: no commentary and no markdown fences. " +
 	"When the instructions ask for JSON, reply with exactly one JSON object.\n"
 
-// runProviderPrompt sends one prompt to the provider CLI and returns its
-// normalized reply. The prompt text is passed on stdin, never on argv.
+// runProviderPrompt refuses the retired provider delegation interface.
 func runProviderPrompt(ctx context.Context, provider, prompt string) (string, error) {
-	argv, err := providerArgv(provider)
-	if err != nil {
-		return "", err
-	}
-	timeout := 90 * time.Second
-	if raw := os.Getenv("CONDUIT_MODEL_TIMEOUT"); raw != "" {
-		if d, parseErr := time.ParseDuration(raw); parseErr == nil && d > 0 {
-			timeout = d
-		}
-	}
-	stdout, err := localcmd.Execute(ctx, argv, timeout, []byte(prompt+providerReplyRule))
-	if err != nil {
-		return "", fmt.Errorf("%s provider failed: %w", provider, err)
-	}
-	reply := normalizeProviderReply(string(stdout), strings.Contains(prompt, "JSON") || strings.Contains(prompt, "toolCalls"))
-	if reply == "" {
-		return "", fmt.Errorf("%s provider returned an empty reply", provider)
-	}
-	return reply, nil
+	return "", localcmd.ErrLocalCommandUnsupported
 }
 
 // normalizeProviderReply strips markdown fences and, when JSON is expected and

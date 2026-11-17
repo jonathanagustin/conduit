@@ -90,7 +90,17 @@ type Config struct {
 type Completion struct {
 	Text  string
 	Model string
+	// PromptTokens and CompletionTokens are the provider's own usage counts.
+	// They are nil when the response carried no usage object: a count is
+	// reported, never estimated.
+	PromptTokens     *int64
+	CompletionTokens *int64
 }
+
+// Middleware wraps one completion. model is the configured model name and
+// prompt is the exact text about to be sent; next sends it. A middleware may
+// call next more than once (a retry) or not at all (a refusal).
+type Middleware func(ctx context.Context, model, prompt string, next func(context.Context) (Completion, error)) (Completion, error)
 
 // Client is safe for concurrent use.
 type Client struct {
@@ -100,7 +110,21 @@ type Client struct {
 	timeout  time.Duration
 	maxBytes int64
 	http     *http.Client
-	reported atomic.Value
+	// reported is shared by every copy With returns, so ReportedModel reads
+	// the same value whichever copy made the call.
+	reported   *atomic.Value
+	middleware Middleware
+}
+
+// With returns a client that runs every Complete through middleware. The
+// receiver is not changed. A nil middleware returns the receiver.
+func (client *Client) With(middleware Middleware) *Client {
+	if client == nil || middleware == nil {
+		return client
+	}
+	wrapped := *client
+	wrapped.middleware = middleware
+	return &wrapped
 }
 
 // New validates the configuration and builds the client. It makes no call.
@@ -142,7 +166,8 @@ func New(config Config) (*Client, error) {
 	}
 	return &Client{
 		endpoint: endpoint, model: model, keyFile: keyFile, timeout: timeout, maxBytes: maxBytes,
-		http: &http.Client{Transport: transport, CheckRedirect: checkRedirect},
+		http:     &http.Client{Transport: transport, CheckRedirect: checkRedirect},
+		reported: &atomic.Value{},
 	}, nil
 }
 
@@ -157,7 +182,7 @@ func (client *Client) RequestedModel() string {
 // ReportedModel is the model id from the most recent successful response, or
 // empty before the first one. The model ports have no field for it.
 func (client *Client) ReportedModel() string {
-	if client == nil {
+	if client == nil || client.reported == nil {
 		return ""
 	}
 	reported, _ := client.reported.Load().(string)
@@ -182,6 +207,10 @@ type chatResponse struct {
 			Content *string `json:"content"`
 		} `json:"message"`
 	} `json:"choices"`
+	Usage *struct {
+		PromptTokens     *int64 `json:"prompt_tokens"`
+		CompletionTokens *int64 `json:"completion_tokens"`
+	} `json:"usage"`
 }
 
 // Complete sends the prompt as one user message and returns the first choice.
@@ -189,6 +218,15 @@ func (client *Client) Complete(ctx context.Context, prompt string) (Completion, 
 	if client == nil || client.http == nil || client.endpoint == "" {
 		return Completion{}, ErrNotConfigured
 	}
+	if client.middleware == nil {
+		return client.complete(ctx, prompt)
+	}
+	return client.middleware(ctx, client.model, prompt, func(ctx context.Context) (Completion, error) {
+		return client.complete(ctx, prompt)
+	})
+}
+
+func (client *Client) complete(ctx context.Context, prompt string) (Completion, error) {
 	body, err := json.Marshal(chatRequest{
 		Model: client.model, Messages: []chatMessage{{Role: "user", Content: prompt}}, Stream: false,
 	})
@@ -236,7 +274,20 @@ func (client *Client) Complete(ctx context.Context, prompt string) (Completion, 
 	if reported != "" {
 		client.reported.Store(reported)
 	}
-	return Completion{Text: *decoded.Choices[0].Message.Content, Model: reported}, nil
+	completion := Completion{Text: *decoded.Choices[0].Message.Content, Model: reported}
+	if decoded.Usage != nil {
+		completion.PromptTokens = nonNegative(decoded.Usage.PromptTokens)
+		completion.CompletionTokens = nonNegative(decoded.Usage.CompletionTokens)
+	}
+	return completion, nil
+}
+
+// nonNegative drops a count a provider could not have meant.
+func nonNegative(count *int64) *int64 {
+	if count == nil || *count < 0 {
+		return nil
+	}
+	return count
 }
 
 // statusError classifies a non-200 status. The body is not read into the

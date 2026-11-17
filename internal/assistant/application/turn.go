@@ -29,9 +29,6 @@ type Observer interface {
 	ToolFinished(ctx context.Context, call ToolCall, result Result) error
 }
 
-// reportsModel is the optional adapter method that names the provider's model.
-type reportsModel interface{ ReportedModel() string }
-
 // Turn answers one stateless message.
 func (service Service) Turn(ctx context.Context, actor Actor, mode, message string, chips []domain.Chip) (Turn, error) {
 	return service.Converse(ctx, actor, TurnRequest{Mode: mode, Message: message, Chips: chips}, nil)
@@ -92,7 +89,7 @@ func (service Service) rounds(ctx context.Context, actor Actor, request TurnRequ
 		raw, provenance, err := service.Model.Complete(ctx, prompt)
 		turn.Rounds = round
 		turn.Provenance = provenance
-		turn.Model = served(service.Model, provenance)
+		turn.Model = served(provenance)
 		if err != nil {
 			return turn, err
 		}
@@ -179,13 +176,13 @@ func executedArguments(requested domain.RawToolCall, held bool) json.RawMessage 
 	return stripped
 }
 
-func served(model domain.Model, provenance domain.Provenance) *Served {
+func served(provenance domain.Provenance) *Served {
 	if provenance.Adapter == "" {
 		return nil
 	}
-	out := &Served{Kind: provenance.Adapter}
-	if reporter, ok := model.(reportsModel); ok {
-		out.Model = reporter.ReportedModel()
+	out := &Served{Kind: provenance.Adapter, Model: provenance.ProviderModel, ConfiguredModel: provenance.ConfiguredModel, ProviderModel: provenance.ProviderModel}
+	if out.Model == "" {
+		out.Model = provenance.ConfiguredModel
 	}
 	return out
 }
@@ -227,14 +224,18 @@ const (
 	CodeReplyInvalid       = "MODEL_REPLY_INVALID"
 	CodeRoundCap           = "ROUND_CAP"
 	CodeAuditUnavailable   = "AUDIT_UNAVAILABLE"
-	CodeCancelled          = "CANCELLED"
-	CodeToolInvalid        = "TOOL_INVALID"
-	CodeThreadNotFound     = "THREAD_NOT_FOUND"
-	CodeThreadLimit        = "THREAD_LIMIT"
-	CodeThreadFull         = "THREAD_FULL"
-	CodeThreadInvalid      = "INVALID_REQUEST"
-	CodeThreadsUnavailable = "THREADS_NOT_CONFIGURED"
-	CodeTurnFailed         = "TURN_FAILED"
+	// CodeModelBusy and CodeModelBudgetExceeded are 429s: the call was
+	// refused by a limit before it reached a model.
+	CodeModelBusy           = "MODEL_BUSY"
+	CodeModelBudgetExceeded = "MODEL_BUDGET_EXCEEDED"
+	CodeCancelled           = "CANCELLED"
+	CodeToolInvalid         = "TOOL_INVALID"
+	CodeThreadNotFound      = "THREAD_NOT_FOUND"
+	CodeThreadLimit         = "THREAD_LIMIT"
+	CodeThreadFull          = "THREAD_FULL"
+	CodeThreadInvalid       = "INVALID_REQUEST"
+	CodeThreadsUnavailable  = "THREADS_NOT_CONFIGURED"
+	CodeTurnFailed          = "TURN_FAILED"
 )
 
 // ErrorCode names a failure. Cancellation is checked first: an adapter
@@ -243,6 +244,12 @@ func ErrorCode(err error) string {
 	switch {
 	case errors.Is(err, context.Canceled):
 		return CodeCancelled
+	case errors.Is(err, domain.ErrModelBusy):
+		return CodeModelBusy
+	case errors.Is(err, domain.ErrModelBudgetExceeded):
+		return CodeModelBudgetExceeded
+	case errors.Is(err, domain.ErrAuditUnavailable):
+		return CodeAuditUnavailable
 	case errors.Is(err, domain.ErrModelUnavailable):
 		return CodeModelNotConfigured
 	case errors.Is(err, domain.ErrModelTimeout), errors.Is(err, context.DeadlineExceeded):

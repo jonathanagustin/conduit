@@ -1,8 +1,20 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { makeAssistantToolUI } from "@assistant-ui/react";
+import { useState, type FormEvent, type ReactNode } from "react";
+import {
+  makeAssistantToolUI,
+  useAuiState,
+  type ToolCallMessagePartComponent,
+} from "@assistant-ui/react";
 
+import { useAssistantState, useAssistantStore } from "./assistant-runtime";
+import {
+  effectiveResult,
+  toolOutcome,
+  type HubResult,
+  type ToolOutcome,
+  type ToolRow,
+} from "./assistant-turn";
 import { PlanCardView, RunCard } from "./components/domain";
 import type { PackagingRun, PlanCard } from "./data/hub";
 
@@ -58,165 +70,300 @@ const PlanTool = makeAssistantToolUI<Record<string, unknown>, unknown>({
   },
 });
 
-function ToolCard({
-  title,
-  label,
-  children,
-}: {
-  title: string;
-  label?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div
-      data-console-tool-card
-      className="space-y-1.5 rounded-[6px] border border-[var(--border-subtle)] bg-[var(--bg-1)] p-2.5 text-[11.5px] text-[var(--text-1)]"
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-medium">{title}</span>
-        <span className="rounded border border-[var(--ok-border)] bg-[var(--bg-1)] px-1.5 py-0.5 text-[10px] text-[var(--ok-text)] tabular-nums">
-          {label || "No model call"}
-        </span>
+const TONE: Record<ToolOutcome["tone"], string> = {
+  running:
+    "border-[var(--info-border)] bg-[var(--info-fill)] text-[var(--info-text)]",
+  ok: "border-[var(--ok-border)] bg-[var(--ok-fill)] text-[var(--ok-text)]",
+  refused:
+    "border-[var(--err-border)] bg-[var(--err-fill)] text-[var(--err-text)]",
+  failed:
+    "border-[var(--err-border)] bg-[var(--err-fill)] text-[var(--err-text)]",
+  confirm:
+    "border-[var(--warn-border)] bg-[var(--warn-fill)] text-[var(--warn-text)]",
+  input:
+    "border-[var(--warn-border)] bg-[var(--warn-fill)] text-[var(--warn-text)]",
+};
+
+function shown(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return "";
+  return JSON.stringify(value);
+}
+
+function Arguments({ args }: { args: Record<string, unknown> }) {
+  const entries = Object.entries(args);
+  if (!entries.length)
+    return (
+      <div data-tool-args className="text-[var(--text-2)]">
+        No arguments
       </div>
-      {children}
-    </div>
+    );
+  return (
+    <dl
+      data-tool-args
+      className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 font-mono text-[10.5px]"
+    >
+      {entries.map(([name, value]) => (
+        <div key={name} className="contents">
+          <dt className="text-[var(--text-2)]">{name}</dt>
+          <dd className="break-all text-[var(--text-1)]">{shown(value)}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
-const OntologyQueryTool = makeAssistantToolUI<
-  Record<string, unknown>,
-  Record<string, unknown>
->({
-  toolName: "query_ontology_objects",
-  render: ({ result }) => {
-    const fields = record(result);
-    const entities = Array.isArray(fields["entities"])
-      ? fields["entities"]
-      : [];
-    return (
-      <ToolCard
-        title="Query ontology"
-        label={
-          typeof fields["label"] === "string" ? fields["label"] : undefined
-        }
-      >
-        <div>
-          R:{String(fields["readOps"] ?? 0)} W:{String(fields["writeOps"] ?? 0)}{" "}
-          · {String(fields["matchedCount"] ?? 0)} matched
-        </div>
-        {typeof fields["error"] === "string" ? (
-          <div>{fields["error"]}</div>
-        ) : null}
-        <div className="mt-1 flex flex-wrap gap-1">
+/** What the Hub returned, field by field; nothing is derived or assumed. */
+function ResultDetail({ result }: { result: HubResult }) {
+  const entities = Array.isArray(result["entities"]) ? result["entities"] : [];
+  const constraints = Array.isArray(result["constraints"])
+    ? result["constraints"]
+    : [];
+  const hunks = Array.isArray(result["hunks"]) ? result["hunks"] : [];
+  const line = (label: string, key: string) => {
+    const value = result[key];
+    return typeof value === "string" && value !== "" ? (
+      <div className="text-[var(--text-2)]">
+        {label} <span className="font-mono text-[var(--text-1)]">{value}</span>
+      </div>
+    ) : null;
+  };
+  return (
+    <div data-tool-result className="space-y-1">
+      <div className="text-[var(--text-2)]">
+        R:{shown(result["readOps"] ?? 0)} W:{shown(result["writeOps"] ?? 0)}
+        {typeof result["label"] === "string" ? ` · ${result["label"]}` : ""}
+      </div>
+      {typeof result["title"] === "string" ? (
+        <div>{result["title"]}</div>
+      ) : null}
+      {entities.length ? (
+        <div className="flex flex-wrap gap-1">
           {entities.map((entity) => {
             const item = record(entity);
             return (
               <span
-                key={String(item["id"])}
-                className="rounded border border-[var(--border-subtle)] px-1.5 text-[10.5px] text-[var(--info-text)]"
+                key={shown(item["id"])}
+                className="rounded border border-[var(--info-border)] px-1.5 text-[10.5px] text-[var(--info-text)]"
               >
-                {String(item["label"] || item["id"] || "")}
+                {shown(item["label"] || item["id"] || "")}
+                {item["status"] ? ` · ${shown(item["status"])}` : ""}
               </span>
             );
           })}
         </div>
-      </ToolCard>
-    );
-  },
-});
-
-const GovernedActionTool = makeAssistantToolUI<
-  Record<string, unknown>,
-  Record<string, unknown>
->({
-  toolName: "propose_governed_action",
-  render: ({ result }) => {
-    const fields = record(result);
-    const constraints = Array.isArray(fields["constraints"])
-      ? fields["constraints"]
-      : [];
-    return (
-      <ToolCard
-        title="Governed action"
-        label={
-          typeof fields["label"] === "string" ? fields["label"] : undefined
-        }
-      >
-        <div>{fields["allowed"] === true ? "ALLOW" : "DENY"}</div>
-        {typeof fields["reason"] === "string" ? (
-          <div>{fields["reason"]}</div>
-        ) : null}
-        {constraints.map((row) => {
-          const item = record(row);
-          return (
-            <div key={String(item["id"])}>
-              {String(item["status"] || "")} {String(item["id"] || "")} —{" "}
-              {String(item["reason"] || "")}
-            </div>
-          );
-        })}
-        {typeof fields["changeRequestId"] === "string" &&
-        fields["changeRequestId"] !== "" ? (
-          <div>
-            Change request {fields["changeRequestId"]}{" "}
-            {String(fields["changeRequestStatus"] || "")}
+      ) : null}
+      {constraints.map((row) => {
+        const item = record(row);
+        return (
+          <div key={shown(item["id"])}>
+            {shown(item["status"] || "")} {shown(item["id"] || "")} —{" "}
+            {shown(item["reason"] || "")}
           </div>
-        ) : null}
-        {typeof fields["decisionAuditEventId"] === "string" ? (
-          <div>Rule audit {fields["decisionAuditEventId"]}</div>
-        ) : null}
-      </ToolCard>
-    );
-  },
-});
+        );
+      })}
+      {hunks.map((row) => {
+        const item = record(row);
+        return (
+          <pre
+            key={shown(item["path"])}
+            className="font-mono text-[10.5px] whitespace-pre-wrap"
+          >
+            {`- ${shown(item["path"])}: ${shown(item["before"] ?? "")}\n+ ${shown(item["path"])}: ${shown(item["after"] ?? "")}`}
+          </pre>
+        );
+      })}
+      {line("Change request", "changeRequestId")}
+      {line("Object", "objectId")}
+      {line("State", "state")}
+      {line("Rule audit", "decisionAuditEventId")}
+      {line("Tool audit", "auditEventId")}
+    </div>
+  );
+}
 
-const ChangeDiffTool = makeAssistantToolUI<
-  Record<string, unknown>,
-  Record<string, unknown>
->({
-  toolName: "review_change_diff",
-  render: ({ result }) => {
-    const fields = record(result);
-    const hunks = Array.isArray(fields["hunks"]) ? fields["hunks"] : [];
-    return (
-      <ToolCard
-        title="Change diff"
-        label={
-          typeof fields["label"] === "string" ? fields["label"] : undefined
-        }
+/**
+ * The inputs a result asked for and its Continue or Confirm button. Confirm
+ * sends the same tool call back with confirm set, through the store.
+ */
+function Elicitation({
+  result,
+  pending,
+  onSubmit,
+}: {
+  result: HubResult;
+  pending: boolean;
+  onSubmit: (values: Record<string, string>, confirm: boolean) => void;
+}) {
+  const fields = Array.isArray(result["fields"]) ? result["fields"] : [];
+  const confirm = result["needsConfirm"] === true;
+  const [values, setValues] = useState<Record<string, string>>({});
+  if (!confirm && !fields.length) return null;
+  const initial = (field: Record<string, unknown>) => {
+    const options = Array.isArray(field["options"]) ? field["options"] : [];
+    return shown(field["value"] ?? options[0] ?? "");
+  };
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    const filled: Record<string, string> = {};
+    for (const raw of fields) {
+      const field = record(raw);
+      const name = shown(field["name"] || "");
+      filled[name] = values[name] ?? initial(field);
+    }
+    onSubmit(filled, confirm);
+  };
+  return (
+    <form data-tool-elicit onSubmit={submit} className="space-y-1.5">
+      {fields.map((raw) => {
+        const field = record(raw);
+        const name = shown(field["name"] || "");
+        const options = Array.isArray(field["options"]) ? field["options"] : [];
+        const value = values[name] ?? initial(field);
+        const change = (next: string) =>
+          setValues((current) => ({ ...current, [name]: next }));
+        return (
+          <label key={name} className="block text-[var(--text-2)]">
+            {shown(field["label"] || name)}
+            {options.length ? (
+              <select
+                name={name}
+                value={value}
+                onChange={(event) => change(event.target.value)}
+                className="kit-select"
+              >
+                {options.map((option) => (
+                  <option key={shown(option)} value={shown(option)}>
+                    {shown(option)}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                name={name}
+                value={value}
+                required={field["required"] === true}
+                onChange={(event) => change(event.target.value)}
+                className="kit-input"
+              />
+            )}
+          </label>
+        );
+      })}
+      <button
+        type="submit"
+        disabled={pending}
+        data-tool-confirm={confirm ? "confirm" : "continue"}
+        className="kit-btn kit-btn-sm kit-btn-ok"
       >
-        <div>
-          {typeof fields["title"] === "string"
-            ? fields["title"]
-            : "Stored diff"}
+        {pending ? "Sending" : confirm ? "Confirm" : "Continue"}
+      </button>
+    </form>
+  );
+}
+
+/**
+ * One tool call of an assistant turn: the arguments the Hub ran, then what it
+ * returned. A refusal shows the Hub's reason; a result that needs a person
+ * shows Confirm and reports whatever the Hub answers.
+ */
+export const HubToolCard: ToolCallMessagePartComponent = ({
+  toolCallId,
+  toolName,
+  args,
+  result,
+}) => {
+  const store = useAssistantStore();
+  const messageId = useAuiState((state) => state.message.id);
+  const running = useAuiState(
+    (state) => state.message.status?.type === "running",
+  );
+  const stored = useAssistantState((state) => {
+    const message = state.messages.find((item) => item.id === messageId);
+    return message?.role === "assistant"
+      ? message.turn.tools.find((item) => item.id === toolCallId)
+      : undefined;
+  });
+  const row: ToolRow = stored ?? {
+    id: toolCallId,
+    name: toolName,
+    round: 0,
+    argsText: "",
+    args: record(args),
+    ...(result === undefined ? {} : { result: record(result) }),
+    followUps: [],
+    pending: false,
+  };
+  const current = effectiveResult(row);
+  const outcome: ToolOutcome =
+    !current && !running
+      ? { tone: "failed", summary: "No result received" }
+      : toolOutcome(row);
+  return (
+    <div
+      data-console-tool-card
+      data-assistant-tool={row.name}
+      data-tool-call-id={row.id}
+      data-tool-state={outcome.tone}
+      className="my-1.5 space-y-1.5 rounded-[6px] border border-[var(--border-subtle)] bg-[var(--bg-1)] p-2.5 text-[11.5px] text-[var(--text-1)]"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-medium">
+          {row.name}
+          {row.round ? (
+            <span className="text-[var(--text-2)]"> · round {row.round}</span>
+          ) : null}
+        </span>
+        <span
+          data-tool-outcome
+          role="status"
+          className={`max-w-[60%] truncate rounded border px-1.5 py-0.5 text-[10px] ${TONE[outcome.tone]}`}
+          title={outcome.summary}
+        >
+          {outcome.summary}
+        </span>
+      </div>
+      <Arguments args={row.args} />
+      {row.result ? <ResultDetail result={row.result} /> : null}
+      {row.followUps.map((answer, index) => (
+        <div
+          key={index}
+          data-tool-follow-up
+          className="space-y-1 border-t border-[var(--border-subtle)] pt-1.5"
+        >
+          <div className="text-[var(--text-2)]">You submitted this call</div>
+          <ResultDetail result={answer} />
         </div>
-        {hunks.length === 0 ? (
-          <div>This change request has no stored field diff.</div>
-        ) : null}
-        {hunks.map((row) => {
-          const item = record(row);
-          return (
-            <pre
-              key={String(item["path"])}
-              className="mt-1 font-mono text-[10.5px] whitespace-pre-wrap"
-            >
-              {`- ${String(item["path"])}: ${String(item["before"] ?? "")}\n+ ${String(item["path"])}: ${String(item["after"] ?? "")}`}
-            </pre>
-          );
-        })}
-      </ToolCard>
-    );
-  },
-});
+      ))}
+      {outcome.tone === "refused" || outcome.tone === "failed" ? (
+        <div data-tool-refusal className="text-[var(--err-text)]">
+          {outcome.summary}
+        </div>
+      ) : null}
+      {current ? (
+        <Elicitation
+          key={row.followUps.length}
+          result={current}
+          pending={row.pending}
+          onSubmit={(values, confirm) =>
+            void store.submitTool(messageId, row.id, values, confirm)
+          }
+        />
+      ) : null}
+    </div>
+  );
+};
+
+/** Tool cards stay open in the rail; a collapsed group would hide a Confirm. */
+export function OpenToolGroup({ children }: { children?: ReactNode }) {
+  return <div data-assistant-tools>{children}</div>;
+}
 
 export function ContextToolUIs() {
   return (
     <>
       <PackagingRunTool />
       <PlanTool />
-      <OntologyQueryTool />
-      <GovernedActionTool />
-      <ChangeDiffTool />
     </>
   );
 }

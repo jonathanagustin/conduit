@@ -70,11 +70,12 @@ func (presence sitePresence) Online(ctx context.Context, site string) (bool, err
 
 func mountOfflineBundles(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions) http.Handler {
 	service := &offlineapp.Service{
-		Store:    repository,
-		Verifier: bundleVerifier{repository: repository, key: options.BundlePrivateKey, trusted: options.TrustedBundleKeys},
-		Presence: sitePresence{repository: repository},
+		Store:      repository,
+		Governance: newGovernanceService(repository, options),
+		Verifier:   bundleVerifier{repository: repository, key: options.BundlePrivateKey, trusted: options.TrustedBundleKeys},
+		Presence:   sitePresence{repository: repository},
 	}
-	governance := controlplane.NewGovernanceService(repository)
+	governance := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	offlinehttp.Register(mux, offlinehttp.Config{
 		Authorize: func(request *http.Request) error {

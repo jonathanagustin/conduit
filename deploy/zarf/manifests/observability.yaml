@@ -1,0 +1,1318 @@
+# GENERATED from deploy/observability/prometheus-rules.yaml and deploy/observability/dashboard.json
+# by scripts/verify-observability-assets.rb --write. Do not edit: the gate
+# fails when this differs from its sources.
+#
+# Applied by the optional `uds-observability` Zarf component. It needs the
+# Prometheus Operator CRDs and a Grafana dashboard sidecar, which UDS Core
+# provides and a plain Zarf cluster does not.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: conduit-hub
+  labels:
+    app.kubernetes.io/name: platform-delivery
+    app.kubernetes.io/component: hub
+  namespace: platform-system
+spec:
+  groups:
+  - name: conduit-hub.reconciliation
+    rules:
+    - alert: ConduitHubWedged
+      expr: |
+        max by (queue) (conduit_reconciliation_pending) > 0
+        and max by (queue) (conduit_reconciliation_leased) == 0
+        and max by (queue) (conduit_reconciliation_oldest_pending_seconds) > 300
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: Conduit Hub is not taking work from the {{ $labels.queue }} queue
+        description: Work has been due for more than five minutes and no replica holds
+          a lease on any of it. Depth alone does not fire this alert.
+        runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduithubwedged
+    - alert: ConduitReconciliationLag
+      expr: max by (queue) (conduit_reconciliation_oldest_pending_seconds) > 900
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: Conduit {{ $labels.queue }} work is waiting more than 15 minutes
+        description: The oldest due item in the {{ $labels.queue }} queue has waited
+          {{ $value | humanizeDuration }}. Replicas may be working and still falling
+          behind.
+        runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitreconciliationlag
+    - alert: ConduitProposalExhausted
+      expr: max by (queue) (delta(conduit_reconciliation_exhausted{queue="proposal_outbox"}[30m]))
+        > 0
+      labels:
+        severity: warning
+      annotations:
+        summary: A Conduit Plan proposal was retired without being proposed
+        description: The count of exhausted proposals rose in the last 30 minutes.
+          Either a proposal ran out of retries, and an Environment has a decided change
+          nothing will propose, or a newer desired state superseded it, which needs
+          no action. The runbook says how to tell.
+        runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitproposalexhausted
+    - alert: ConduitReconciliationExhausted
+      expr: max by (queue) (conduit_reconciliation_exhausted{queue="reconciliation"})
+        > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: Conduit reconciliation work ran out of retries
+        description: "{{ $value }} reconciliation item(s) will never be retried without
+          an operator."
+        runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitreconciliationexhausted
+  - name: conduit-hub.notifications
+    rules:
+    - alert: ConduitNotificationDeliveryExhausted
+      expr: max by (transport) (delta(conduit_notification_delivery_exhausted[30m]))
+        > 0
+      labels:
+        severity: warning
+      annotations:
+        summary: Conduit gave up delivering a notification by {{ $labels.transport
+          }}
+        description: At least one notification by {{ $labels.transport }} became undeliverable
+          in the last 30 minutes. Somebody who was to be told about a failure was
+          not.
+        runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitnotificationdeliveryexhausted
+    - alert: ConduitNotificationDeliveryStalled
+      expr: max by (transport) (conduit_notification_delivery_oldest_pending_seconds)
+        > 1800
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: Conduit notifications by {{ $labels.transport }} are not being delivered
+        description: The oldest undelivered notification by {{ $labels.transport }}
+          was raised {{ $value | humanizeDuration }} ago.
+        runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitnotificationdeliverystalled
+  - name: conduit-hub.requests
+    rules:
+    - alert: ConduitHTTPServerErrors
+      expr: |
+        sum(rate(conduit_http_requests_total{code_class="5xx"}[5m]))
+          / sum(rate(conduit_http_requests_total[5m])) > 0.05
+        and sum(rate(conduit_http_requests_total[5m])) > 0.1
+      for: 10m
+      labels:
+        severity: critical
+      annotations:
+        summary: More than 5% of Conduit Hub requests are failing with 5xx
+        description: "{{ $value | humanizePercentage }} of requests over the last
+          five minutes were answered with a server error."
+        runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduithttpservererrors
+    - alert: ConduitAgentRateLimited
+      expr: sum(rate(conduit_rate_limit_decisions_total{class="agent",outcome="limited"}[5m]))
+        > 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: The Conduit Hub is refusing Agent requests with 429
+        description: Agent-class requests have been rate limited continuously for
+          ten minutes.
+        runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitagentratelimited
+  - name: conduit-hub.meta
+    rules:
+    - alert: ConduitMetricsAbsent
+      expr: absent(conduit_build_info)
+      for: 10m
+      labels:
+        severity: critical
+      annotations:
+        summary: No Conduit Hub is exporting metrics
+        description: No replica has reported conduit_build_info for ten minutes. Every
+          other Conduit alert is blind while this one fires.
+        runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitmetricsabsent
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: conduit-hub-dashboard
+  namespace: platform-system
+  labels:
+    app.kubernetes.io/name: platform-delivery
+    grafana_dashboard: '1'
+data:
+  conduit-hub.json: |
+    {
+      "uid": "conduit-hub",
+      "title": "Conduit Hub",
+      "description": "Reference dashboard for the Conduit Hub. Every panel reads series the Hub exports; none carries a tenant identifier. Source: deploy/observability/dashboard.json.",
+      "tags": [
+        "conduit"
+      ],
+      "schemaVersion": 39,
+      "version": 1,
+      "editable": true,
+      "graphTooltip": 1,
+      "timezone": "utc",
+      "refresh": "1m",
+      "time": {
+        "from": "now-6h",
+        "to": "now"
+      },
+      "templating": {
+        "list": [
+          {
+            "name": "datasource",
+            "label": "Data source",
+            "type": "datasource",
+            "query": "prometheus",
+            "current": {},
+            "hide": 0,
+            "includeAll": false,
+            "multi": false,
+            "options": [],
+            "refresh": 1,
+            "regex": ""
+          }
+        ]
+      },
+      "annotations": {
+        "list": []
+      },
+      "links": [
+        {
+          "title": "Runbooks",
+          "type": "link",
+          "icon": "doc",
+          "targetBlank": true,
+          "url": "https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md"
+        }
+      ],
+      "panels": [
+        {
+          "id": 1,
+          "type": "row",
+          "title": "Is it working",
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Replicas reporting",
+          "description": "Replicas exporting metrics, by build. Two versions at once is a rollout in progress or one that stopped half way.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 1
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "count by (version) (conduit_build_info)",
+              "legendFormat": "{{version}}"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "auto"
+          }
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "Oldest due work",
+          "description": "Age of the oldest due, unleased item in either queue. This, not depth, is what separates a wedged Hub from a busy one.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 1
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 300
+                  },
+                  {
+                    "color": "red",
+                    "value": 900
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max(conduit_reconciliation_oldest_pending_seconds)",
+              "legendFormat": "oldest"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "auto"
+          }
+        },
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "Exhausted work",
+          "description": "Items that ran out of retries. They never drain without an operator.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 12,
+            "y": 1
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum(max by (queue) (conduit_reconciliation_exhausted))",
+              "legendFormat": "exhausted"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "auto"
+          }
+        },
+        {
+          "id": 5,
+          "type": "stat",
+          "title": "Server error ratio (5m)",
+          "description": "Share of requests answered 5xx over five minutes.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 18,
+            "y": 1
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 0.01
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.05
+                  }
+                ]
+              },
+              "color": {
+                "mode": "thresholds"
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum(rate(conduit_http_requests_total{code_class=\"5xx\"}[5m])) / sum(rate(conduit_http_requests_total[5m]))",
+              "legendFormat": "5xx"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "auto"
+          }
+        },
+        {
+          "id": 6,
+          "type": "row",
+          "title": "Requests",
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 5
+          }
+        },
+        {
+          "id": 7,
+          "type": "timeseries",
+          "title": "Request rate by status class",
+          "description": "Requests per second the Hub answered. A stream is counted once, when it opens.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 6
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (code_class) (rate(conduit_http_requests_total[5m]))",
+              "legendFormat": "{{code_class}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        },
+        {
+          "id": 8,
+          "type": "timeseries",
+          "title": "Request duration",
+          "description": "Quantiles over all routes. Streams are not observed here.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 6
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "histogram_quantile(0.5, sum by (le) (rate(conduit_http_request_duration_seconds_bucket[5m])))",
+              "legendFormat": "p50"
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "histogram_quantile(0.95, sum by (le) (rate(conduit_http_request_duration_seconds_bucket[5m])))",
+              "legendFormat": "p95"
+            },
+            {
+              "refId": "C",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "histogram_quantile(0.99, sum by (le) (rate(conduit_http_request_duration_seconds_bucket[5m])))",
+              "legendFormat": "p99"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        },
+        {
+          "id": 9,
+          "type": "timeseries",
+          "title": "Busiest routes",
+          "description": "The ten registered route patterns with the most requests. Paths the Hub does not serve are 'unmatched'.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 14
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "topk(10, sum by (route) (rate(conduit_http_requests_total[5m])))",
+              "legendFormat": "{{route}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        },
+        {
+          "id": 10,
+          "type": "timeseries",
+          "title": "Slowest routes (p95)",
+          "description": "The ten route patterns with the highest 95th-percentile duration.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 14
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "topk(10, histogram_quantile(0.95, sum by (route, le) (rate(conduit_http_request_duration_seconds_bucket[5m]))))",
+              "legendFormat": "{{route}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        },
+        {
+          "id": 11,
+          "type": "timeseries",
+          "title": "Server errors by route",
+          "description": "5xx responses per second, by route pattern.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 22
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "topk(10, sum by (route) (rate(conduit_http_requests_total{code_class=\"5xx\"}[5m])))",
+              "legendFormat": "{{route}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        },
+        {
+          "id": 12,
+          "type": "timeseries",
+          "title": "Requests in flight",
+          "description": "Requests received and not yet answered, per replica, excluding open streams.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 22
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "conduit_http_requests_in_flight",
+              "legendFormat": "{{instance}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        },
+        {
+          "id": 13,
+          "type": "timeseries",
+          "title": "Open streams",
+          "description": "Server-sent-event streams and upgraded connections held open, per replica.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 22
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "conduit_http_streams_open",
+              "legendFormat": "{{instance}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        },
+        {
+          "id": 14,
+          "type": "row",
+          "title": "Rate limiting",
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 30
+          }
+        },
+        {
+          "id": 15,
+          "type": "timeseries",
+          "title": "Refused requests by caller class",
+          "description": "Requests answered 429. Agent refusals mean a Spoke cannot lease or report.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 31
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (class) (rate(conduit_rate_limit_decisions_total{outcome=\"limited\"}[5m]))",
+              "legendFormat": "{{class}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        },
+        {
+          "id": 16,
+          "type": "timeseries",
+          "title": "Tracked callers",
+          "description": "Buckets the limiter holds, per replica and class. Bounded per class and evicted when idle.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 31
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "conduit_rate_limit_tracked_callers",
+              "legendFormat": "{{class}} {{instance}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        },
+        {
+          "id": 17,
+          "type": "row",
+          "title": "Reconciliation",
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 39
+          }
+        },
+        {
+          "id": 18,
+          "type": "timeseries",
+          "title": "Due and unleased",
+          "description": "Items due now that no replica holds.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 40
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (queue) (conduit_reconciliation_pending)",
+              "legendFormat": "{{queue}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        },
+        {
+          "id": 19,
+          "type": "timeseries",
+          "title": "Leased",
+          "description": "Items a replica is working on. Zero here while work is due is the wedge.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 40
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (queue) (conduit_reconciliation_leased)",
+              "legendFormat": "{{queue}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        },
+        {
+          "id": 20,
+          "type": "timeseries",
+          "title": "Oldest due item",
+          "description": "Rises only while nothing is taking work.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 40
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (queue) (conduit_reconciliation_oldest_pending_seconds)",
+              "legendFormat": "{{queue}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        },
+        {
+          "id": 21,
+          "type": "row",
+          "title": "Notification delivery",
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 48
+          }
+        },
+        {
+          "id": 22,
+          "type": "timeseries",
+          "title": "Waiting to be delivered",
+          "description": "Undelivered notifications, including those backing off before a retry.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 49
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (transport) (conduit_notification_delivery_pending)",
+              "legendFormat": "{{transport}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        },
+        {
+          "id": 23,
+          "type": "timeseries",
+          "title": "Oldest undelivered",
+          "description": "Time since the longest-waiting undelivered notification was raised.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 49
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (transport) (conduit_notification_delivery_oldest_pending_seconds)",
+              "legendFormat": "{{transport}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        },
+        {
+          "id": 24,
+          "type": "timeseries",
+          "title": "Given up",
+          "description": "Notifications that will never be delivered. This only grows.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 49
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (transport) (conduit_notification_delivery_exhausted)",
+              "legendFormat": "{{transport}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        },
+        {
+          "id": 25,
+          "type": "timeseries",
+          "title": "Delivery attempts",
+          "description": "Attempts per second across replicas.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 57
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (transport) (rate(conduit_notification_delivery_attempts_total[5m]))",
+              "legendFormat": "{{transport}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        },
+        {
+          "id": 26,
+          "type": "timeseries",
+          "title": "Delivered",
+          "description": "Attempts the transport accepted, per second.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 57
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (transport) (rate(conduit_notification_delivery_successes_total[5m]))",
+              "legendFormat": "{{transport}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        },
+        {
+          "id": 27,
+          "type": "timeseries",
+          "title": "Failed attempts",
+          "description": "Attempts that failed, per second, whether or not a retry follows.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 57
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (transport) (rate(conduit_notification_delivery_failures_total[5m]))",
+              "legendFormat": "{{transport}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          }
+        }
+      ]
+    }

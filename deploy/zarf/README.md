@@ -72,7 +72,8 @@ default (`planning.compute`: a Docker image builder, a workspace root and a
 beside the Hub, and neither is in this package. The packaged Hub sets none of
 those three, and the equivalence gate renders the chart with them emptied.
 
-The actions are three POSIX `sh` `case` statements. They run on the host that
+The actions validate the packaging profile and derive the three settings with
+POSIX `sh` commands. They run on the host that
 runs `zarf package deploy`, which therefore needs `sh`; a Windows deploy host
 without one is not supported. Moving an existing install from `file` to
 `postgres` does not migrate its data, and the claim is left in place.
@@ -83,6 +84,20 @@ instead of `uds`: it is the same Package custom resource plus a ServiceMonitor.
 Selecting it without them registers a scrape target that stays down. The
 notification, plan-orchestrator and material-preparer settings the Helm charts
 expose are not Zarf variables.
+
+`uds-observability` is a further optional component: a `PrometheusRule` with
+the Hub's alert rules and a ConfigMap, labelled `grafana_dashboard: "1"`, with
+the reference dashboard. Select it together with `uds-metrics`; without the
+Hub's metrics every rule but `ConduitMetricsAbsent` is blind. Its manifest is
+generated from [`deploy/observability`](../observability) by
+`scripts/verify-observability-assets.rb --write`. It has not been applied to a
+cluster: that UDS Core's Prometheus and Grafana pick both up from
+`platform-system` is assumed, not verified.
+
+The six `RATE_LIMIT_<CLASS>_RPS` and `RATE_LIMIT_<CLASS>_BURST` variables set
+the Hub's request limits for the operator, agent and anonymous classes. Each
+defaults to empty, which keeps the Hub's built-in limit; none turns the
+limiter off.
 
 ### One definition, checked against the other
 
@@ -98,10 +113,53 @@ each profile exactly as a deployment would, renders `deploy/helm/platform-hub`
 and `deploy/helm/platform-spoke` with the values that profile stands for, and
 fails on any difference not listed with a reason in
 [`chart-equivalence.yaml`](chart-equivalence.yaml). A listed difference that no
-longer occurs fails too. One listed difference is a known gap rather than a
-choice: the packaged Hub is given no Temporal frontend address, so it cannot
-start packaging workflows; the `packaging-worker` component only executes
-workflows another client starts.
+longer occurs fails too. Packaging's enabled profile compares a non-default
+frontend, namespace and task queue on both the Hub and worker. The disabled
+profiles keep an empty Hub address, so a plain install starts no packaging
+Temporal client.
+
+### Packaging workflows
+
+Packaging is configured separately from planning. `PACKAGING_TEMPORAL_ADDRESS`
+now defaults to empty, replacing the old worker-only `127.0.0.1:7233` default.
+An empty address disables the Hub's packaging workflow status and governed
+cancel/rerun client. It does not start a worker or submit an application. The
+optional `packaging-worker` executes activities for workflows submitted through
+the existing packaging entry points.
+
+To select that worker, explicitly set `REPOSITORY_KIND=postgres` and a
+nonempty `PACKAGING_TEMPORAL_ADDRESS`; a deploy-time action refuses an absent
+frontend or a file-backed Hub. The Hub and worker read the same address,
+`PACKAGING_TEMPORAL_NAMESPACE` (default `default`) and
+`PACKAGING_TEMPORAL_TASK_QUEUE` (default `packaging-localhost`). DNS/IPv4 and
+bracketed numeric IPv6 endpoints are supported, including IPv4-mapped IPv6 and
+interface zones such as `[fe80::1%eth0]:7233`; ports must be `1` through
+`65535`. Existing deployments that explicitly set such an address keep that
+endpoint. Deployments
+that relied on the old implicit loopback endpoint must now name their real
+frontend. These settings do not change the Hub's replica count or planning
+frontend.
+
+Namespace and task-queue variables have no package-specific length or
+alphanumeric restriction. They must be nonempty and exclude double quotes,
+backslashes and Unicode `Cc` control characters, which cannot be copied safely into these
+quoted manifests. These are Conduit package-input restrictions, not a complete
+Temporal naming contract; the configured server enforces its own names.
+
+The connection this package exposes is **plaintext and has no Temporal API
+key**. Supply an in-cluster frontend whose network path is protected by the
+deployment, for example by its service mesh. Do not put credentials or a URI
+scheme in the address. TLS/mTLS and API-key file settings exist in the Hub and
+Helm chart but are not exposed by this package; an authenticated or TLS-only
+Temporal endpoint needs those deployment mechanisms instead. This change adds
+no egress policy: the existing Hub/worker allows select the in-cluster frontend
+named by `TEMPORAL_NAMESPACE` and `TEMPORAL_NAME_LABEL`, on port `7233`. A
+different destination or port needs a separately reviewed policy.
+
+An explicitly configured Hub can also use an external worker without selecting
+the optional component. The operator must give that worker the same Temporal
+namespace, task queue and PostgreSQL Plan store. The example UDS bundle does not
+select the worker and leaves its packaging address empty.
 
 ## Declared external dependencies
 
@@ -113,7 +171,7 @@ or version-pinned by the package.
 | Dependency | Needed when | How it is supplied on UDS | Contract |
 | --- | --- | --- | --- |
 | PostgreSQL | `REPOSITORY_KIND=postgres` (production), `packaging-worker`, metrics | An in-cluster PostgreSQL operator or package the Environment already runs, or a managed database outside the cluster. This package names no package coordinates because none has been tested with it. | Secret named by `PACKAGING_POSTGRES_SECRET` (default `platform-postgres`) in `platform-system` with key `dsn`, one line. With the `uds` component, in-cluster Pods are selected by `POSTGRES_NAMESPACE` and `POSTGRES_NAME_LABEL`; a database outside the cluster needs its own `remoteHost` allow. |
-| Temporal | Two Hub replicas (production), and `packaging-worker` | A Temporal frontend the Environment already runs, in-cluster or managed, which must persist its own history. No package coordinates are named, for the same reason. | `PLANNING_TEMPORAL_ADDRESS` is the frontend `host:port` the Hub replicas share for planning sessions (`PLANNING_TEMPORAL_NAMESPACE`, `PLANNING_TEMPORAL_TASK_QUEUE`). `PACKAGING_TEMPORAL_ADDRESS` is the frontend `host:port` for the worker, plaintext, namespace `default`. With the `uds` component, in-cluster Pods are selected by `TEMPORAL_NAMESPACE` and `TEMPORAL_NAME_LABEL` for both the Hub and the worker. |
+| Temporal | Two Hub replicas (production), and explicitly enabled packaging client/worker | A Temporal frontend the Environment already runs, in-cluster or managed, which must persist its own history. No package coordinates are named, for the same reason. | `PLANNING_TEMPORAL_ADDRESS` is the frontend `host:port` the Hub replicas share for planning sessions (`PLANNING_TEMPORAL_NAMESPACE`, `PLANNING_TEMPORAL_TASK_QUEUE`). Packaging's Hub client and optional worker share `PACKAGING_TEMPORAL_ADDRESS`, `PACKAGING_TEMPORAL_NAMESPACE` and `PACKAGING_TEMPORAL_TASK_QUEUE`; the address is empty by default and this package supports plaintext without API credentials only. With the `uds` component, in-cluster Pods are selected by `TEMPORAL_NAMESPACE` and `TEMPORAL_NAME_LABEL` for both the Hub and the worker. |
 | Workspace editor image | Never, in this package | Not applicable. | The Hub's developer-workspace Pods default to the image `workspace-editor:local`, which is not in the package. The packaged Hub does not set `DEVWORKSPACE_PODS`, so it never starts one, and the validator refuses a manifest that does. |
 | Product charts and images | Every Plan the Spoke executes | The OCI registry the Plans name, normally the Zarf registry. | Consumer-owned; see the first paragraph. |
 

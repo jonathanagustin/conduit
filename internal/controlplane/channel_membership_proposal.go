@@ -28,8 +28,7 @@ func (service *GovernanceService) ProposeMembershipPlan(ctx context.Context, sta
 	var plan PlanRecord
 	var request ChangeRequest
 	operation := func(repository Repository) error {
-		working := NewGovernanceService(repository)
-		working.now, working.trust = service.now, service.trust
+		working := service.notificationScope(repository)
 		changes, err := working.membershipProposalChanges(ctx, state, author, context.BaseDesiredStateDigest)
 		if err != nil {
 			return err
@@ -41,10 +40,11 @@ func (service *GovernanceService) ProposeMembershipPlan(ctx context.Context, sta
 		if err := transactional.Transaction(ctx, operation); err != nil {
 			return PlanRecord{}, ChangeRequest{}, err
 		}
-		// After the commit, and by this service rather than the working one:
-		// the working service has no announcements, so nothing inside the
-		// transaction could have announced a proposal that then rolled back.
-		service.announceAwaitingApproval(ctx, request)
+		// Only the root owner knows this was the final commit. Transaction-local
+		// services have already enqueued their private intent in this boundary.
+		if !service.repository.InTransaction() {
+			_ = service.announceAwaitingApproval(ctx, request)
+		}
 		return plan, request, nil
 	}
 	if file, ok := service.repository.(*FileRepository); ok {
@@ -52,10 +52,16 @@ func (service *GovernanceService) ProposeMembershipPlan(ctx context.Context, sta
 		// for the baseline check and writes; the private delegate uses the same
 		// files without reentering the owner's mutex. This does not promise a
 		// crash-atomic multi-file transaction.
-		file.mu.Lock()
-		defer file.mu.Unlock()
-		if err := operation(&FileRepository{root: file.root}); err != nil {
+		err := func() error {
+			file.mu.Lock()
+			defer file.mu.Unlock()
+			return operation(&FileRepository{root: file.root, transactionLocal: true})
+		}()
+		if err != nil {
 			return PlanRecord{}, ChangeRequest{}, err
+		}
+		if !service.repository.InTransaction() {
+			_ = service.announceAwaitingApproval(ctx, request)
 		}
 		return plan, request, nil
 	}

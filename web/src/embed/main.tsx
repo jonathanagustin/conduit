@@ -1,3 +1,7 @@
+// First, and for its effect: wraps fetch so every same-origin write carries the
+// CSRF header the Hub requires of a session cookie. See the module.
+import "../runtime/install-hub-session";
+
 import "../styles/assistant.css";
 import "../styles/index.css";
 

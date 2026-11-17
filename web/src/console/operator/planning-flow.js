@@ -210,6 +210,24 @@ export function generationStatus(result) {
   return "recorded";
 }
 
+/**
+ * Whether a generation result is the Hub's recorded demonstration rather than
+ * model output. The Hub marks it with `recordedDemo: true`; only that exact
+ * value counts, so a result without the field is never relabelled.
+ */
+export function isRecordedDemo(result) {
+  return result?.recordedDemo === true;
+}
+
+export const RECORDED_DEMO_LABEL = "Recorded demonstration, not model output";
+
+/** The label a recorded demonstration carries wherever a result is shown. */
+export function recordedDemoMarkup(result, escape = (value) => String(value)) {
+  return isRecordedDemo(result)
+    ? ` <span class="kit-badge kit-badge-warn" data-plan-generation-demo title="No model was called for this result. The Hub served a fixed, recorded example.">${escape(RECORDED_DEMO_LABEL)}</span>`
+    : "";
+}
+
 /** Busy states that are an agent stream, and so can be stopped. */
 export const STOPPABLE = Object.freeze(["turn", "answers", "recover"]);
 
@@ -585,6 +603,8 @@ export function bindingRows(binding) {
     ...intakeRows,
     ["Commit SHA", binding.resolvedCommit || ""],
     ["Model", displayModelName(binding.model)],
+    ["Configured model", binding.configuredModel || "Not recorded"],
+    ["Provider-reported model", binding.providerModel || "Not recorded"],
     ["Plan hash", binding.plan?.sha256 || ""],
     ["Accepted", formatAcceptedTimestamp(binding.acceptedAt)],
   ];
@@ -693,17 +713,20 @@ function composer(planning) {
         <input type="text" class="kit-input" id="plan-ref" data-plan-field="ref" value="${esc(planning.ref)}" placeholder="branch, tag, or commit" autocomplete="off"${locked ? " disabled" : ""} /></div>
     </div>`;
   return `<section class="kit-panel kit-pad plan-card" data-plan-composer aria-label="Composer">
-    <div class="kit-section">Plan new work</div>
+    <div class="kit-header-title plan-card__head">
+      <span class="kit-section">Plan new work</span>
+      <span class="kit-badge kit-badge-info code-id">${esc(isAppgen ? "appgen-v1" : "packaging-v1")}</span>
+    </div>
     <div><label class="plan-label" for="plan-profile">Work profile</label>
       <select class="kit-select" id="plan-profile" data-plan-field="profile"${locked ? " disabled" : ""}>
         <option value="onboard"${!isAppgen ? " selected" : ""}>Onboard repository (onboard)</option>
         <option value="appgen"${isAppgen ? " selected" : ""}>Generate app from problem statement (appgen)</option>
       </select></div>
     ${intakeFields}
-    <label class="plan-label" for="plan-message">Message</label>
-    <textarea class="kit-input plan-message" id="plan-message" data-plan-field="message" rows="3" placeholder="What should this work achieve?">${esc(planning.message)}</textarea>
+    <div><label class="plan-label" for="plan-message">Message</label>
+      <textarea class="kit-input plan-message" id="plan-message" data-plan-field="message" rows="3" placeholder="What should this work achieve?">${esc(planning.message)}</textarea></div>
     <div class="plan-actions">
-      <button type="button" class="kit-btn kit-btn-sm" data-plan-send${busy ? " disabled" : ""}>${sendLabel}</button>
+      <button type="button" class="kit-btn kit-btn-primary kit-btn-sm" data-plan-send${busy ? " disabled" : ""}>${sendLabel}</button>
       ${STOPPABLE.includes(planning.busy) ? '<button type="button" class="kit-btn kit-btn-sm" data-plan-stop>Stop</button>' : ""}
       ${locked ? `<span class="kit-muted">Session <span class="code-id">${esc(planning.session.id)}</span> · ${esc(planning.session.status)}</span>` : ""}
     </div>
@@ -712,6 +735,7 @@ function composer(planning) {
 
 function collectThreadMessages(planning) {
   const out = [];
+  const isHumanRole = (r) => r === "user" || r === "operator";
   const push = (id, role, content) => {
     const normalizedRole =
       role === "assistant"
@@ -727,7 +751,10 @@ function collectThreadMessages(planning) {
       return;
     }
     const dupIdx = out.findIndex(
-      (item) => item.role === normalizedRole && item.content === text,
+      (item) =>
+        (item.role === normalizedRole ||
+          (isHumanRole(item.role) && isHumanRole(normalizedRole))) &&
+        item.content === text,
     );
     if (dupIdx !== -1) {
       if (id && !out[dupIdx].id) out[dupIdx].id = id;
@@ -760,6 +787,13 @@ function collectThreadMessages(planning) {
   return out;
 }
 
+function formatMessageHtml(item) {
+  const raw = String(item.content ?? "");
+  // Transcript messages have no per-message model provenance. Identity belongs
+  // to the server-owned accepted binding; answer text cannot supply it.
+  return `<span>${esc(raw)}</span>`;
+}
+
 function mergeSessionEvents(sessionEvents, localEvents) {
   const out = [];
   const seen = new Set();
@@ -779,16 +813,19 @@ function activity(planning) {
     const renderedMessages = messages
       .map(
         (item) =>
-          `<div class="plan-line" data-plan-message><span class="kit-badge kit-badge-${item.role === "model" ? "ai" : "muted"}">${esc(item.role)}</span><span>${esc(item.content)}</span></div>`,
+          `<div class="plan-line" data-plan-message><span class="kit-badge kit-badge-${item.role === "model" ? "ai" : "muted"} plan-role-badge">${esc(item.role)}</span><span class="plan-line__body">${formatMessageHtml(item)}</span></div>`,
       )
       .join("");
     const calls = (planning.agentTools || [])
-      .map(
-        (item) =>
-          `<div class="plan-tool" data-plan-tool><span class="code-id">${esc(item.name)}</span><span>${esc(item.status)}</span></div>`,
-      )
+      .map((item) => {
+        const statusText = String(item.status || "");
+        const done = /^(complete|completed|succeeded|done|ok)$/i.test(
+          statusText,
+        );
+        return `<div class="plan-tool" data-plan-tool><span class="kit-badge kit-badge-info">tool</span><span class="code-id">${esc(item.name)}</span><span class="kit-badge kit-badge-${done ? "ok" : "muted"} plan-tool__status">${esc(statusText)}</span></div>`;
+      })
       .join("");
-    return `<section class="kit-panel kit-pad plan-card" data-plan-activity aria-label="Agent activity" aria-live="polite"><div class="kit-section">Agent activity</div><div class="kit-stack">${renderedMessages}${calls}</div></section>`;
+    return `<section class="kit-panel kit-pad plan-card" data-plan-activity aria-label="Agent activity" aria-live="polite"><div class="kit-header-title plan-card__head"><span class="kit-section">Agent activity</span></div><div class="kit-stack">${renderedMessages}${calls}</div></section>`;
   }
   const combinedEvents = mergeSessionEvents(
     planning.session?.events,
@@ -797,7 +834,7 @@ function activity(planning) {
   const rows = toolRows(combinedEvents);
   const lines = messages.map(
     (item) =>
-      `<div class="plan-line" data-plan-message><span class="kit-badge kit-badge-${item.role === "model" ? "ai" : "muted"}">${esc(item.role)}</span><span>${esc(item.content)}</span></div>`,
+      `<div class="plan-line" data-plan-message><span class="kit-badge kit-badge-${item.role === "model" ? "ai" : "muted"} plan-role-badge">${esc(item.role)}</span><span class="plan-line__body">${formatMessageHtml(item)}</span></div>`,
   );
   if (!rows.length && !lines.length) return "";
   const tools = rows
@@ -807,7 +844,7 @@ function activity(planning) {
     )
     .join("");
   return `<section class="kit-panel kit-pad plan-card" data-plan-activity aria-label="Session events" aria-live="polite">
-    <div class="kit-section">Session events</div>
+    <div class="kit-header-title plan-card__head"><span class="kit-section">Session events</span></div>
     <div class="kit-stack">${lines.join("")}${tools}</div>
   </section>`;
 }
@@ -823,18 +860,97 @@ function needsInput(planning) {
         forms.render(id, { planning: true, disabled: Boolean(planning.busy) }),
       )
       .join("");
-    return `<section class="kit-panel kit-card kit-pad plan-card" data-plan-needs-input aria-label="Needs Input"><div class="kit-section">Needs Input</div>${content}</section>`;
+    return `<section class="kit-panel kit-card kit-bar-warn kit-pad plan-card" data-plan-needs-input aria-label="Needs Input">
+      <div class="kit-header-title plan-card__head"><span class="kit-section">Needs Input</span><span class="kit-badge kit-badge-warn">${open.length} open</span></div>
+      ${content}
+    </section>`;
   }
   const busy = planning.busy === "answers";
   return `<section class="kit-panel kit-card kit-bar-warn kit-pad plan-card" data-plan-needs-input aria-label="Needs Input">
-    <div class="kit-header-title"><span class="kit-section">Needs Input</span><span class="kit-badge kit-badge-warn">${open.length} open</span></div>
+    <div class="kit-header-title plan-card__head"><span class="kit-section">Needs Input</span><span class="kit-badge kit-badge-warn">${open.length} open</span></div>
     <div class="kit-stack">${open
       .map(
         (question) =>
           `<div class="plan-question" data-plan-question="${esc(question.id)}">${questionField(question, planning.drafts[question.id])}</div>`,
       )
       .join("")}</div>
-    <div class="plan-actions"><button type="button" class="kit-btn kit-btn-sm" data-plan-submit-answers${busy ? " disabled" : ""}>${busy ? "Submitting…" : "Submit answers"}</button></div>
+    <div class="plan-actions"><button type="button" class="kit-btn kit-btn-primary kit-btn-sm" data-plan-submit-answers${busy ? " disabled" : ""}>${busy ? "Submitting…" : "Submit answers"}</button></div>
+  </section>`;
+}
+
+function planStageGuide(planning) {
+  const session = planning.session;
+  if (session?.plan || session?.binding) return "";
+  const activeProfile = session?.profile?.name || planning.profile || "onboard";
+  const isAppgen = activeProfile === "appgen";
+  const hasSession = Boolean(session);
+  const hasOpen = openQuestions(session).length > 0;
+  const activeIndex = !hasSession ? 0 : hasOpen ? 1 : 1;
+  const steps = isAppgen
+    ? [
+        [
+          "Problem-statement intake",
+          "Declare the service requirements and optional lowercase DNS application name.",
+        ],
+        [
+          "Clarification & Needs Input",
+          "Answer required operator prompts before any specification is finalized.",
+        ],
+        [
+          "Canonical plan & SHA-256 digest",
+          "Review base image, non-root build steps, exposed ports, and network policy.",
+        ],
+        [
+          "Accept binding & governed synthesis",
+          "Bind profile hash + plan digest; compute remains refused (COMPUTE_BEFORE_ACCEPT) until accepted.",
+        ],
+      ]
+    : [
+        [
+          "Pinned source intake",
+          "Resolve the target repository URL and branch, tag, or commit SHA.",
+        ],
+        [
+          "Read-only inspection & Needs Input",
+          "Inspect repository manifests and answer required runtime questions.",
+        ],
+        [
+          "Canonical plan & SHA-256 digest",
+          "Review container base image, build commands, ports, and egress allowlist.",
+        ],
+        [
+          "Accept binding & workspace compute",
+          "Pin repo@ref, commit SHA, profile hash, and plan digest before Dockerfile, Zarf, and UDS synthesis.",
+        ],
+      ];
+  const statusBadge = !hasSession
+    ? '<span class="kit-badge kit-badge-muted">Awaiting intake</span>'
+    : hasOpen
+      ? '<span class="kit-badge kit-badge-warn">Needs operator input</span>'
+      : '<span class="kit-badge kit-badge-info">Session active</span>';
+  return `<section class="kit-panel kit-pad plan-card plan-guide" aria-label="Governed planning lifecycle">
+    <div class="kit-header-title plan-card__head">
+      <span class="kit-section">Governed workflow</span>
+      ${statusBadge}
+    </div>
+    <p class="kit-muted plan-guide__lead">Planning is strictly read-only. Workspace synthesis, container builds, and Zarf/UDS gates cannot execute until an operator explicitly accepts a pinned plan.</p>
+    <ol class="plan-guide__steps">${steps
+      .map(([title, desc], idx) => {
+        const stateClass =
+          hasSession && idx === 0
+            ? "is-done"
+            : idx === activeIndex
+              ? "is-current"
+              : "";
+        return `<li class="plan-guide__step ${stateClass}">
+          <span class="plan-guide__num code-id">${idx + 1}</span>
+          <div class="plan-guide__text">
+            <div class="plan-guide__title">${esc(title)}</div>
+            <div class="kit-muted">${esc(desc)}</div>
+          </div>
+        </li>`;
+      })
+      .join("")}</ol>
   </section>`;
 }
 
@@ -848,14 +964,14 @@ function planReview(session, showJson = false) {
   const rawSha = String(session.plan.sha256 || "");
   const cleanSha = rawSha.startsWith("sha256:") ? rawSha.slice(7) : rawSha;
   return `<section class="kit-panel kit-pad plan-card" data-plan-review aria-label="Plan review">
-    <div class="kit-header-title">
+    <div class="kit-header-title plan-card__head">
       <span class="kit-section">Plan</span>
       <div class="plan-actions">
-        <span class="code-id kit-muted" title="sha256">sha256 ${esc(cleanSha)}</span>
+        <span class="kit-badge kit-badge-muted code-id" title="sha256 ${esc(cleanSha)}">sha256 ${esc(cleanSha.slice(0, 16))}</span>
         <button type="button" class="kit-btn kit-btn-sm" data-plan-view-json aria-expanded="${Boolean(showJson)}">${toggleLabel}</button>
       </div>
     </div>
-    <div class="kit-stack">${sections
+    <div class="plan-sections">${sections
       .map(
         (section) =>
           `<div class="plan-section" data-plan-section>${section.title ? `<div class="plan-section-title">${esc(section.title)}</div>` : ""}<div class="plan-section-body">${esc(section.body)}</div></div>`,
@@ -893,7 +1009,7 @@ function acceptBar(planning) {
     </div>
     <div class="plan-accept__meta" data-plan-accept-meta>
       ${repoRef ? `<span class="kit-badge kit-badge-muted code-id" title="Repository and ref">${esc(repoRef)}</span>` : ""}
-      <span class="kit-badge kit-badge-muted code-id" title="Pinned commit">commit ${esc(commitLabel)}</span>
+      <span class="kit-badge kit-badge-muted code-id" title="Pinned commit: ${esc(commit)}">commit ${esc(commitLabel)}</span>
       ${profileLabel ? `<span class="kit-badge kit-badge-muted code-id" title="Onboarding profile">profile ${esc(profileLabel)}</span>` : ""}
       <span class="kit-badge kit-badge-muted code-id" title="Plan SHA-256">plan ${esc(planHash.slice(0, 12))}</span>
     </div>
@@ -955,11 +1071,11 @@ function bindingPanel(session, planning = {}) {
   const outcome = planning.computedOutcome || "";
   const changeID = planning.computedChangeRequestId || "";
   return `<section class="kit-panel kit-card kit-bar-ok kit-pad plan-card plan-binding" data-plan-binding aria-label="Accept binding">
-    <div class="kit-header-title"><span class="kit-section">Binding</span><span class="kit-badge kit-badge-ok">Accepted</span></div>
+    <div class="kit-header-title plan-card__head"><span class="kit-section">Binding</span><span class="kit-badge kit-badge-ok">Accepted</span></div>
     <dl class="kit-kv">${rows}</dl>
+    ${computed ? `<div class="plan-compute-receipt"><span class="kit-badge kit-badge-ok code-id" data-plan-computed-workspace>${esc(wsId)} · Dockerfile · zarf.yaml · uds-package.yaml</span></div>` : ""}
     <div class="plan-actions">
-      <button type="button" class="kit-btn kit-btn-sm" data-plan-compute${busy || computed ? " disabled" : ""}>${busy ? "Packaging…" : computed ? "Packaged into Git Workspace" : "Package into Git Workspace"}</button>
-      ${computed ? `<span class="kit-badge kit-badge-ok code-id" data-plan-computed-workspace>${esc(wsId)} · Dockerfile · zarf.yaml · uds-package.yaml</span>` : ""}
+      <button type="button" class="kit-btn kit-btn-primary kit-btn-sm" data-plan-compute${busy || computed ? " disabled" : ""}>${busy ? "Packaging…" : computed ? "Packaged into Git Workspace" : "Package into Git Workspace"}</button>
       ${digest ? `<span class="kit-badge kit-badge-ok code-id" data-plan-image-digest>pinned ${esc(digest)}</span>` : ""}
       ${outcome ? `<span class="kit-badge kit-badge-muted code-id" data-plan-validation>${esc(outcome)}</span>` : ""}
       ${changeID ? `<button type="button" class="kit-btn kit-btn-sm" data-plan-open-change>Review ${esc(changeID)}</button>` : ""}
@@ -1000,7 +1116,7 @@ function generationsPanel(planning) {
             `<li><span class="code-id">${esc(gate.name)}</span> · ${esc(gate.outcome)}${gate.reason ? ` · ${esc(gate.reason)}` : ""}</li>`,
         )
         .join("");
-      return `<li class="plan-line" data-plan-generation="${esc(item.id)}"><div><strong>${esc(item.name || item.label || item.id)}</strong> <span class="code-id">${esc(item.id)}</span> <span class="kit-badge kit-badge-muted" data-plan-generation-status>${esc(generationStatus(item))}</span>${item.error ? `<div>${esc(item.error)}</div>` : ""}${gates ? `<ul>${gates}</ul>` : '<div class="kit-muted">No gate result is recorded.</div>'}</div></li>`;
+      return `<li class="plan-line" data-plan-generation="${esc(item.id)}"><div><strong>${esc(item.name || item.label || item.id)}</strong> <span class="code-id">${esc(item.id)}</span> <span class="kit-badge kit-badge-muted" data-plan-generation-status>${esc(generationStatus(item))}</span>${recordedDemoMarkup(item, esc)}${item.error ? `<div>${esc(item.error)}</div>` : ""}${gates ? `<ul>${gates}</ul>` : '<div class="kit-muted">No gate result is recorded.</div>'}</div></li>`;
     })
     .join("");
   const body =
@@ -1030,9 +1146,10 @@ export function planningMarkup(planning) {
       <div class="plan-flow__col plan-flow__col--left" data-plan-col="conversation">
         ${composer(planning)}
         ${activity(planning)}
-        ${needsInput(planning)}
       </div>
       <div class="plan-flow__col plan-flow__col--right" data-plan-col="plan">
+        ${needsInput(planning)}
+        ${planStageGuide(planning)}
         ${planReview(planning.session, planning.showPlanJson)}
         ${bindingPanel(planning.session, planning)}
       </div>

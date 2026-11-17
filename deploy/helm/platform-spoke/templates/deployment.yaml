@@ -64,6 +64,15 @@ spec:
             {{- end }}
             {{- with .Values.materialPreparer.command }}
             - { name: EXTERNAL_MATERIAL_PREPARER, value: {{ . | quote }} }
+            {{- /*
+            The namespaces a preparer may write into, for a preparer that asks.
+            The reference preparer in the Agent image serves a request only for
+            a namespace listed here and refuses everything when it is absent,
+            so the boundary it enforces is the one this chart binds RBAC for.
+            */}}
+            {{- with $.Values.rbac.managedNamespaces }}
+            - { name: MATERIAL_PREPARER_NAMESPACES, value: {{ join "," . | quote }} }
+            {{- end }}
             {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}

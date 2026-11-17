@@ -1,0 +1,19 @@
+{{- if .Values.metrics.dashboard.enabled }}
+{{- if not .Values.metrics.enabled }}
+{{- fail "metrics.dashboard.enabled requires metrics.enabled" }}
+{{- end }}
+# The reference dashboard, for a Grafana dashboard sidecar to load. The JSON is
+# files/dashboard.json, generated from deploy/observability/dashboard.json and
+# included verbatim: its legends use Grafana's {{ "{{ }}" }} templates.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "platform-hub.fullname" . }}-dashboard
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "platform-hub.labels" . | nindent 4 }}
+    {{- toYaml .Values.metrics.dashboard.labels | nindent 4 }}
+data:
+  conduit-hub.json: |
+    {{- .Files.Get "files/dashboard.json" | nindent 4 }}
+{{- end }}

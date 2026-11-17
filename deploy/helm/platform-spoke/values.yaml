@@ -24,6 +24,11 @@ rbac:
   # deploy/helm/README.md, "The Agent's RBAC floor", before treating what this
   # renders as the limit of what the Agent can do.
   create: true
+  # Opt-in namespaced Role and RoleBinding profile for the Zarf/UDS package
+  # executor (`internal/agent/adapters/uds`), kept separate from the Helm
+  # executor's floor. Renders `<fullname>-package-executor` in each
+  # `managedNamespaces` entry and `<fullname>-zarf-state` in namespace `zarf`.
+  packageExecutor: false
   # Every namespace this Agent's Plans target -- `step.Namespace`, which is not
   # normally the Agent's own release namespace. Required when create is true,
   # because there is no honest default: the Agent usually runs in one namespace
@@ -55,9 +60,18 @@ healthProbeCAKey: ca.pem
 # registry access, pre-pull images, and apply or roll back Secret mutations.
 # Empty leaves it unset, which is today's behaviour. `command` must be a clean
 # absolute path that exists in the container; the Agent refuses anything else.
-# The Agent image does not ship one, so the Environment supplies it, for
-# example on an existing PVC mounted read-only at toolsMountPath. The preparer
-# runs as the Agent and inherits its identity; this chart grants it nothing.
+#
+# The Agent image ships one reference preparer, at
+# /usr/local/bin/platform-material-preparer. It projects keys from source
+# Secrets in the Agent's own namespace into the namespace a Plan targets and
+# creates image pull Secrets the same way; docs/operations/material-preparer.md
+# is its contract, its exit statuses and the one Role it additionally needs.
+# An Environment with a different provider supplies its own executable instead,
+# for example on an existing PVC mounted read-only at toolsMountPath.
+#
+# Either way the preparer runs as the Agent and inherits its identity. When a
+# command is set the chart also passes rbac.managedNamespaces to it as
+# MATERIAL_PREPARER_NAMESPACES; it grants the preparer nothing.
 materialPreparer:
   command: ""
   toolsPersistentVolumeClaimName: ""

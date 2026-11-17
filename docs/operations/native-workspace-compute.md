@@ -25,9 +25,10 @@ the image id, both gates, and the package archive are present. A missing engine
 or `zarf` binary fails the run. The image id is the pin; it is not a registry
 manifest digest unless the image was pushed.
 
-`CONDUIT_MODEL_CMD` selects who writes the Dockerfile and package files. Unset,
-or set to `packaging-workflow agent-exec` without a live provider, uses the
-deterministic writer. Any other command receives the packaging prompt on stdin.
+`CONDUIT_MODEL_BASE_URL` selects an HTTP model to write the Dockerfile and
+package files. Without an endpoint the existing deterministic writer is used.
+All global and capability model command settings are refused; the Hub never
+starts a model subprocess.
 `CONDUIT_PACKAGING_BUILD=source` builds with a pulled `node:22-bookworm` base
 pinned by the repo digest the engine reports. A repository URL containing
 `excalidraw` uses that source build unless `CONDUIT_PACKAGING_BUILD=scratch`.

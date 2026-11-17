@@ -1,4 +1,5 @@
 import { convergenceState } from "./release-convergence.js";
+import { newestAuditEntries } from "./audit-order.js";
 // Shared helpers for the console shell: identity, header KPIs, site summary, dock sizing,
 // and guarded preference storage.
 
@@ -78,11 +79,35 @@ function kpi(id, label, items, compute) {
 // Unknown, stale or never-reported installations cannot establish convergence.
 export function kpisFromHub(hub) {
   const h = hub || {};
-  const environments = h.loading || h.note ? null : list(h.environments);
+  const completePage = (index) => {
+    if (!h.pagedIndexes) return true;
+    const page = h.indexPages?.[index];
+    return (
+      page &&
+      !page.error &&
+      !page.nextCursor &&
+      !page.hasPrevious &&
+      !page.selectedOutside &&
+      !page.filtered &&
+      (page.total === null || BigInt(page.total) === BigInt(page.shown))
+    );
+  };
+  const environments =
+    h.loading || h.note || !completePage("environments")
+      ? null
+      : list(h.environments);
   const installations =
-    h.loading || h.installationNote ? null : list(h.installations);
-  const packaging = h.loading || h.packagingNote ? null : list(h.packaging);
-  const changes = h.loading || h.changeNote ? null : list(h.changes);
+    h.loading || h.installationNote || !completePage("installations")
+      ? null
+      : list(h.installations);
+  const packaging =
+    h.loading || h.packagingNote || !completePage("packaging")
+      ? null
+      : list(h.packaging);
+  const changes =
+    h.loading || h.changeNote || !completePage("changes")
+      ? null
+      : list(h.changes);
   const complete = environments && installations;
   const hasSpokeStates =
     environments &&
@@ -291,17 +316,19 @@ export function dockSurfacesMarkup(state, helpers) {
     ? `<ul class="space-y-1">${windowRows.join("")}</ul>`
     : empty("No maintenance window or suppression is recorded.");
 
-  const entries = Array.isArray(hub.audit) ? hub.audit.slice(-8).reverse() : [];
+  const entries = newestAuditEntries(hub.audit, hub.auditOrder, 8);
   const who = (a) =>
     a && typeof a === "object" ? a.username || a.id || JSON.stringify(a) : a;
-  const live = entries.length
-    ? `<ul class="space-y-1">${entries
-        .map(
-          (e) =>
-            `<li class="text-[12px]"><span class="code-id text-[var(--text-1)]">${esc(e?.sequence)}</span> <span class="kit-muted">${esc(who(e?.actor))} · ${esc(e?.action)}</span></li>`,
-        )
-        .join("")}</ul>`
-    : empty("No audit entry is recorded.");
+  const live = hub.auditNote
+    ? empty(hub.auditNote)
+    : entries.length
+      ? `<ul class="space-y-1">${entries
+          .map(
+            (e) =>
+              `<li class="text-[12px]"><span class="code-id text-[var(--text-1)]">${esc(e?.sequence)}</span> <span class="kit-muted">${esc(who(e?.actor))} · ${esc(e?.action)}</span></li>`,
+          )
+          .join("")}</ul>`
+      : empty("No audit entry is recorded.");
 
   return { inspector, outline, windows, live };
 }

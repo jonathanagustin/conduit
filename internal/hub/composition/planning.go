@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jonathanagustin/conduit/internal/modelconfig"
 	"log/slog"
 	"net"
 	"net/http"
@@ -19,7 +20,7 @@ import (
 	appgenapp "github.com/jonathanagustin/conduit/internal/appgen/application"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
-	"github.com/jonathanagustin/conduit/internal/localcmd"
+	"github.com/jonathanagustin/conduit/internal/modelgovernor"
 	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	"github.com/jonathanagustin/conduit/internal/planning/adapters/planner"
 	"github.com/jonathanagustin/conduit/internal/planning/agentstream"
@@ -147,7 +148,13 @@ func planningClientOptions(getenv func(string) string) (client.Options, error) {
 // StartPlanningWorker polls the planning task queue when a workflow frontend
 // is configured. The returned function stops the worker. An empty address
 // leaves planning on the process-local store and returns a no-op stop.
-func StartPlanningWorker(ctx context.Context, getenv func(string) string, repository controlplane.Repository) (func(), error) {
+//
+// governor is the Hub's own (NewModelGovernor): a turn run by the worker has
+// no request to carry one, so the worker puts it on each turn's context. Nil
+// leaves the worker's model calls ungoverned and unaudited.
+func StartPlanningWorker(
+	ctx context.Context, getenv func(string) string, repository controlplane.Repository, governor *modelgovernor.Governor,
+) (func(), error) {
 	noop := func() {}
 	if getenv == nil {
 		return nil, errors.New("environment reader is required")
@@ -174,7 +181,7 @@ func StartPlanningWorker(ctx context.Context, getenv func(string) string, reposi
 		return nil, err
 	}
 	work := planningworkflow.RegisterWorker(temporalClient, planningTaskQueue(getenv), planningworkflow.Activities{
-		Planner: runner,
+		Planner: turnScopedPlanner{runner: runner, governor: governor},
 		Auditor: workflowAcceptAuditor{repository: repository},
 	})
 	if err := work.Start(); err != nil {
@@ -202,7 +209,7 @@ func planningHandlerWithOptions(
 ) http.Handler {
 	var stores sync.Map
 	var seq atomic.Uint64
-	governanceService := controlplane.NewGovernanceService(repository)
+	governanceService := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	type ownerServices struct {
 		sessions planninghttp.Sessions
@@ -221,7 +228,7 @@ func planningHandlerWithOptions(
 			httpSessions planninghttp.Sessions
 			runSessions  agentstream.Sessions
 		)
-		ownerCompute := sessionCompute(appgenCompute, appgenService, repository, principal, getenv)
+		ownerCompute := sessionCompute(appgenCompute, appgenService, repository, principal, getenv, options)
 		if temporalClient != nil {
 			wfService := planningworkflow.NewClientService(temporalClient, planningTaskQueue(getenv), actor, &seq).
 				WithCompute(ownerCompute)
@@ -273,12 +280,13 @@ func planningHandlerWithOptions(
 func sessionCompute(
 	appgenCompute planningapp.AppgenComputer, appgenService *appgenapp.Service,
 	repository controlplane.Repository, principal controlplane.Principal, getenv func(string) string,
+	handlerOptions ...controlplane.HandlerOptions,
 ) planningapp.AppgenComputer {
 	hook := appgenCompute
 	if hook == nil && appgenService != nil {
-		hook = appgenPlanningComputer(*appgenService, repository, principal, getenv)
+		hook = appgenPlanningComputer(*appgenService, repository, principal, getenv, handlerOptions...)
 	}
-	packaging := packagingPlanningComputer(repository, principal, getenv)
+	packaging := packagingPlanningComputer(repository, principal, getenv, handlerOptions...)
 	computer := func(ctx context.Context, session *planningdomain.Session) error {
 		if session == nil || session.Binding == nil {
 			return planningdomain.ErrComputeBeforeAccept
@@ -298,6 +306,7 @@ func sessionCompute(
 }
 
 func planningPlanner(getenv func(string) string, repository controlplane.Repository) (planningapp.Planner, error) {
+	getenv = modelconfig.ForCapability(getenv, modelconfig.Planning)
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
@@ -309,7 +318,7 @@ func planningPlanner(getenv func(string) string, repository controlplane.Reposit
 	}
 	// One transport drives planning turns. Both set is a startup error and
 	// neither leaves planning unconfigured; the rule is modelHTTPClient's.
-	if client, err := modelHTTPClient(getenv); err != nil {
+	if client, err := governedModelHTTPClient(getenv, modelgovernor.CapabilityPlanning); err != nil {
 		return nil, err
 	} else if client != nil {
 		return planner.Planner{
@@ -318,30 +327,7 @@ func planningPlanner(getenv func(string) string, repository controlplane.Reposit
 			Clone: clone,
 		}, nil
 	}
-	raw := strings.TrimSpace(getenv("CONDUIT_MODEL_CMD"))
-	if raw == "" {
-		return nil, nil
-	}
-	argv, err := localcmd.ParseArgv(raw)
-	if err != nil {
-		return nil, fmt.Errorf("CONDUIT_MODEL_CMD: %w", err)
-	}
-	timeout := 45 * time.Second
-	if text := strings.TrimSpace(getenv("CONDUIT_MODEL_TIMEOUT")); text != "" {
-		parsed, err := time.ParseDuration(text)
-		if err != nil || parsed <= 0 {
-			return nil, fmt.Errorf("CONDUIT_MODEL_TIMEOUT must be a positive duration")
-		}
-		timeout = parsed
-	}
-	warnUnverifiedPreset(argv, getenv)
-	return planner.Planner{
-		Argv:      argv,
-		Timeout:   timeout,
-		ModelName: configuredModelName(getenv),
-		Audit:     planningAudit{repository: repository},
-		Clone:     clone,
-	}, nil
+	return nil, nil
 }
 
 type planningAudit struct {
@@ -404,7 +390,8 @@ func recordPlanningAccept(ctx context.Context, repository controlplane.Repositor
 	ctxMap := map[string]any{"profileName": record.ProfileName, "profileVersion": record.ProfileVersion,
 		"profileHash": record.ProfileHash, "repoUrl": record.RepoURL, "ref": record.Ref,
 		"intakeMessageSha256": packagingdomain.DigestText([]byte(record.Message)),
-		"resolvedCommit":      record.ResolvedCommit, "model": record.Model, "planHash": record.PlanHash}
+		"resolvedCommit":      record.ResolvedCommit, "model": record.Model, "planHash": record.PlanHash,
+		"configuredModel": record.ConfiguredModel, "providerModel": record.ProviderModel}
 	if record.ProblemStatement != "" {
 		ctxMap["problemStatementSha256"] = packagingdomain.DigestText([]byte(record.ProblemStatement))
 	}
@@ -430,7 +417,32 @@ type actorPlanningRunner struct {
 }
 
 func (runner actorPlanningRunner) Turn(ctx context.Context, session *planningdomain.Session, message string) (*planningapp.TurnResult, error) {
+	if session != nil && session.ID != "" {
+		modelgovernor.Annotate(ctx, "planning-session/"+session.ID)
+	}
 	return runner.runner.Turn(context.WithValue(ctx, planningActorKey{}, runner.actor), session, message)
+}
+
+// turnScopedPlanner gives a planning turn that runs outside a request -- a
+// Temporal activity -- a run of its own, so the turn's model calls are
+// numbered and chained together. An activity carries no operator, so its
+// calls are metered under modelgovernor.SystemOwner.
+type turnScopedPlanner struct {
+	runner   planningapp.Planner
+	governor *modelgovernor.Governor
+}
+
+func (scoped turnScopedPlanner) Turn(ctx context.Context, session *planningdomain.Session, message string) (*planningapp.TurnResult, error) {
+	if scoped.runner == nil {
+		return nil, planningdomain.ErrModelNotConfigured
+	}
+	if modelgovernor.RunFrom(ctx) == nil {
+		ctx = modelgovernor.WithScope(ctx, modelgovernor.Scope{Governor: scoped.governor, Owner: func() string { return planningActor(ctx) }})
+	}
+	if session != nil && session.ID != "" {
+		modelgovernor.Annotate(ctx, "planning-session/"+session.ID)
+	}
+	return scoped.runner.Turn(ctx, session, message)
 }
 
 type planningRunAudit struct {

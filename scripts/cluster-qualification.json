@@ -1,0 +1,14 @@
+{
+  "workflows": [
+    {
+      "file": "platform-e2e.yml",
+      "jobs": ["spoke (Helm 3.21.1)", "spoke (Helm 4.2.3)"],
+      "steps": ["Run Hub and Spoke acceptance"]
+    },
+    {
+      "file": "platform-gitless-e2e.yml",
+      "jobs": ["signed OCI without Git"],
+      "steps": ["Reconcile an exact signed digest with pull-only authority", "Publish and read back manifests against a real registry"]
+    }
+  ]
+}

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 )
@@ -23,24 +22,28 @@ func TestParseArgvDoesNotUseAShell(t *testing.T) {
 	}
 }
 
-func TestExecuteTimeoutAndMissingCommand(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("script fixture is a shell")
+func TestExecuteNeverStartsAHostCommand(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "executed")
+	for _, argv := range [][]string{{"/bin/sh", "-c", "touch \"$1\"", "fixture", marker}, nil, {"missing-model"}} {
+		out, err := Execute(context.Background(), argv, time.Second, []byte("private prompt"))
+		if _, statErr := os.Stat(marker); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("host command executed before refusal: %v", statErr)
+		}
+		if !errors.Is(err, ErrLocalCommandUnsupported) || len(out) != 0 {
+			t.Fatalf("out=%q err=%v", out, err)
+		}
 	}
-	dir := t.TempDir()
-	script := filepath.Join(dir, "sleep")
-	if err := os.WriteFile(script, []byte("#!/bin/sh\nsleep 5\n"), 0o755); err != nil {
-		t.Fatal(err)
+	if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("command ran: %v", err)
 	}
-	_, err := Execute(context.Background(), []string{script}, 200*time.Millisecond, []byte("prompt"))
-	if !errors.Is(err, ErrTimeout) {
-		t.Fatalf("timeout = %v", err)
+}
+
+func TestExecutorWrapperCompatibilityAndNilRefusal(t *testing.T) {
+	var wrapped ExecFunc = func(context.Context, []string, time.Duration, []byte) ([]byte, error) { return []byte("wrapped"), nil }
+	if out, _ := wrapped.Run(t.Context(), nil, time.Second, nil); string(out) != "wrapped" {
+		t.Fatalf("wrapper unused: %q", out)
 	}
-	_, err = Execute(context.Background(), []string{filepath.Join(dir, "missing")}, time.Second, nil)
-	if !errors.Is(err, ErrNotFound) {
-		t.Fatalf("missing = %v", err)
-	}
-	if _, err := Execute(context.Background(), nil, time.Second, nil); !errors.Is(err, ErrEmpty) {
-		t.Fatalf("empty = %v", err)
+	if _, err := ExecFunc(nil).Run(t.Context(), []string{"/bin/sh"}, time.Second, nil); !errors.Is(err, ErrLocalCommandUnsupported) {
+		t.Fatalf("nil wrapper bypassed refusal: %v", err)
 	}
 }

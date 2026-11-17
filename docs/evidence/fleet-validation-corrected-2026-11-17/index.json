@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "classification": "CONDUIT_NATIVE",
+  "purpose": "Corrected RPC measurement and bounded functional progress; production capacity is not established",
+  "source_commit": "fabe132916c161a82b2b43800151b31589a30a65",
+  "source_tree": "a5b77a47cde4c353eba09e1f6ac7a054426886ff",
+  "rpc_metrics_qualification": {
+    "status": "corrected_rpc_accounting",
+    "behavior": "Counts client deadlines before headers and response-body read/close failures as errors; excludes only explicitly tagged coordinated harness shutdown.",
+    "historical_record": "../fleet-validation-2026-11-17/index.json",
+    "historical_status": "Earlier RPC request/error/latency aggregates are undercounted; raw original reports/logs/receipts remain historical and unchanged."
+  },
+  "run_topology": {
+    "host": "Apple M5 Pro macOS arm64",
+    "go": "1.27.4",
+    "gomaxprocs": 2,
+    "concurrent_work": "Host shared with other repository checks and Podman workloads. The first PostgreSQL fixture attempt overlapped the memory matrix; the passing promotion rerun followed its completion. No uncontended baseline or peak-memory claim.",
+    "executors": "simulated; no workload Helm/Kubernetes operation"
+  },
+  "profiles": [
+    {
+      "profile": "one",
+      "commit": "fabe132916c161a82b2b43800151b31589a30a65",
+      "tree": "a5b77a47cde4c353eba09e1f6ac7a054426886ff",
+      "passed": true,
+      "report": "one-report.json",
+      "receipt": "one-receipt.json",
+      "completed_plans": 10
+    },
+    {
+      "profile": "ten",
+      "commit": "fabe132916c161a82b2b43800151b31589a30a65",
+      "tree": "a5b77a47cde4c353eba09e1f6ac7a054426886ff",
+      "passed": true,
+      "report": "ten-report.json",
+      "receipt": "ten-receipt.json",
+      "completed_plans": 50
+    },
+    {
+      "profile": "twentyfive",
+      "commit": "fabe132916c161a82b2b43800151b31589a30a65",
+      "tree": "a5b77a47cde4c353eba09e1f6ac7a054426886ff",
+      "passed": true,
+      "report": "twentyfive-report.json",
+      "receipt": "twentyfive-receipt.json",
+      "completed_plans": 75
+    },
+    {
+      "profile": "sustained",
+      "commit": "fabe132916c161a82b2b43800151b31589a30a65",
+      "tree": "a5b77a47cde4c353eba09e1f6ac7a054426886ff",
+      "passed": true,
+      "report": "sustained-report.json",
+      "receipt": "sustained-receipt.json",
+      "completed_plans": 431
+    },
+    {
+      "profile": "postgres-promotion",
+      "commit": "fabe132916c161a82b2b43800151b31589a30a65",
+      "tree": "a5b77a47cde4c353eba09e1f6ac7a054426886ff",
+      "passed": true,
+      "report": "postgres-promotion-report.json",
+      "receipt": "postgres-promotion-receipt.json",
+      "completed_plans": 132
+    }
+  ],
+  "failure_assertions": {
+    "postgres_promotion": {
+      "completed_plans": 132,
+      "post_promotion_plans_by_environment": [
+        61,
+        63
+      ],
+      "postgres_containers": 2,
+      "per_container_memory_limit_bytes": 201326592,
+      "per_container_cpu_limit": 1,
+      "replication": "synchronous remote_apply",
+      "endpoint": "test TCP switch, same-process Hub handlers with separate pools"
+    }
+  },
+  "postgres_fixture_attempts": [
+    {
+      "result": "FAIL_BEFORE_RECONCILIATION_OR_PROMOTION",
+      "reason": "Native proxy PostgreSQL startup handshake hit the existing five-second connect deadline; no capacity report or success receipt was produced. Root cause has not been established.",
+      "retained_logs_sha256": {
+        "postgres-startup-failure-go-test.log": "b38522574b9791f60c623aebacc649b219ddcf910c8ca5dd618faa39ee49c46f",
+        "postgres-startup-failure-primary.log": "07ce1459c57da2363b093fbe5966b219263a6268fb33a98142df1300611b54c0",
+        "postgres-startup-failure-standby.log": "c37e7b04104543e09fd3061c4f3a7d0de07a1680117383c688266f96a8ff15a5"
+      }
+    },
+    {
+      "result": "PASS",
+      "profile": "postgres-promotion",
+      "configuration": "Unchanged fixture and deadlines, rerun after memory profiles completed."
+    }
+  ],
+  "unexercised": [
+    "production fleet limits",
+    "long-duration production soak",
+    "managed PostgreSQL/DNS failover or split-brain prevention",
+    "production multi-process Hub topology",
+    "Kubernetes workloads"
+  ]
+}

@@ -466,3 +466,68 @@ func mustURL(t *testing.T, raw string) *url.URL {
 	}
 	return parsed
 }
+
+func TestUsageIsReportedOnlyWhenTheProviderSendsIt(t *testing.T) {
+	with := `{"model":"m","choices":[{"message":{"content":"hi"}}],"usage":{"prompt_tokens":12,"completion_tokens":3,"total_tokens":15}}`
+	client, err := New(Config{BaseURL: fake(t, nil, http.StatusOK, with).URL, Model: "m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	completion, err := client.Complete(context.Background(), testPrompt)
+	if err != nil || completion.PromptTokens == nil || *completion.PromptTokens != 12 ||
+		completion.CompletionTokens == nil || *completion.CompletionTokens != 3 {
+		t.Fatalf("completion = %+v, err = %v", completion, err)
+	}
+	for name, body := range map[string]string{
+		"no usage object":  completionJSON("m", "a reply long enough to tempt an estimate"),
+		"an empty usage":   `{"model":"m","choices":[{"message":{"content":"hi"}}],"usage":{}}`,
+		"a null usage":     `{"model":"m","choices":[{"message":{"content":"hi"}}],"usage":null}`,
+		"a negative count": `{"model":"m","choices":[{"message":{"content":"hi"}}],"usage":{"prompt_tokens":-1,"completion_tokens":-5}}`,
+	} {
+		client, err := New(Config{BaseURL: fake(t, nil, http.StatusOK, body).URL, Model: "m"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		completion, err := client.Complete(context.Background(), testPrompt)
+		if err != nil || completion.PromptTokens != nil || completion.CompletionTokens != nil {
+			t.Errorf("%s: completion = %+v, err = %v: token counts must be nil", name, completion, err)
+		}
+	}
+}
+
+func TestAMiddlewareSeesTheExactPromptAndMayRetryOrRefuse(t *testing.T) {
+	var got seen
+	base, err := New(Config{BaseURL: fake(t, &got, http.StatusOK, completionJSON("served", "hi")).URL, Model: "asked"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sawModel, sawPrompt string
+	calls := 0
+	twice := base.With(func(ctx context.Context, model, prompt string, next func(context.Context) (Completion, error)) (Completion, error) {
+		sawModel, sawPrompt = model, prompt
+		calls++
+		if _, err := next(ctx); err != nil {
+			return Completion{}, err
+		}
+		return next(ctx)
+	})
+	completion, err := twice.Complete(context.Background(), testPrompt)
+	if err != nil || completion.Text != "hi" || calls != 1 || sawModel != "asked" || sawPrompt != testPrompt || got.body.Messages[0].Content != testPrompt {
+		t.Fatalf("completion = %+v, err = %v, saw %q %q", completion, err, sawModel, sawPrompt)
+	}
+	// The copy and the original report the same provider model.
+	if base.ReportedModel() != "served" || twice.ReportedModel() != "served" {
+		t.Fatalf("reported = %q / %q", base.ReportedModel(), twice.ReportedModel())
+	}
+	refusal := errors.New("refused")
+	got = seen{}
+	refusing := base.With(func(context.Context, string, string, func(context.Context) (Completion, error)) (Completion, error) {
+		return Completion{}, refusal
+	})
+	if _, err := refusing.Complete(context.Background(), testPrompt); !errors.Is(err, refusal) || got.method != "" {
+		t.Fatalf("a refused call: err = %v, request sent = %q", err, got.method)
+	}
+	if base.With(nil) != base {
+		t.Fatal("a nil middleware did not return the receiver")
+	}
+}

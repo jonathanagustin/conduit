@@ -39,7 +39,7 @@ def assert_fails_closed!(helm, release, chart, extra = [])
     helm, "template", release, chart, "--namespace", "platform-system", *extra
   )
   abort "#{release} rendered without required production values" if status.success?
-  abort "#{release} missing-value failure did not identify its cause" if (stdout + stderr).strip.empty?
+  abort "#{release} missing-value failure did not identify its cause" if (stdout + stderr).b.strip.empty?
 end
 
 def validate_deployment!(deployment)
@@ -213,6 +213,69 @@ def assert_spoke_rbac_floor!(root, documents, expected_namespaces, profile)
 
 end
 
+def assert_spoke_package_executor_rbac!(root, documents, expected_namespaces, profile)
+  deployment = documents.find { |item| item["kind"] == "Deployment" }
+  fullname = deployment.dig("metadata", "name")
+  identity = deployment.dig("spec", "template", "spec", "serviceAccountName")
+  release_namespace = deployment.dig("metadata", "namespace")
+
+  floor_documents = documents.reject do |item|
+    %w[Role RoleBinding].include?(item["kind"]) &&
+      ["#{fullname}-package-executor", "#{fullname}-zarf-state"].include?(item.dig("metadata", "name"))
+  end
+  assert_spoke_rbac_floor!(root, floor_documents, expected_namespaces, "#{profile} (Helm floor)")
+
+  package_roles = documents.select { |item| item["kind"] == "Role" && item.dig("metadata", "name") == "#{fullname}-package-executor" }
+  package_bindings = documents.select { |item| item["kind"] == "RoleBinding" && item.dig("metadata", "name") == "#{fullname}-package-executor" }
+  abort "#{profile} Spoke did not render one package-executor Role per managed namespace" unless
+    package_roles.map { |item| item.dig("metadata", "namespace") }.sort == expected_namespaces.sort
+  abort "#{profile} Spoke did not render one package-executor RoleBinding per managed namespace" unless
+    package_bindings.map { |item| item.dig("metadata", "namespace") }.sort == expected_namespaces.sort
+
+  zarf_roles = documents.select { |item| item["kind"] == "Role" && item.dig("metadata", "name") == "#{fullname}-zarf-state" }
+  zarf_bindings = documents.select { |item| item["kind"] == "RoleBinding" && item.dig("metadata", "name") == "#{fullname}-zarf-state" }
+  abort "#{profile} Spoke did not render exactly one zarf-state Role in namespace zarf" unless
+    zarf_roles.map { |item| item.dig("metadata", "namespace") } == ["zarf"]
+  abort "#{profile} Spoke did not render exactly one zarf-state RoleBinding in namespace zarf" unless
+    zarf_bindings.map { |item| item.dig("metadata", "namespace") } == ["zarf"]
+
+  (package_bindings + zarf_bindings).each do |binding|
+    namespace = binding.dig("metadata", "namespace")
+    name = binding.dig("metadata", "name")
+    abort "#{profile} Spoke RoleBinding #{name} in #{namespace} does not name the Pod's ServiceAccount" unless
+      binding.fetch("subjects") == [{"kind" => "ServiceAccount", "name" => identity, "namespace" => release_namespace}]
+    reference = binding.fetch("roleRef")
+    abort "#{profile} Spoke RoleBinding #{name} in #{namespace} does not reference matching Role" unless
+      reference == {"apiGroup" => "rbac.authorization.k8s.io", "kind" => "Role", "name" => name}
+  end
+
+  expected_package_rules = {
+    ["uds.dev", "packages"] => %w[get list watch create update patch delete],
+    ["", "configmaps"] => %w[get list watch create update patch delete]
+  }
+  package_roles.each do |role|
+    granted = Hash.new { |hash, key| hash[key] = [] }
+    role.fetch("rules").each do |rule|
+      rule.fetch("apiGroups").product(rule.fetch("resources")).each do |group, resource|
+        granted[[group, resource]] |= rule.fetch("verbs")
+      end
+    end
+    namespace = role.dig("metadata", "namespace")
+    abort "#{profile} package-executor Role in #{namespace} drifted from derived rules" unless granted == expected_package_rules
+  end
+
+  expected_zarf_rules = {
+    ["", "secrets"] => %w[get list watch create update patch delete]
+  }
+  zarf_granted = Hash.new { |hash, key| hash[key] = [] }
+  zarf_roles.first.fetch("rules").each do |rule|
+    rule.fetch("apiGroups").product(rule.fetch("resources")).each do |group, resource|
+      zarf_granted[[group, resource]] |= rule.fetch("verbs")
+    end
+  end
+  abort "#{profile} zarf-state Role in zarf drifted from derived rules" unless zarf_granted == expected_zarf_rules
+end
+
 charts.each_value do |chart|
   metadata = YAML.safe_load(File.read(File.join(chart, "Chart.yaml")))
   abort "chart version drifted from VERSION" unless metadata["version"] == version && metadata["appVersion"] == version
@@ -373,6 +436,24 @@ multi_namespace_spoke = render!(
   ["--set", "rbac.managedNamespaces={example-product,example-second}"]
 )
 assert_spoke_rbac_floor!(root, multi_namespace_spoke, %w[example-product example-second], "multi-namespace")
+# The Zarf/UDS package executor RBAC profile (#837) stays separate from the
+# Helm floor and off by default.
+package_executor_spoke = render!(
+  helm,
+  "platform-spoke",
+  charts.fetch(:spoke),
+  File.join(charts.fetch(:spoke), "ci/test-values.yaml"),
+  ["--set", "rbac.packageExecutor=true", "--set", "rbac.managedNamespaces={example-product,example-second}"]
+)
+abort "Spoke package-executor RBAC profile created cluster/bootstrap authorization" unless
+  (package_executor_spoke.map { |item| item["kind"] } & %w[Namespace CustomResourceDefinition ClusterRole ClusterRoleBinding]).empty?
+assert_spoke_package_executor_rbac!(root, package_executor_spoke, %w[example-product example-second], "package-executor")
+assert_fails_closed!(
+  helm,
+  "platform-spoke",
+  charts.fetch(:spoke),
+  ["--values", File.join(charts.fetch(:spoke), "ci/test-values.yaml"), "--set", "rbac.create=false", "--set", "rbac.packageExecutor=true"]
+)
 
 hub_service_account = hub_documents.find { |item| item["kind"] == "ServiceAccount" }
 abort "Hub ServiceAccount must not mount a token" unless hub_service_account&.dig("metadata", "name") == "platform-hub" && hub_service_account["automountServiceAccountToken"] == false
@@ -610,7 +691,8 @@ abort "default Hub mounts model credentials nobody configured" if
 abort "default Hub declares a metrics port nothing listens on" if
   hub_container.fetch("ports").any? { |port| port["name"] == "metrics" } ||
     hub_documents.find { |item| item["kind"] == "Service" }.dig("spec", "ports").any? { |port| port["name"] == "metrics" }
-abort "default Spoke configures a material preparer" if spoke_env.key?("EXTERNAL_MATERIAL_PREPARER")
+abort "default Spoke configures a material preparer" if
+  spoke_env.key?("EXTERNAL_MATERIAL_PREPARER") || spoke_env.key?("MATERIAL_PREPARER_NAMESPACES")
 assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set-string", "extraEnv.METRICS_ADDRESS=:9090"])
 
 metrics_documents = render!(
@@ -641,6 +723,111 @@ assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub),
 assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub),
   ["--values", hub_values, "--skip-schema-validation", "--set", "repository.kind=file", "--set", "replicaCount=1", "--set", "metrics.enabled=true"])
 assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set", "metrics.serviceMonitor.enabled=true"])
+
+# Alert rules and the reference dashboard (#839). Both are off by default, both
+# need the metrics listener, and both ship the generated files byte for byte:
+# their annotations and legends are Prometheus and Grafana templates that Helm
+# must pass through unevaluated.
+abort "default Hub renders alert rules or a dashboard nobody asked for" if
+  hub_documents.any? { |item| item["kind"] == "PrometheusRule" || item.dig("metadata", "name").to_s.end_with?("-dashboard") }
+observability_documents = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set", "metrics.enabled=true", "--set", "metrics.prometheusRule.enabled=true", "--set", "metrics.prometheusRule.labels.release=monitoring",
+   "--set", "metrics.dashboard.enabled=true"]
+)
+prometheus_rule = observability_documents.find { |item| item["kind"] == "PrometheusRule" }
+abort "metrics.prometheusRule.enabled did not render a PrometheusRule" unless
+  prometheus_rule && prometheus_rule["apiVersion"] == "monitoring.coreos.com/v1" && prometheus_rule.dig("metadata", "namespace") == "platform-system"
+abort "metrics.prometheusRule.labels were not applied" unless prometheus_rule.dig("metadata", "labels", "release") == "monitoring"
+source_rule = YAML.safe_load(File.read(File.join(root, "deploy/observability/prometheus-rules.yaml")))
+abort "the chart's PrometheusRule is not deploy/observability/prometheus-rules.yaml" unless
+  prometheus_rule.fetch("spec") == source_rule.fetch("spec")
+rendered_alerts = prometheus_rule.dig("spec", "groups").flat_map { |group| group.fetch("rules") }
+abort "Helm evaluated an alert annotation template instead of passing it to Prometheus" unless
+  rendered_alerts.any? { |rule| rule.dig("annotations", "summary").to_s.include?("{{ $labels.queue }}") }
+abort "an alert rendered without a runbook" unless
+  rendered_alerts.all? { |rule| rule.dig("annotations", "runbook_url").to_s.include?("docs/operations/runbooks.md#") }
+dashboard_config = observability_documents.find { |item| item["kind"] == "ConfigMap" && item.dig("metadata", "name").end_with?("-dashboard") }
+abort "metrics.dashboard.enabled did not render the dashboard ConfigMap with its sidecar label" unless
+  dashboard_config && dashboard_config.dig("metadata", "labels", "grafana_dashboard") == "1"
+abort "the chart's dashboard is not deploy/observability/dashboard.json" unless
+  JSON.parse(dashboard_config.dig("data", "conduit-hub.json")) == JSON.parse(File.read(File.join(root, "deploy/observability/dashboard.json")))
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set", "metrics.prometheusRule.enabled=true"])
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--skip-schema-validation", "--set", "metrics.prometheusRule.enabled=true"])
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set", "metrics.dashboard.enabled=true"])
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--skip-schema-validation", "--set", "metrics.dashboard.enabled=true"])
+
+# Request rate limits (#842). Typed per class, and absent by default: the Hub's
+# own limits apply unless a value is set, and there is no value that turns the
+# limiter off. What the chart accepts is what cmd/platform-delivery accepts.
+abort "default Hub sets a rate limit nobody configured" if hub_env.keys.any? { |name| name.start_with?("RATE_LIMIT_") }
+limited_env = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set", "rateLimit.operator.rps=50", "--set", "rateLimit.operator.burst=300", "--set-json", "rateLimit.agent.rps=2.5",
+   "--set", "rateLimit.anonymous.burst=7"]
+).find { |item| item["kind"] == "Deployment" }.dig("spec", "template", "spec", "containers", 0).fetch("env").to_h { |item| [item["name"], item["value"]] }
+abort "rateLimit values did not become the Hub's RATE_LIMIT_* variables: #{limited_env.select { |name, _| name.start_with?("RATE_LIMIT_") }}" unless
+  limited_env.select { |name, _| name.start_with?("RATE_LIMIT_") } == {
+    "RATE_LIMIT_OPERATOR_RPS" => "50", "RATE_LIMIT_OPERATOR_BURST" => "300",
+    "RATE_LIMIT_AGENT_RPS" => "2.5", "RATE_LIMIT_ANONYMOUS_BURST" => "7"
+  }
+[
+  "rateLimit.agent.rps=0", "rateLimit.agent.rps=-1", "rateLimit.agent.rps=2000000",
+  "rateLimit.agent.burst=0", "rateLimit.agent.burst=1.5", "rateLimit.agent.burst=2000000",
+  "rateLimit.agent.enabled=false", "rateLimit.everyone.rps=1"
+].each do |refused|
+  assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set-json", refused])
+end
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set-string", "extraEnv.RATE_LIMIT_AGENT_RPS=100000"])
+# Browser sign-in. Off by default and absent from the render; on, the public
+# address is required, the client secret is a required Secret mounted as a file
+# and never a value, and it cannot be turned on without an issuer.
+oidc = ["--set", "operatorOIDC.enabled=true", "--set-string", "operatorOIDC.issuer=https://sso.example.test/realms/uds",
+        "--set-string", "operatorOIDC.clientID=conduit-hub"]
+sign_in_names = %w[CONSOLE_PUBLIC_URL OPERATOR_OIDC_CLIENT_SECRET_FILE OPERATOR_SESSION_MAX_LIFETIME OPERATOR_OIDC_LOGIN_SCOPES]
+hub_pod = lambda do |extra|
+  render!(helm, "platform-hub", charts.fetch(:hub), hub_values, extra)
+    .find { |item| item["kind"] == "Deployment" }.dig("spec", "template", "spec")
+end
+[[], oidc].each do |extra|
+  pod = hub_pod.call(extra)
+  abort "sign-in settings rendered while operatorOIDC.signIn is off" if
+    pod.dig("containers", 0, "env").any? { |item| sign_in_names.include?(item["name"]) } ||
+    pod.fetch("volumes").any? { |item| item["name"] == "operator-sso" }
+end
+confidential = hub_pod.call(oidc + [
+  "--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=https://conduit.example.test",
+  "--set", "operatorOIDC.signIn.clientSecret.secretName=conduit-hub-sso", "--set-string", "operatorOIDC.signIn.sessionMaxLifetime=4h",
+  "--set", "operatorOIDC.signIn.loginScopes={profile,groups}"
+])
+abort "confidential sign-in did not render exactly" unless
+  confidential.dig("containers", 0, "env").select { |item| sign_in_names.include?(item["name"]) } == [
+    {"name" => "CONSOLE_PUBLIC_URL", "value" => "https://conduit.example.test"},
+    {"name" => "OPERATOR_OIDC_CLIENT_SECRET_FILE", "value" => "/run/conduit-sso/client-secret"},
+    {"name" => "OPERATOR_SESSION_MAX_LIFETIME", "value" => "4h"},
+    {"name" => "OPERATOR_OIDC_LOGIN_SCOPES", "value" => "profile groups"}
+  ]
+abort "the OIDC client secret must be a required Secret mounted read-only, by key" unless
+  confidential.fetch("volumes").find { |item| item["name"] == "operator-sso" } ==
+    {"name" => "operator-sso", "secret" => {"secretName" => "conduit-hub-sso", "optional" => false, "items" => [{"key" => "client-secret", "path" => "client-secret"}]}} &&
+  confidential.dig("containers", 0, "volumeMounts").include?({"name" => "operator-sso", "mountPath" => "/run/conduit-sso", "readOnly" => true})
+public_client = hub_pod.call(oidc + ["--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=https://conduit.example.test"])
+abort "a public client must render the public address and no secret" unless
+  public_client.dig("containers", 0, "env").select { |item| sign_in_names.include?(item["name"]) } == [{"name" => "CONSOLE_PUBLIC_URL", "value" => "https://conduit.example.test"}] &&
+  public_client.fetch("volumes").none? { |item| item["name"] == "operator-sso" }
+[
+  ["--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=https://conduit.example.test"],
+  oidc + ["--set", "operatorOIDC.signIn.enabled=true"],
+  oidc + ["--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=http://conduit.example.test"],
+  oidc + ["--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=https://conduit.example.test/console"],
+  oidc + ["--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=https://conduit.example.test",
+          "--set-string", "operatorOIDC.signIn.clientSecret.value=literal"],
+].each { |extra| assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values] + extra) }
+# The template refuses the first two on its own, without the schema.
+[
+  ["--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=https://conduit.example.test"],
+  oidc + ["--set", "operatorOIDC.signIn.enabled=true"],
+].each { |extra| assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--skip-schema-validation"] + extra) }
 
 # Notification credentials reach the Hub only as Secret references. An env
 # entry carrying a literal value for a credential would put it in the release
@@ -729,6 +916,22 @@ abort "model environment did not render exactly" unless model_env == [
 ]
 abort "the chart must not configure a model command: the Hub image carries no model CLI" if
   model_container.fetch("env").any? { |item| item["name"] == "CONDUIT_MODEL_CMD" }
+# #808: all capability selections use the same endpoint/key and survive render.
+capabilities = %w[assistant planning packaging appgen]
+capability_args = capabilities.flat_map do |capability|
+  ["--set-string", "model.capabilities.#{capability}.name=#{capability}-model",
+   "--set-string", "model.capabilities.#{capability}.timeout=2m"]
+end
+capability_pod = render!(helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set-string", "model.baseURL=https://models.example.test/v1", "--set-string", "model.name=global-model", *capability_args]
+).find { |item| item["kind"] == "Deployment" }
+capability_env = capability_pod.dig("spec", "template", "spec", "containers", 0, "env").to_h { |item| [item["name"], item["value"]] }
+capabilities.each do |capability|
+  abort "#{capability} model override was not rendered" unless
+    capability_env["CONDUIT_#{capability.upcase}_MODEL_NAME"] == "#{capability}-model" &&
+    capability_env["CONDUIT_#{capability.upcase}_MODEL_TIMEOUT"] == "2m"
+end
+
 model_volumes = model_pod.dig("spec", "template", "spec", "volumes").to_h { |item| [item["name"], item] }
 abort "model API key must be one required Secret key mounted as a file" unless
   model_volumes.dig("conduit-model", "secret") == {
@@ -777,6 +980,11 @@ model_base = ["--set-string", "model.baseURL=https://models.example.test/v1", "-
   [*model_base, "--set-string", "model.apiKeySecret.value=sk-literal"],
   [*model_base, "--set", "model.allowInsecureHTTP=true"],
   [*model_base, "--set-string", "model.command=codex exec -"],
+  [*model_base, "--set-string", "model.capabilities.assistant.timeout=0s"],
+  [*model_base, "--set-string", "model.capabilities.planning.name=has space"],
+  [*model_base, "--set-string", "model.capabilities.packaging.baseURL=https://elsewhere.example/v1"],
+  [*model_base, "--set-string", "model.capabilities.bogus.name=unknown"],
+  ["--set-string", "model.capabilities.assistant.name=unconfigured"],
   ["--set-string", "model.baseURL=http://vllm.models.svc.cluster.local:8000/v1", "--set-string", "model.name=served-model"],
   ["--set-string", "model.baseURL=https://user:secret@models.example.test/v1", "--set-string", "model.name=served-model"],
   ["--set-string", "model.baseURL=https://models.example.test/v1?key=secret", "--set-string", "model.name=served-model"],
@@ -816,6 +1024,15 @@ abort "Spoke material preparer tools must be an externally supplied read-only PV
     preparer_pod.dig("spec", "template", "spec", "volumes").include?(
       {"name" => "material-preparer-tools", "persistentVolumeClaim" => {"claimName" => "material-tools", "readOnly" => true}}
     )
+# A preparer is told the namespaces this chart binds the Agent's RBAC in, and
+# no others: the reference preparer refuses a request for a namespace outside
+# that list, so the list it is handed must be the one the Roles were rendered
+# for.
+preparer_namespaces = preparer_container.fetch("env").find { |item| item["name"] == "MATERIAL_PREPARER_NAMESPACES" }
+bound_namespaces = render!(helm, "platform-spoke", charts.fetch(:spoke), spoke_values, [])
+  .select { |item| item["kind"] == "Role" }.map { |item| item.dig("metadata", "namespace") }
+abort "Spoke material preparer is not told exactly the namespaces the chart binds RBAC in" unless
+  !bound_namespaces.empty? && preparer_namespaces && preparer_namespaces["value"].split(",") == bound_namespaces
 # The Agent refuses anything but a clean absolute path; so does the schema.
 assert_fails_closed!(helm, "platform-spoke", charts.fetch(:spoke), ["--values", spoke_values, "--set-string", "materialPreparer.command=bin/prepare"])
 

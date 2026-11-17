@@ -24,6 +24,7 @@ import (
 	devworkspaceapp "github.com/jonathanagustin/conduit/internal/devworkspace/application"
 	devworkspacedomain "github.com/jonathanagustin/conduit/internal/devworkspace/domain"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
+	"github.com/jonathanagustin/conduit/internal/modelconfig"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/packagingmcp"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/packagingtools"
@@ -59,8 +60,8 @@ func newRoot() *cobra.Command {
 			if os.Getenv("TEMPORAL_API_KEY") != "" || (namespace != "" && namespace != "default") {
 				return fmt.Errorf("refusing Temporal Cloud credentials")
 			}
-			// Every subcommand, the worker and agent-exec included, refuses
-			// two model transports before it does anything else.
+			// Every subcommand, including the worker and offline utility,
+			// refuses retired command transport settings before doing work.
 			return refuseBothModelTransports(os.Getenv)
 		},
 	}
@@ -491,7 +492,7 @@ func executePlanCompute(ctx context.Context, stateDir, actor, workspaceID, envID
 	}
 
 	var writer packagingapp.PackageWriter = fixturePackageWriter{repoURL: repoURL, planText: planText}
-	transport, transportErr := resolveModelTransport(os.Getenv)
+	transport, transportErr := resolveModelTransport(modelconfig.ForCapability(os.Getenv, modelconfig.Packaging))
 	if transportErr != nil {
 		return planComputeOutput{}, transportErr
 	}
@@ -1194,7 +1195,7 @@ func activitiesWithRepository(stateDir, fixtureDir string) (pipeline.Activities,
 
 func planningActivities(stateDir string, repository controlplane.Repository, useFixture bool) (planningworkflow.Activities, error) {
 	var runner planningapp.Planner
-	transport, err := resolveModelTransport(os.Getenv)
+	transport, err := resolveModelTransport(modelconfig.ForCapability(os.Getenv, modelconfig.Planning))
 	if err != nil {
 		return planningworkflow.Activities{}, err
 	}
@@ -1338,7 +1339,8 @@ func (a fileAcceptAuditor) RecordAccept(ctx context.Context, actor string, recor
 			"intakeMessageSha256": domain.DigestText([]byte(record.Message)),
 			"resolvedCommit":      record.ResolvedCommit,
 			"model":               record.Model,
-			"planHash":            record.PlanHash,
+			"configuredModel":     record.ConfiguredModel, "providerModel": record.ProviderModel,
+			"planHash": record.PlanHash,
 		},
 	)
 	_, err := a.repository.AppendAuthorizationAudit(ctx, event)

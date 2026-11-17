@@ -64,6 +64,10 @@ var aiCapabilities = []aiCapability{
 // set, and UNAVAILABLE when a prerequisite is missing. None of these is a
 // liveness result.
 func AIComponents(facts AIFacts) []Component {
+	if facts.ProviderKind == ProviderCLI {
+		facts.ProviderKind = ProviderInvalid
+		facts.ConfigError = "local model commands are unsupported; configure an HTTP model endpoint"
+	}
 	out := []Component{providerComponent(facts)}
 	for _, capability := range aiCapabilities {
 		out = append(out, capabilityComponent(facts, capability))
@@ -74,7 +78,7 @@ func AIComponents(facts AIFacts) []Component {
 func providerComponent(facts AIFacts) Component {
 	component := Component{ID: "modelProvider", Label: "Model provider"}
 	switch facts.ProviderKind {
-	case ProviderHTTP, ProviderCLI:
+	case ProviderHTTP:
 		component.Status = Configured
 		model := "model name not configured (recorded as unverified)"
 		if facts.ConfiguredModel != "" {
@@ -86,7 +90,7 @@ func providerComponent(facts AIFacts) Component {
 		component.Detail = "Provider kind invalid: " + facts.ConfigError
 	default:
 		component.Status = Unconfigured
-		component.Detail = "Provider kind none: neither CONDUIT_MODEL_BASE_URL nor CONDUIT_MODEL_CMD is set"
+		component.Detail = "Provider kind none: CONDUIT_MODEL_BASE_URL is not set"
 	}
 	return component
 }
@@ -98,7 +102,7 @@ func capabilityComponent(facts AIFacts, capability aiCapability) Component {
 		component.Status = Unavailable
 		component.Detail = "The model provider configuration is invalid: " + facts.ConfigError
 		return component
-	case ProviderHTTP, ProviderCLI:
+	case ProviderHTTP:
 	default:
 		component.Status = Unconfigured
 		component.Detail = capability.withoutModel
@@ -148,7 +152,7 @@ func packagingComputeComponent(facts AIFacts) Component {
 	}
 	component.Status = Configured
 	writer := "the deterministic writer"
-	if facts.ProviderKind == ProviderHTTP || facts.ProviderKind == ProviderCLI {
+	if facts.ProviderKind == ProviderHTTP {
 		writer = "the model provider (kind " + facts.ProviderKind + ")"
 	}
 	component.Detail = "Image builder admitted and docker, git, zarf found; package files are written by " + writer + "; presence only, nothing was run"

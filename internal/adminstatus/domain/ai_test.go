@@ -89,11 +89,12 @@ func TestInvalidProviderMakesEveryCapabilityUnavailableWithTheReason(t *testing.
 	}
 }
 
-func TestCLIProviderWithoutANameIsReportedAsUnverified(t *testing.T) {
-	got := byID(AIComponents(AIFacts{ProviderKind: ProviderCLI, ProviderSummary: "command codex", Tools: allTools}))
-	provider := got["modelProvider"]
-	if provider.Status != Configured || !strings.Contains(provider.Detail, "kind cli") || !strings.Contains(provider.Detail, "unverified") {
-		t.Fatalf("provider = %+v", provider)
+func TestLegacyCLIProviderCannotBeReportedConfigured(t *testing.T) {
+	got := byID(AIComponents(AIFacts{ProviderKind: ProviderCLI, Tools: allTools, ImageBuilderAdmitted: true, WorkspaceRootSet: true}))
+	for _, id := range []string{"modelProvider", "aiAssistant", "aiPlanning", "aiPackagingCompute"} {
+		if got[id].Status != Unavailable || !strings.Contains(got[id].Detail, "unsupported") {
+			t.Fatalf("%s=%+v", id, got[id])
+		}
 	}
 }
 

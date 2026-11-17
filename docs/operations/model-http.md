@@ -1,6 +1,6 @@
 # HTTP model endpoint
 
-The Hub can call a model served over HTTP instead of starting a local command. The adapter speaks the OpenAI-compatible Chat Completions API, which vLLM, Ollama, LeapfrogAI and hosted APIs expose. The model does not approve a change. Every gate and every human approval that applies to the [local model CLI](local-model-cli.md) applies here unchanged.
+The Hub and standalone packaging worker call models through an operator-managed HTTP endpoint. Host model subprocesses are unsupported. The adapter speaks the OpenAI-compatible Chat Completions API, which vLLM, Ollama, LeapfrogAI and hosted APIs expose. The model does not approve a change. Every validation gate and human approval still applies. See the [model transport migration](local-model-cli.md) for retired settings.
 
 ## Configuration
 
@@ -11,9 +11,9 @@ The Hub can call a model served over HTTP instead of starting a local command. T
 | `CONDUIT_MODEL_API_KEY_FILE` | no | Path of a file that holds the API key. Leave it unset for a keyless in-cluster server. |
 | `CONDUIT_MODEL_CA_FILE` | no | Path of a PEM file with extra root certificates. They are added to the system roots. |
 | `CONDUIT_MODEL_ALLOW_INSECURE_HTTP` | no | Set to exactly `true` to allow plain `http` to a host that is not loopback. |
-| `CONDUIT_MODEL_TIMEOUT` | no | The same variable the model CLI uses. It bounds one whole request. The default is 45s. |
+| `CONDUIT_MODEL_TIMEOUT` | no | Bounds one whole request. The default is 45s. |
 
-Set `CONDUIT_MODEL_BASE_URL` or `CONDUIT_MODEL_CMD`, not both. With both set the Hub refuses to start and names the two variables; it does not pick one. The `packaging-workflow` binary applies the same rule in every subcommand, the worker and `agent-exec` included. With neither set nothing changes: the Hub keeps the recorded proposals and the recorded application and makes no model call. The other variables in the table have no effect without `CONDUIT_MODEL_BASE_URL`.
+Set `CONDUIT_MODEL_BASE_URL` and `CONDUIT_MODEL_NAME` for HTTP inference. Every nonempty global or capability `_MODEL_CMD` setting is refused before endpoint, key or CA processing, including when HTTP is also configured or no endpoint is set. The standalone binary applies the same refusal before its subcommands run. Without an endpoint the existing recorded proposals/application and deterministic writer remain offline; unconfigured assistant/planning behavior is unchanged. HTTP failure never selects an offline fixture. Other HTTP variables alone select no transport.
 
 A configuration error fails startup. That covers a missing model name, a base URL with a query, a fragment or inline credentials, an unreadable or empty key file, a CA file with no certificate, and plain `http` to a host that is not loopback.
 
@@ -21,7 +21,7 @@ A configuration error fails startup. That covers a missing model name, a base UR
 
 The key is read from the file on every call, so a rotated key takes effect without a restart. No variable accepts the key inline, which keeps it out of the process environment and out of a chart's values. The file must hold one token with no spaces or control characters; surrounding whitespace is trimmed. Mount it from a Secret and make it readable by the Hub's user only.
 
-The Hub does not log the key, the prompt or the response body, and none of them appears in an error. The audit record holds the adapter name `openai-http`, the model ids described under [Model identity](#model-identity), and the SHA-256 digests of the prompt and of the reply text, the same digests the model CLI records.
+The Hub does not log the key, the prompt or the response body, and none of them appears in an error. The audit record holds the adapter name `openai-http`, the model ids described under [Model identity](#model-identity), and the SHA-256 digests of the prompt and of the reply text, without retaining prompt or response bodies in those records.
 
 ## Transport rules
 
@@ -57,11 +57,11 @@ The port error texts still say "local model CLI"; the ports were not changed for
 | Assistant | yes | `internal/assistant/adapters/modelhttp` |
 | App generation | yes | `internal/appgen/adapters/modelhttp` |
 | Intelligence live evals | yes | Uses the packaging proposal adapter, `internal/packagingworkflow/adapters/modelhttp`. |
-| Planning turns (inspect, questions, plan) | yes | `planner.HTTPModel` in `internal/planning/adapters/planner`. The prompt, the untrusted-data framing of tool results and the digests are the same as for a model CLI. |
+| Planning turns (inspect, questions, plan) | yes | `planner.HTTPModel` in `internal/planning/adapters/planner`. Prompts retain untrusted-data framing of tool results and both digests. |
 | Packaging model proposals | yes | `internal/packagingworkflow/adapters/modelhttp`, with the inspected image facts in the prompt. |
 | Post-Accept package writer | yes | The same adapter's `ProposePackage`. With no model configured the deterministic writer is unchanged. |
 | `packaging-workflow` worker (planning activities and plan compute) | yes | It reads the same variables under the same rule. |
-| `packaging-workflow agent-exec` | not applicable | It is itself a `CONDUIT_MODEL_CMD` target that runs the built-in agent or a provider CLI. It makes no HTTP model call, and it refuses to run with both transports set. |
+| `packaging-workflow agent-exec` | not applicable | A direct deterministic offline fixture utility only. It makes no model request and refuses every delegated provider label before reading stdin. It cannot be configured as a Hub command transport. |
 
 Each path still needs the tools it runs beside the model. See [What the shipped image cannot run](#what-the-shipped-image-cannot-run).
 
@@ -71,10 +71,12 @@ The model name the Hub records comes from two sources only: the operator's confi
 
 | Source | Where it is recorded |
 | --- | --- |
-| `CONDUIT_MODEL_NAME` | `configuredModel` in the planning audit events (`planning.inspect`, `planning.questions`, `planning.plan`) and in the packaging proposal and workspace package audit events. |
+| Effective `CONDUIT_MODEL_NAME`, including a capability override | `configuredModel` in the planning audit events (`planning.inspect`, `planning.questions`, `planning.plan`) and in the packaging proposal and workspace package audit events. |
 | The `model` field of the provider's HTTP response | `providerModel` in the same events. It is bounded to 128 bytes and control characters are dropped. |
 
-The Accept binding has one `model` field. It holds the configured name. When the provider reported a different id it holds both, as `configured (provider reported served-id)`. That same string is the `model` value in the `planning.accept` audit event. A separate field for the provider id in the binding needs a change to the planning domain types and is not made here.
+Planning sessions and immutable Accept bindings retain separate `configuredModel` and `providerModel` fields alongside the existing `model` display field. The `planning.accept` audit event records both identities separately as well. A provider that omits its id leaves it absent for that call; an earlier response cannot supply it. Historical records leave the additive fields absent.
+
+Assistant, planning, packaging and app-generation model names and deadlines can override the global defaults. See [per-capability selection](local-model-cli.md#per-capability-selection) for the environment, Helm and Zarf settings and their shared endpoint/key boundary.
 
 A provider that reports a different id than the one requested is recorded, not refused. Aliases make that normal: a request for `my-model` can be served by `my-model-2026-01`.
 
@@ -91,7 +93,7 @@ The `platform-hub` chart configures the HTTP transport through typed values. `va
 | `model.caConfigMap.name`, `model.caConfigMap.key` | `CONDUIT_MODEL_CA_FILE=/run/conduit-model-ca/ca.pem` and a read-only ConfigMap mount | Optional private CA. |
 | `model.allowInsecureHTTP` | `CONDUIT_MODEL_ALLOW_INSECURE_HTTP=true` | Required with an `http://` base URL and refused with `https://`. |
 
-The chart refuses a base URL with no model name, `http://` without the opt-in, the opt-in without `http://`, any other model value with no base URL, and a key written into values. It has no value for `CONDUIT_MODEL_CMD`, because the Hub image carries no model CLI.
+The chart refuses a base URL with no model name, `http://` without the opt-in, the opt-in without `http://`, any other model value with no base URL, and a key written into values. It has no model command value; command transports are refused in every runtime profile.
 
 ```sh
 kubectl -n platform-system create secret generic model-api-key --from-file=api-key=./model-api-key
@@ -150,7 +152,7 @@ No request leaves the cluster in this recipe. It is written from the configurati
 
 | Component id | Needs |
 | --- | --- |
-| `modelProvider` | Reports the provider kind: `none`, `cli`, `http`, or `invalid` with the reason. |
+| `modelProvider` | Reports provider kind `none`, `http`, or `invalid` with a fixed safe reason. Retired command configuration is unavailable. |
 | `aiAssistant` | A model provider. |
 | `aiPlanning` | A model provider and `git`. |
 | `aiAppGeneration` | A model provider, `go` and `docker`. |
@@ -159,7 +161,7 @@ No request leaves the cluster in this recipe. It is written from the configurati
 
 The statuses are the ones the status contract already has. `CONFIGURED` means the prerequisites are present. `UNCONFIGURED` means no model provider is set. `UNAVAILABLE` means a prerequisite is missing, and the detail names it, for example `binary not found: git`. No entry is `AVAILABLE`: the Hub looks for each binary on its `PATH` (and `ZARF_BIN` for zarf) and reads its configuration, but it calls no model and runs no tool, so it does not claim that a capability works.
 
-The status shows the endpoint's scheme and host, a command's base name, and the configured model name. It does not show the key, the key file path, the endpoint path, or the text of a configuration error, because that text can quote a path or a URL.
+The status shows the endpoint's scheme and host and the configured model name. It does not show the key, the key file path, the endpoint path, or the text of a configuration error, because that text can quote a path or a URL.
 
 ## What the shipped image cannot run
 
@@ -172,7 +174,7 @@ Configuring a model is not enough to run every AI capability from the shipped Hu
 | Planning turns | Do not run. | Each turn clones the repository with `git`, which is absent. The Hub Pod also has a read-only root filesystem and no writable temporary directory in the chart or the Zarf manifest, and the clone writes to one. |
 | App generation | Does not run with a model. | The gates run `go build` and `docker build`. With no model the recorded application is unchanged. |
 | Packaging compute after Accept | Does not run. | It needs `docker`, `git` and `zarf`, and the chart has no value for `CONDUIT_IMAGE_BUILDER` or `DEVWORKSPACE_GIT_ROOT`. |
-| A model CLI (`CONDUIT_MODEL_CMD`) | Does not run. | No CLI is in the image, and the chart has no value for it. |
+| A host model command | Refused in every profile. | Global/capability command settings fail explicitly, and the shared legacy executor cannot spawn a process. |
 | Workspace ACP agent | Does not run. | It needs Node and an agent binary. |
 
 Admin status reports these honestly: in the shipped image `aiPlanning` and `aiAppGeneration` read `UNAVAILABLE` with the missing binary named. The first two rows follow from what the code needs and what the image holds. They have not been exercised in a cluster from this repository.
@@ -183,9 +185,9 @@ Closing the gap needs a worker image that carries those tools, or moving the clo
 
 - **Not streaming.** The Hub sends `"stream": false` and reads one response. The model ports are request and response, so a streamed reply would add nothing today.
 - **One user message.** The whole prompt is sent as a single `user` message. No system message, tool definitions, temperature or token limit are sent; the server's defaults apply.
-- **The Anthropic Messages API is not implemented.** Use an OpenAI-compatible gateway in front of such a model, or the model CLI.
-- **The assistant and app generation do not record the served model id.** Planning and packaging record it, as [Model identity](#model-identity) describes. The assistant and app generation ports' provenance has no field for it; their adapters expose it through `ReportedModel()` and nothing reads it yet.
-- **One model for every capability.** `CONDUIT_MODEL_NAME` applies to the assistant, planning and packaging alike. There is no per-capability or per-tenant model choice.
+- **The Anthropic Messages API is not implemented.** Use an operator-managed OpenAI-compatible HTTP gateway for such a model.
+- **Model identity is response metadata, not attestation.** All model adapters retain the operator-configured id and the provider-reported id for each call. A missing provider id stays absent; a previous call cannot supply it. Planning's session, immutable Accept binding and Accept audit retain both ids alongside the existing display label. A provider can misidentify itself, and historical CLI configured ids remain operator assertions.
+- **Capability selection shares one endpoint and key.** `CONDUIT_MODEL_NAME` remains the default; `CONDUIT_ASSISTANT_MODEL_NAME`, `CONDUIT_PLANNING_MODEL_NAME`, `CONDUIT_PACKAGING_MODEL_NAME` and `CONDUIT_APPGEN_MODEL_NAME` select models on that same endpoint. Matching `_MODEL_TIMEOUT` settings override the global deadline. The chart exposes `model.capabilities.<capability>.name` and `.timeout`; Zarf exposes `<CAPABILITY>_MODEL_NAME` and `_MODEL_TIMEOUT`. Empty settings inherit the defaults. There is no per-tenant selector or endpoint/key override. All legacy command overrides are refused; see [model transport migration](local-model-cli.md#per-capability-selection).
 - **Not exercised against a real server.** The tests use loopback `httptest` fakes. No run against vLLM, Ollama, LeapfrogAI or a hosted API is recorded here, so confirm a provider with one local call before relying on it.
 
 ## Examples

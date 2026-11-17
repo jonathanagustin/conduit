@@ -18,6 +18,9 @@ This is a floor. It is not a bound on the Agent's effective privilege, because
 repository does not constrain those kinds. Read
 `deploy/helm/README.md`, "The Agent's RBAC floor", before assuming otherwise.
 */ -}}
+{{- if and (not .Values.rbac.create) .Values.rbac.packageExecutor }}
+  {{- fail "rbac.packageExecutor requires rbac.create=true" }}
+{{- end }}
 {{- if .Values.rbac.create }}
 {{- $namespaces := .Values.rbac.managedNamespaces }}
 {{- if not $namespaces }}
@@ -126,5 +129,81 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: {{ $name }}
+{{- if $root.Values.rbac.packageExecutor }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-package-executor
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "platform-spoke.labels" $root | nindent 4 }}
+rules:
+  # `applyManifest` and `observeUDSPackageCR` in
+  # internal/agent/adapters/uds/executor.go run `kubectl apply -n <step.Namespace>`
+  # and `kubectl get package.uds.dev <name> -n <step.Namespace>` to reconcile and
+  # observe UDS Package custom resources in the target namespace.
+  - apiGroups: ["uds.dev"]
+    resources: ["packages"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # `writeAppliedRecord`, `readAppliedRecord` and `deleteAppliedRecord` in
+  # internal/agent/adapters/uds/applied.go create, apply, read and delete the
+  # `conduit-applied-<name>` ConfigMap in `step.Namespace` so `Observe` and
+  # `Rollback` read cluster-resident package coordinates and revision history.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-package-executor
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "platform-spoke.labels" $root | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "platform-spoke.serviceAccountName" $root }}
+    namespace: {{ $root.Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-package-executor
+{{- end }}
+{{- end }}
+{{- if .Values.rbac.packageExecutor }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-zarf-state
+  namespace: zarf
+  labels:
+    {{- include "platform-spoke.labels" $root | nindent 4 }}
+rules:
+  # `verifyZarfInitialised` and `observeZarfPackage` in
+  # internal/agent/adapters/uds/executor.go run `kubectl get secret zarf-state -n zarf`
+  # and `kubectl get secret zarf-package-<name> -n zarf`, and `zarf package deploy`
+  # and `zarf package remove` read `zarf-state` and create, update, or delete
+  # `zarf-package-<name>` state Secrets in the `zarf` namespace.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-zarf-state
+  namespace: zarf
+  labels:
+    {{- include "platform-spoke.labels" $root | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "platform-spoke.serviceAccountName" $root }}
+    namespace: {{ $root.Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-zarf-state
 {{- end }}
 {{- end }}

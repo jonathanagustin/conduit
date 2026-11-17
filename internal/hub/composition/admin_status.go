@@ -23,7 +23,7 @@ func (source adminGrantSource) ResourceGrantsInScope(ctx context.Context, scope 
 }
 
 func mountAdminStatus(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, hub Options) http.Handler {
-	service := controlplane.NewGovernanceService(repository)
+	service := newGovernanceService(repository, options)
 	decision := governanceapp.ResourceDecision{Authorizer: governanceapp.NewAuthorizer(adminGrantSource{repository}), Policy: governanceapp.AdministratorPolicy{BootstrapAdministrators: options.BootstrapAdministrators, AllowLocalDeveloperFallback: options.AllowInsecureOperatorIdentityHeaders}}
 	driver := controlplane.PlanOrchestratorNative
 	if options.AfterPlanApproved != nil {

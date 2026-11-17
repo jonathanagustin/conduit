@@ -8,17 +8,15 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/jonathanagustin/conduit/internal/assistant/adapters/modelcli"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	intelapp "github.com/jonathanagustin/conduit/internal/intelligence/application"
 	intelhttp "github.com/jonathanagustin/conduit/internal/intelligence/httpapi"
+	"github.com/jonathanagustin/conduit/internal/modelgovernor"
 	"github.com/jonathanagustin/conduit/internal/modelhttp"
-	packagingcli "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelcli"
 	packagingmodelhttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelhttp"
 	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 )
@@ -29,7 +27,7 @@ func (cases intelCases) Add(scenario, bound, value, expected string) (string, er
 	if cases.service == nil {
 		return "", fmt.Errorf("eval cases are not configured")
 	}
-	added, err := cases.service.AddCase(scenario, bound, value, expected)
+	added, err := cases.service.AddCase(context.Background(), scenario, bound, value, expected)
 	if err != nil {
 		return "", err
 	}
@@ -38,7 +36,7 @@ func (cases intelCases) Add(scenario, bound, value, expected string) (string, er
 
 func newIntelligenceService(repository controlplane.Repository, options controlplane.HandlerOptions) *intelapp.Service {
 	service := intelapp.New(intelligenceAdapter(), intelligenceTimeout())
-	service.Opener = intelligenceOpener{service: controlplane.NewGovernanceService(repository), repository: repository, options: options}
+	service.Opener = intelligenceOpener{service: newGovernanceService(repository, options), repository: repository, options: options}
 	service.Audit = intelligenceAudit{repository: repository}
 	service.Proposer = liveEvalProposer()
 	return service
@@ -47,24 +45,12 @@ func newIntelligenceService(repository controlplane.Repository, options controlp
 func liveEvalProposer() intelapp.Proposer {
 	// A configuration error, including both transports set, yields no
 	// proposer here; assistantModel reports the same error at startup.
-	if client, err := modelHTTPClient(os.Getenv); err != nil {
+	if client, err := governedModelHTTPClient(os.Getenv, modelgovernor.CapabilityIntelligence); err != nil {
 		return nil
 	} else if client != nil {
 		return intelligenceEvalProposer{runner: packagingmodelhttp.Adapter{Client: client}}
 	}
-	raw := strings.TrimSpace(os.Getenv("CONDUIT_MODEL_CMD"))
-	if raw == "" {
-		return nil
-	}
-	argv, err := packagingcli.ParseArgv(raw)
-	if err != nil || len(argv) == 0 {
-		return nil
-	}
-	timeout := 45 * time.Second
-	if parsed, err := time.ParseDuration(intelligenceTimeout()); err == nil && parsed > 0 {
-		timeout = parsed
-	}
-	return intelligenceEvalProposer{runner: packagingcli.Runner{Argv: argv, Timeout: timeout}}
+	return nil
 }
 
 type intelligenceEvalProposer struct {
@@ -84,7 +70,7 @@ func (proposer intelligenceEvalProposer) Propose(ctx context.Context, scenario, 
 }
 
 func mountIntelligence(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, hub Options, service *intelapp.Service) http.Handler {
-	governanceService := controlplane.NewGovernanceService(repository)
+	governanceService := newGovernanceService(repository, options)
 	if service == nil {
 		service = newIntelligenceService(repository, options)
 	}
@@ -110,19 +96,11 @@ func mountIntelligence(legacy http.Handler, repository controlplane.Repository, 
 
 func intelligenceAdapter() string {
 	if client, err := modelHTTPClient(os.Getenv); err != nil {
-		return "recorded"
+		return "unavailable"
 	} else if client != nil {
 		return modelhttp.AdapterName
 	}
-	raw := strings.TrimSpace(os.Getenv("CONDUIT_MODEL_CMD"))
-	if raw == "" {
-		return "recorded"
-	}
-	argv, err := modelcli.ParseArgv(raw)
-	if err != nil || len(argv) == 0 {
-		return "recorded"
-	}
-	return filepath.Base(argv[0])
+	return "recorded"
 }
 
 func intelligenceTimeout() string {

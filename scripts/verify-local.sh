@@ -139,7 +139,7 @@ oci_manifest() {
 
 supply_chain() {
   ruby scripts/test-safe-yaml.rb && ruby scripts/verify-trusted-supply-chain.rb && ./scripts/test-retry-keyless-signing.sh &&
-    ./scripts/test-cosign-credential-helper.sh
+    ./scripts/test-cosign-credential-helper.sh && ./scripts/verify-published-release.test.sh
 }
 
 optimizer_candidate_release() {
@@ -216,11 +216,13 @@ gate 'Validate tenant fidelity policy' ./scripts/verify-pr-fidelity.test.sh
 gate 'Read pull request body' ./scripts/read-pull-request-body.test.sh
 gate 'Validate GitHub API retry' ./scripts/test-retry-github-api.sh
 gate 'Build operator console' ./scripts/build-console.sh
+gate 'Validate race runtime preflight' bash -c './scripts/test-race-runtime-preflight.sh && ./scripts/verify-race-runtime.sh'
 gate 'Test' env PLATFORM_REQUIRE_HELM=1 ZARF_BIN="${zarf_bin}" go test -race ./...
 gate 'Validate mutation harness' ./scripts/verify-mutant-killed.test.sh
 gate 'Validate packaging regression gates' python3 scripts/test-packaging-gates.py
 gate 'Validate packaging endpoints' ./scripts/verify-packaging-endpoints.sh
 gate 'Validate mutation scores' bash -c 'node scripts/mutation-report-score.test.mjs && ./scripts/test-mutation-sweep.sh && ./scripts/verify-mutation-scores.test.sh && node scripts/verify-mutation-scores.mjs'
+gate 'Validate model-eval replay' go run ./cmd/conduit-eval replay
 gate 'Validate PostgreSQL repository' ./scripts/test-postgres-repository.sh
 gate 'Vet' go vet ./...
 gate 'Validate standalone CLI release targets' ./scripts/verify-cli-release-targets.sh
@@ -251,6 +253,7 @@ gate 'Validate release path' release_path
 gate 'Validate Rubix substrate CRDs' ruby scripts/verify-rubix-crds.rb
 gate 'Validate Flux runtime source' ruby scripts/verify-flux-runtime.rb
 gate 'Validate Helm runtime chart' ruby scripts/verify-helm-runtime.rb
+gate 'Validate observability assets' bash -c './scripts/verify-observability-assets.test.sh && ruby scripts/verify-observability-assets.rb'
 gate 'Validate Zarf air-gap package' env ZARF_BIN="${zarf_bin}" UDS_BIN="${uds_bin}" bash -c './scripts/test-uds-bundle-create.sh && ./scripts/test-zarf-package-lifecycle-plan.sh && ruby scripts/verify-zarf-package.rb && ./scripts/test-zarf-runtime-selection.sh && ruby scripts/verify-zarf-chart-equivalence.rb && ./scripts/test-zarf-chart-equivalence.sh && ./scripts/test-uds-up.sh && ./scripts/test-uds-keycloak-users.sh'
 gate 'Build commands' build_commands
 gate 'Validate offline workspace schemas' ./scripts/verify-workspace-schemas.sh

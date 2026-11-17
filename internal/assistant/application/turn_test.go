@@ -30,10 +30,10 @@ func (model *scripted) Complete(_ context.Context, prompt string) (string, domai
 	if index >= len(model.replies) {
 		index = len(model.replies) - 1
 	}
-	return model.replies[index], domain.Provenance{Adapter: "script"}, nil
+	return model.replies[index], domain.Provenance{Adapter: "script", ProviderModel: model.model}, nil
 }
 
-func (model *scripted) ReportedModel() string { return model.model }
+func (model *scripted) ReportedModel() string { return "stale shared identity" }
 
 func queryCall(objectType string) string {
 	return `{"name":"query_ontology_objects","arguments":{"objectType":"` + objectType + `"}}`
@@ -134,7 +134,7 @@ func TestAConfirmFromTheModelIsNotHonouredAfterItReadToolResults(t *testing.T) {
 		calls("recording", writeCall(`{`+evalCase+`,"confirm":true}`)),
 		`{"text":"I have asked you to confirm."}`,
 	}}
-	service := Service{Model: model, Objects: environments(), Cases: cases, Audit: &memoryAudit{}, Now: fixedClock()}
+	service := Service{Model: model, Objects: environments(), Cases: cases, Governor: allow(), Audit: &memoryAudit{}, Now: fixedClock()}
 	turn, err := service.Turn(context.Background(), operator(), domain.ModeOntology, "record that", nil)
 	if err != nil || len(turn.Results) != 2 {
 		t.Fatalf("turn = %+v %v", turn, err)
@@ -168,7 +168,7 @@ func TestAConfirmFromTheModelIsNotHonouredWhenTheThreadHasHistory(t *testing.T) 
 		calls("recording", writeCall(`{`+evalCase+`,"confirm":true}`)),
 		`{"text":"please confirm"}`,
 	}}
-	service := Service{Model: model, Cases: cases, Audit: &memoryAudit{}, Now: fixedClock(), Threads: threadmemory.New()}
+	service := Service{Model: model, Cases: cases, Governor: allow(), Audit: &memoryAudit{}, Now: fixedClock(), Threads: threadmemory.New()}
 	thread, err := service.CreateThread(context.Background(), operator(), "")
 	if err != nil {
 		t.Fatal(err)

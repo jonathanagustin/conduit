@@ -19,7 +19,21 @@ Before a release:
 ## Cutting a release: one instruction
 
 Land the `VERSION` bump the ordinary way — pull request, green Trunk gate,
-squash merge — and then give one instruction:
+squash merge. Before releasing, deliberately dispatch both cluster acceptance
+workflows from `main` at that release commit and let them finish:
+
+```bash
+gh workflow run platform-e2e.yml --repo jonathanagustin/conduit --ref main
+gh workflow run platform-gitless-e2e.yml --repo jonathanagustin/conduit --ref main
+```
+
+Confirm the reported run `head_sha` equals the intended full release SHA; a
+dispatch names a branch or tag, and `main` can advance between instructions.
+These are verification instructions, with disposable clusters and no publication
+authority. They remain manual-only under ADR 0006. They require working hosted
+runner capacity, the pinned tools, registry/network access and the public keyless
+signature used by Gitless acceptance. A local fixture pass does not qualify a
+release. Once both complete successfully, give the release instruction:
 
 ```bash
 gh workflow run platform-release.yml \
@@ -42,7 +56,30 @@ commit `main` points at:
   so the commit on `main` is an object no gate has seen; the verdict lives on
   the pull-request head the gate authenticated, and the check follows the merge
   back to it when exactly one merged pull request names this commit as its merge
-  commit.
+  commit;
+- the latest manually dispatched `platform-e2e.yml` and
+  `platform-gitless-e2e.yml` runs at the **exact release SHA** are completed and
+  successful in this repository. Both supported Helm matrix jobs, the Gitless
+  acceptance job, and their required acceptance steps must succeed in the
+  current run attempt. Skipped, missing, cancelled, failed and unfinished
+  evidence refuses release; a prior green run cannot hide a newer failed run.
+  Partial job reruns must be followed by a complete successful attempt. The
+  qualifier reads attempt-specific jobs, rechecks the run and latest dispatch,
+  and fails closed on unavailable/malformed API responses or incomplete result
+  pages (bounded to 100 exact-SHA dispatches per workflow). Trunk's squash-head
+  bridge never applies to cluster qualification.
+
+The Gitless owner runs its Flux API and keyless Go probes before deleting its
+cluster and private kubeconfig, with the same pinned tool path. Qualification
+requires every expected Go acceptance test to run and pass; a package success
+with skipped or absent test bodies is a refusal.
+
+The preconditions print each accepted workflow run ID, attempt, SHA and URL.
+After authorized real runs, record those actual receipts in the readiness
+evidence. Issue #843's runtime qualification and readiness run-ID requirement
+remain open until that evidence exists; the source checks and fixture tests do
+not supply it. If `main` advances before release, qualify the new exact commit
+before dispatching the release instruction.
 
 Only then does it create `vX.Y.Z`, read the tag back to confirm it names the
 verified commit, and dispatch `platform-images.yml` against the tag. It does not
@@ -59,7 +96,9 @@ tested.
 
 Dispatching `platform-images.yml` by hand is no longer a supported release step
 and now fails immediately from any ref that is not a `vX.Y.Z` tag agreeing with
-`VERSION`. It used to succeed there: the image push was not tag-gated while the
+`VERSION`, or whose actual tag commit lacks the same exact-SHA cluster
+qualification. Its preflight has read-only Actions access and checks this
+independently of the release caller. It used to succeed there: the image push was not tag-gated while the
 runtime source, charts, offline-bundle packages, CLI and GitHub release were, so a
 branch dispatch published `<component>-sha-<commit>` images, skipped everything
 else, and reported success for a fraction of a release.
@@ -76,3 +115,167 @@ tag to simulate rollback.
 Release preparation can be proposed by Release Please; see
 [`release-preparation.md`](release-preparation.md). Its PR-only workflow does
 not replace the manual release instruction or any publication precondition.
+
+## Installing and verifying a published release
+
+The next publication attaches the following descriptor set to the GitHub Release
+for `v<X.Y.Z>`. The existing `v0.17.5` release predates the complete standalone
+CLI assets and signed asset inventory; it cannot pass this new verifier.
+Release preparation and publication remain separate manual operations.
+
+- `platform-oci-manifest.json` — digest-pinned Hub and Spoke container image
+  references (`ghcr.io/jonathanagustin/conduit@sha256:...`) and per-architecture
+  SBOM/Grype SHA-256 digests;
+- `platform-helm-charts.json` — digest-pinned OCI chart references
+  (`ghcr.io/jonathanagustin/conduit/platform-hub:<X.Y.Z>@sha256:...` and
+  `platform-spoke`), plus `platform-hub-<X.Y.Z>.tgz`, `.sha256`, and
+  `.spdx.json`;
+- `platform-runtime.json` — digest-pinned Flux OCI artifact reference;
+- `zarf-package-platform-runtime-<arch>-<X.Y.Z>.tar.zst` and `.sha256`;
+- `conduit_<X.Y.Z>_<os>_<arch>.tar.gz` (or `.zip`), `.sigstore.json`,
+  `.provenance.sigstore.json`, `.slsa.json`, `.spdx.json`, and `SHA256SUMS`;
+- `release-assets.sha256` and `.sigstore.json` — a complete checksum inventory
+  signed by the release workflow, binding every other attachment to its identity.
+
+### 1. Download and verify release assets from a clean client
+
+```bash
+# Use a published version that includes the signed inventory. 0.19.0 is the
+# pending release proposal, not a claim that publication has already run.
+VERSION=0.19.0
+REPO=jonathanagustin/conduit
+ISSUER=https://token.actions.githubusercontent.com
+IDENTITY="https://github.com/${REPO}/.github/workflows/platform-images.yml@refs/tags/v${VERSION}"
+
+mkdir -p "/tmp/conduit-release-${VERSION}"
+gh release download "v${VERSION}" --repo "${REPO}" --dir "/tmp/conduit-release-${VERSION}"
+
+# The repository verifier requires Cosign, verifies the signed complete asset
+# inventory first, then checks manifests, chart/Zarf/CLI checksums, SPDX/Grype
+# hashes, CLI signatures and SLSA provenance bundles. No verification step is
+# silently skipped when a tool is missing.
+RELEASE_VERSION="${VERSION}" GITHUB_REPOSITORY="${REPO}" \
+  ./scripts/verify-published-release.sh "/tmp/conduit-release-${VERSION}"
+```
+
+To verify an individual CLI archive, signature, SLSA provenance bundle, and
+SPDX SBOM directly without a repository checkout:
+
+```bash
+cd "/tmp/conduit-release-${VERSION}"
+cosign verify-blob \
+  --bundle release-assets.sha256.sigstore.json \
+  --certificate-identity "${IDENTITY}" \
+  --certificate-oidc-issuer "${ISSUER}" \
+  release-assets.sha256
+sha256sum -c release-assets.sha256
+
+ARCHIVE="conduit_${VERSION}_linux_amd64.tar.gz"
+cosign verify-blob \
+  --bundle "${ARCHIVE}.sigstore.json" \
+  --certificate-identity "${IDENTITY}" \
+  --certificate-oidc-issuer "${ISSUER}" \
+  "${ARCHIVE}"
+
+cosign verify-blob-attestation \
+  --bundle "${ARCHIVE}.provenance.sigstore.json" \
+  --type slsaprovenance1 \
+  --certificate-identity "${IDENTITY}" \
+  --certificate-oidc-issuer "${ISSUER}" \
+  "${ARCHIVE}"
+
+jq -er '.spdxVersion, .name' "conduit_${VERSION}_linux_amd64.spdx.json"
+```
+
+### 2. Verify and install the Helm charts and container images by digest
+
+Read the exact chart and image digests from the verified release manifests so
+neither Helm nor Kubernetes resolves a mutable tag:
+
+```bash
+HUB_IMAGE="$(jq -er '.images.hub.reference' platform-oci-manifest.json)"
+SPOKE_IMAGE="$(jq -er '.images["spoke-agent"].reference' platform-oci-manifest.json)"
+HUB_CHART="$(jq -er '.charts[] | select(.component == "hub") | .reference' platform-helm-charts.json)"
+SPOKE_CHART="$(jq -er '.charts[] | select(.component == "spoke") | .reference' platform-helm-charts.json)"
+
+# Verify container image signatures and attached SPDX/Grype attestations:
+for ref in "${HUB_IMAGE}" "${SPOKE_IMAGE}"; do
+  cosign verify \
+    --certificate-identity "${IDENTITY}" \
+    --certificate-oidc-issuer "${ISSUER}" \
+    "${ref}"
+  cosign verify-attestation \
+    --type spdxjson \
+    --certificate-identity "${IDENTITY}" \
+    --certificate-oidc-issuer "${ISSUER}" \
+    "${ref}"
+  cosign verify-attestation \
+    --type https://platform.delivery/attestations/grype/v1 \
+    --certificate-identity "${IDENTITY}" \
+    --certificate-oidc-issuer "${ISSUER}" \
+    "${ref}"
+done
+
+# Verify OCI Helm chart signatures by digest:
+for chart_ref in "${HUB_CHART}" "${SPOKE_CHART}"; do
+  cosign verify \
+    --certificate-identity "${IDENTITY}" \
+    --certificate-oidc-issuer "${ISSUER}" \
+    "${chart_ref}"
+done
+
+# Install the local chart archives authenticated by the signed inventory.
+# This avoids resolving the mutable OCI tag again after checking its digest.
+helm upgrade --install platform-hub "./platform-hub-${VERSION}.tgz" \
+  --namespace platform-system \
+  --values hub-values.yaml \
+  --set-string "image=${HUB_IMAGE}"
+
+helm upgrade --install platform-spoke "./platform-spoke-${VERSION}.tgz" \
+  --namespace environment-system \
+  --values spoke-values.yaml \
+  --set-string "image=${SPOKE_IMAGE}"
+```
+
+### 3. Verify and deploy the air-gap Zarf package
+
+```bash
+PACKAGE="zarf-package-platform-runtime-amd64-${VERSION}.tar.zst"
+sha256sum -c "${PACKAGE}.sha256"
+
+zarf package verify "${PACKAGE}" \
+  --certificate-identity "${IDENTITY}" \
+  --certificate-oidc-issuer "${ISSUER}"
+
+zarf package deploy "${PACKAGE}" --confirm \
+  --verify=always \
+  --certificate-identity-regexp "^${IDENTITY}$" \
+  --certificate-oidc-issuer-regexp "^${ISSUER}$"
+```
+
+## Upgrade and version-skew policy
+
+- **Pre-1.0 semantic versioning:** While major version is `0`, minor bumps
+  (`0.N.0`) may carry breaking contract or configuration changes; patch bumps
+  (`0.N.P`) carry backward-compatible fixes (`release-please-config.json` sets
+  `bump-minor-pre-major=true`).
+- **Supported Hub/Spoke version skew (`N` and `N-1`):** The Hub and outbound
+  Spoke Agent are tested across one adjacent release in both directions — a
+  previous-release Spoke against a current Hub, and a current Spoke against a
+  previous-release Hub — via [`scripts/test-version-skew.sh`](../../scripts/test-version-skew.sh)
+  ([`version-skew-rehearsal.md`](version-skew-rehearsal.md)). Do not run a Spoke
+  more than one release behind or ahead of its Hub.
+- **Upgrade order and live rolling replacement:** Upgrade the PostgreSQL-backed
+  Hub first using its two-replica zero-unavailable rolling update, then upgrade
+  Spoke Agents per Environment. Forward-only SQL migrations (`internal/pgmigrate`)
+  and in-flight lease renewal across a rolling Hub replacement are rehearsed
+  against the newest `vX.Y.Z` tag by [`scripts/test-upgrade-data.sh`](../../scripts/test-upgrade-data.sh)
+  ([`old-data-upgrade-rehearsal.md`](old-data-upgrade-rehearsal.md)) and
+  [`scripts/test-hub-rolling-upgrade.sh`](../../scripts/test-hub-rolling-upgrade.sh)
+  ([`hub-rolling-upgrade-rehearsal.md`](hub-rolling-upgrade-rehearsal.md)).
+- **Rollback:** Database schema migrations are forward-only; there are no down
+  migrations. Roll back a binary or chart release by deploying the previous
+  verified image and chart digest (or restoring the pre-upgrade PostgreSQL
+  backup via [`backup-and-restore.md`](backup-and-restore.md) if an incompatible
+  schema change landed). Never move or overwrite an existing `vX.Y.Z` tag.
+

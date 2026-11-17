@@ -25,10 +25,17 @@ type Result struct {
 	AuditID         string
 }
 
+// Governance records proposals and reviews through the Hub's configured service.
+type Governance interface {
+	ProposeHumanChange(context.Context, string, string, string, []controlplane.EntityChange, controlplane.Principal, string, string) (controlplane.ChangeRequest, error)
+	Approve(context.Context, string, controlplane.Principal, string) (controlplane.ChangeRequest, controlplane.PlanRecord, error)
+}
+
 // Service is the rollout store for one process.
 type Service struct {
-	Store controlplane.Repository
-	Now   func() time.Time
+	Governance Governance
+	Store      controlplane.Repository
+	Now        func() time.Time
 
 	mu       sync.Mutex
 	rollouts map[string]domain.Rollout
@@ -40,6 +47,13 @@ type pending struct {
 	action    string
 	author    string
 	facts     domain.Facts
+}
+
+func (service *Service) governance() Governance {
+	if service.Governance != nil {
+		return service.Governance
+	}
+	return controlplane.NewGovernanceService(service.Store)
 }
 
 func (service *Service) now() time.Time {
@@ -108,7 +122,7 @@ func (service *Service) Propose(ctx context.Context, actor controlplane.Principa
 	if service.pending == nil {
 		service.pending = map[string]pending{}
 	}
-	governanceService := controlplane.NewGovernanceService(service.Store)
+	governanceService := service.governance()
 	request, err := governanceService.ProposeHumanChange(ctx, "ROLLOUT", id, rollout.Waves[0].Environments[0], []controlplane.EntityChange{{
 		ID: action, Type: controlplane.ChangeTypeUpdateEntity, InstallationID: id,
 		Request: map[string]any{"action": action, "rollout": id},
@@ -147,7 +161,7 @@ func (service *Service) Approve(ctx context.Context, approver controlplane.Princ
 		}
 		return Result{Reason: "the author cannot approve their own change request", AuditID: auditID}, nil
 	}
-	governanceService := controlplane.NewGovernanceService(service.Store)
+	governanceService := service.governance()
 	if _, _, err := governanceService.Approve(ctx, changeID, approver, rationale); err != nil {
 		return Result{}, err
 	}

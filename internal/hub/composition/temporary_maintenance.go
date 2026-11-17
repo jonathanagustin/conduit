@@ -37,7 +37,7 @@ func mountTemporaryMaintenance(legacy http.Handler, repository controlplane.Repo
 		return nil, err
 	}
 	mux.Handle("/", legacy)
-	return withOperatorCarrier(controlplane.NewGovernanceService(repository), options, mux), nil
+	return withOperatorCarrier(newGovernanceService(repository, options), options, mux), nil
 }
 
 type temporaryMaintenanceOperator struct {

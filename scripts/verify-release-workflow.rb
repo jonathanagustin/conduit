@@ -122,6 +122,24 @@ preflight = images_jobs[preflight_name]
 fail_gate("publication workflow must declare a #{preflight_name} job") unless preflight.is_a?(Hash)
 preflight_run = Array(preflight["steps"]).map { |step| step["run"].to_s }.join("\n")
 fail_gate("#{preflight_name} must run the ref guard") unless preflight_run.include?("./scripts/verify-publication-ref.sh")
+fail_gate("publication preflight needs only read-only contents and Actions authority") unless
+  preflight["permissions"] == {"contents" => "read", "actions" => "read"}
+
+# A skipped guard/acceptance command can leave a successful workflow run. The
+# API qualifier requires these steps, and the source contract makes each one
+# unconditional with its exact executable rather than an always-green wrapper.
+required_step = lambda do |job, name, command|
+  candidates = Array(job["steps"]).select { |step| step["name"] == name }
+  fail_gate("#{name} must run unconditionally and propagate failure") unless
+    candidates.length == 1 && !job.key?("if") && !job.key?("continue-on-error") &&
+      !candidates.first.key?("if") && !candidates.first.key?("continue-on-error") &&
+      candidates.first["run"].to_s.strip == command
+  candidates.first
+end
+required_step.call(release_job, "Verify release preconditions", "./scripts/verify-release-preconditions.sh")
+publication_guard = required_step.call(preflight, "Refuse to publish from a non-release ref", "./scripts/verify-publication-ref.sh")
+fail_gate("publication ref guard must receive its read-only API token") unless
+  publication_guard.dig("env", "GH_TOKEN") == "${{ github.token }}"
 
 # The guard only guards while everything depends on it, directly or through the
 # chain. A job that quietly dropped the edge would publish from a branch again,
@@ -138,10 +156,61 @@ images_jobs.each_key do |name|
   fail_gate("publication job #{name} does not depend on #{preflight_name}") unless reaches_preflight.call(name, [])
 end
 
-%w[verify-release-preconditions.sh verify-publication-ref.sh].each do |script|
+%w[verify-release-preconditions.sh verify-publication-ref.sh verify-cluster-qualification.sh verify-gitless-acceptance-events.sh].each do |script|
   path = File.join(repository_root, "scripts", script)
   fail_gate("#{script} must exist and be executable") unless File.executable?(path)
 end
+
+qualification_calls = {
+  "verify-release-preconditions.sh" => 'RELEASE_COMMIT="${commit}" "${repo_root}/scripts/verify-cluster-qualification.sh"',
+  "verify-publication-ref.sh" => 'RELEASE_COMMIT="${GITHUB_SHA:-}" "${repo_root}/scripts/verify-cluster-qualification.sh"'
+}
+qualification_calls.each do |script, call|
+  source = File.read(File.join(repository_root, "scripts", script))
+  fail_gate("#{script} must enforce exact-commit cluster qualification") unless
+    source.lines.map(&:chomp).include?(call)
+end
+
+qualification = YAML.safe_load_file(File.join(repository_root, "scripts/cluster-qualification.json"))
+fail_gate("cluster qualification must cover both accepted workflows") unless
+  qualification.fetch("workflows").map { |spec| spec["file"] }.sort == %w[platform-e2e.yml platform-gitless-e2e.yml]
+acceptance_paths = {
+  "platform-e2e.yml" => ARGV.fetch(3, File.join(workflow_dir, "platform-e2e.yml")),
+  "platform-gitless-e2e.yml" => ARGV.fetch(4, File.join(workflow_dir, "platform-gitless-e2e.yml"))
+}
+qualification.fetch("workflows").each do |spec|
+  workflow = YAML.safe_load_file(acceptance_paths.fetch(spec.fetch("file")), aliases: true)
+  fail_gate("#{spec['file']} must remain manual-only with read-only authority") unless
+    triggers.call(workflow).is_a?(Hash) && triggers.call(workflow).keys == ["workflow_dispatch"] &&
+      workflow["permissions"] == {"contents" => "read"} && workflow.dig("concurrency", "cancel-in-progress") == true
+  jobs = workflow.fetch("jobs")
+  fail_gate("#{spec['file']} jobs must be bounded and inherit read-only authority") unless
+    jobs.values.all? { |job| !job.key?("permissions") && job["timeout-minutes"].is_a?(Integer) && job["timeout-minutes"].positive? }
+  if spec["file"] == "platform-e2e.yml"
+    fail_gate("Spoke qualification must cover both supported Helm matrix jobs") unless
+      jobs.keys == ["spoke"] && jobs.dig("spoke", "name") == 'spoke (Helm ${{ matrix.helm.version }})' &&
+        jobs.dig("spoke", "strategy", "matrix").keys == ["helm"] &&
+        jobs.dig("spoke", "strategy", "matrix", "helm").map { |helm| helm["version"] }.sort == %w[3.21.1 4.2.3] &&
+        spec["jobs"].sort == ["spoke (Helm 3.21.1)", "spoke (Helm 4.2.3)"] && spec["steps"] == ["Run Hub and Spoke acceptance"]
+    required_step.call(jobs.fetch("spoke"), "Run Hub and Spoke acceptance", "./scripts/test-spoke-e2e.sh")
+  else
+    fail_gate("Gitless qualification must cover the acceptance and real-registry proofs") unless
+      jobs.keys == ["acceptance"] && jobs.dig("acceptance", "name") == "signed OCI without Git" &&
+        spec["jobs"] == ["signed OCI without Git"] &&
+        spec["steps"] == ["Reconcile an exact signed digest with pull-only authority", "Publish and read back manifests against a real registry"]
+    job = jobs.fetch("acceptance")
+    step = required_step.call(job, spec["steps"].first, "./scripts/test-gitless-clean-cluster.sh")
+    fail_gate("Gitless workflow must run strict followups inside the owning cluster lifetime") unless
+      step.dig("env", "GITLESS_RUN_FOLLOWUP_PROBES") == "1" &&
+        Array(job["steps"]).none? { |entry| entry["run"].to_s.match?(/test-gitless-(?:flux-manifests|acceptance)\.sh/) }
+    required_step.call(job, spec["steps"].last, "go test ./internal/gitless/adapters/ocipublish/ -count=1 -v")
+  end
+end
+cluster_source = File.read(File.join(repository_root, "scripts/test-gitless-clean-cluster.sh"))
+fail_gate("Gitless cluster owner must run the shared followups before EXIT cleanup") unless
+  cluster_source.include?('trap cleanup EXIT') &&
+    cluster_source.include?('source "${repo_root}/scripts/lib/gitless-cluster-probes.sh"') &&
+    cluster_source.include?('run_gitless_cluster_probes "${repo_root}" "${bin_dir}" "${KUBECONFIG}"')
 
 # The precondition script reads a commit status by an exact context string, and
 # platform-ci.yml writes one. A rename on either side alone would not fail

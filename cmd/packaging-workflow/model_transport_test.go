@@ -3,13 +3,12 @@ package main
 import (
 	"bytes"
 	"errors"
-	"io"
-	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 
-	"github.com/jonathanagustin/conduit/internal/modelhttp"
-	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelcli"
+	"github.com/jonathanagustin/conduit/internal/localcmd"
 	packagingmodelhttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/planning/adapters/planner"
 )
@@ -17,148 +16,95 @@ import (
 func envMap(values map[string]string) func(string) string {
 	return func(name string) string { return values[name] }
 }
-
-// captureStderr returns what run wrote to os.Stderr.
-func captureStderr(t *testing.T, run func()) string {
+func clearModelConfiguration(t *testing.T) {
 	t.Helper()
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	saved := os.Stderr
-	os.Stderr = writer
-	defer func() { os.Stderr = saved }()
-	run()
-	_ = writer.Close()
-	raw, _ := io.ReadAll(reader)
-	return string(raw)
-}
-
-func TestWorkerRefusesBothModelTransports(t *testing.T) {
-	both := map[string]string{
-		"CONDUIT_MODEL_CMD": "codex exec -", "CONDUIT_MODEL_BASE_URL": "https://model.example/v1", "CONDUIT_MODEL_NAME": "m",
-	}
-	if _, err := resolveModelTransport(envMap(both)); !errors.Is(err, modelhttp.ErrBothConfigured) {
-		t.Fatalf("resolve: %v", err)
-	}
-	for name, value := range both {
-		t.Setenv(name, value)
-	}
-	if _, err := planningActivities(t.TempDir(), nil, true); !errors.Is(err, modelhttp.ErrBothConfigured) {
-		t.Fatalf("planning activities: %v", err)
-	}
-	// Every subcommand refuses, agent-exec included, before it reads stdin.
-	for _, args := range [][]string{{"agent-exec"}, {"agent-exec", "--provider", "claude"}, {"worker"}} {
-		root := newRoot()
-		var out bytes.Buffer
-		root.SetOut(&out)
-		root.SetErr(&out)
-		root.SetIn(strings.NewReader("Inspect the bound source repository for this planning session."))
-		root.SetArgs(args)
-		if err := root.Execute(); !errors.Is(err, modelhttp.ErrBothConfigured) {
-			t.Fatalf("%v: err = %v, output %q", args, err, out.String())
-		}
+	for _, key := range []string{"CONDUIT_MODEL_CMD", "CONDUIT_ASSISTANT_MODEL_CMD", "CONDUIT_PLANNING_MODEL_CMD", "CONDUIT_PACKAGING_MODEL_CMD", "CONDUIT_APPGEN_MODEL_CMD", "CONDUIT_MODEL_BASE_URL", "CONDUIT_MODEL_NAME", "CONDUIT_MODEL_TIMEOUT", "CONDUIT_MODEL_API_KEY_FILE", "CONDUIT_MODEL_CA_FILE", "CONDUIT_AGENT_PROVIDER"} {
+		t.Setenv(key, "")
 	}
 }
-
-func TestWorkerSelectsOneModelTransport(t *testing.T) {
-	none, err := resolveModelTransport(envMap(nil))
-	if err != nil || none.configured() {
-		t.Fatalf("no model: %+v %v", none, err)
-	}
-	// The HTTP variables select nothing without a base URL.
-	nameOnly, err := resolveModelTransport(envMap(map[string]string{"CONDUIT_MODEL_NAME": "m"}))
-	if err != nil || nameOnly.configured() {
-		t.Fatalf("name only: %+v %v", nameOnly, err)
-	}
-
-	overHTTP, err := resolveModelTransport(envMap(map[string]string{
-		"CONDUIT_MODEL_BASE_URL": "https://model.example/v1", "CONDUIT_MODEL_NAME": "asked",
-	}))
-	if err != nil || !overHTTP.configured() {
-		t.Fatalf("http: %+v %v", overHTTP, err)
-	}
-	runner := overHTTP.planner(nil)
-	if model, ok := runner.Model.(planner.HTTPModel); !ok || model.Identity().ConfiguredModel != "asked" || len(runner.Argv) != 0 {
-		t.Fatalf("http planner = %+v", runner)
-	}
-	if _, ok := overHTTP.packageWriter().(packagingmodelhttp.Adapter); !ok {
-		t.Fatalf("http writer = %T", overHTTP.packageWriter())
-	}
-
-	overCLI, err := resolveModelTransport(envMap(map[string]string{
-		"CONDUIT_MODEL_CMD": "codex exec -", "CONDUIT_MODEL_NAME": " operator-chosen ",
-	}))
-	if err != nil || !overCLI.configured() {
-		t.Fatalf("cli: %+v %v", overCLI, err)
-	}
-	runner = overCLI.planner(nil)
-	if runner.Model != nil || runner.Argv[0] != "codex" || runner.ModelName != "operator-chosen" {
-		t.Fatalf("cli planner = %+v", runner)
-	}
-	if writer, ok := overCLI.packageWriter().(modelcli.Runner); !ok || writer.ModelName != "operator-chosen" {
-		t.Fatalf("cli writer = %+v", overCLI.packageWriter())
-	}
-
-	if _, err := resolveModelTransport(envMap(map[string]string{
-		"CONDUIT_MODEL_BASE_URL": "http://vllm.models.svc:8000/v1", "CONDUIT_MODEL_NAME": "m",
-	})); !errors.Is(err, modelhttp.ErrInsecureEndpoint) {
-		t.Fatalf("plaintext to a non-loopback host: %v", err)
-	}
-}
-
-func TestUnverifiedPresetWarnsOnStderr(t *testing.T) {
-	for _, provider := range []string{providerClaude, providerCodex, providerGemini, providerGrok} {
-		got := captureStderr(t, func() {
-			warnUnverifiedPreset([]string{"packaging-workflow", "agent-exec", "--provider", provider}, "")
-		})
-		if !strings.Contains(got, "UNVERIFIED") || !strings.Contains(got, "provider="+provider) {
-			t.Fatalf("%s: stderr = %q", provider, got)
-		}
-	}
-	quiet := captureStderr(t, func() {
-		warnUnverifiedPreset([]string{"packaging-workflow", "agent-exec"}, "")
-		warnUnverifiedPreset([]string{"packaging-workflow", "agent-exec", "--provider=deterministic"}, "claude")
-		warnUnverifiedPreset([]string{"my-own-model-cli", "--provider", "claude"}, "")
-	})
-	if quiet != "" {
-		t.Fatalf("the deterministic agent and a non-preset command must not warn: %q", quiet)
-	}
-	fromEnv := captureStderr(t, func() {
-		warnUnverifiedPreset([]string{"packaging-workflow", "agent-exec"}, "gemini")
-	})
-	if !strings.Contains(fromEnv, "provider=gemini") {
-		t.Fatalf("CONDUIT_AGENT_PROVIDER was not honoured: %q", fromEnv)
-	}
-}
-
-func TestAgentExecWarnsWhenAnUnverifiedPresetRuns(t *testing.T) {
-	script := t.TempDir() + "/fake-llm"
-	if err := os.WriteFile(script, []byte("#!/bin/sh\ncat >/dev/null\nprintf 'ok\\n'\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("CONDUIT_PROVIDER_GROK_CMD", script)
-	run := func(args ...string) (string, string) {
-		var out bytes.Buffer
-		stderr := captureStderr(t, func() {
-			root := newRoot()
-			root.SetOut(&out)
-			root.SetIn(strings.NewReader("Inspect the bound source repository for this planning session."))
-			root.SetArgs(args)
-			if err := root.Execute(); err != nil {
-				t.Fatalf("%v: %v", args, err)
+func TestWorkerRefusesEveryLocalModelCommand(t *testing.T) {
+	clearModelConfiguration(t)
+	for _, key := range []string{"CONDUIT_MODEL_CMD", "CONDUIT_ASSISTANT_MODEL_CMD", "CONDUIT_PLANNING_MODEL_CMD", "CONDUIT_PACKAGING_MODEL_CMD", "CONDUIT_APPGEN_MODEL_CMD"} {
+		for _, base := range []string{"", "https://models.example/v1"} {
+			get := envMap(map[string]string{key: "private-command --key sensitive-value", "CONDUIT_MODEL_BASE_URL": base, "CONDUIT_MODEL_NAME": "fixture"})
+			if _, err := resolveModelTransport(get); !errors.Is(err, localcmd.ErrLocalCommandUnsupported) || strings.Contains(err.Error(), "sensitive-value") {
+				t.Fatalf("%s: %v", key, err)
 			}
-		})
-		return out.String(), stderr
+		}
 	}
-	stdout, stderr := run("agent-exec", "--provider", "grok")
-	if strings.TrimSpace(stdout) != "ok" {
-		t.Fatalf("the warning must not reach stdout, which is the reply: %q", stdout)
+	t.Setenv("CONDUIT_PLANNING_MODEL_CMD", "ignored-command")
+	if _, err := planningActivities(t.TempDir(), nil, true); !errors.Is(err, localcmd.ErrLocalCommandUnsupported) {
+		t.Fatal(err)
 	}
-	if !strings.Contains(stderr, "UNVERIFIED") || !strings.Contains(stderr, "provider=grok") {
-		t.Fatalf("stderr = %q", stderr)
+	root := newRoot()
+	root.SetArgs([]string{"agent-exec"})
+	root.SetIn(refuseRead{})
+	root.SetOut(&bytes.Buffer{})
+	if err := root.Execute(); !errors.Is(err, localcmd.ErrLocalCommandUnsupported) {
+		t.Fatal(err)
 	}
-	if _, stderr = run("agent-exec"); strings.Contains(stderr, "UNVERIFIED") {
-		t.Fatalf("the deterministic agent warned: %q", stderr)
+}
+func TestWorkerPreservesHTTPAndOfflineSelection(t *testing.T) {
+	for _, get := range []func(string) string{envMap(nil), envMap(map[string]string{"CONDUIT_MODEL_NAME": "m"})} {
+		transport, err := resolveModelTransport(get)
+		if err != nil || transport.configured() {
+			t.Fatalf("offline=%+v err=%v", transport, err)
+		}
+	}
+	transport, err := resolveModelTransport(envMap(map[string]string{"CONDUIT_MODEL_BASE_URL": "https://model.example/v1", "CONDUIT_MODEL_NAME": "asked", "CONDUIT_MODEL_TIMEOUT": "90s"}))
+	if err != nil || !transport.configured() {
+		t.Fatalf("HTTP=%+v err=%v", transport, err)
+	}
+	if model, ok := transport.planner(nil).Model.(planner.HTTPModel); !ok || model.Identity().ConfiguredModel != "asked" {
+		t.Fatalf("planner=%+v", model)
+	}
+	if _, ok := transport.packageWriter().(packagingmodelhttp.Adapter); !ok {
+		t.Fatalf("writer=%T", transport.packageWriter())
+	}
+}
+
+type refuseRead struct{}
+
+func (refuseRead) Read([]byte) (int, error) { panic("refused provider read stdin") }
+func TestAgentExecRefusesEveryDelegatedProviderBeforeReading(t *testing.T) {
+	clearModelConfiguration(t)
+	for _, provider := range []string{"claude", "codex", "gemini", "grok", "custom"} {
+		t.Setenv("CONDUIT_PROVIDER_"+strings.ToUpper(provider)+"_CMD", "/bin/sh -c exit")
+		t.Setenv("CONDUIT_AGENT_PROVIDER", provider)
+		for _, args := range [][]string{{"agent-exec"}, {"agent-exec", "--provider", provider}} {
+			root := newRoot()
+			root.SetArgs(args)
+			root.SetIn(refuseRead{})
+			var out bytes.Buffer
+			root.SetOut(&out)
+			root.SetErr(&out)
+			if err := root.Execute(); !errors.Is(err, localcmd.ErrLocalCommandUnsupported) {
+				t.Fatalf("%s: %v", provider, err)
+			}
+		}
+	}
+}
+func TestAgentExecDeterministicRemainsAnOfflineUtility(t *testing.T) {
+	clearModelConfiguration(t)
+	root := newRoot()
+	root.SetArgs([]string{"agent-exec", "--provider", "deterministic"})
+	root.SetIn(strings.NewReader("Inspect the bound source repository for this planning session."))
+	var out bytes.Buffer
+	root.SetOut(&out)
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "inspect_repo") {
+		t.Fatalf("reply=%q", out.String())
+	}
+}
+
+// The script self-test supplies a fake docker executable and starts no engine.
+func TestGovernedPackagingScriptRequiresExplicitHTTPBeforeTools(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Bash entrypoint")
+	}
+	if out, err := exec.Command("bash", "../../scripts/governed-packaging-run.test.sh").CombinedOutput(); err != nil {
+		t.Fatalf("guard regression: %v\n%s", err, out)
 	}
 }

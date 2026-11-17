@@ -1,0 +1,113 @@
+# GENERATED from deploy/observability/prometheus-rules.yaml by scripts/verify-observability-assets.rb --write.
+# Do not edit: the gate fails when this differs from its source.
+groups:
+- name: conduit-hub.reconciliation
+  rules:
+  - alert: ConduitHubWedged
+    expr: |
+      max by (queue) (conduit_reconciliation_pending) > 0
+      and max by (queue) (conduit_reconciliation_leased) == 0
+      and max by (queue) (conduit_reconciliation_oldest_pending_seconds) > 300
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: Conduit Hub is not taking work from the {{ $labels.queue }} queue
+      description: Work has been due for more than five minutes and no replica holds
+        a lease on any of it. Depth alone does not fire this alert.
+      runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduithubwedged
+  - alert: ConduitReconciliationLag
+    expr: max by (queue) (conduit_reconciliation_oldest_pending_seconds) > 900
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: Conduit {{ $labels.queue }} work is waiting more than 15 minutes
+      description: The oldest due item in the {{ $labels.queue }} queue has waited
+        {{ $value | humanizeDuration }}. Replicas may be working and still falling
+        behind.
+      runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitreconciliationlag
+  - alert: ConduitProposalExhausted
+    expr: max by (queue) (delta(conduit_reconciliation_exhausted{queue="proposal_outbox"}[30m]))
+      > 0
+    labels:
+      severity: warning
+    annotations:
+      summary: A Conduit Plan proposal was retired without being proposed
+      description: The count of exhausted proposals rose in the last 30 minutes. Either
+        a proposal ran out of retries, and an Environment has a decided change nothing
+        will propose, or a newer desired state superseded it, which needs no action.
+        The runbook says how to tell.
+      runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitproposalexhausted
+  - alert: ConduitReconciliationExhausted
+    expr: max by (queue) (conduit_reconciliation_exhausted{queue="reconciliation"})
+      > 0
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: Conduit reconciliation work ran out of retries
+      description: "{{ $value }} reconciliation item(s) will never be retried without
+        an operator."
+      runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitreconciliationexhausted
+- name: conduit-hub.notifications
+  rules:
+  - alert: ConduitNotificationDeliveryExhausted
+    expr: max by (transport) (delta(conduit_notification_delivery_exhausted[30m]))
+      > 0
+    labels:
+      severity: warning
+    annotations:
+      summary: Conduit gave up delivering a notification by {{ $labels.transport }}
+      description: At least one notification by {{ $labels.transport }} became undeliverable
+        in the last 30 minutes. Somebody who was to be told about a failure was not.
+      runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitnotificationdeliveryexhausted
+  - alert: ConduitNotificationDeliveryStalled
+    expr: max by (transport) (conduit_notification_delivery_oldest_pending_seconds)
+      > 1800
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: Conduit notifications by {{ $labels.transport }} are not being delivered
+      description: The oldest undelivered notification by {{ $labels.transport }}
+        was raised {{ $value | humanizeDuration }} ago.
+      runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitnotificationdeliverystalled
+- name: conduit-hub.requests
+  rules:
+  - alert: ConduitHTTPServerErrors
+    expr: |
+      sum(rate(conduit_http_requests_total{code_class="5xx"}[5m]))
+        / sum(rate(conduit_http_requests_total[5m])) > 0.05
+      and sum(rate(conduit_http_requests_total[5m])) > 0.1
+    for: 10m
+    labels:
+      severity: critical
+    annotations:
+      summary: More than 5% of Conduit Hub requests are failing with 5xx
+      description: "{{ $value | humanizePercentage }} of requests over the last five
+        minutes were answered with a server error."
+      runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduithttpservererrors
+  - alert: ConduitAgentRateLimited
+    expr: sum(rate(conduit_rate_limit_decisions_total{class="agent",outcome="limited"}[5m]))
+      > 0
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: The Conduit Hub is refusing Agent requests with 429
+      description: Agent-class requests have been rate limited continuously for ten
+        minutes.
+      runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitagentratelimited
+- name: conduit-hub.meta
+  rules:
+  - alert: ConduitMetricsAbsent
+    expr: absent(conduit_build_info)
+    for: 10m
+    labels:
+      severity: critical
+    annotations:
+      summary: No Conduit Hub is exporting metrics
+      description: No replica has reported conduit_build_info for ten minutes. Every
+        other Conduit alert is blind while this one fires.
+      runbook_url: https://github.com/jonathanagustin/conduit/blob/main/docs/operations/runbooks.md#conduitmetricsabsent

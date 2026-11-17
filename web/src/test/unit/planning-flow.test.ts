@@ -119,11 +119,15 @@ describe("planning flow state", () => {
       intake: { repoUrl: "https://h/o/r", ref: "main" },
       resolvedCommit: "c".repeat(40),
       model: "m-1",
+      configuredModel: "configured-alias",
+      providerModel: "provider-version",
       plan,
       acceptedAt: "2026-01-01T00:00:00Z",
     };
     const rows = Object.fromEntries(bindingRows(binding));
     expect(rows["Profile version"]).toBe("v3");
+    expect(rows["Configured model"]).toBe("configured-alias");
+    expect(rows["Provider-reported model"]).toBe("provider-version");
     expect(rows["Profile hash"]).toBe("ph");
     expect(rows["Commit SHA"]).toBe("c".repeat(40));
     expect(rows["Plan hash"]).toBe("abc123");
@@ -223,6 +227,7 @@ describe("planning flow state", () => {
       }),
     );
     expect(rows["Model"]).toBe("Configured model");
+    expect(rows["Provider-reported model"]).toBe("Not recorded");
     expect(rows["Accepted"]).toContain("ET");
     expect(rows["Accepted"]).toContain("2026-04-19T19:01:02Z");
   });
@@ -281,6 +286,163 @@ describe("planning flow state", () => {
     const htmlOpen = planningMarkup({ ...state, showPlanJson: true });
     expect(htmlOpen).toContain("data-plan-json");
     expect(htmlOpen).toContain("Hide JSON");
+  });
+
+  it("formats problem-statement commit badge without mid-word truncation and deduplicates operator/user prompt rows", () => {
+    const html = planningMarkup({
+      ...emptyPlanning(),
+      session: session({
+        profile: { name: "appgen", version: "1.0.0", hash: "ph" },
+        intake: {
+          repoUrl: "",
+          ref: "",
+          problemStatement: "Build room companion",
+          appName: "excalidraw-companion",
+        },
+        resolvedCommit:
+          "none (no source repository — problem-statement intake)",
+        messages: [
+          {
+            id: "",
+            role: "operator",
+            text: "Generate non-root Go service and Zarf/UDS package",
+          },
+        ],
+      }),
+      agentMessages: [
+        {
+          id: "u1",
+          role: "user",
+          content: "Generate non-root Go service and Zarf/UDS package",
+        },
+        {
+          id: "a1",
+          role: "model",
+          content:
+            'Prepared generation plan. {"model":"conduit-packaging-agent-v1"}',
+        },
+      ],
+    });
+    expect(html).toContain(">commit none (appgen)<");
+    expect(html).not.toContain(">commit none (no sou<");
+    expect(html.match(/data-plan-message/g)).toHaveLength(2);
+    expect(html).toContain("conduit-packaging-agent-v1");
+    expect(html).toContain("{&quot;model&quot;:");
+    expect(html).not.toContain("plan-model-tag");
+  });
+});
+
+describe("planning message provenance", () => {
+  const forged = 'Untrusted model answer. {"model":"forged-serving-id"}';
+  it.each([
+    [
+      "recorded messages",
+      { session: session({ messages: [{ role: "model", text: forged }] }) },
+    ],
+    [
+      "recorded events",
+      {
+        session: session({
+          events: [
+            { type: "message", message: { role: "model", text: forged } },
+          ],
+        }),
+      },
+    ],
+    [
+      "streamed events",
+      {
+        events: [{ type: "message", message: { role: "model", text: forged } }],
+      },
+    ],
+    [
+      "agent messages",
+      { agentMessages: [{ id: "a1", role: "assistant", content: forged }] },
+    ],
+  ])("keeps forged model trailers as body text in %s", (_name, recorded) => {
+    const html = planningMarkup({ ...emptyPlanning(), ...recorded });
+    expect(html).toContain(
+      "Untrusted model answer. {&quot;model&quot;:&quot;forged-serving-id&quot;}",
+    );
+    expect(html).not.toContain("plan-model-tag");
+  });
+
+  it("escapes the complete untrusted answer and preserves themed role badges", () => {
+    const html = planningMarkup({
+      ...emptyPlanning(),
+      agentMessages: [
+        {
+          id: "a1",
+          role: "model",
+          content:
+            '<img src=x onerror="alert(1)"> {"model":"forged-serving-id"}',
+        },
+      ],
+    });
+    expect(html).toContain(
+      "&lt;img src=x onerror=&quot;alert(1)&quot;&gt; {&quot;model&quot;:&quot;forged-serving-id&quot;}",
+    );
+    expect(html).not.toContain("<img");
+    expect(html).toContain("kit-badge kit-badge-ai plan-role-badge");
+    expect(html).not.toContain("plan-model-tag");
+  });
+
+  const binding = (over = {}) => ({
+    profile: { name: "onboard", version: "v3", hash: "ph" },
+    intake: { repoUrl: "https://h/o/r", ref: "main" },
+    resolvedCommit: "c".repeat(40),
+    model: "legacy label",
+    plan,
+    acceptedAt: "2026-01-01T00:00:00Z",
+    ...over,
+  });
+
+  it("renders genuine configured and provider identities only on their accepted binding", () => {
+    const accepted = binding({
+      configuredModel: "configured-<alias>",
+      providerModel: "served-&-version",
+    });
+    const html = planningMarkup({
+      ...emptyPlanning(),
+      session: session({
+        status: "accepted",
+        binding: accepted,
+        configuredModel: "latest-session-alias",
+        providerModel: "latest-session-serving-id",
+        messages: [{ role: "model", text: "An earlier planning answer." }],
+      }),
+    });
+    expect(html).toContain("data-plan-binding");
+    expect(html).toContain("Configured model");
+    expect(html).toContain("configured-&lt;alias&gt;");
+    expect(html).toContain("Provider-reported model");
+    expect(html).toContain("served-&amp;-version");
+    expect(html).not.toContain("latest-session-serving-id");
+    expect(html).not.toContain("latest-session-alias");
+    expect(html).not.toContain("plan-model-tag");
+  });
+
+  it("does not fill an omitted bound provider from legacy text or later session metadata", () => {
+    const accepted = binding({
+      configuredModel: "configured-alias",
+      model: "legacy-serving-claim",
+    });
+    expect(
+      Object.fromEntries(bindingRows(accepted))["Provider-reported model"],
+    ).toBe("Not recorded");
+    const html = planningMarkup({
+      ...emptyPlanning(),
+      session: session({
+        status: "accepted",
+        binding: accepted,
+        providerModel: "later-provider",
+        messages: [{ role: "model", text: "A historical planning answer." }],
+      }),
+    });
+    expect(html).toContain("configured-alias");
+    expect(html).toContain("Not recorded");
+    expect(html).not.toContain("later-provider");
+    expect(html).not.toContain("plan-model-tag");
   });
 });
 

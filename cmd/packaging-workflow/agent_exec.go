@@ -24,20 +24,16 @@ func addAgentExecCommand(root *cobra.Command) {
 	var provider string
 	cmd := &cobra.Command{
 		Use:   "agent-exec",
-		Short: "Execute one governed packaging agent turn from a prompt on stdin (for CONDUIT_MODEL_CMD)",
-		Long: "Reads one prompt on stdin and writes the reply on stdout. --provider selects the engine: " +
-			"deterministic (offline, default), or claude, codex, gemini, grok to delegate the turn to that local model CLI. " +
-			"Override a provider's argv with CONDUIT_PROVIDER_<NAME>_CMD.",
-		Args: cobra.NoArgs,
+		Short: "Run one deterministic offline packaging fixture turn",
+		Long:  "Reads a prompt on stdin and writes a deterministic fixture reply. Host model delegation is unsupported. Configure the Hub or worker with an HTTP model endpoint for model calls.",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if provider != "" && provider != providerDeterministic {
+				return localcmd.ErrLocalCommandUnsupported
+			}
 			raw, err := io.ReadAll(cmd.InOrStdin())
 			if err != nil {
 				return err
-			}
-			// A preset with no recorded run says so on stderr every turn;
-			// stdout carries only the reply.
-			if preset, ok := localcmd.PresetByName(provider); ok && !preset.Verified {
-				warnPreset(preset)
 			}
 			var reply string
 			if provider == "" || provider == providerDeterministic {
@@ -52,7 +48,7 @@ func addAgentExecCommand(root *cobra.Command) {
 			return err
 		},
 	}
-	cmd.Flags().StringVar(&provider, "provider", os.Getenv("CONDUIT_AGENT_PROVIDER"), "agent engine: deterministic, claude, codex, gemini or grok")
+	cmd.Flags().StringVar(&provider, "provider", os.Getenv("CONDUIT_AGENT_PROVIDER"), "deterministic only; host provider delegation is unsupported")
 	root.AddCommand(cmd)
 }
 

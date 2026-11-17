@@ -108,6 +108,8 @@ const DefaultToolGroup: FC<PropsWithChildren<{ group: ThreadGroupPart }>> = ({
   );
 };
 
+const hasAttachments = (s: AssistantState) => s.thread.capabilities.attachments;
+
 const shouldShowComposerResume = (s: AssistantState) =>
   !!s.thread.canResume && s.composer.type === "thread" && s.composer.isEmpty;
 
@@ -126,6 +128,10 @@ const reasoningDuration = (timing: ThreadGroupPart["timing"]) =>
  * tool group; without it they render like any other tool call.
  * `ComposerExtra` renders in the composer's action row beside the attach
  * button. `ViewportHeader` renders at the top of the centered column.
+ *
+ * Controls appear only when the runtime reports the capability behind them:
+ * attach, edit and the action-bar reload render nothing on a runtime that has
+ * no attachment adapter, no edit handler or no reload handler.
  */
 export type ThreadComponents = {
   AssistantMessage?: ComponentType | undefined;
@@ -140,6 +146,8 @@ export type ThreadComponents = {
     | undefined;
   TaskGroup?: ComponentType<{ group: ThreadGroupPart }> | undefined;
   ComposerExtra?: ComponentType | undefined;
+  /** Renders under an assistant message's content, above its action bar. */
+  AssistantMessageFooter?: ComponentType | undefined;
 };
 
 const messageGroupBy = groupPartByType({
@@ -557,7 +565,9 @@ const Composer: FC<{ autoFocus: boolean }> = ({ autoFocus }) => {
           }
         >
           <ComposerQuotePreview />
-          <ComposerAttachments />
+          <AuiIf condition={hasAttachments}>
+            <ComposerAttachments />
+          </AuiIf>
           <ComposerPrimitive.Input
             placeholder="Send a message..."
             className="aui-composer-input caret-primary placeholder:text-muted-foreground/60 max-h-48 min-h-10 w-full resize-none bg-transparent px-2.5 py-1 text-base leading-6 outline-none"
@@ -584,14 +594,12 @@ const ComposerAction: FC = () => {
 
   return (
     <div className="aui-composer-action-wrapper relative flex items-center justify-between">
-      {ComposerExtra ? (
-        <div className="aui-composer-action-start flex items-center gap-1.5">
+      <div className="aui-composer-action-start flex items-center gap-1.5">
+        <AuiIf condition={hasAttachments}>
           <ComposerAddAttachment />
-          <ComposerExtra />
-        </div>
-      ) : (
-        <ComposerAddAttachment />
-      )}
+        </AuiIf>
+        {ComposerExtra ? <ComposerExtra /> : null}
+      </div>
       <div className="flex items-center gap-1.5">
         <AuiIf condition={(s) => s.thread.capabilities.dictation}>
           <AuiIf condition={(s) => s.composer.dictation == null}>
@@ -727,6 +735,23 @@ const MessageError: FC = () => {
           <RefreshCwIcon className="size-3.5" />
           Refresh
         </ActionBarPrimitive.RefreshRun>
+        <AuiIf
+          condition={(s) => s.thread.capabilities.reload && s.message.isLast}
+        >
+          <ActionBarPrimitive.Reload
+            render={
+              <Button
+                variant="outline"
+                size="sm"
+                data-slot="aui_message-error-retry"
+                className="h-7 gap-1.5 bg-transparent disabled:hidden"
+              />
+            }
+          >
+            <RefreshCwIcon className="size-3.5" />
+            Retry
+          </ActionBarPrimitive.Reload>
+        </AuiIf>
       </ErrorPrimitive.Root>
     </MessagePrimitive.Error>
   );
@@ -738,6 +763,7 @@ const AssistantMessage: FC = () => {
     ToolGroup,
     ReasoningGroup,
     TaskGroup: TaskGroupComponent,
+    AssistantMessageFooter,
   } = useContext(ThreadComponentsContext);
   const groupBy = TaskGroupComponent ? taskAwareGroupBy : messageGroupBy;
 
@@ -835,6 +861,7 @@ const AssistantMessage: FC = () => {
           }}
         </MessagePrimitive.GroupedParts>
         <MessageError />
+        {AssistantMessageFooter ? <AssistantMessageFooter /> : null}
       </div>
 
       <div
@@ -886,11 +913,15 @@ const AssistantActionBar: FC = () => {
           <ThumbsDownIcon />
         </ActionBarPrimitive.FeedbackNegative>
       </AuiIf>
-      <ActionBarPrimitive.Reload
-        render={<TooltipIconButton tooltip="Refresh" />}
+      <AuiIf
+        condition={(s) => s.thread.capabilities.reload && s.message.isLast}
       >
-        <RefreshCwIcon />
-      </ActionBarPrimitive.Reload>
+        <ActionBarPrimitive.Reload
+          render={<TooltipIconButton tooltip="Ask again" />}
+        >
+          <RefreshCwIcon />
+        </ActionBarPrimitive.Reload>
+      </AuiIf>
       <ActionBarMorePrimitive.Root>
         <ActionBarMorePrimitive.Trigger
           render={
@@ -988,13 +1019,18 @@ const UserActionBar: FC = () => {
       autohide="not-last"
       className="aui-user-action-bar-root flex flex-col items-end"
     >
-      <ActionBarPrimitive.Edit
-        render={
-          <TooltipIconButton tooltip="Edit" className="aui-user-action-edit" />
-        }
-      >
-        <PencilIcon />
-      </ActionBarPrimitive.Edit>
+      <AuiIf condition={(s) => s.thread.capabilities.edit}>
+        <ActionBarPrimitive.Edit
+          render={
+            <TooltipIconButton
+              tooltip="Edit"
+              className="aui-user-action-edit"
+            />
+          }
+        >
+          <PencilIcon />
+        </ActionBarPrimitive.Edit>
+      </AuiIf>
     </ActionBarPrimitive.Root>
   );
 };

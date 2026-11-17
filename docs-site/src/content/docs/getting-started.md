@@ -29,11 +29,9 @@ On a Docker host that cannot publish ports because it has no iptables or bridge 
 
 ## Recorded proposals
 
-Optional: live proposals from a local command. Install that command yourself and sign in with it, then set `CONDUIT_MODEL_CMD` to that command before starting the Hub. Leave the variable unset to keep the recorded proposals and make no model call.
+For live proposals, configure `CONDUIT_MODEL_BASE_URL` and `CONDUIT_MODEL_NAME` for an operator-managed HTTP endpoint. Leave model configuration unset for recorded proposals with no model call. Host model command settings are refused.
 
-`CONDUIT_MODEL_TIMEOUT` defaults to 45 seconds. The command does not approve a change. A passing proposal is stored as a change request that still needs a person. Credentials stay in the command's own configuration on the machine that runs the Hub.
-
-The full contract, including what is verified against a local install and what is not, is in [Local model CLI](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/local-model-cli.md).
+`CONDUIT_MODEL_TIMEOUT` defaults to 45 seconds. A model cannot approve a change; passing proposals still require human review. The full configuration and its tested limits are in [HTTP model endpoint](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/model-http.md).
 
 ## Where the console is built
 
@@ -42,5 +40,6 @@ The full contract, including what is verified against a local install and what i
 ## Read next
 
 - [How it works](/conduit/how-it-works/) for the governed path the demo walks.
+- [Installing and verifying a published release](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/release-and-publication.md#installing-and-verifying-a-published-release) for CLI archive, SLSA provenance, SPDX SBOM, Helm chart, and air-gap Zarf package verification and installation by digest.
 - [Repository README](https://github.com/jonathanagustin/conduit/blob/main/README.md) for the same quick start beside the demo media.
 - [Local verification](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/local-verification.md) for what a local test result does and does not prove.

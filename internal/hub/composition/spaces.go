@@ -18,7 +18,7 @@ func mountSpaces(legacy http.Handler, repository controlplane.Repository, option
 	if store == nil {
 		return legacy, nil
 	}
-	service := controlplane.NewGovernanceService(repository)
+	service := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	if err := spacehttp.Register(mux, func(r *http.Request) (*spaceapp.Service, error) {
 		if _, err := operatorFrom(r.Context()); err != nil {
@@ -116,7 +116,7 @@ func withSpaceLookup(repository controlplane.Repository, options controlplane.Ha
 		return options
 	}
 	authorizationOptions := options
-	service := controlplane.NewGovernanceService(repository)
+	service := newGovernanceService(repository, options)
 	options.SpaceIDLookup = func(ctx context.Context, carrier controlplane.Principal, kind, id string) (string, error) {
 		resource := spaces.Resource{Kind: kind, ID: id}
 		if err := resource.Validate(); err != nil {
@@ -152,6 +152,27 @@ func withSpaceLookup(repository controlplane.Repository, options controlplane.Ha
 		}
 		_, err = spacesService.Get(ctx, id)
 		return spaceSelectionError(err)
+	}
+	// The HTTP adapter already validated caller visibility of this Space. Load
+	// its immutable anchors once, without adding Environment-read requirements
+	// to Plans/change requests the caller may read through review authority.
+	options.LoadSpaceIndexMembership = func(ctx context.Context, _ controlplane.Principal, id string) (controlplane.SpaceIndexMembership, error) {
+		bindings, err := store.ListBindings(ctx, id)
+		if err != nil {
+			return controlplane.SpaceIndexMembership{}, err
+		}
+		var result controlplane.SpaceIndexMembership
+		for _, binding := range bindings {
+			switch binding.Resource.Kind {
+			case spaces.Environment:
+				result.EnvironmentIDs = append(result.EnvironmentIDs, binding.Resource.ID)
+			case spaces.Product:
+				result.ProductIDs = append(result.ProductIDs, binding.Resource.ID)
+			case spaces.Bundle:
+				result.BundleIDs = append(result.BundleIDs, binding.Resource.ID)
+			}
+		}
+		return result, nil
 	}
 	options.ReserveProductSpace = func(ctx context.Context, carrier controlplane.Principal, id, product string) error {
 		ctx = context.WithValue(ctx, operatorCarrierKey{}, func() (governance.Principal, error) { return carrier, nil })

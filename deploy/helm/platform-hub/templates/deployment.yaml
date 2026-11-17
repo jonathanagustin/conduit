@@ -120,6 +120,20 @@ spec:
             - { name: {{ $name }}, value: {{ . | quote }} }
             {{- end }}
             {{- end }}
+            {{- if .Values.operatorOIDC.signIn.enabled }}
+            - { name: CONSOLE_PUBLIC_URL, value: {{ required "operatorOIDC.signIn.publicURL is required when operatorOIDC.signIn.enabled" .Values.operatorOIDC.signIn.publicURL | quote }} }
+            {{- with .Values.operatorOIDC.signIn.clientSecret.secretName }}
+            - { name: OPERATOR_OIDC_CLIENT_SECRET_FILE, value: /run/conduit-sso/{{ $.Values.operatorOIDC.signIn.clientSecret.key }} }
+            {{- end }}
+            {{- with .Values.operatorOIDC.signIn.sessionMaxLifetime }}
+            - { name: OPERATOR_SESSION_MAX_LIFETIME, value: {{ . | quote }} }
+            {{- end }}
+            {{- with .Values.operatorOIDC.signIn.loginScopes }}
+            - { name: OPERATOR_OIDC_LOGIN_SCOPES, value: {{ join " " . | quote }} }
+            {{- end }}
+            {{- end }}
+            {{- else if .Values.operatorOIDC.signIn.enabled }}
+            {{- fail "operatorOIDC.signIn.enabled requires operatorOIDC.enabled" }}
             {{- end }}
             {{- if .Values.artifactScanner.command }}
             - { name: EXTERNAL_ARTIFACT_SCANNER, value: {{ .Values.artifactScanner.command | quote }} }
@@ -177,6 +191,15 @@ spec:
             {{- if .Values.metrics.enabled }}
             - { name: METRICS_ADDRESS, value: {{ printf ":%d" (int .Values.metrics.port) | quote }} }
             {{- end }}
+            {{- range $class := list "operator" "agent" "anonymous" }}
+            {{- $limit := index $.Values.rateLimit $class }}
+            {{- if not (kindIs "invalid" $limit.rps) }}
+            - { name: RATE_LIMIT_{{ upper $class }}_RPS, value: {{ $limit.rps | toString | quote }} }
+            {{- end }}
+            {{- if not (kindIs "invalid" $limit.burst) }}
+            - { name: RATE_LIMIT_{{ upper $class }}_BURST, value: {{ $limit.burst | int64 | toString | quote }} }
+            {{- end }}
+            {{- end }}
             {{- if eq .Values.notifications.transport "webhook" }}
             - name: NOTIFICATION_WEBHOOK_URL
               valueFrom:
@@ -220,6 +243,14 @@ spec:
             {{- if $model.baseURL }}
             - { name: CONDUIT_MODEL_BASE_URL, value: {{ $model.baseURL | quote }} }
             - { name: CONDUIT_MODEL_NAME, value: {{ $model.name | quote }} }
+            {{- range $capability, $settings := $model.capabilities }}
+            {{- with $settings.name }}
+            - { name: CONDUIT_{{ $capability | upper }}_MODEL_NAME, value: {{ . | quote }} }
+            {{- end }}
+            {{- with $settings.timeout }}
+            - { name: CONDUIT_{{ $capability | upper }}_MODEL_TIMEOUT, value: {{ . | quote }} }
+            {{- end }}
+            {{- end }}
             {{- with $model.timeout }}
             - { name: CONDUIT_MODEL_TIMEOUT, value: {{ . | quote }} }
             {{- end }}
@@ -260,6 +291,9 @@ spec:
             - { name: database, mountPath: /run/conduit-database, readOnly: true }
             {{- end }}
             - { name: server-tls, mountPath: /run/platform-tls, readOnly: true }
+            {{- if and .Values.operatorOIDC.enabled .Values.operatorOIDC.signIn.enabled .Values.operatorOIDC.signIn.clientSecret.secretName }}
+            - { name: operator-sso, mountPath: /run/conduit-sso, readOnly: true }
+            {{- end }}
             - { name: external-ca, mountPath: /etc/ssl/platform-ca, readOnly: true }
             - { name: bundle-signing, mountPath: /run/platform-signing, readOnly: true }
             - { name: console-bootstrap, mountPath: /etc/conduit/console, readOnly: true }
@@ -316,6 +350,17 @@ spec:
             items:
               - key: {{ .Values.repository.postgres.dsnKey }}
                 path: {{ .Values.repository.postgres.dsnKey }}
+        {{- end }}
+        {{- if and .Values.operatorOIDC.enabled .Values.operatorOIDC.signIn.enabled .Values.operatorOIDC.signIn.clientSecret.secretName }}
+        # Named explicitly, so not optional: a Hub told to sign in as a
+        # confidential client must not start as anything else.
+        - name: operator-sso
+          secret:
+            secretName: {{ .Values.operatorOIDC.signIn.clientSecret.secretName }}
+            optional: false
+            items:
+              - key: {{ .Values.operatorOIDC.signIn.clientSecret.key }}
+                path: {{ .Values.operatorOIDC.signIn.clientSecret.key }}
         {{- end }}
         - name: server-tls
           secret:

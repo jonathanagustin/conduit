@@ -48,7 +48,7 @@ if ! node "${STAGE}/scripts/verify-documentation-freshness.mjs" >/dev/null 2>&1;
 fi
 echo "accepted  the committed tree"
 
-expect_reject "a corpus older than the maximum age" "2026-12-31"
+expect_reject "a corpus older than the maximum age" "2027-01-15"
 
 node -e '
 const path = process.argv[1];

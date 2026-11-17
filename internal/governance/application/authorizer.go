@@ -52,18 +52,37 @@ func (authorizer *Authorizer) EffectiveGrants(ctx context.Context, resourceRID s
 func (authorizer *Authorizer) Allows(
 	ctx context.Context, principal domain.Principal, resourceRID, operation string,
 ) bool {
+	allowed, err := authorizer.Check(ctx, principal, resourceRID, operation)
+	return err == nil && allowed
+}
+
+// Check preserves the difference between a denied operation and a failed
+// lookup. Background delivery must retry an unavailable authority source rather
+// than treating it as a permanent revocation or permission to deliver.
+func (authorizer *Authorizer) Check(
+	ctx context.Context, principal domain.Principal, resourceRID, operation string,
+) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
 	grants, err := authorizer.EffectiveGrants(ctx, resourceRID)
 	if err != nil {
-		return false
+		return false, err
+	}
+	if err := ctx.Err(); err != nil {
+		return false, err
 	}
 	teams := teamSet(principal)
 	for _, grant := range grants {
-		if _, member := teams[grant.Team]; member &&
-			(containsString(grant.Operations, operation) || domain.RolesAllow(grant.Roles, operation)) {
-			return true
+		if _, member := teams[grant.Team]; member && grantConveys(grant, operation) {
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
+}
+
+func grantConveys(grant domain.ResourceGrant, operation string) bool {
+	return containsString(grant.Operations, operation) || domain.RolesAllow(grant.Roles, operation)
 }
 
 // RequirementSatisfied reports whether this principal meets one reviewer

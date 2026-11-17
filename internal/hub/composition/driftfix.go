@@ -9,8 +9,8 @@ import (
 )
 
 func mountDriftFix(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions) http.Handler {
-	service := application.Service{Store: repository}
-	governance := controlplane.NewGovernanceService(repository)
+	service := application.Service{Store: repository, Governance: newGovernanceService(repository, options)}
+	governance := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	driftfixhttp.Register(mux, driftfixhttp.Config{
 		Authorize: func(request *http.Request) error {

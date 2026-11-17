@@ -21,14 +21,28 @@ type Result struct {
 	AuditID         string
 }
 
+// Governance records proposals and reviews through the Hub's configured service.
+type Governance interface {
+	ProposeHumanChange(context.Context, string, string, string, []controlplane.EntityChange, controlplane.Principal, string, string) (controlplane.ChangeRequest, error)
+	Approve(context.Context, string, controlplane.Principal, string) (controlplane.ChangeRequest, controlplane.PlanRecord, error)
+}
+
 // Service stores blackouts for the process and audits each decision.
 type Service struct {
-	Store controlplane.Repository
-	Now   func() time.Time
+	Governance Governance
+	Store      controlplane.Repository
+	Now        func() time.Time
 
 	mu        sync.Mutex
 	blackouts []domain.Blackout
 	pending   map[string]int
+}
+
+func (service *Service) governance() Governance {
+	if service.Governance != nil {
+		return service.Governance
+	}
+	return controlplane.NewGovernanceService(service.Store)
 }
 
 func (service *Service) now() time.Time {
@@ -83,7 +97,7 @@ func (service *Service) ProposeClear(ctx context.Context, actor controlplane.Pri
 	if index < 0 {
 		return Result{Reason: "no blackout is stored"}, nil
 	}
-	governanceService := controlplane.NewGovernanceService(service.Store)
+	governanceService := service.governance()
 	request, err := governanceService.ProposeHumanChange(ctx, "BLACKOUT", environment, environment, []controlplane.EntityChange{{
 		ID: "clear-blackout", Type: controlplane.ChangeTypeUpdateEnvironmentSettings,
 		Request: map[string]any{"deploymentId": environment, "settings": map[string]any{"blackout": "clear"}},
@@ -117,7 +131,7 @@ func (service *Service) ApproveClear(ctx context.Context, approver controlplane.
 		auditID, err := service.audit(ctx, approver.Username, service.blackouts[index].Environment, governance.DecisionDeny, "the author cannot approve their own change request")
 		return Result{Reason: "the author cannot approve their own change request", AuditID: auditID}, err
 	}
-	if _, _, err := controlplane.NewGovernanceService(service.Store).Approve(ctx, changeID, approver, rationale); err != nil {
+	if _, _, err := service.governance().Approve(ctx, changeID, approver, rationale); err != nil {
 		return Result{}, err
 	}
 	environment := service.blackouts[index].Environment

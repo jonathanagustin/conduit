@@ -1,0 +1,12 @@
+2026-11-17 05:39:59.589 UTC [1] LOG:  starting PostgreSQL 18.6 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+2026-11-17 05:39:59.590 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2026-11-17 05:39:59.590 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2026-11-17 05:39:59.591 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2026-11-17 05:39:59.593 UTC [10] LOG:  database system was interrupted; last known up at 2026-11-17 05:39:59 UTC
+2026-11-17 05:39:59.681 UTC [10] LOG:  starting backup recovery with redo LSN 0/2000028, checkpoint LSN 0/2000080, on timeline ID 1
+2026-11-17 05:39:59.681 UTC [10] LOG:  entering standby mode
+2026-11-17 05:39:59.683 UTC [10] LOG:  redo starts at 0/2000028
+2026-11-17 05:39:59.683 UTC [10] LOG:  completed backup recovery with redo LSN 0/2000028 and end LSN 0/2000120
+2026-11-17 05:39:59.684 UTC [10] LOG:  consistent recovery state reached at 0/2000120
+2026-11-17 05:39:59.684 UTC [1] LOG:  database system is ready to accept read-only connections
+2026-11-17 05:39:59.692 UTC [11] LOG:  started streaming WAL from primary at 0/3000000 on timeline 1

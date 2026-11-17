@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"unicode"
@@ -74,7 +75,8 @@ func ParseSpec(raw []byte) (Spec, error) {
 	if err := decoder.Decode(&spec); err != nil {
 		return Spec{}, fmt.Errorf("%w: %v", ErrSpecInvalid, err)
 	}
-	if decoder.More() {
+	var extra json.RawMessage
+	if err := decoder.Decode(&extra); err != io.EOF {
 		return Spec{}, fmt.Errorf("%w: extra data after the object", ErrSpecInvalid)
 	}
 	if err := validateSchema(spec); err != nil {

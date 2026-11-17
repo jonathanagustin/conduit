@@ -3,13 +3,13 @@ package composition
 import (
 	"context"
 	"fmt"
+	"github.com/jonathanagustin/conduit/internal/modelconfig"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
-	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelcli"
 	packagingmodelhttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/packagingtools"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/recorded"
@@ -19,31 +19,16 @@ import (
 )
 
 func modelProposer(getenv func(string) string) (packagingdomain.ChangeProposer, error) {
+	getenv = modelconfig.ForCapability(getenv, modelconfig.Packaging)
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
-	if client, err := modelHTTPClient(getenv); err != nil {
+	if client, err := packagingModelHTTPClient(getenv); err != nil {
 		return nil, err
 	} else if client != nil {
 		return packagingmodelhttp.Adapter{Client: client, Tools: packagingtools.New()}, nil
 	}
-	raw := strings.TrimSpace(getenv("CONDUIT_MODEL_CMD"))
-	if raw == "" {
-		return recorded.Unavailable(), nil
-	}
-	argv, err := modelcli.ParseArgv(raw)
-	if err != nil {
-		return nil, fmt.Errorf("CONDUIT_MODEL_CMD: %w", err)
-	}
-	timeout := 45 * time.Second
-	if text := strings.TrimSpace(getenv("CONDUIT_MODEL_TIMEOUT")); text != "" {
-		parsed, err := time.ParseDuration(text)
-		if err != nil || parsed <= 0 {
-			return nil, fmt.Errorf("CONDUIT_MODEL_TIMEOUT must be a positive duration")
-		}
-		timeout = parsed
-	}
-	return modelcli.Runner{Argv: argv, Timeout: timeout, Tools: packagingtools.New(), ModelName: configuredModelName(getenv)}, nil
+	return recorded.Unavailable(), nil
 }
 
 func modelService(

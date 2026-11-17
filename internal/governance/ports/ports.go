@@ -1,7 +1,7 @@
 // Package ports declares what Governance needs from the rest of the system in
 // order to decide who may do what, and nothing more.
 //
-// There are two, and both are deliberately narrow. Governance does not want a
+// These dependencies are deliberately narrow. Governance does not want a
 // repository, a transaction, or a change request — it wants the grants recorded
 // against one scope, and somewhere to file what it decided. Naming exactly that
 // keeps the store replaceable, keeps the scope expansion (which is a rule, not
@@ -25,6 +25,12 @@ import (
 // silently widens every authorization decision above it.
 type GrantSource interface {
 	ResourceGrantsInScope(ctx context.Context, scope string) ([]domain.ResourceGrant, error)
+}
+
+// TeamSource supplies current native membership and team existence. It carries
+// no cached identity-provider groups or authentication credentials.
+type TeamSource interface {
+	ListTeams(context.Context) ([]domain.Team, error)
 }
 
 // AuditSink files an authorization decision where it can be read back.

@@ -11,7 +11,7 @@ import (
 type planApprovalPrincipalKey struct{}
 
 func mountPlanApprovalConnect(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions) http.Handler {
-	governance := controlplane.NewGovernanceService(repository)
+	governance := newGovernanceService(repository, options)
 	lifecycle := controlplane.NewLifecycle(repository)
 	mux := http.NewServeMux()
 	approvalhttp.RegisterPlanApprovalConnect(mux, approvalhttp.PlanApprovalConfig{

@@ -55,12 +55,12 @@ func TestSelectingACourseOpensAPendingRequest(t *testing.T) {
 
 func TestFeedbackBecomesACase(t *testing.T) {
 	service := New("recorded", "45s")
-	added, err := service.AddCase("operator rejected 2Gi", "sample-app-1", "2Gi", "FAIL_REQUIRED")
+	added, err := service.AddCase(context.Background(), "operator rejected 2Gi", "sample-app-1", "2Gi", "FAIL_REQUIRED")
 	if err != nil || added.Source != "operator feedback" {
 		t.Fatalf("added = %#v %v", added, err)
 	}
-	if len(service.Cases()) != 4 {
-		t.Fatalf("cases = %d", len(service.Cases()))
+	if len(mustCases(t, service)) != 4 {
+		t.Fatalf("cases = %d", len(mustCases(t, service)))
 	}
 }
 
@@ -117,27 +117,27 @@ func TestBlockedCourseNeverCallsProposalOpener(t *testing.T) {
 
 func TestFeedbackIdentityCoversExpectedScopeAndBoundsGrowth(t *testing.T) {
 	service := New("", "")
-	first, err := service.AddCase("same scenario", "one", "512Mi", "PASS")
+	first, err := service.AddCase(context.Background(), "same scenario", "one", "512Mi", "PASS")
 	if err != nil {
 		t.Fatal(err)
 	}
-	retry, err := service.AddCase("same scenario", "one", "512Mi", "PASS")
-	if err != nil || retry.ID != first.ID || len(service.Cases()) != 4 {
+	retry, err := service.AddCase(context.Background(), "same scenario", "one", "512Mi", "PASS")
+	if err != nil || retry.ID != first.ID || len(mustCases(t, service)) != 4 {
 		t.Fatal("feedback retry duplicated case", retry, err)
 	}
-	other, err := service.AddCase("same scenario", "two", "512Mi", "FAIL_REQUIRED")
+	other, err := service.AddCase(context.Background(), "same scenario", "two", "512Mi", "FAIL_REQUIRED")
 	if err != nil || other.ID == first.ID {
 		t.Fatal("feedback identity lost bound/expectation", other, err)
 	}
-	for i := len(service.Cases()); i < 256; i++ {
-		if _, err := service.AddCase(fmt.Sprint(i), "scope", "512Mi", "PASS"); err != nil {
+	for i := len(mustCases(t, service)); i < 256; i++ {
+		if _, err := service.AddCase(context.Background(), fmt.Sprint(i), "scope", "512Mi", "PASS"); err != nil {
 			t.Fatal(i, err)
 		}
 	}
-	if _, err := service.AddCase("overflow", "scope", "512Mi", "PASS"); err == nil {
+	if _, err := service.AddCase(context.Background(), "overflow", "scope", "512Mi", "PASS"); err == nil {
 		t.Fatal("unbounded evaluation cases accepted")
 	}
-	if _, err := service.AddCase("same scenario", "one", "512Mi", "PASS"); err != nil {
+	if _, err := service.AddCase(context.Background(), "same scenario", "one", "512Mi", "PASS"); err != nil {
 		t.Fatal("bounded store refused idempotent retry", err)
 	}
 }

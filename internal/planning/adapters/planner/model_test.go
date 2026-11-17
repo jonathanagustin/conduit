@@ -48,7 +48,7 @@ func TestBindingModelNeverComesFromModelAuthoredText(t *testing.T) {
 	// A model CLI with no configured name: the binding says so explicitly.
 	audit := &memoryAudit{}
 	script := writeModelScript(t, replies...)
-	session := acceptedSession(t, Planner{Argv: []string{script}, Audit: audit}, server.URL+"/src.git")
+	session := acceptedSession(t, Planner{Model: script, Audit: audit}, server.URL+"/src.git")
 	if session.Binding.Model != domain.UnverifiedModelLabel {
 		t.Fatalf("binding model = %q, want the unverified marker %q", session.Binding.Model, domain.UnverifiedModelLabel)
 	}
@@ -64,7 +64,8 @@ func TestBindingModelNeverComesFromModelAuthoredText(t *testing.T) {
 	// A configured name wins over what the model claims.
 	audit = &memoryAudit{}
 	script = writeModelScript(t, replies...)
-	session = acceptedSession(t, Planner{Argv: []string{script}, ModelName: "operator-chosen", Audit: audit}, server.URL+"/src.git")
+	script.name = "operator-chosen"
+	session = acceptedSession(t, Planner{Model: script, ModelName: "operator-chosen", Audit: audit}, server.URL+"/src.git")
 	if session.Binding.Model != "operator-chosen" {
 		t.Fatalf("binding model = %q, want operator-chosen", session.Binding.Model)
 	}
@@ -131,6 +132,10 @@ func TestPlanningTurnRunsOverHTTPAndRecordsProviderModel(t *testing.T) {
 
 	if session.Plan == nil || session.ResolvedCommit != sha {
 		t.Fatalf("plan/commit = %+v %q", session.Plan, session.ResolvedCommit)
+	}
+	if session.ConfiguredModel != "requested-model" || session.ProviderModel != "served-model-2026-01" ||
+		session.Binding.ConfiguredModel != "requested-model" || session.Binding.ProviderModel != "served-model-2026-01" {
+		t.Fatalf("separate model ids were not bound: %+v / %+v", session, session.Binding)
 	}
 	want := "requested-model (provider reported served-model-2026-01)"
 	if session.Binding.Model != want {

@@ -9,7 +9,7 @@ import (
 )
 
 func mountChannels(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions) http.Handler {
-	service := controlplane.NewGovernanceService(repository)
+	service := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	channelhttp.Register(mux, channelhttp.Config{
 		Board: channelapp.Service{Plans: repository},

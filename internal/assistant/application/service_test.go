@@ -185,7 +185,7 @@ func (authors memoryAuthors) Author(context.Context, string) (string, error) {
 func TestElicitationDoesNotOpenAChange(t *testing.T) {
 	changes := &memoryChanges{}
 	service := Service{Governor: allow(), Changes: changes, Audit: &memoryAudit{}, Now: fixedClock()}
-	result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, []byte(`{"action":"promote"}`))
+	result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, []byte(`{"action":"cancel_packaging_run"}`))
 	if err != nil || len(result.Fields) == 0 || changes.calls != 0 || result.ChangeRequestID != "" {
 		t.Fatalf("elicit = %#v calls=%d %v", result, changes.calls, err)
 	}
@@ -197,7 +197,7 @@ func TestChangeRequestTargetComesFromTheArguments(t *testing.T) {
 	changes := &memoryChanges{}
 	service := Service{Governor: allow(), Changes: changes, Audit: &memoryAudit{}, Now: fixedClock()}
 	result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite,
-		[]byte(`{"action":"promote","targetId":"rel-7","justification":"ready","environment":"prod-east","installationId":"billing-api","productId":"com.acme:billing"}`))
+		[]byte(`{"action":"cancel_packaging_run","targetId":"rel-7","justification":"ready","environment":"prod-east","installationId":"billing-api","productId":"com.acme:billing"}`))
 	if err != nil || result.ChangeRequestID != "crq_test" || result.Applied || changes.calls != 1 {
 		t.Fatalf("high = %#v calls=%d %v", result, changes.calls, err)
 	}
@@ -205,9 +205,9 @@ func TestChangeRequestTargetComesFromTheArguments(t *testing.T) {
 		t.Fatalf("proposal = %#v", changes.last)
 	}
 	for _, body := range []string{
-		`{"action":"promote","targetId":"rel-7","justification":"ready","installationId":"billing-api","productId":"com.acme:billing"}`,
-		`{"action":"promote","targetId":"rel-7","justification":"ready","environment":"prod-east","productId":"com.acme:billing"}`,
-		`{"action":"promote","targetId":"rel-7","justification":"ready","environment":"prod-east","installationId":"billing-api"}`,
+		`{"action":"cancel_packaging_run","targetId":"rel-7","justification":"ready","installationId":"billing-api","productId":"com.acme:billing"}`,
+		`{"action":"cancel_packaging_run","targetId":"rel-7","justification":"ready","environment":"prod-east","productId":"com.acme:billing"}`,
+		`{"action":"cancel_packaging_run","targetId":"rel-7","justification":"ready","environment":"prod-east","installationId":"billing-api"}`,
 		`{"action":"cancel_packaging_run","targetId":"run-1","environment":" ","installationId":"billing-api","productId":"com.acme:billing"}`,
 	} {
 		changes.calls = 0
@@ -218,42 +218,23 @@ func TestChangeRequestTargetComesFromTheArguments(t *testing.T) {
 	}
 }
 
-// An opened change request says what it is: nothing runs the action on approval.
-func TestOpenedChangeRequestDoesNotClaimTheActionWillRun(t *testing.T) {
+// Opening the proposal acknowledges review work, not a completed worker command.
+func TestOpenedChangeRequestWaitsForApprovalBeforeExecution(t *testing.T) {
 	service := Service{Governor: allow(), Changes: &memoryChanges{}, Audit: &memoryAudit{}, Now: fixedClock()}
 	result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite,
 		[]byte(`{"action":"cancel_packaging_run","targetId":"run-1","environment":"dev","installationId":"billing-api","productId":"com.acme:billing"}`))
-	if err != nil || result.Applied || !strings.Contains(result.Reason, "does not run the action") {
+	if err != nil || result.Applied || !strings.Contains(result.Reason, "approval dispatches") {
 		t.Fatalf("opened = %#v %v", result, err)
 	}
 }
 
-// start_packaging_run and rerun_packaging_run have no service behind them here.
-func TestActionWithoutAnExecutorIsRefusedNotApplied(t *testing.T) {
-	for _, action := range []string{"start_packaging_run", "rerun_packaging_run"} {
-		changes, cases, reviews := &memoryChanges{}, &memoryCases{}, &memoryReviews{}
-		service := Service{Governor: allow(), Changes: changes, Cases: cases, Reviews: reviews, Audit: &memoryAudit{}, Now: fixedClock()}
-		for _, confirm := range []string{"true", "false"} {
-			result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite,
-				[]byte(`{"action":"`+action+`","targetId":"run-1","confirm":`+confirm+`}`))
-			if err != nil || result.Applied || result.Allowed || result.NeedsConfirm || result.WriteOps != 0 || result.State != "" || result.Reason != ReasonNotExecutable {
-				t.Fatalf("%s confirm=%s = %#v %v", action, confirm, result, err)
-			}
-		}
-		if changes.calls+len(cases.ids)+reviews.calls != 0 {
-			t.Fatalf("%s reached a service", action)
-		}
-	}
-}
-
-func TestActionWithoutARuleIsRefused(t *testing.T) {
-	for _, action := range []string{"recall", "propose_memory", "select_course"} {
+func TestUnsupportedActionsAreRemovedFromTheSchema(t *testing.T) {
+	for _, action := range []string{"start_packaging_run", "promote", "recall", "propose_memory", "select_course"} {
 		changes := &memoryChanges{}
-		governor := &countingGovernor{}
-		service := Service{Governor: governor, Changes: changes, Audit: &memoryAudit{}, Now: fixedClock()}
+		service := Service{Governor: allow(), Changes: changes, Audit: &memoryAudit{}}
 		result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, fullWrite(action))
-		if err != nil || result.Allowed || result.Applied || changes.calls != 0 || result.Reason != ReasonNoActionRule || len(result.Fields) != 0 {
-			t.Fatalf("%s = %#v calls=%d %v", action, result, changes.calls, err)
+		if err == nil || result.Applied || result.WriteOps != 0 || changes.calls != 0 {
+			t.Fatalf("%s: result=%+v error=%v", action, result, err)
 		}
 	}
 }
@@ -261,15 +242,15 @@ func TestActionWithoutARuleIsRefused(t *testing.T) {
 func TestRuledWriteWithoutAGovernorIsRefused(t *testing.T) {
 	changes := &memoryChanges{}
 	service := Service{Changes: changes, Audit: &memoryAudit{}, Now: fixedClock()}
-	result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, fullWrite("promote"))
+	result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, fullWrite("cancel_packaging_run"))
 	if err != nil || result.Allowed || changes.calls != 0 || result.Reason != ReasonNoGovernor {
 		t.Fatalf("no governor = %#v calls=%d %v", result, changes.calls, err)
 	}
 }
 
 // Every action in the schema is evaluated by a rule or refused, and none
-// reports applied without a service having been called. add_eval_case is the
-// one write that runs with no rule.
+// reports applied without a service having been called. Feedback has an explicit
+// rule too; there are no write exemptions.
 func TestEveryWriteActionIsGovernedOrRefusedAndNeverAppliedWithoutAnEffect(t *testing.T) {
 	for _, action := range domain.WriteActions() {
 		changes, cases, reviews, governor := &memoryChanges{}, &memoryCases{}, &memoryReviews{}, &countingGovernor{}
@@ -283,7 +264,7 @@ func TestEveryWriteActionIsGovernedOrRefusedAndNeverAppliedWithoutAnEffect(t *te
 		}
 		effects := changes.calls + len(cases.ids) + reviews.calls
 		refused := !result.Allowed && !result.Applied && effects == 0 && result.Reason != "" && len(result.Constraints) == 1
-		if len(governor.rules) == 0 && !refused && action != "add_eval_case" {
+		if len(governor.rules) == 0 && !refused {
 			t.Fatalf("%s ran with no action rule: %#v", action, result)
 		}
 		if (result.Applied || result.WriteOps != 0 || result.State != "") && effects != 1 {
@@ -302,7 +283,7 @@ func fullWrite(action string) []byte {
 
 func TestLowRiskAppliesOnlyAfterConfirm(t *testing.T) {
 	cases := &memoryCases{}
-	service := Service{Cases: cases, Audit: &memoryAudit{}, Now: fixedClock()}
+	service := Service{Cases: cases, Governor: allow(), Audit: &memoryAudit{}, Now: fixedClock()}
 	body := []byte(`{"action":"add_eval_case","justification":"operator rejected 2Gi","value":"2Gi","expectedOutcome":"FAIL_REQUIRED"}`)
 	pending, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, body)
 	if err != nil || !pending.NeedsConfirm || pending.Applied || len(cases.ids) != 0 {

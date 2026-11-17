@@ -1,5 +1,6 @@
 // Context chips and tool cards for the workbench assistant rail.
 // Tool results come from the Hub. This file does not invent them.
+import { postTool as postAssistantTool } from "./assistant-api.js";
 import { attachControl, attachmentList } from "./attachments.js";
 
 const MODES = [
@@ -146,20 +147,16 @@ function workspaceGuidance(mode) {
 
 function governedFields(state, chip) {
   const hub = state.hub || {};
-  const change = (hub.changes || []).find((item) => item.environment) || {};
-  const resources = change.changes?.[0]?.referencedResources || {};
-  return {
-    environment:
-      chip.environment ||
-      hub.environments?.[0]?.environment?.id ||
-      change.environment ||
-      "",
-    installation:
-      change.changes?.[0]?.installationId ||
-      hub.installations?.[0]?.installationId ||
-      "",
-    product: resources.product?.name || "",
-  };
+  const run = (hub.packaging || []).find((item) => item.runId === chip.id);
+  const target = String(run?.targetPlanRef || "");
+  const split = target.indexOf("/");
+  const environment = split > 0 ? target.slice(0, split) : "";
+  const installation = split > 0 ? target.slice(split + 1) : "";
+  const row = (hub.installations || []).find(
+    (item) =>
+      item.environment === environment && item.installationId === installation,
+  );
+  return { environment, installation, product: row?.product || "" };
 }
 
 export function assistantChrome(state) {
@@ -244,11 +241,6 @@ function actionsFor(state, chip) {
       key: keyOf(chip),
       label: "Add eval case",
     });
-    actions.push({
-      kind: "write-memory",
-      key: keyOf(chip),
-      label: "Propose memory",
-    });
   }
   if (
     modeAllows(mode, "review_change_diff") &&
@@ -306,6 +298,7 @@ export function resultCard(result) {
     <div class="text-[10px] text-[var(--text-2)]">${esc(label)}</div>
     ${result.error ? `<div class="text-[var(--err-text)]">${esc(result.error)}</div>` : ""}
     ${result.reason ? `<div class="${tone}">${esc(result.reason)}</div>` : ""}
+    ${result.execution ? `<div data-assistant-execution class="text-[var(--text-2)]">${esc(executionText(result.execution))}</div>` : ""}
     ${constraints}
     ${result.matchedCount != null && result.tool === "query_ontology_objects" ? `<div class="text-[var(--text-2)]">${esc(result.matchedCount)} matched · ${esc(result.durationMs || 0)} ms</div>` : ""}
     ${entities ? `<div class="flex flex-wrap gap-1">${entities}</div>` : ""}
@@ -402,19 +395,26 @@ export async function runAssistantAction(state, kind, chipKey) {
       arguments: { changeRequestId: chip.id },
     });
   }
-  if (kind === "write-case" || kind === "write-memory") {
+  // There is no "propose memory" action here: the Hub has no action rule for
+  // propose_memory and refuses it, so the rail does not offer it.
+
+  if (kind === "write-case") {
     return postTool(state, {
       mode: "ontology",
       tool: "governed_write",
-      arguments:
-        kind === "write-memory"
-          ? {
-              action: "propose_memory",
-              targetId: chip.id,
-              environment: governedFields(state, chip).environment,
-            }
-          : { action: "add_eval_case", targetId: chip.id },
+      arguments: { action: "add_eval_case", targetId: chip.id },
     });
+  }
+  if (!["propose-cancel", "propose-rerun"].includes(kind)) {
+    return {
+      label: "No model call",
+      tool: "governed_write",
+      ok: false,
+      allowed: false,
+      reason: "That action has no assistant executor.",
+      readOps: 0,
+      writeOps: 0,
+    };
   }
   const actionId =
     kind === "propose-cancel" ? "cancel_packaging_run" : "rerun_packaging_run";
@@ -445,24 +445,9 @@ export async function runAssistantAction(state, kind, chipKey) {
   });
 }
 
-async function postTool(state, body) {
-  const response = await fetch("/v1/assistant/tools", {
-    method: "POST",
-    headers: { "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify(body),
-  });
-  const payload = await response.json();
-  if (!response.ok) {
-    return {
-      label: payload.label || "No model call",
-      tool: body.tool,
-      ok: false,
-      error: payload.error || "The tool was refused.",
-      readOps: 0,
-      writeOps: 0,
-    };
-  }
-  return payload;
+// The rail's tool calls leave through the assistant's one Hub client.
+function postTool(_state, body) {
+  return postAssistantTool(body);
 }
 
 export function rememberResult(state, result) {
@@ -476,4 +461,24 @@ export function resultsMarkup(state) {
   return (state.assistantResults || [])
     .map((result, index) => resultCard({ ...result, index }))
     .join("");
+}
+
+function executionText(receipt) {
+  if (receipt.error) return "Execution failed: " + receipt.error;
+  switch (receipt.outcome) {
+    case "CANCEL_REQUEST_ACCEPTED":
+      return "Cancellation requested; termination has not been observed.";
+    case "CANCELLATION_OBSERVED":
+      return "Run cancellation observed.";
+    case "RUN_STARTED":
+      return "New packaging run requested: " + (receipt.runId || "");
+    case "RUN_OBSERVED":
+      return "Existing successor run observed: " + (receipt.runId || "");
+    default:
+      return (
+        "Execution " +
+        (receipt.state || "unavailable") +
+        "; resume the recorded approval to recover a missing acknowledgement."
+      );
+  }
 }

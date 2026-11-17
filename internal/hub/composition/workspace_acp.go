@@ -35,6 +35,7 @@ func assembleWorkspaceACP(
 	spaces *devapp.Service,
 	hubOptions Options,
 	getenv func(string) string,
+	handlerOptions ...controlplane.HandlerOptions,
 ) *acpapp.Service {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
@@ -61,7 +62,7 @@ func assembleWorkspaceACP(
 			}
 		}
 	}
-	govService := controlplane.NewGovernanceService(repository)
+	govService := newGovernanceService(repository, handlerOptions...)
 	return acpapp.New(acpapp.Dependencies{
 		Workspaces: workspaceACPSpacesAdapter{spaces: spaces},
 		Bridges:    bridges,
@@ -76,7 +77,7 @@ func mountWorkspaceACP(
 	options controlplane.HandlerOptions,
 	acpService *acpapp.Service,
 ) http.Handler {
-	govService := controlplane.NewGovernanceService(repository)
+	govService := newGovernanceService(repository, options)
 	routeMux := http.NewServeMux()
 	authorize := func(request *http.Request) error {
 		if _, err := operatorClaims(request, options); err != nil {

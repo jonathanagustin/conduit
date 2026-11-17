@@ -1,0 +1,255 @@
+{
+  "client": "conduit-mcp-test-client (internal/hub/composition/mcp_test.go), a hand-written JSON-RPC client; not a third-party MCP client",
+  "endpoint": "POST /v1/mcp",
+  "exchanges": [
+    {
+      "request": {
+        "id": 1,
+        "jsonrpc": "2.0",
+        "method": "initialize",
+        "params": {
+          "capabilities": {},
+          "clientInfo": {
+            "name": "conduit-mcp-test-client",
+            "version": "1.0.0"
+          },
+          "protocolVersion": "2025-11-25"
+        }
+      },
+      "status": 200,
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+          "capabilities": {
+            "logging": {},
+            "tools": {
+              "listChanged": true
+            }
+          },
+          "protocolVersion": "2025-11-25",
+          "serverInfo": {
+            "name": "conduit-hub",
+            "version": "1.0.0"
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "jsonrpc": "2.0",
+        "method": "notifications/initialized"
+      },
+      "status": 202
+    },
+    {
+      "request": {
+        "id": 2,
+        "jsonrpc": "2.0",
+        "method": "tools/list",
+        "params": {}
+      },
+      "status": 200,
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "result": {
+          "ttlMs": 0,
+          "cacheScope": "public",
+          "tools": [
+            {
+              "annotations": {
+                "idempotentHint": false,
+                "readOnlyHint": true
+              },
+              "description": "Read objects of one type from the Hub's ontology catalog, limited to what the authenticated operator may read. Returns at most 20 objects and the total match count.",
+              "inputSchema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "objectType"
+                ],
+                "properties": {
+                  "objectType": {
+                    "type": "string",
+                    "description": "Object type name, for example Environment."
+                  },
+                  "filter": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "field",
+                      "value"
+                    ],
+                    "properties": {
+                      "field": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "description": "One field equality."
+                  },
+                  "links": {
+                    "type": "array",
+                    "maxItems": 4,
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Link names to follow from the matched objects, in order."
+                  }
+                }
+              },
+              "name": "query_ontology_objects",
+              "title": "Query ontology objects"
+            },
+            {
+              "annotations": {
+                "idempotentHint": false,
+                "readOnlyHint": true
+              },
+              "description": "Read the stored before/after diff of one change request by id.",
+              "inputSchema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "changeRequestId"
+                ],
+                "properties": {
+                  "changeRequestId": {
+                    "type": "string",
+                    "description": "Change request id."
+                  }
+                }
+              },
+              "name": "review_change_diff",
+              "title": "Review a change request diff"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "id": 3,
+        "jsonrpc": "2.0",
+        "method": "tools/call",
+        "params": {
+          "arguments": {
+            "filter": {
+              "field": "status",
+              "value": "PENDING_APPROVALS"
+            },
+            "objectType": "ChangeRequest"
+          },
+          "name": "query_ontology_objects"
+        }
+      },
+      "status": 200,
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"tool\":\"query_ontology_objects\",\"ok\":true,\"matchedCount\":1,\"entities\":[{\"id\":\"crq_8ddb38d3ab7a6e0d87da46ffea1c0238\",\"objectType\":\"ChangeRequest\",\"label\":\"Proposed memory limit\",\"status\":\"PENDING_APPROVALS\"}],\"auditEventId\":\"aud_eca5cfdf3f1fb89fceb9c8db6deb4a4b\"}"
+            }
+          ],
+          "structuredContent": {
+            "tool": "query_ontology_objects",
+            "ok": true,
+            "matchedCount": 1,
+            "entities": [
+              {
+                "id": "crq_8ddb38d3ab7a6e0d87da46ffea1c0238",
+                "objectType": "ChangeRequest",
+                "label": "Proposed memory limit",
+                "status": "PENDING_APPROVALS"
+              }
+            ],
+            "auditEventId": "aud_eca5cfdf3f1fb89fceb9c8db6deb4a4b"
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "id": 4,
+        "jsonrpc": "2.0",
+        "method": "tools/call",
+        "params": {
+          "arguments": {
+            "changeRequestId": "crq_8ddb38d3ab7a6e0d87da46ffea1c0238"
+          },
+          "name": "review_change_diff"
+        }
+      },
+      "status": 200,
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 4,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"tool\":\"review_change_diff\",\"ok\":true,\"changeRequestId\":\"crq_8ddb38d3ab7a6e0d87da46ffea1c0238\",\"changeRequestStatus\":\"PENDING_APPROVALS\",\"title\":\"Proposed memory limit\",\"hunks\":[{\"path\":\"limits.memory\",\"before\":\"256Mi\",\"after\":\"512Mi\"}],\"auditEventId\":\"aud_9082c7519449131d99c3c084e98cbf2a\"}"
+            }
+          ],
+          "structuredContent": {
+            "tool": "review_change_diff",
+            "ok": true,
+            "changeRequestId": "crq_8ddb38d3ab7a6e0d87da46ffea1c0238",
+            "changeRequestStatus": "PENDING_APPROVALS",
+            "title": "Proposed memory limit",
+            "hunks": [
+              {
+                "path": "limits.memory",
+                "before": "256Mi",
+                "after": "512Mi"
+              }
+            ],
+            "auditEventId": "aud_9082c7519449131d99c3c084e98cbf2a"
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "id": 5,
+        "jsonrpc": "2.0",
+        "method": "tools/call",
+        "params": {
+          "arguments": {
+            "limit": 5000,
+            "objectType": "Environment"
+          },
+          "name": "query_ontology_objects"
+        }
+      },
+      "status": 200,
+      "response": {
+        "jsonrpc": "2.0",
+        "id": 5,
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"tool\":\"query_ontology_objects\",\"ok\":false,\"error\":\"tool call is not valid: json: unknown field \\\"limit\\\"\",\"auditEventId\":\"aud_6af872c81f9cc64b046913ee1d61df21\"}"
+            }
+          ],
+          "structuredContent": {
+            "tool": "query_ontology_objects",
+            "ok": false,
+            "error": "tool call is not valid: json: unknown field \"limit\"",
+            "auditEventId": "aud_6af872c81f9cc64b046913ee1d61df21"
+          },
+          "isError": true
+        }
+      }
+    }
+  ],
+  "server": "the Hub HTTP surface (composition.NewHub) on an in-memory repository, served by net/http/httptest",
+  "transport": "Streamable HTTP, stateless, application/json responses"
+}

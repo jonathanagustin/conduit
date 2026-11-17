@@ -4,6 +4,10 @@ import {
   packagingRunsTransport,
 } from "../../api/packaging-runs.js";
 import { capabilityTableMarkup } from "./session-capabilities.js";
+import {
+  installHubSession,
+  signInAvailability,
+} from "../../runtime/hub-session.js";
 
 function esc(value) {
   return String(value ?? "")
@@ -221,6 +225,7 @@ export function createSettings(ctx) {
       signingKeys: [],
       sessionTeams: [],
       identityProviders: [],
+      signInAvailable: false,
       orgTeamsLive: false,
       orgGrantsLive: false,
       approvalPoliciesLive: false,
@@ -249,9 +254,11 @@ export function createSettings(ctx) {
             (provider) => provider && typeof provider === "object",
           )
         : [];
+      state.signInAvailable = signInAvailability(identity).available;
     } catch {
       state.authEnabled = false;
       state.identityProviders = [];
+      state.signInAvailable = false;
     }
     try {
       const body = await readJSON("/v1/teams");
@@ -334,7 +341,6 @@ export function createSettings(ctx) {
     } catch {
       state.signingLive = false;
     }
-    await loadDataSources();
     if (snapshotIdentity !== identityKey()) {
       clearOrganization();
       state.settingsLoaded = false;
@@ -347,8 +353,38 @@ export function createSettings(ctx) {
     ctx.render();
   }
 
+  let sourcesIdentity = "";
+  let sourcesGeneration = 0;
+  let sourcesPending = false;
+  let sourcesLoaded = false;
+  function ensureDataSources() {
+    const identity = identityKey();
+    if (identity !== sourcesIdentity) {
+      sourcesIdentity = identity;
+      sourcesGeneration++;
+      sourcesPending = false;
+      sourcesLoaded = false;
+      state.dataSourceLive = {
+        report: "Hub did not return a report",
+        imports: "Hub did not return import receipts",
+        packaging: "Hub did not return packaging runs",
+      };
+    }
+    if (sourcesPending || sourcesLoaded) return;
+    const generation = sourcesGeneration;
+    sourcesPending = true;
+    void loadDataSources().then((next) => {
+      if (generation !== sourcesGeneration) return;
+      sourcesPending = false;
+      if (identity !== identityKey()) return;
+      state.dataSourceLive = next;
+      sourcesLoaded = true;
+      ctx.render();
+    });
+  }
+
   async function loadDataSources() {
-    state.dataSourceLive = {
+    const next = {
       report: "Hub did not return a report",
       imports: "Hub did not return import receipts",
       packaging: "Hub did not return packaging runs",
@@ -370,17 +406,17 @@ export function createSettings(ctx) {
           };
         }
       }
-      state.dataSourceLive.report = newest
+      next.report = newest
         ? `${newest.seen} on ${newest.environment || "an environment"} (${newest.entities} entities)`
         : "No reported observation on the environments this caller can read";
     } catch {
-      state.dataSourceLive.report = "Hub did not return a report";
+      next.report = "Hub did not return a report";
     }
     try {
       const body = await readJSON("/v1/bundle-imports");
       const imports = Array.isArray(body.imports) ? body.imports : [];
       if (!imports.length) {
-        state.dataSourceLive.imports = "No import receipt";
+        next.imports = "No import receipt";
       } else {
         const latest = imports.reduce((best, item) =>
           !best ||
@@ -388,11 +424,11 @@ export function createSettings(ctx) {
             ? item
             : best,
         );
-        state.dataSourceLive.imports =
+        next.imports =
           `${latest.status || "recorded"} ${latest.requestedAt || ""} ${latest.bundleId || latest.id || ""}`.trim();
       }
     } catch {
-      state.dataSourceLive.imports = "Hub did not return import receipts";
+      next.imports = "Hub did not return import receipts";
     }
     try {
       const body = await fetchPackagingRuns(
@@ -400,14 +436,15 @@ export function createSettings(ctx) {
       );
       const items = Array.isArray(body.items) ? body.items : [];
       if (!items.length) {
-        state.dataSourceLive.packaging = "No packaging run";
+        next.packaging = "No packaging run";
       } else {
         const latest = items[0];
-        state.dataSourceLive.packaging = `${latest.runId || "run"} phase ${latest.phase || "unknown"}${latest.outcome ? `, outcome ${latest.outcome}` : ""}`;
+        next.packaging = `${latest.runId || "run"} phase ${latest.phase || "unknown"}${latest.outcome ? `, outcome ${latest.outcome}` : ""}`;
       }
     } catch {
-      state.dataSourceLive.packaging = "Hub did not return packaging runs";
+      next.packaging = "Hub did not return packaging runs";
     }
+    return next;
   }
 
   function sourceLastSeen(id) {
@@ -711,14 +748,19 @@ export function createSettings(ctx) {
           </select>
         </label>
         ${
-          selected && selected.authorizationEndpoint
-            ? `<button type="button" class="so-btn so-btn-blue" data-onclick="beginOperatorSignIn()">Continue to the identity provider</button>`
-            : `<div class="text-[12px] text-[var(--text-2)]">This Hub did not publish a browser sign-in address.</div>`
+          state.signInAvailable
+            ? `<div class="flex items-center gap-2 flex-wrap">
+                <button type="button" class="so-btn so-btn-blue" data-sign-in data-onclick="beginOperatorSignIn()">Continue to the identity provider</button>
+                ${state.sessionName ? `<button type="button" class="so-btn" data-sign-out data-onclick="endOperatorSession()">Sign out ${esc(state.sessionName)}</button>` : ""}
+              </div>
+              ${state.signOutFailed ? `<div class="text-[12px] text-[var(--err-text)]" role="alert">Sign-out did not complete. You are still signed in; try again.</div>` : ""}`
+            : `<div class="text-[12px] text-[var(--text-2)]" data-sign-in-unavailable>This Hub verifies operator tokens but does not run a browser sign-in. Reach it through your organization's access proxy, or ask the Conduit operator to configure the console's public address.</div>`
         }
       </div>`;
   }
 
   function renderDataSources(root) {
+    ensureDataSources();
     const selected =
       DATA_SOURCES.find((source) => source.id === state.dataSourceId) ||
       DATA_SOURCES[0];
@@ -834,6 +876,8 @@ export function createSettings(ctx) {
         environmentBanner: "",
         identityProviders: [],
         authEnabled: false,
+        signInAvailable: false,
+        signOutFailed: false,
         signInIssuer: "",
         signingKeys: [],
         signingLive: false,
@@ -921,19 +965,21 @@ export function createSettings(ctx) {
         state.dataSourceId = id;
         ctx.render();
       };
+      // The Hub runs the sign-in: it holds the state, nonce, PKCE verifier
+      // and client secret. The console only navigates to it, naming the view
+      // to come back to.
       target.beginOperatorSignIn = () => {
-        const provider =
-          (state.identityProviders || []).find(
-            (item) => item.issuer === state.signInIssuer,
-          ) || (state.identityProviders || [])[0];
-        if (!provider || !provider.authorizationEndpoint) return;
-        const url = new URL(provider.authorizationEndpoint);
-        if (provider.clientId)
-          url.searchParams.set("client_id", provider.clientId);
-        url.searchParams.set("redirect_uri", `${location.origin}/console/`);
-        url.searchParams.set("response_type", "code");
-        url.searchParams.set("scope", "openid");
-        location.assign(url.toString());
+        if (!state.signInAvailable) return;
+        installHubSession(window).signIn();
+      };
+      target.endOperatorSession = () => {
+        if (!state.signInAvailable) return;
+        installHubSession(window)
+          .signOut()
+          .catch(() => {
+            state.signOutFailed = true;
+            ctx.render();
+          });
       };
     },
   };

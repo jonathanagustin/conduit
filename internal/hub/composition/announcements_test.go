@@ -26,6 +26,11 @@ func reviewedHub(t *testing.T) (http.Handler, *notificationStore) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := governance.PutGrant(ctx, controlplane.ResourceGrant{
+		ResourceRID: "environment/dev-use2", Team: "reviewers", Roles: []string{"environment:viewer"},
+	}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := governance.PutPolicy(ctx, controlplane.ApprovalPolicy{
 		ID: "review", DisplayName: "Review", Enabled: true, Expression: `require_team("reviewers", "review")`,
 	}); err != nil {
@@ -100,7 +105,7 @@ func TestAGrantWrittenThroughTheHubBecomesARoleChangeEvent(t *testing.T) {
 	t.Parallel()
 	handler, store := reviewedHub(t)
 	response := request(t, handler, http.MethodPost, "/v1/resource-grants", "local-developer",
-		`{"resourceRid":"environment/dev-use2","team":"reviewers","roles":["environment:viewer"]}`)
+		`{"resourceRid":"environment/grant-change","team":"reviewers","roles":["environment:viewer"]}`)
 	if response.Code != http.StatusOK {
 		t.Fatalf("write grant = %d %s", response.Code, response.Body.String())
 	}
@@ -108,7 +113,7 @@ func TestAGrantWrittenThroughTheHubBecomesARoleChangeEvent(t *testing.T) {
 		t.Fatalf("a grant write recorded %d events: %#v", len(store.events), store.events)
 	}
 	event := store.events[0]
-	if event.Type != domain.EventRoleChange || event.ResourceRID != "environment/dev-use2" ||
+	if event.Type != domain.EventRoleChange || event.ResourceRID != "environment/grant-change" ||
 		event.Actor != "local-developer" || !strings.Contains(event.Summary, "environment:viewer") {
 		t.Errorf("the grant change is not described: %#v", event)
 	}
@@ -119,14 +124,14 @@ func TestAGrantWrittenThroughTheHubBecomesARoleChangeEvent(t *testing.T) {
 func TestAnnouncementsAreAssembledOnlyOverAStoreAndNeverOverwriteACallers(t *testing.T) {
 	t.Parallel()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	none, err := NewAnnouncements(nil, logger)
+	none, err := NewAnnouncements(nil, allowRecipients{}, logger)
 	if err != nil || none != (controlplane.Announcements{}) {
 		t.Fatalf("a deployment with no store got %#v, %v", none, err)
 	}
-	if _, err := NewAnnouncements(newNotificationStore(), nil); err == nil {
+	if _, err := NewAnnouncements(newNotificationStore(), allowRecipients{}, nil); err == nil {
 		t.Error("announcements were assembled with no logger to report a dropped error to")
 	}
-	assembled, err := NewAnnouncements(newNotificationStore(), logger)
+	assembled, err := NewAnnouncements(newNotificationStore(), allowRecipients{}, logger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +142,7 @@ func TestAnnouncementsAreAssembledOnlyOverAStoreAndNeverOverwriteACallers(t *tes
 	theirs := loggedAnnouncements{logger: logger}
 	kept, err := withAnnouncements(controlplane.HandlerOptions{
 		Announcements: controlplane.Announcements{PlanFailures: theirs},
-	}, newNotificationStore(), logger)
+	}, newNotificationStore(), allowRecipients{}, logger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +162,7 @@ func TestADroppedAnnouncementErrorIsLogged(t *testing.T) {
 	t.Parallel()
 	var log strings.Builder
 	logger := slog.New(slog.NewTextHandler(&log, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	announcements, err := NewAnnouncements(failingNotificationStore{newNotificationStore()}, logger)
+	announcements, err := NewAnnouncements(failingNotificationStore{newNotificationStore()}, allowRecipients{}, logger)
 	if err != nil {
 		t.Fatal(err)
 	}

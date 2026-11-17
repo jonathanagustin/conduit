@@ -19,3 +19,13 @@ changing its 45-day limit. Existing contract and citation gates remain required.
 
 Validation: `node scripts/verify-documentation-freshness.mjs`,
 `node scripts/verify-documentation-claims.mjs`, and the Trunk gate.
+
+## 2026-11-17 label reference review
+
+A complete crawl again found 284 pages, with no additions, removals or
+unpublished pages. Exactly five source hashes changed: the Experimental label
+parent and its four commands now document Environment targets, and the setter
+adds an Environment example. The [narrow review](environment-label-cli.md)
+records the exact bounded difference, existing implementation and tests.
+The current CLI inventory follows those five new hashes; the immutable reviewed
+CLI profile and its snapshots remain unchanged.

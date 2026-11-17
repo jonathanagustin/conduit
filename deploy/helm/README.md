@@ -46,7 +46,30 @@ in [`docs/architecture/deployment-invariants.md`](../../docs/architecture/deploy
 ## Installation
 
 Each deployment supplies exact release-image digests and externally owned
-identity material:
+identity material. Complete the signed asset-inventory and signature checks in
+[`docs/operations/release-and-publication.md`](../../docs/operations/release-and-publication.md#installing-and-verifying-a-published-release)
+first, then run the following from that downloaded release directory. The next
+publication provides the complete asset set; the older `v0.17.5` release predates
+it. The local chart archives and image references below come from the verified
+inventory, so installation does not resolve a mutable OCI chart tag again.
+
+```sh
+VERSION="$(jq -er '.version' platform-oci-manifest.json)"
+HUB_IMAGE="$(jq -er '.images.hub.reference' platform-oci-manifest.json)"
+SPOKE_IMAGE="$(jq -er '.images["spoke-agent"].reference' platform-oci-manifest.json)"
+
+helm upgrade --install platform-hub "./platform-hub-${VERSION}.tgz" \
+  --namespace platform-system \
+  --values hub-values.yaml \
+  --set-string "image=${HUB_IMAGE}"
+
+helm upgrade --install platform-spoke "./platform-spoke-${VERSION}.tgz" \
+  --namespace environment-system \
+  --values spoke-values.yaml \
+  --set-string "image=${SPOKE_IMAGE}"
+```
+
+Or from a source checkout:
 
 ```sh
 helm upgrade --install platform-hub ./deploy/helm/platform-hub \
@@ -102,12 +125,17 @@ render is unchanged by their existence.
 | --- | --- | --- |
 | `metrics.enabled`, `metrics.port`, `metrics.service.port` | `METRICS_ADDRESS`, a `metrics` container port and Service port | Requires `repository.kind=postgres`: the Hub serves `/metrics` only for the PostgreSQL repository, so the chart refuses the file profile rather than render a port nothing listens on. Plain HTTP. |
 | `metrics.serviceMonitor.enabled` | a `monitoring.coreos.com/v1` ServiceMonitor | Requires `metrics.enabled` and the Prometheus Operator CRDs, which the chart does not install. |
+| `metrics.prometheusRule.enabled`, `metrics.prometheusRule.labels` | a `monitoring.coreos.com/v1` PrometheusRule holding `files/prometheus-rules.yaml` | Requires `metrics.enabled` and the Prometheus Operator CRDs. The rules are generated from `deploy/observability/prometheus-rules.yaml`; each alert links to `docs/operations/runbooks.md`. The expressions are checked for the series they name, not evaluated. |
+| `metrics.dashboard.enabled`, `metrics.dashboard.labels` | a ConfigMap holding the reference Grafana dashboard | Requires `metrics.enabled`. The labels are what a dashboard sidecar selects on; the default is `grafana_dashboard: "1"`. |
+| `rateLimit.{operator,agent,anonymous}.{rps,burst}` | `RATE_LIMIT_<CLASS>_RPS`, `RATE_LIMIT_<CLASS>_BURST` | `null` by default, which renders no variable and leaves the Hub's built-in limit in force. `rps` is a number above 0, `burst` a whole number from 1, both at most 1000000. No value turns the limiter off. A fractional `rps` on the command line needs `--set-json`. See `docs/operations/hub-rate-limiting.md`. |
 | `notifications.transport` = `webhook` | `NOTIFICATION_WEBHOOK_URL` from `notifications.webhook.urlSecretName`/`urlSecretKey` via `secretKeyRef`, optional `NOTIFICATION_WEBHOOK_TIMEOUT` | The URL is never a value: webhook URLs commonly embed a token. |
 | `notifications.transport` = `log` | `NOTIFICATION_DELIVERY_LOG=true` | For a deployment whose logs somebody already watches. |
 | `notifications.transport` = `native` | `NOTIFICATION_SMTP_*` and/or `NOTIFICATION_SLACK_TOKEN_FILE`, optional `NOTIFICATION_NATIVE_TIMEOUT` | SMTP username/password and the Slack token are Secrets mounted as read-only files; an optional SMTP CA is a ConfigMap. At least one of `native.smtp.address` (with `from`) or `native.slack.tokenSecretName` is required. |
 | `planOrchestrator.driver` = `temporal` | `PLAN_ORCHESTRATOR=temporal`, `PLAN_TEMPORAL_ADDRESS` | The Hub dials this frontend without TLS or an API key, in Temporal namespace `default`. An empty `temporalAddress` falls back to `packagingWorkflow.address`. |
 | `model.baseURL`, `model.name` | `CONDUIT_MODEL_BASE_URL`, `CONDUIT_MODEL_NAME`, optional `CONDUIT_MODEL_TIMEOUT` | One OpenAI-compatible HTTP endpoint. The API key is `model.apiKeySecret`, a Secret mounted as a read-only file; an optional CA is `model.caConfigMap`. `model.allowInsecureHTTP` is required with an `http://` URL and refused otherwise. The chart has no value for a model command. See [HTTP model endpoint](../../docs/operations/model-http.md), including which AI capabilities the shipped image cannot run. |
-| Spoke `materialPreparer.command` | `EXTERNAL_MATERIAL_PREPARER` | A clean absolute path. The Agent image ships no preparer; `materialPreparer.toolsPersistentVolumeClaimName` mounts an existing PVC read-only at `toolsMountPath` to supply one. |
+| Spoke `materialPreparer.command` | `EXTERNAL_MATERIAL_PREPARER` | A clean absolute path. `Containerfile.agent` builds the reference preparer to `/usr/local/bin/platform-material-preparer` (see [the reference material preparer](../../docs/operations/material-preparer.md)); for any other, `materialPreparer.toolsPersistentVolumeClaimName` mounts an existing PVC read-only at `toolsMountPath`. When a command is set the chart also renders `MATERIAL_PREPARER_NAMESPACES` from `rbac.managedNamespaces`. |
+| Spoke `rbac.packageExecutor` | `<fullname>-package-executor` (`Role`/`RoleBinding` per `rbac.managedNamespaces` entry) and `<fullname>-zarf-state` (`Role`/`RoleBinding` in namespace `zarf`) | Opt-in namespaced RBAC profile for the Zarf/UDS package executor (`internal/agent/adapters/uds`), kept separate from the Helm executor's floor. Requires `rbac.create=true`. |
+
 
 Every notification transport requires `repository.kind=postgres`, whose
 durable queue delivery leases from; the Hub refuses to start otherwise and so
@@ -142,6 +170,34 @@ next to the rule** (`platform-spoke/templates/rbac.yaml`). In summary:
 | `networking.k8s.io` ingresses, full verbs | `ingressReferences` in `internal/agent/ingress.go` admits `networking.k8s.io/v1` Ingress out of a deployed manifest; `observeIngressReferences` reads each back for a load-balancer address. |
 | `""` events, read-only | `ingressDiagnostic` attaches controller Events to an unrealized Ingress. The Agent never writes one. |
 | `""` configmaps, full verbs | The one chart this repository installs end to end — `testdata/e2e-chart`, applied by `scripts/test-spoke-e2e.sh` — renders a ConfigMap. |
+
+### Zarf and UDS package executor RBAC profile
+
+When an Agent reconciles Zarf packages or UDS bundles (`internal/agent/adapters/uds`),
+its Kubernetes calls differ from the Helm executor's floor. Rather than widening
+the default Helm floor for every Spoke deployment, `rbac.packageExecutor=true`
+renders a separate, opt-in namespaced profile alongside it:
+
+| Rendered object | Namespace | Rule | Call site in `internal/agent/adapters/uds` |
+| --- | --- | --- | --- |
+| `<fullname>-package-executor` (`Role` + `RoleBinding`) | Each entry in `rbac.managedNamespaces` | `uds.dev` `packages`, full verbs | `applyManifest` (`kubectl apply -n <step.Namespace> -f <PackageManifestPath>`) and `observeUDSPackageCR` (`kubectl get package.uds.dev <name> -n <step.Namespace>`) in `executor.go`. |
+| `<fullname>-package-executor` (`Role` + `RoleBinding`) | Each entry in `rbac.managedNamespaces` | `""` `configmaps`, full verbs | `writeAppliedRecord`, `readAppliedRecord`, and `deleteAppliedRecord` (`conduit-applied-<name>`) in `applied.go` so `Observe` and `Rollback` read cluster-resident package coordinates and revision history. |
+| `<fullname>-zarf-state` (`Role` + `RoleBinding`) | `zarf` | `""` `secrets`, full verbs | `verifyZarfInitialised` (`kubectl get secret zarf-state -n zarf`) and `observeZarfPackage` (`kubectl get secret zarf-package-<name> -n zarf`) in `executor.go`, plus `zarf package deploy` and `zarf package remove` reading `zarf-state` and writing/deleting `zarf-package-<name>` Secrets in `zarf`. |
+
+What remains outside the chart even with `rbac.packageExecutor=true`:
+
+- **`packages.uds.dev` CRD preflight.** When a step carries a `PackageManifestPath`
+  or `uds-bundle` artifact type, `verifyUDSCRDsPresent` runs
+  `kubectl get crd packages.uds.dev -o name`, which requires cluster-scoped
+  `get` on `apiextensions.k8s.io` `customresourcedefinitions` (resource name
+  `packages.uds.dev`). Because the chart never renders a `ClusterRole` or
+  `ClusterRoleBinding`, the tenant's cluster administrator owns that read grant
+  whenever UDS `Package` CRs or bundles are used.
+- **Objects inside the Zarf package or UDS bundle.** Just as `helm upgrade --install`
+  applies whatever a tenant's chart contains, `zarf package deploy` and `uds deploy`
+  apply the manifests and charts packaged inside the Zarf/UDS artifact. Any
+  resource kind outside the managed-namespace floor (or any namespace outside
+  `rbac.managedNamespaces`) must be granted by the tenant's cluster administrator.
 
 **Namespaced, with no cluster-scoped exception.** Every Kubernetes call in
 `internal/agent` carries an explicit namespace: `helm.go` passes `--namespace`
@@ -198,8 +254,10 @@ RoleBinding names the ServiceAccount the Deployment uses, the `roleRef` is a
 namespaced `Role` that the same render produced, no rule carries a wildcard
 apiGroup, resource or verb without a `# wildcard-justified:` line in the
 template naming that exact rule, no rule grants `escalate`, `bind` or
-`impersonate`, and the chart fails closed when `rbac.managedNamespaces` is
-absent or empty.
+`impersonate`, the separate `rbac.packageExecutor` profile renders only when
+explicitly enabled and matches its derived `uds.dev/packages`, `""/configmaps`,
+and `zarf` namespace `""/secrets` rules, and the chart fails closed when
+`rbac.managedNamespaces` is absent or empty.
 
 Human and service-user Hub access can use `operatorOIDC`. Prefer `multipass`
 when a tenant already has Palantir identity infrastructure; `generic` supports
@@ -207,6 +265,13 @@ standard issuers such as tenant-local Keycloak, and `cognito-access` is the
 low-cost AWS fallback. Values contain only public trust configuration, never a
 browser cookie, bearer token, client secret, or password. See
 `docs/architecture/identity-and-governance.md`.
+
+`operatorOIDC.signIn` turns on the Hub's own browser sign-in. It requires
+`operatorOIDC.enabled` and `signIn.publicURL`, the `https` origin people reach
+the console at; the redirect address is `<publicURL>/v1/auth/callback`. A
+confidential client names an existing Secret in `signIn.clientSecret.secretName`,
+which is mounted as a required file; leave it empty for a public client. See
+`docs/operations/operator-sign-in.md`.
 
 ## Bounded Rubix profile
 
