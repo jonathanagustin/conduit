@@ -67,6 +67,12 @@ import { productRows, productsMarkup } from "./release-products.js";
 import { createSettings } from "./settings.js";
 import { createLiveHub } from "./live-hub.js";
 import {
+  deliverySlots,
+  mountPlanDecision,
+  mountPlanProposal,
+  mountPromotion,
+} from "./delivery-journey.js";
+import {
   classifyRenderers,
   screenBadge,
   truncationMarkup,
@@ -3617,7 +3623,8 @@ export function mountOperator(host, options) {
   // SCREEN 14: ENVIRONMENT DETAIL
   // =========================================================================
   function renderS14EnvDetail(root) {
-    mountEnvironmentHub(root, state.hub, {
+    const [view, actions] = deliverySlots(root);
+    mountEnvironmentHub(view, state.hub, {
       selectedId: state.releaseEnvironmentId || "",
       onProposeFix: (environment, installationId) =>
         liveHub.proposeFix(environment, installationId),
@@ -3626,6 +3633,9 @@ export function mountOperator(host, options) {
         renderMainWorkspace();
       },
     });
+    mountPlanProposal(actions, state, {
+      environmentId: state.releaseEnvironmentId || "",
+    });
   }
 
   function renderS15PlanDetail(root) {
@@ -3633,8 +3643,10 @@ export function mountOperator(host, options) {
   }
 
   function renderS16ApprovalsBoard(root) {
-    root.innerHTML = approvalsMarkup(state.hub?.plans, state.hub?.planNote);
-    root.onclick = (event) => {
+    const [view, actions] = deliverySlots(root);
+    mountPlanDecision(actions, state, { board: true });
+    view.innerHTML = approvalsMarkup(state.hub?.plans, state.hub?.planNote);
+    view.onclick = (event) => {
       const target =
         event.target instanceof Element
           ? event.target.closest("[data-review-plan]")
@@ -4279,12 +4291,19 @@ export function mountOperator(host, options) {
   }
 
   function renderRM03PlanDetail(root) {
-    mountPlanInspector(root, state.hub?.plans, {
+    const [view, actions] = deliverySlots(root);
+    const decide = () =>
+      mountPlanDecision(actions, state, {
+        planId: state.releasePlanId || "",
+      });
+    mountPlanInspector(view, state.hub?.plans, {
       selectedId: state.releasePlanId || "",
       onSelect: (id) => {
         state.releasePlanId = id;
+        decide();
       },
     });
+    decide();
   }
 
   function renderRM04Constraints(root) {
@@ -4328,7 +4347,9 @@ export function mountOperator(host, options) {
   }
 
   function renderRM06PromotionPipe(root) {
-    liveHub.renderPromotion(root);
+    const [view, actions] = deliverySlots(root);
+    liveHub.renderPromotion(view);
+    mountPromotion(actions, state);
     return;
     const sel =
       RM_CHANNELS.find((c) => c.id === state.rmSelectedChannel) ||
