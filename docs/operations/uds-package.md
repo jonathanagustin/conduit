@@ -14,10 +14,14 @@ cluster operating after the images are already present.
 
 ## What the Package CR grants
 
-- SSO client `conduit-hub`, redirect URI `https://conduit.uds.dev/console/*`
-  by default (`CONSOLE_PUBLIC_URL`). Authservice is not attached. The Hub
-  port is the Agent mTLS listener, and a proxy in front of it would break
-  the Spoke.
+- SSO client `conduit-hub`, a confidential client whose one redirect URI is
+  `https://conduit.uds.dev/v1/auth/callback` by default
+  (`CONSOLE_PUBLIC_URL` + `/v1/auth/callback`), registered exactly and with
+  no wildcard. UDS Core writes the generated client secret to the
+  `conduit-hub-sso` Secret under the key `client-secret`; the Hub mounts
+  that key read-only at `/run/conduit-sso`. Authservice is not attached.
+  The Hub port is the Agent mTLS listener, and a proxy in front of it would
+  break the Spoke.
 - Ingress from the tenant gateway (`istio-tenant-gateway` /
   `tenant-ingressgateway`) to the Hub on 8081, plus an `expose` entry on the
   tenant gateway at host `conduit`. The Hub speaks HTTPS on that port. The
@@ -280,7 +284,8 @@ uds zarf package deploy /tmp/conduit-zarf/zarf-package-platform-runtime-amd64-0.
   --set-variables OPERATOR_OIDC_CLIENT_ID=conduit-hub \
   --set-variables OPERATOR_OIDC_USERNAME_CLAIM=preferred_username \
   --set-variables OPERATOR_OIDC_GROUPS_CLAIM=groups \
-  --set-variables OPERATOR_OIDC_CA_FILE=/etc/ssl/platform-ca/ca-bundle.pem
+  --set-variables OPERATOR_OIDC_CA_FILE=/etc/ssl/platform-ca/ca-bundle.pem \
+  --set-variables OPERATOR_OIDC_CLIENT_SECRET_FILE=/run/conduit-sso/client-secret
 
 uds zarf tools kubectl -n platform-system rollout status deploy/platform-delivery --timeout=180s
 uds zarf tools kubectl -n platform-system rollout status deploy/platform-spoke-agent --timeout=180s
@@ -436,9 +441,25 @@ OIDC on when the package is deployed with the `uds` component.
 
 The Package CR does not set `enableAuthserviceSelector`. Authservice in
 front of the Hub pods would also sit on the Spoke's mTLS port, which
-shares the Hub process. The console uses the Hub's own OIDC sign-in, and
-the Hub maps the token's `preferred_username` and `groups` claims onto
-the operator principal.
+shares the Hub process. The Hub runs the browser sign-in itself: it is
+the OAuth client, it redirects to Keycloak from `/v1/auth/login`, receives
+the code at `/v1/auth/callback`, and keeps a server-side session named by
+an `HttpOnly` cookie. That happens only when `OPERATOR_OIDC_ISSUER` is set;
+`CONSOLE_PUBLIC_URL` must then be the address people use, because the
+redirect URI and the cookie's accepted origin are built from it and from
+nothing in a request. `OPERATOR_OIDC_CLIENT_SECRET_FILE` makes the Hub
+present the `conduit-hub-sso` secret; with it set and the Secret absent the
+Hub fails at start instead of signing in as a public client. The Hub maps
+the ID token's `preferred_username` and `groups` claims onto the operator
+principal. See [`operator-sign-in.md`](operator-sign-in.md).
+
+Not yet observed: a person signing in through a browser against the
+slim-dev Keycloak with insecure headers off. The sign-in is exercised
+against an in-process OIDC provider in the Go tests; the Package CR's
+redirect URI and Secret key are checked statically by
+`scripts/verify-zarf-package.rb`. Whether the tenant gateway route carries
+a browser session to the Hub's own TLS listener is the open question
+recorded under [What the Package CR grants](#what-the-package-cr-grants).
 
 ## Second-person approval users
 
