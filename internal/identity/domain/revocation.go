@@ -93,6 +93,8 @@ var (
 	ErrRevocationWeakening = errors.New("revocation cutoff cannot move backward; use audited removal first")
 )
 
+// AgentRevocation records an Environment-scoped credential revocation.
+//
 // CONDUIT-INVENTED: identity.AgentCredentialRevocation
 // Displaced-by: a published or sanitized Apollo agent credential revocation record defining its scope, identifier and re-enrolment semantics.
 type AgentRevocation struct {

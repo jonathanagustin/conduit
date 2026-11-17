@@ -20,9 +20,6 @@ const (
 
 func providerArgv(name string) ([]string, error) { return nil, localcmd.ErrLocalCommandUnsupported }
 
-const providerReplyRule = "\n\nReply with the requested output only: no commentary and no markdown fences. " +
-	"When the instructions ask for JSON, reply with exactly one JSON object.\n"
-
 // runProviderPrompt refuses the retired provider delegation interface.
 func runProviderPrompt(ctx context.Context, provider, prompt string) (string, error) {
 	return "", localcmd.ErrLocalCommandUnsupported

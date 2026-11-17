@@ -65,6 +65,8 @@ type CredentialView struct {
 
 const unaudited = "the change could not be written to the authorization audit trail"
 
+// Register installs the authorized Agent credential and revocation routes.
+//
 // CONDUIT-INVENTED: identity.AgentRevocationHTTPSurface
 // Displaced-by: a published or sanitized Apollo agent credential management API establishing revocation routes, body shapes and authority.
 func Register(mux *http.ServeMux, config Config) error {

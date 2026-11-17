@@ -1,7 +1,6 @@
 package localcmd
 
 import (
-	"os"
 	"strings"
 )
 
@@ -77,5 +76,3 @@ func envAllowed(key string) bool {
 	// CONDUIT_PROVIDER_<NAME>_CMD replaces a provider argv for agent-exec.
 	return strings.HasPrefix(upper, "CONDUIT_PROVIDER_") && strings.HasSuffix(upper, "_CMD")
 }
-
-func childEnv() []string { return ChildEnv(os.Environ()) }
