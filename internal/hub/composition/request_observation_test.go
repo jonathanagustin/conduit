@@ -175,6 +175,17 @@ func TestAThousandDistinctIdentifiersDoNotGrowTheSeriesCount(t *testing.T) {
 			t.Errorf("%q reached the exposition", leaked)
 		}
 	}
+	// The log is held to the same rule as the labels: a path outside the
+	// register is logged as "unmatched", not as what the client typed.
+	log := hub.log.String()
+	for _, leaked := range []string{"environment-7", "not-a-route", "operator-7"} {
+		if strings.Contains(log, leaked) {
+			t.Errorf("%q reached the access log", leaked)
+		}
+	}
+	if !strings.Contains(log, `"route":"unmatched"`) {
+		t.Errorf("no access-log line names the unmatched route")
+	}
 }
 
 // One line per request, with the fields an operator searches by and none of
