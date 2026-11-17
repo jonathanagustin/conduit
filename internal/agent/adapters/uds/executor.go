@@ -1,32 +1,118 @@
 // Package uds implements the Spoke agent.Executor port for Environments running
 // UDS Core and Zarf (#427).
 //
-// It deploys Zarf packages and UDS bundles through the pinned zarf/uds CLIs,
-// reads back the uds.dev/v1alpha1 Package CR status from the cluster, and maps
-// that status into controlplane.ReportedEntity without leaking Zarf or UDS
-// types into the domain packages.
+// It deploys Zarf packages and UDS bundles through the pinned zarf/uds CLIs and
+// reports what the cluster holds, read from Zarf's own deployed-package record,
+// without leaking Zarf or UDS types into the domain packages.
+//
+// The executor fails closed. It runs nothing unless it can express signature
+// verification for the artifact, it refuses reviewed inputs it cannot carry to
+// the CLI rather than dropping them, and it never reports a desired value as an
+// observed one.
+//
+// CLI contracts (reviewed 2026-11-16). "VERIFIED" means read from the pinned
+// binary's --help or the pinned release's source; "ASSUMED" means the flag
+// exists but the behaviour was not exercised against a cluster.
+//
+//   - zarf v0.82.0 `package deploy SOURCE --confirm --verify=always
+//     [--key PATH | --certificate-identity-regexp R --certificate-oidc-issuer-regexp R]
+//     [--set-variables KEY=value]...`: VERIFIED (--help).
+//   - zarf v0.82.0 `package remove NAME --confirm`, NAME as recorded in the
+//     cluster: VERIFIED (--help).
+//   - zarf v0.82.0 records each deployment as Secret `zarf-package-<name>` in
+//     namespace `zarf`, key `data`, JSON with `digest`, `generation`,
+//     `data.metadata.version`, `deployedComponents[].status`: VERIFIED
+//     (src/pkg/state/state.go, src/pkg/cluster/zarf.go). `zarf package list -o
+//     json` omits the digest (src/cmd/package.go), so it is not used.
+//   - zarf init creates Secret `zarf-state` in namespace `zarf`: VERIFIED
+//     (src/pkg/state/state.go constants).
+//   - uds v0.41.0 `deploy SOURCE --confirm [--set KEY=value]...` and
+//     `remove SOURCE --confirm`: VERIFIED (--help). `uds deploy` has no
+//     verification flags at all.
+//   - uds v0.41.0 `inspect SOURCE --key PATH` exits non-zero when the bundle
+//     signature does not validate against the key: ASSUMED. The flag is
+//     VERIFIED (--help); the exit behaviour is not.
+//   - `kubectl get ... --ignore-not-found` prints nothing and exits zero for an
+//     absent object: ASSUMED (standard kubectl, not exercised here).
+//   - UDS Core's Package CRD is named `packages.uds.dev`: ASSUMED from the
+//     upstream file name cited in docs/packaging-assessment.md.
 package uds
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/jonathanagustin/conduit/internal/agent"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/udsconverge"
+	"github.com/jonathanagustin/conduit/internal/gitless/domain"
 )
 
-// Executor implements agent.Executor for Zarf packages and UDS Core Package CRs.
+var (
+	// ErrRefused marks a step the executor declined before running anything.
+	ErrRefused = errors.New("uds executor refused the step")
+	// ErrPreflightBlocked marks a cluster that is not ready for Zarf or UDS
+	// work. It wraps one of the two more specific errors below.
+	ErrPreflightBlocked = errors.New("uds executor preflight blocked")
+	// ErrZarfNotInitialised means the cluster carries no Zarf state.
+	ErrZarfNotInitialised = errors.New("zarf is not initialised in this cluster")
+	// ErrUDSCRDsAbsent means the UDS Core Package CRD is not installed.
+	ErrUDSCRDsAbsent = errors.New("UDS Core CRDs are absent from this cluster")
+)
+
+const (
+	zarfNamespace     = "zarf"
+	zarfStateSecret   = "zarf-state"
+	zarfPackagePrefix = "zarf-package-"
+	udsPackageCRD     = "packages.uds.dev"
+	actionUninstall   = "uninstall"
+)
+
+// Zarf's own rule for a deployed package name (state.DeployedPackageNameRegex).
+var zarfPackageName = regexp.MustCompile(`^[a-z0-9][a-z0-9\-]*$`)
+
+// Zarf upper-cases variable names, so two keys differing only in case would
+// collapse into one. Only the canonical form is accepted.
+var zarfVariableName = regexp.MustCompile(`^[A-Z0-9_]+$`)
+
+// A bundle variable may be scoped to one package of the bundle.
+var bundleVariableName = regexp.MustCompile(`^([a-z0-9][a-z0-9\-]*\.)?[A-Z0-9_]+$`)
+
+// Executor implements agent.Executor for Zarf packages and UDS bundles.
 type Executor struct {
-	Runner              agent.CommandRunner
-	ZarfBin             string
-	UDSBin              string
-	KubectlBin          string
-	UseUDSBundle        bool
-	PackageSource       func(step controlplane.PlanStep) string
+	Runner       agent.CommandRunner
+	ZarfBin      string
+	UDSBin       string
+	KubectlBin   string
+	UseUDSBundle bool
+	// PackageSource resolves the artifact reference for a step. Rollback calls
+	// it with ReleaseDigest set to the prior digest and Version cleared, so it
+	// must resolve by digest.
+	PackageSource func(step controlplane.PlanStep) string
+	// PackageName resolves the Zarf package name (zarf.yaml metadata.name) the
+	// step's artifact deploys as. It is required: the Conduit InstallationID is
+	// not a Zarf package name, and guessing one would observe or remove the
+	// wrong package. In bundle mode it names the bundle's package to observe.
+	PackageName func(step controlplane.PlanStep) string
+	// Publisher is the admitted keyless publisher policy. Its fields are
+	// anchored regular expressions, so they map to Zarf's *-regexp flags.
+	Publisher domain.PublisherPolicy
+	// VerificationKeyPath is a public key file, the alternative to Publisher.
+	// Exactly one of the two must be configured.
+	VerificationKeyPath string
+	// PackageManifestPath is an optional UDS Package CR applied after deploy.
 	PackageManifestPath string
+	// UDSPackageName names that CR; it defaults to the Zarf package name.
+	UDSPackageName string
+	Now            func() time.Time
 }
 
 var _ agent.Executor = Executor{}
@@ -38,25 +124,28 @@ func (e Executor) runner() agent.CommandRunner {
 	return agent.ExecRunner{}
 }
 
-func (e Executor) zarfBin() string {
-	if strings.TrimSpace(e.ZarfBin) != "" {
-		return strings.TrimSpace(e.ZarfBin)
+func binOr(configured, fallback string) string {
+	if trimmed := strings.TrimSpace(configured); trimmed != "" {
+		return trimmed
 	}
-	return "zarf"
+	return fallback
 }
 
-func (e Executor) udsBin() string {
-	if strings.TrimSpace(e.UDSBin) != "" {
-		return strings.TrimSpace(e.UDSBin)
-	}
-	return "uds"
+func (e Executor) zarfBin() string    { return binOr(e.ZarfBin, "zarf") }
+func (e Executor) udsBin() string     { return binOr(e.UDSBin, "uds") }
+func (e Executor) kubectlBin() string { return binOr(e.KubectlBin, "kubectl") }
+
+func (e Executor) managesUDSPackage() bool { return strings.TrimSpace(e.PackageManifestPath) != "" }
+
+func (e Executor) udsPackageName(zarfName string) string {
+	return binOr(e.UDSPackageName, zarfName)
 }
 
-func (e Executor) kubectlBin() string {
-	if strings.TrimSpace(e.KubectlBin) != "" {
-		return strings.TrimSpace(e.KubectlBin)
-	}
-	return "kubectl"
+func refuse(step controlplane.PlanStep, format string, args ...any) error {
+	err := fmt.Errorf("%w: %s", ErrRefused, fmt.Sprintf(format, args...))
+	return agent.DiagnosticError{Err: err, Resources: []controlplane.ResourceDiagnostic{{
+		Kind: "Package", Name: step.InstallationID, Namespace: step.Namespace, Reason: "Refused", Message: err.Error(),
+	}}}
 }
 
 func (e Executor) sourceFor(step controlplane.PlanStep) string {
@@ -68,7 +157,166 @@ func (e Executor) sourceFor(step controlplane.PlanStep) string {
 	if strings.TrimSpace(step.ReleaseDigest) != "" && strings.TrimSpace(step.Product) != "" {
 		return fmt.Sprintf("oci://%s@%s", strings.TrimSpace(step.Product), strings.TrimSpace(step.ReleaseDigest))
 	}
-	return strings.TrimSpace(step.InstallationID)
+	return ""
+}
+
+func (e Executor) packageName(step controlplane.PlanStep) (string, error) {
+	if e.PackageName == nil {
+		return "", refuse(step, "no Zarf package name resolver is configured, and the installationId is not a Zarf package name")
+	}
+	name := strings.TrimSpace(e.PackageName(step))
+	if !zarfPackageName.MatchString(name) {
+		return "", refuse(step, "%q is not a valid Zarf package name", name)
+	}
+	return name, nil
+}
+
+// zarfVerifyFlags returns the flags that make Zarf enforce the signature, or a
+// refusal when no usable verification material is configured.
+func (e Executor) zarfVerifyFlags(step controlplane.PlanStep) ([]string, error) {
+	key := strings.TrimSpace(e.VerificationKeyPath)
+	keyless := e.Publisher != (domain.PublisherPolicy{})
+	switch {
+	case key != "" && keyless:
+		return nil, refuse(step, "both a verification key and a publisher policy are configured; exactly one is required")
+	case key != "":
+		return []string{"--verify=always", "--key", key}, nil
+	case keyless:
+		if err := e.Publisher.Validate(); err != nil {
+			return nil, refuse(step, "%v", err)
+		}
+		return []string{
+			"--verify=always",
+			"--certificate-identity-regexp", e.Publisher.CertificateIdentity,
+			"--certificate-oidc-issuer-regexp", e.Publisher.CertificateIssuer,
+		}, nil
+	default:
+		return nil, refuse(step, "no signature verification material is configured (publisher issuer and identity, or a key)")
+	}
+}
+
+// setFlags maps reviewed values onto repeated `flag KEY=value` arguments in
+// key order. Anything it cannot represent exactly is refused.
+func setFlags(step controlplane.PlanStep, flag string, name *regexp.Regexp) ([]string, error) {
+	raw := bytes.TrimSpace(step.Values)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return nil, nil
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var values map[string]any
+	if err := decoder.Decode(&values); err != nil {
+		return nil, refuse(step, "values are not a JSON object: %v", err)
+	}
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	var flags []string
+	for _, key := range keys {
+		if !name.MatchString(key) {
+			return nil, refuse(step, "value %q is not a deployment variable name (%s)", key, name)
+		}
+		var text string
+		switch value := values[key].(type) {
+		case string:
+			text = value
+		case json.Number:
+			text = value.String()
+		case bool:
+			text = fmt.Sprintf("%t", value)
+		default:
+			return nil, refuse(step, "value %q is not a scalar and cannot be passed as a deployment variable", key)
+		}
+		// pflag's stringToString takes an argument with exactly one "=" whole,
+		// re-parses any other as CSV, and trims surrounding quotes.
+		if strings.ContainsAny(text, "=\"\r\n") {
+			return nil, refuse(step, "value %q contains a character the CLI would re-interpret", key)
+		}
+		flags = append(flags, flag, key+"="+text)
+	}
+	return flags, nil
+}
+
+// deployedPackage is the part of Zarf's state.DeployedPackage this executor reads.
+type deployedPackage struct {
+	Name       string `json:"name"`
+	Digest     string `json:"digest"`
+	Generation int    `json:"generation"`
+	Data       struct {
+		Metadata struct {
+			Version string `json:"version"`
+		} `json:"metadata"`
+	} `json:"data"`
+	DeployedComponents []struct {
+		Name   string `json:"name"`
+		Status string `json:"status"`
+	} `json:"deployedComponents"`
+}
+
+// parseDeployedPackage decodes the base64 `data` key of a zarf-package-<name>
+// Secret, as printed by kubectl's jsonpath. Empty input means no deployment.
+func parseDeployedPackage(encoded []byte) (*deployedPackage, error) {
+	trimmed := strings.Trim(strings.TrimSpace(string(encoded)), `'"`)
+	if trimmed == "" {
+		return nil, nil
+	}
+	raw, err := base64.StdEncoding.DecodeString(trimmed)
+	if err != nil {
+		return nil, fmt.Errorf("decode Zarf deployed-package record: %w", err)
+	}
+	var pkg deployedPackage
+	if err := json.Unmarshal(raw, &pkg); err != nil {
+		return nil, fmt.Errorf("parse Zarf deployed-package record: %w", err)
+	}
+	return &pkg, nil
+}
+
+func (e Executor) deployedState(ctx context.Context, name string) (*deployedPackage, error) {
+	out, err := e.runner().Run(ctx, e.kubectlBin(), "get", "secret", zarfPackagePrefix+name,
+		"-n", zarfNamespace, "--ignore-not-found", "-o", "jsonpath={.data.data}")
+	if err != nil {
+		return nil, agent.DiagnosticError{
+			Err:    fmt.Errorf("read Zarf deployed-package record %s: %w", name, err),
+			Output: strings.TrimSpace(string(out)),
+		}
+	}
+	return parseDeployedPackage(out)
+}
+
+// preflight confirms the cluster can take Zarf (and, when needed, UDS) work.
+func (e Executor) preflight(ctx context.Context, needUDS bool) error {
+	probe := func(specific error, args ...string) error {
+		out, err := e.runner().Run(ctx, e.kubectlBin(), args...)
+		if err != nil {
+			return agent.DiagnosticError{Err: fmt.Errorf("preflight: %w", err), Output: strings.TrimSpace(string(out))}
+		}
+		if strings.TrimSpace(string(out)) == "" {
+			return agent.DiagnosticError{Err: fmt.Errorf("%w: %w", ErrPreflightBlocked, specific)}
+		}
+		return nil
+	}
+	if err := probe(ErrZarfNotInitialised, "get", "secret", zarfStateSecret, "-n", zarfNamespace, "--ignore-not-found", "-o", "name"); err != nil {
+		return err
+	}
+	if needUDS {
+		return probe(ErrUDSCRDsAbsent, "get", "crd", udsPackageCRD, "--ignore-not-found", "-o", "name")
+	}
+	return nil
+}
+
+// receiptFor records what the cluster held before the step changed it.
+// PreviousRevision is the prior Zarf generation, or zero when nothing was
+// deployed. Fence.Name is the Zarf package name and Fence.Generation the prior
+// digest: Receipt has no typed field for a prior package coordinate.
+func receiptFor(step controlplane.PlanStep, name string, prior *deployedPackage) agent.Receipt {
+	receipt := agent.Receipt{Step: step, Fence: agent.ReleaseFence{Name: name}}
+	if prior != nil {
+		receipt.PreviousRevision = max(prior.Generation, 1)
+		receipt.Fence.Generation = strings.TrimSpace(prior.Digest)
+	}
+	return receipt
 }
 
 // Apply deploys or removes a Zarf package or UDS bundle for step.
@@ -76,107 +324,301 @@ func (e Executor) Apply(ctx context.Context, _ controlplane.Plan, step controlpl
 	if strings.TrimSpace(step.InstallationID) == "" {
 		return agent.Receipt{}, errors.New("installationId is required")
 	}
-	run := e.runner()
-	if step.Action == "uninstall" {
-		out, err := run.Run(ctx, e.zarfBin(), "package", "remove", step.InstallationID, "--confirm")
-		if err != nil {
-			return agent.Receipt{}, agent.DiagnosticError{
-				Err:    err,
-				Output: strings.TrimSpace(string(out)),
-			}
-		}
-		return agent.Receipt{Step: step, PreviousRevision: 1}, nil
+	name, err := e.packageName(step)
+	if err != nil {
+		return agent.Receipt{}, err
+	}
+	if step.Action == actionUninstall {
+		return e.uninstall(ctx, step, name)
 	}
 
 	source := e.sourceFor(step)
 	if source == "" {
-		return agent.Receipt{}, errors.New("package source reference is required")
+		return agent.Receipt{}, refuse(step, "package source reference is required")
 	}
-	var (
-		out []byte
-		err error
-	)
-	if e.UseUDSBundle {
-		out, err = run.Run(ctx, e.udsBin(), "deploy", source, "--confirm")
-	} else {
-		out, err = run.Run(ctx, e.zarfBin(), "package", "deploy", source, "--confirm")
+	if len(step.RegistryAccess) > 0 || len(step.SecretAccess) > 0 {
+		return agent.Receipt{}, refuse(step, "the step carries registry or secret access, which this executor cannot prepare")
 	}
+	if e.managesUDSPackage() && strings.TrimSpace(step.Namespace) == "" {
+		return agent.Receipt{}, refuse(step, "a namespace is required to apply the UDS Package manifest")
+	}
+	deploy, err := e.deployCommands(step, source, true)
 	if err != nil {
-		return agent.Receipt{}, agent.DiagnosticError{
-			Err:    err,
-			Output: strings.TrimSpace(string(out)),
-			Resources: []controlplane.ResourceDiagnostic{{
-				Kind:      "Package",
-				Name:      step.InstallationID,
-				Namespace: step.Namespace,
-				Message:   strings.TrimSpace(string(out)),
-			}},
+		return agent.Receipt{}, err
+	}
+	if err := e.preflight(ctx, e.UseUDSBundle || e.managesUDSPackage()); err != nil {
+		return agent.Receipt{}, err
+	}
+	prior, err := e.deployedState(ctx, name)
+	if err != nil {
+		return agent.Receipt{}, err
+	}
+	receipt := receiptFor(step, name, prior)
+
+	// Every command before the last is a verification gate: when one fails
+	// nothing was deployed, so there is nothing to roll back.
+	if out, err := e.runAll(ctx, deploy[:len(deploy)-1]); err != nil {
+		return agent.Receipt{}, agent.DiagnosticError{Err: fmt.Errorf("verify: %w", err), Output: strings.TrimSpace(string(out))}
+	}
+	if out, err := e.runAll(ctx, deploy[len(deploy)-1:]); err != nil {
+		return agent.Receipt{}, e.failed(ctx, receipt, "deploy", err, out)
+	}
+	if e.managesUDSPackage() {
+		out, err := e.runner().Run(ctx, e.kubectlBin(), "apply", "-n", strings.TrimSpace(step.Namespace), "-f", strings.TrimSpace(e.PackageManifestPath))
+		if err != nil {
+			return agent.Receipt{}, e.failed(ctx, receipt, "apply UDS Package manifest", err, out)
 		}
 	}
-	if strings.TrimSpace(e.PackageManifestPath) != "" {
-		ns := strings.TrimSpace(step.Namespace)
-		if ns == "" {
-			ns = "default"
-		}
-		applyOut, applyErr := run.Run(ctx, e.kubectlBin(), "apply", "-n", ns, "-f", strings.TrimSpace(e.PackageManifestPath))
-		if applyErr != nil {
-			return agent.Receipt{}, agent.DiagnosticError{
-				Err:    applyErr,
-				Output: strings.TrimSpace(string(applyOut)),
-			}
-		}
-	}
-	return agent.Receipt{Step: step, PreviousRevision: 0}, nil
+	return receipt, nil
 }
 
-// Observe reads the UDS Package CR status from the cluster and projects it into
-// controlplane.ReportedEntity.
-func (e Executor) Observe(ctx context.Context, step controlplane.PlanStep) (controlplane.ReportedEntity, error) {
-	ns := strings.TrimSpace(step.Namespace)
-	if ns == "" {
-		ns = "default"
+// failed restores the prior state after a step broke part-way. The worker only
+// rolls back steps that returned a receipt, and neither CLI is atomic.
+func (e Executor) failed(ctx context.Context, receipt agent.Receipt, what string, cause error, out []byte) error {
+	err := fmt.Errorf("%s: %w", what, cause)
+	if rollbackErr := e.Rollback(ctx, receipt); rollbackErr != nil {
+		err = fmt.Errorf("%w; rollback: %v", err, rollbackErr)
 	}
-	out, err := e.runner().Run(ctx, e.kubectlBin(), "get", "package.uds.dev", step.InstallationID, "-n", ns, "-o", "yaml")
+	output := strings.TrimSpace(string(out))
+	return agent.DiagnosticError{Err: err, Output: output, Resources: []controlplane.ResourceDiagnostic{{
+		Kind: "Package", Name: receipt.Step.InstallationID, Namespace: receipt.Step.Namespace, Message: output,
+	}}}
+}
+
+func (e Executor) runAll(ctx context.Context, commands [][]string) ([]byte, error) {
+	for _, command := range commands {
+		if out, err := e.runner().Run(ctx, command[0], command[1:]...); err != nil {
+			return out, err
+		}
+	}
+	return nil, nil
+}
+
+// deployCommands builds the verified deploy of source. A bundle is verified by
+// a separate `uds inspect --key` because `uds deploy` cannot verify; keyless
+// material therefore cannot authorise a bundle.
+func (e Executor) deployCommands(step controlplane.PlanStep, source string, withValues bool) ([][]string, error) {
+	if e.UseUDSBundle {
+		key := strings.TrimSpace(e.VerificationKeyPath)
+		if key == "" || e.Publisher != (domain.PublisherPolicy{}) {
+			return nil, refuse(step, "a UDS bundle can only be verified with a public key, and exactly that must be configured")
+		}
+		deploy := []string{e.udsBin(), "deploy", source, "--confirm"}
+		if withValues {
+			sets, err := setFlags(step, "--set", bundleVariableName)
+			if err != nil {
+				return nil, err
+			}
+			deploy = append(deploy, sets...)
+		}
+		return [][]string{{e.udsBin(), "inspect", source, "--key", key}, deploy}, nil
+	}
+	verify, err := e.zarfVerifyFlags(step)
 	if err != nil {
-		return controlplane.ReportedEntity{}, fmt.Errorf("observe UDS Package %s/%s: %w", ns, step.InstallationID, err)
+		return nil, err
 	}
-	obs, err := udsconverge.ParsePackageStatus(out)
+	deploy := append([]string{e.zarfBin(), "package", "deploy", source, "--confirm"}, verify...)
+	if withValues {
+		sets, err := setFlags(step, "--set-variables", zarfVariableName)
+		if err != nil {
+			return nil, err
+		}
+		deploy = append(deploy, sets...)
+	}
+	return [][]string{deploy}, nil
+}
+
+func (e Executor) removeCommand(step controlplane.PlanStep, name string) ([]string, error) {
+	if !e.UseUDSBundle {
+		return []string{e.zarfBin(), "package", "remove", name, "--confirm"}, nil
+	}
+	source := e.sourceFor(step)
+	if source == "" {
+		return nil, refuse(step, "a bundle reference is required to remove a UDS bundle")
+	}
+	return []string{e.udsBin(), "remove", source, "--confirm"}, nil
+}
+
+func (e Executor) uninstall(ctx context.Context, step controlplane.PlanStep, name string) (agent.Receipt, error) {
+	remove, err := e.removeCommand(step, name)
+	if err != nil {
+		return agent.Receipt{}, err
+	}
+	if err := e.preflight(ctx, false); err != nil {
+		return agent.Receipt{}, err
+	}
+	prior, err := e.deployedState(ctx, name)
+	if err != nil {
+		return agent.Receipt{}, err
+	}
+	receipt := receiptFor(step, name, prior)
+	if prior == nil {
+		return receipt, nil
+	}
+	if out, err := e.runner().Run(ctx, remove[0], remove[1:]...); err != nil {
+		return agent.Receipt{}, agent.DiagnosticError{Err: err, Output: strings.TrimSpace(string(out))}
+	}
+	return receipt, nil
+}
+
+func (e Executor) now() time.Time {
+	if e.Now != nil {
+		return e.Now().UTC()
+	}
+	return time.Now().UTC()
+}
+
+// Observe reports what Zarf recorded as deployed, not what the Plan asked for.
+func (e Executor) Observe(ctx context.Context, step controlplane.PlanStep) (controlplane.ReportedEntity, error) {
+	name, err := e.packageName(step)
 	if err != nil {
 		return controlplane.ReportedEntity{}, err
 	}
-	health := controlplane.HealthWarning
-	rollout := controlplane.RolloutInGracePeriod
-	if obs.Healthy && obs.Converged {
-		health = controlplane.HealthHealthy
-		rollout = controlplane.RolloutUpToDate
-	} else if strings.EqualFold(obs.Phase, "Failed") || strings.EqualFold(obs.Phase, "Unhealthy") {
-		health = controlplane.HealthTerminal
-		rollout = controlplane.RolloutBlocked
+	deployed, err := e.deployedState(ctx, name)
+	if err != nil {
+		return controlplane.ReportedEntity{}, err
 	}
-	releaseDigest := step.ReleaseDigest
-	if obs.SourceDigest != "" {
-		releaseDigest = obs.SourceDigest
+	if step.Action == actionUninstall {
+		if deployed != nil {
+			return controlplane.ReportedEntity{}, fmt.Errorf("Zarf package %s remains deployed after uninstall", name)
+		}
+		// Absence was read back, so this mirrors the Helm executor's
+		// uninstalled report: the digests identify what was removed.
+		return controlplane.ReportedEntity{
+			InstallationID: step.InstallationID, Product: step.Product, Version: step.Version,
+			ReleaseDigest: step.ReleaseDigest, Namespace: step.Namespace, ConfigDigest: step.ConfigDigest,
+			Health: controlplane.HealthUnknown, RolloutStatus: controlplane.RolloutUpToDate,
+			ConfigStatus: controlplane.ConfigApplied, Lifecycle: controlplane.LifecycleUninstalled, ObservedAt: e.now(),
+		}, nil
+	}
+	if deployed == nil {
+		return controlplane.ReportedEntity{}, agent.DiagnosticError{
+			Err: fmt.Errorf("Zarf package %s is not deployed", name),
+			Resources: []controlplane.ResourceDiagnostic{{
+				Kind: "Package", Name: step.InstallationID, Namespace: step.Namespace, Reason: "NotDeployed",
+			}},
+		}
+	}
+
+	health, rollout := componentHealth(deployed)
+	if e.managesUDSPackage() {
+		ns := strings.TrimSpace(step.Namespace)
+		if ns == "" {
+			return controlplane.ReportedEntity{}, refuse(step, "a namespace is required to read the UDS Package")
+		}
+		crName := e.udsPackageName(name)
+		out, err := e.runner().Run(ctx, e.kubectlBin(), "get", "package.uds.dev", crName, "-n", ns, "-o", "yaml")
+		if err != nil {
+			return controlplane.ReportedEntity{}, fmt.Errorf("observe UDS Package %s/%s: %w", ns, crName, err)
+		}
+		obs, err := udsconverge.ParsePackageStatus(out)
+		if err != nil {
+			return controlplane.ReportedEntity{}, err
+		}
+		switch {
+		case strings.EqualFold(obs.Phase, "Failed") || strings.EqualFold(obs.Phase, "Unhealthy"):
+			health, rollout = controlplane.HealthTerminal, controlplane.RolloutBlocked
+		case !(obs.Healthy && obs.Converged) && health == controlplane.HealthHealthy:
+			health, rollout = controlplane.HealthWarning, controlplane.RolloutInGracePeriod
+		}
+	}
+
+	// A bundle's digest is not the digest of the Zarf package it contains, and
+	// uds v0.41.0 has no machine-readable deployed-bundle listing, so the
+	// bundle digest is reported as not observed rather than borrowed.
+	digest := strings.TrimSpace(deployed.Digest)
+	if e.UseUDSBundle {
+		digest = ""
+	}
+	version := strings.TrimSpace(deployed.Data.Metadata.Version)
+	if rollout == controlplane.RolloutUpToDate && (digest == "" || digest != strings.TrimSpace(step.ReleaseDigest) ||
+		(strings.TrimSpace(step.Version) != "" && version != strings.TrimSpace(step.Version))) {
+		rollout = controlplane.RolloutOutOfDate
 	}
 	return controlplane.ReportedEntity{
 		InstallationID: step.InstallationID,
 		Product:        step.Product,
-		Version:        step.Version,
-		ReleaseDigest:  releaseDigest,
-		Namespace:      ns,
-		ConfigDigest:   step.ConfigDigest,
-		Health:         health,
-		RolloutStatus:  rollout,
-		ConfigStatus:   controlplane.ConfigApplied,
-		Lifecycle:      controlplane.LifecycleInstalled,
+		Version:        version,
+		ReleaseDigest:  digest,
+		Namespace:      step.Namespace,
+		// Zarf does not record the variables a deployment was given, so the
+		// applied configuration cannot be read back.
+		ConfigStatus:  controlplane.ConfigIndeterminate,
+		Health:        health,
+		RolloutStatus: rollout,
+		Lifecycle:     controlplane.LifecycleInstalled,
+		ObservedAt:    e.now(),
 	}, nil
 }
 
-// Rollback removes a failed Zarf package deployment when no prior revision
-// existed, or re-deploys the prior package coordinate.
+func componentHealth(deployed *deployedPackage) (health, rollout string) {
+	health, rollout = controlplane.HealthHealthy, controlplane.RolloutUpToDate
+	if len(deployed.DeployedComponents) == 0 {
+		return controlplane.HealthWarning, controlplane.RolloutInGracePeriod
+	}
+	for _, component := range deployed.DeployedComponents {
+		switch component.Status {
+		case "Succeeded":
+		case "Failed":
+			return controlplane.HealthTerminal, controlplane.RolloutBlocked
+		default:
+			health, rollout = controlplane.HealthWarning, controlplane.RolloutInGracePeriod
+		}
+	}
+	return health, rollout
+}
+
+// Rollback restores what the receipt says the cluster held before the step.
+//
+// With a prior deployment it re-deploys the prior digest, verified, and never
+// removes. Only a step that installed onto nothing is removed. The prior
+// deployment's variables are not recorded anywhere, so the re-deploy runs with
+// the package's own defaults.
 func (e Executor) Rollback(ctx context.Context, receipt agent.Receipt) error {
-	if strings.TrimSpace(receipt.Step.InstallationID) == "" {
+	step := receipt.Step
+	if strings.TrimSpace(step.InstallationID) == "" {
 		return nil
 	}
-	_, err := e.runner().Run(ctx, e.zarfBin(), "package", "remove", receipt.Step.InstallationID, "--confirm")
-	return err
+	name := strings.TrimSpace(receipt.Fence.Name)
+	if !zarfPackageName.MatchString(name) {
+		return refuse(step, "the receipt does not name a Zarf package, so there is nothing safe to roll back")
+	}
+	if receipt.PreviousRevision == 0 {
+		if step.Action == actionUninstall {
+			return nil
+		}
+		remove, err := e.removeCommand(step, name)
+		if err != nil {
+			return err
+		}
+		// A deploy that failed verification or never started recorded nothing.
+		if current, err := e.deployedState(ctx, name); err != nil || current == nil {
+			return err
+		}
+		if out, err := e.runner().Run(ctx, remove[0], remove[1:]...); err != nil {
+			return agent.DiagnosticError{Err: fmt.Errorf("remove failed first deployment: %w", err), Output: strings.TrimSpace(string(out))}
+		}
+		return nil
+	}
+	if e.UseUDSBundle {
+		return refuse(step, "a prior deployment exists but its bundle coordinate cannot be read back; leaving it in place")
+	}
+	priorDigest := strings.TrimSpace(receipt.Fence.Generation)
+	if priorDigest == "" {
+		return refuse(step, "a prior deployment exists but recorded no digest; leaving it in place")
+	}
+	prior := step
+	prior.ReleaseDigest, prior.Version = priorDigest, ""
+	source := e.sourceFor(prior)
+	if source == "" {
+		return refuse(step, "the prior package coordinate %s cannot be resolved; leaving the deployment in place", priorDigest)
+	}
+	deploy, err := e.deployCommands(prior, source, false)
+	if err != nil {
+		return err
+	}
+	if out, err := e.runAll(ctx, deploy); err != nil {
+		return agent.DiagnosticError{Err: fmt.Errorf("re-deploy prior package %s: %w", priorDigest, err), Output: strings.TrimSpace(string(out))}
+	}
+	return nil
 }
