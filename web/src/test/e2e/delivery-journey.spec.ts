@@ -1,3 +1,5 @@
+import { create, toBinary } from "@bufbuild/protobuf";
+import { PlanApprovalOutcomeSchema } from "../../api/gen/conduit/plans/v1/plan_approval_pb.js";
 import {
   expect,
   test,
@@ -5,7 +7,7 @@ import {
   type Route,
   type Locator,
 } from "@playwright/test";
-import { APPLICATIONS } from "./hub-stub";
+import { APPLICATIONS, approvalReceipt } from "./hub-stub";
 
 // The delivery journey's writes and the planning deep link, against stubbed
 // Hub routes. These establish what the console sends and paints GIVEN an
@@ -130,73 +132,77 @@ async function stubHub(page: Page, hub: Hub) {
         },
       }),
   );
-  await page.route("**/v1/**", (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-    const path = url.pathname;
-    if (request.method() === "POST") {
-      const body = request.postDataJSON();
-      const answer = hub.answer(path, body);
-      if (answer) {
-        hub.writes.push({ path, body, headers: request.headers() });
-        return route.fulfill({
-          status: answer.status,
-          json: answer.json,
-          headers:
-            path === "/v1/plans" && answer.status === 201
-              ? { "X-Change-Request-ID": "crq_new" }
-              : {},
-        });
+  await page.route(
+    /\/(?:v1\/|conduit\.plans\.v1\.PlanApprovalService\/ApprovePlan$)/,
+    (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      const path = url.pathname;
+      if (request.method() === "POST") {
+        const body = request.postDataJSON();
+        const answer = hub.answer(path, body);
+        if (answer) {
+          hub.writes.push({ path, body, headers: request.headers() });
+          return route.fulfill({
+            status: answer.status,
+            json: answer.json,
+            headers:
+              path === "/v1/plans" && answer.status === 201
+                ? { "X-Change-Request-ID": "crq_new" }
+                : {},
+          });
+        }
+        return route.fulfill({ status: 404, json: { error: "not stubbed" } });
       }
+      const json = (body: unknown) => route.fulfill({ json: body });
+      if (path === "/v1/session")
+        return json({
+          actor: { username: hub.operator },
+          effective: { username: hub.operator },
+          applications: APPLICATIONS,
+          resources:
+            hub.resourceOperations === undefined
+              ? []
+              : [
+                  {
+                    resourceRid: "environment/dev",
+                    operations: hub.resourceOperations,
+                  },
+                ],
+          globalOperations: hub.globalOperations ?? [
+            "resource:read",
+            "resource:operate",
+          ],
+        });
+      if (path === "/v1/spaces") return json({ spaces: [] });
+      if (path === "/v1/environments")
+        return json({
+          environments: [
+            { environment: { id: "dev", generation: "gen-1" }, spoke: {} },
+          ],
+          total: 1,
+        });
+      if (path === "/v1/plans") return json({ plans: hub.plans });
+      if (path === "/v1/products")
+        return json({
+          products: [
+            {
+              product: "app.example:api",
+              releases: [release("0.1.0"), release("0.2.0")],
+            },
+          ],
+        });
+      if (path === "/v1/change-requests")
+        return json({ changeRequests: hub.changes });
+      if (path === "/v1/change-requests/crq_new")
+        return json(hub.changes[0] ?? changeRequest(hub.operator));
+      if (path === "/v1/promotions")
+        return json({ promotions: hub.promotions });
+      if (path === "/v1/fleet/installations")
+        return json({ installations: hub.installations ?? [] });
       return route.fulfill({ status: 404, json: { error: "not stubbed" } });
-    }
-    const json = (body: unknown) => route.fulfill({ json: body });
-    if (path === "/v1/session")
-      return json({
-        actor: { username: hub.operator },
-        effective: { username: hub.operator },
-        applications: APPLICATIONS,
-        resources:
-          hub.resourceOperations === undefined
-            ? []
-            : [
-                {
-                  resourceRid: "environment/dev",
-                  operations: hub.resourceOperations,
-                },
-              ],
-        globalOperations: hub.globalOperations ?? [
-          "resource:read",
-          "resource:operate",
-        ],
-      });
-    if (path === "/v1/spaces") return json({ spaces: [] });
-    if (path === "/v1/environments")
-      return json({
-        environments: [
-          { environment: { id: "dev", generation: "gen-1" }, spoke: {} },
-        ],
-        total: 1,
-      });
-    if (path === "/v1/plans") return json({ plans: hub.plans });
-    if (path === "/v1/products")
-      return json({
-        products: [
-          {
-            product: "app.example:api",
-            releases: [release("0.1.0"), release("0.2.0")],
-          },
-        ],
-      });
-    if (path === "/v1/change-requests")
-      return json({ changeRequests: hub.changes });
-    if (path === "/v1/change-requests/crq_new")
-      return json(hub.changes[0] ?? changeRequest(hub.operator));
-    if (path === "/v1/promotions") return json({ promotions: hub.promotions });
-    if (path === "/v1/fleet/installations")
-      return json({ installations: hub.installations ?? [] });
-    return route.fulfill({ status: 404, json: { error: "not stubbed" } });
-  });
+    },
+  );
 }
 
 async function openArea(page: Page, area: string, tab: string) {
@@ -301,19 +307,23 @@ test("a second person approves a plan from the approvals board", async ({
     changes: [changeRequest("alice")],
     promotions: [],
     writes: [],
-    answer: (path) => {
-      if (path !== "/v1/plans/pln_new/approvals") return null;
+    answer: (path, body) => {
+      if (path !== "/conduit.plans.v1.PlanApprovalService/ApprovePlan")
+        return null;
       hub.plans = [{ ...awaitingPlan, status: "APPROVED" }, basePlan];
-      return { status: 200, json: { ...awaitingPlan, status: "APPROVED" } };
+      return { status: 200, json: approvalReceipt("pln_new", "APPROVED") };
     },
   };
   await hydrate(page);
   await stubHub(page, hub);
   // Hold the approval so the in-flight state can be observed.
-  await page.route("**/v1/plans/pln_new/approvals", async (route) => {
-    await held;
-    await route.fallback();
-  });
+  await page.route(
+    "**/conduit.plans.v1.PlanApprovalService/ApprovePlan",
+    async (route) => {
+      await held;
+      await route.fallback();
+    },
+  );
   await page.goto("/console/");
   await openArea(page, "Change requests", "Approvals");
   const decide = page.locator('#main-workspace [data-dj-panel="decide"]');
@@ -323,7 +333,7 @@ test("a second person approves a plan from the approvals board", async ({
   await decide.locator('[data-dj-field="rationale"]').fill("reviewed the diff");
   await approve.click();
   await expect(decide.locator("[data-dj-request]")).toContainText(
-    "POST /v1/plans/pln_new/approvals",
+    "POST /conduit.plans.v1.PlanApprovalService/ApprovePlan",
   );
   await decide.locator("[data-dj-confirm]").click();
 
@@ -342,8 +352,8 @@ test("a second person approves a plan from the approvals board", async ({
   );
   expect(hub.writes).toEqual([
     expect.objectContaining({
-      path: "/v1/plans/pln_new/approvals",
-      body: { rationale: "reviewed the diff" },
+      path: "/conduit.plans.v1.PlanApprovalService/ApprovePlan",
+      body: { planId: "pln_new", rationale: "reviewed the diff" },
     }),
   ]);
   // The board was read again after the Hub answered.
@@ -908,9 +918,12 @@ test("keyboard-only proposal and independent approval retain both confirmations"
         hub.changes = [changeRequest("alice")];
         return { status: 201, json: created };
       }
-      if (path === "/v1/plans/pln_new/approvals") {
+      if (path === "/conduit.plans.v1.PlanApprovalService/ApprovePlan") {
         hub.plans = [{ ...awaitingPlan, status: "APPROVED" }, basePlan];
-        return { status: 200, json: hub.plans[0] };
+        return {
+          status: 200,
+          json: approvalReceipt("pln_new", "APPROVED", "bob", body.rationale),
+        };
       }
       return null;
     },
@@ -970,7 +983,7 @@ test("keyboard-only proposal and independent approval retain both confirmations"
   await page.keyboard.insertText("keyboard independent review");
   await keyboardActivate(page, decide.locator('[data-dj-review="approve"]'));
   await expect(decide.locator("[data-dj-request]")).toContainText(
-    "POST /v1/plans/pln_new/approvals",
+    "POST /conduit.plans.v1.PlanApprovalService/ApprovePlan",
   );
   expect(hub.writes).toHaveLength(1);
   await keyboardActivate(page, decide.locator("[data-dj-confirm]"));
@@ -980,8 +993,96 @@ test("keyboard-only proposal and independent approval retain both confirmations"
   expect(hub.writes).toHaveLength(2);
   expect(hub.writes[1]).toEqual(
     expect.objectContaining({
-      path: "/v1/plans/pln_new/approvals",
-      body: { rationale: "keyboard independent review" },
+      path: "/conduit.plans.v1.PlanApprovalService/ApprovePlan",
+      body: { planId: "pln_new", rationale: "keyboard independent review" },
     }),
   );
 });
+
+for (const failure of ["unknown", "recorded", "handoff-failed"]) {
+  test(`approval ${failure} outcome blocks replay until an explicit reload`, async ({
+    page,
+  }) => {
+    const known = failure !== "unknown";
+    const outcome = create(PlanApprovalOutcomeSchema, {
+      planId: "pln_new",
+      approvalRecorded: known,
+      handoffFailed: failure === "handoff-failed",
+    });
+    const hub: Hub = {
+      operator: "bob",
+      plans: [awaitingPlan, basePlan],
+      changes: [changeRequest("alice")],
+      promotions: [],
+      writes: [],
+      answer: (path) =>
+        path === "/conduit.plans.v1.PlanApprovalService/ApprovePlan"
+          ? {
+              status: 503,
+              json: {
+                code: "unavailable",
+                message: "sanitized failure",
+                details: known
+                  ? [
+                      {
+                        type: PlanApprovalOutcomeSchema.typeName,
+                        value: Buffer.from(
+                          toBinary(PlanApprovalOutcomeSchema, outcome),
+                        ).toString("base64"),
+                      },
+                    ]
+                  : [],
+              },
+            }
+          : null,
+    };
+    const restApprovals: string[] = [];
+    page.on("request", (request) => {
+      if (
+        request.method() === "POST" &&
+        /\/v1\/plans\/[^/]+\/approvals$/.test(new URL(request.url()).pathname)
+      )
+        restApprovals.push(request.url());
+    });
+    await hydrate(page);
+    await stubHub(page, hub);
+    await page.goto("/console/");
+    await openArea(page, "Change requests", "Approvals");
+    const decide = page.locator('[data-dj-panel="decide"]');
+    await decide
+      .locator('[data-dj-field="rationale"]')
+      .fill("reviewed exact target");
+    await decide.locator('[data-dj-review="approve"]').click();
+    expect(hub.writes).toHaveLength(0);
+    await decide.locator("[data-dj-confirm]").click();
+    const message = decide.locator("[data-dj-uncertain]");
+    await expect(message).toHaveAttribute(
+      "data-dj-approval-recorded",
+      String(known),
+    );
+    await expect(message).toContainText(
+      known ? "Approval was recorded" : "outcome is unknown",
+    );
+    if (failure === "handoff-failed")
+      await expect(message).toContainText("execution handoff failed");
+    await expect(message).not.toContainText("did not accept");
+    await expect(decide.locator('[data-dj-field="rationale"]')).toBeDisabled();
+    await expect(decide.locator("[data-dj-review]")).toHaveCount(0);
+    await page.evaluate(() => Reflect.get(window, "renderMainWorkspace")());
+    await expect(message).toBeVisible();
+    expect(hub.writes).toHaveLength(1);
+    expect(hub.writes[0]?.body).toEqual({
+      planId: "pln_new",
+      rationale: "reviewed exact target",
+    });
+    expect(hub.writes[0]?.headers["x-conduit-csrf"]).toBe("1");
+    await Promise.all([
+      page.waitForEvent("load"),
+      message.getByRole("button", { name: "Reload Plan state" }).click(),
+    ]);
+    await openArea(page, "Change requests", "Approvals");
+    await expect(decide.locator("[data-dj-uncertain]")).toHaveCount(0);
+    expect(hub.writes).toHaveLength(1);
+    expect(restApprovals).toEqual([]);
+  });
+}

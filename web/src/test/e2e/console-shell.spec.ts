@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { APPLICATIONS } from "./hub-stub";
+import { APPLICATIONS, approvalReceipt } from "./hub-stub";
 import { installPackagingReadStub, hydrate } from "./console-fixture";
 
 installPackagingReadStub();
@@ -160,13 +160,16 @@ test.describe("workbench", () => {
         },
       }),
     );
-    await page.route("**/v1/plans**", async (route) => {
-      const url = route.request().url();
-      if (route.request().method() === "POST" && url.includes("/approvals")) {
+    await page.route(
+      "**/conduit.plans.v1.PlanApprovalService/ApprovePlan",
+      async (route) => {
         approved = true;
-        await route.fulfill({ json: { id: "plan-1", status: "APPROVED" } });
-        return;
-      }
+        await route.fulfill({
+          json: approvalReceipt("plan-1", "APPROVED", "operator"),
+        });
+      },
+    );
+    await page.route("**/v1/plans**", async (route) => {
       await route.fulfill({
         json: {
           plans: [

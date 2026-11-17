@@ -312,11 +312,14 @@ describe("buildPlanDecision", () => {
     plan: { environment: "dev" },
   };
 
-  it("approves through the plan approvals route with a rationale", () => {
+  it("approves through the generated procedure with the exact Plan identity and rationale", () => {
     const request = buildPlanDecision(governed, "approve", " reviewed ");
     expect(request.method).toBe("POST");
-    expect(request.path).toBe("/v1/plans/pln%2F1/approvals");
-    expect(request.body).toEqual({ rationale: "reviewed" });
+    expect(request.path).toBe(
+      "/conduit.plans.v1.PlanApprovalService/ApprovePlan",
+    );
+    expect(request.transport).toBe("connect-plan-approval");
+    expect(request.body).toEqual({ planId: "pln/1", rationale: "reviewed" });
   });
 
   it("rejects a governed plan through its change request", () => {
@@ -601,7 +604,7 @@ describe("actionTransition", () => {
 describe("sendAction", () => {
   const request = {
     method: "POST",
-    path: "/v1/plans/pln_1/approvals",
+    path: "/v1/change-requests/crq_1/reject",
     headers: {},
     body: { rationale: "ok" },
   };
@@ -617,7 +620,7 @@ describe("sendAction", () => {
       string,
       RequestInit,
     ];
-    expect(path).toBe("/v1/plans/pln_1/approvals");
+    expect(path).toBe("/v1/change-requests/crq_1/reject");
     expect(init.method).toBe("POST");
     expect(init.credentials).toBe("same-origin");
     expect(init.body).toBe('{"rationale":"ok"}');
@@ -659,5 +662,117 @@ describe("deliveryCapabilityHook", () => {
     expect(deliveryCapabilityHook("change:propose", "environment/dev")).toEqual(
       { allowed: null, reason: "" },
     );
+  });
+});
+
+describe("active operator generated Plan approval", () => {
+  const receipt = () => ({
+    plan: {
+      id: "pln/1",
+      environment: "dev",
+      status: "AWAITING_APPROVAL",
+      stepCount: "1",
+      approvalCount: "1",
+      requiredApprovals: "2",
+      revision: "18446744073709551615",
+      createdAt: "2026-11-17T00:00:00.123456789Z",
+      updatedAt: "2026-11-17T00:00:01Z",
+    },
+    approvals: [
+      {
+        subject: "reviewer",
+        createdAt: "2026-11-17T00:00:01Z",
+        rationale: "reviewed",
+      },
+    ],
+    changeRequestId: "crq_1",
+  });
+  const command = () =>
+    buildPlanDecision(
+      { id: "pln/1", plan: { environment: "dev" } },
+      "approve",
+      "reviewed",
+    );
+  it("sends one exact generated command and keeps the summary distinct from a Plan", async () => {
+    vi.stubGlobal("window", { location: { origin: "https://hub.example" } });
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const request = input as Request;
+      expect(request.url).toBe(
+        "https://hub.example/conduit.plans.v1.PlanApprovalService/ApprovePlan",
+      );
+      expect(request.method).toBe("POST");
+      expect(request.credentials).toBe("same-origin");
+      expect(request.redirect).toBe("error");
+      expect(await request.json()).toEqual({
+        planId: "pln/1",
+        rationale: "reviewed",
+      });
+      return new Response(JSON.stringify(receipt()), {
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    try {
+      const answer = await sendAction(command(), fetchImpl);
+      expect(answer.body).toMatchObject({
+        kind: "conduit.plan-approval/v1",
+        plan: {
+          id: "pln/1",
+          status: "AWAITING_APPROVAL",
+          revision: "18446744073709551615",
+          createdAt: "2026-11-17T00:00:00.123456789Z",
+        },
+      });
+      expect(answer.body).not.toHaveProperty("id");
+      expect(answer.body).not.toHaveProperty("desiredState");
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+  it.each(["lost-response", "foreign-receipt"])(
+    "never replays through REST after %s",
+    async (failure) => {
+      vi.stubGlobal("window", { location: { origin: "https://hub.example" } });
+      const fetchImpl = vi.fn(async () => {
+        if (failure === "lost-response") throw new TypeError("connection lost");
+        const foreign = receipt();
+        foreign.plan.id = "another-plan";
+        return new Response(JSON.stringify(foreign), {
+          headers: { "Content-Type": "application/json" },
+        });
+      });
+      try {
+        await expect(sendAction(command(), fetchImpl)).rejects.toMatchObject({
+          name: "PlanApprovalError",
+          outcomeKnown: false,
+          approvalRecorded: false,
+        });
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    },
+  );
+  it("requires a fresh read after an uncertain command despite reset or repeated review", () => {
+    const request = command();
+    const sent = actionTransition(
+      actionTransition(idleAction(), { type: "review", request }),
+      { type: "confirm" },
+    );
+    const uncertain = actionTransition(sent, {
+      type: "uncertain",
+      error: "Approval was recorded, handoff failed.",
+      outcome: {
+        outcomeKnown: true,
+        approvalRecorded: true,
+        handoffFailed: true,
+      },
+    });
+    expect(uncertain).toMatchObject({
+      phase: "uncertain",
+      outcome: { approvalRecorded: true, handoffFailed: true },
+    });
+    for (const type of ["reset", "review", "confirm", "cancel", "resolved"])
+      expect(actionTransition(uncertain, { type, request })).toBe(uncertain);
   });
 });

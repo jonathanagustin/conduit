@@ -74,11 +74,13 @@ describe("confirmation step", () => {
     const html = actionChromeMarkup(confirming);
     expect(html).toContain("data-dj-confirm-step");
     expect(html).toContain("Nothing has been sent");
-    expect(html).toContain("POST /v1/plans/pln_9/approvals");
+    expect(html).toContain(
+      "POST /conduit.plans.v1.PlanApprovalService/ApprovePlan",
+    );
     expect(html).toContain("looks &lt;b&gt;right&lt;/b&gt;");
     expect(html).not.toContain("<b>right</b>");
     expect(requestText(request)).toBe(
-      'POST /v1/plans/pln_9/approvals\n\n{\n  "rationale": "looks <b>right</b>"\n}',
+      'POST /conduit.plans.v1.PlanApprovalService/ApprovePlan\n\n{\n  "planId": "pln_9",\n  "rationale": "looks <b>right</b>"\n}',
     );
   });
 
@@ -318,4 +320,37 @@ it("uses operate for CR-less decisions without imposing it on governed reviewers
   } finally {
     bindDeliveryCapabilities(null);
   }
+});
+
+describe("approval outcome chrome", () => {
+  it("renders a recorded approval receipt without pretending it is a full Plan", () => {
+    const html = decisionMarkup(
+      null,
+      { canReview: false },
+      {
+        action: {
+          phase: "success",
+          request: buildPlanDecision({ id: "pln_1" }, "approve", "reviewed"),
+          result: {
+            kind: "conduit.plan-approval/v1",
+            plan: { id: "pln_1", status: "AWAITING_APPROVAL" },
+          },
+        },
+      },
+    );
+    expect(html).toContain("pln_1 is now AWAITING_APPROVAL.");
+    expect(html).not.toContain("status unavailable");
+  });
+  it("does not call an uncertain or recorded outcome refused and offers only a reload", () => {
+    const html = actionChromeMarkup({
+      phase: "uncertain",
+      error: "Approval was recorded <img>.",
+      outcome: { approvalRecorded: true },
+    });
+    expect(html).toContain('data-dj-approval-recorded="true"');
+    expect(html).toContain("Approval was recorded &lt;img&gt;");
+    expect(html).toContain("Reload Plan state");
+    expect(html).not.toContain("did not accept");
+    expect(html).not.toContain("data-dj-confirm");
+  });
 });

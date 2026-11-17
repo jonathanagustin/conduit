@@ -269,7 +269,7 @@ test("a second identity approves the plan in the console", async ({
     await expect(approve).toBeEnabled();
     await approve.click();
     await expect(decide.locator("[data-dj-request]")).toContainText(
-      `POST /v1/plans/${proposedPlanId}/approvals`,
+      "POST /conduit.plans.v1.PlanApprovalService/ApprovePlan",
     );
     // Still awaiting: the confirmation alone approved nothing.
     expect(

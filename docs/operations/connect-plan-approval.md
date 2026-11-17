@@ -2,7 +2,7 @@
 
 `conduit.plans.v1.PlanApprovalService/ApprovePlan` dual-serves the existing
 `POST /v1/plans/{planID}/approvals` command. This is a Conduit-native governed
-write, not a read encoded as POST. Existing callers remain on REST. It adds no
+write, not a read encoded as POST. Existing REST callers remain supported. It adds no
 automatic retry, fallback, publication or deployment authority.
 
 ## One native command
@@ -57,6 +57,22 @@ Missing outcome details mean an unknown outcome, not proof that no write
 occurred. Inspect stored status and repair/reconcile sequencing; do not replay
 approval through REST or retry it automatically. Duplicate approval remains a
 native refusal, not a recovery mechanism.
+
+## Operator console
+
+The active delivery panel and approvals board use the generated approval client,
+as does the legacy console helper. The operator still reviews the exact Plan ID
+and rationale, then confirms one command. The confirmation shows the Connect
+procedure and message actually sent. Reject and cancel retain their REST routes.
+
+Successful approval displays the returned summary status. Its versioned
+`conduit.plan-approval/v1` result retains the generated receipt; it does not
+invent a full desired-state document. An approval response failure preserves
+the client's recorded/unknown and handoff-failed outcome information. The panel
+does not label a recorded approval refused, and blocks another approval until
+the operator explicitly reloads current Plan state. Reloading performs reads;
+it never repeats the approval. Navigation or a background repaint does not
+clear the blocked state. There is no automatic REST fallback or command retry.
 
 ## Evidence and cutover
 
