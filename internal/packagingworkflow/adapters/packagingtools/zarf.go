@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-
-	"gopkg.in/yaml.v3"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 const defaultZarfTimeout = 2 * time.Minute
