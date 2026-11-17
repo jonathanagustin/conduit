@@ -606,6 +606,8 @@ skew** is the one a delivery platform is least entitled to get wrong.
    **producing the key material and mounting it**, and **rotating it**
    (generating the successor, publishing its public half into every consumer's
    `BUNDLE_TRUSTED_KEYS_FILE` before it signs, and retiring the predecessor).
+   The procedure, and the Go tests that rehearse it, are in
+   [key-rotation.md](key-rotation.md).
    Nothing here generates, distributes or rotates a signing key; what the
    repository now guarantees is that a Hub missing one says so instead of
    inventing one.
