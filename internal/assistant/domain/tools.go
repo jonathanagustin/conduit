@@ -73,15 +73,19 @@ type DiffArgs struct {
 }
 
 // WriteArgs is one governed mutation. Missing fields come back as elicitation.
-// Confirm is set only after the person submits the card.
+// Confirm is set only after the person submits the card. An action that opens
+// a change request names its own environment, installation, and product: the
+// server never fills one in.
 type WriteArgs struct {
-	Action        string `json:"action"`
-	TargetID      string `json:"targetId,omitempty"`
-	Environment   string `json:"environment,omitempty"`
-	Value         string `json:"value,omitempty"`
-	Justification string `json:"justification,omitempty"`
-	Expected      string `json:"expectedOutcome,omitempty"`
-	Confirm       bool   `json:"confirm,omitempty"`
+	Action         string `json:"action"`
+	TargetID       string `json:"targetId,omitempty"`
+	Environment    string `json:"environment,omitempty"`
+	InstallationID string `json:"installationId,omitempty"`
+	ProductID      string `json:"productId,omitempty"`
+	Value          string `json:"value,omitempty"`
+	Justification  string `json:"justification,omitempty"`
+	Expected       string `json:"expectedOutcome,omitempty"`
+	Confirm        bool   `json:"confirm,omitempty"`
 }
 
 // Field is one elicitation input. It never asks for a secret.
@@ -201,10 +205,7 @@ func ParseToolCall(name string, arguments json.RawMessage) (ToolCall, error) {
 		if err != nil {
 			return ToolCall{}, err
 		}
-		switch strings.TrimSpace(args.Action) {
-		case "add_eval_case", "propose_memory", "cancel_packaging_run", "rerun_packaging_run",
-			"promote", "recall", "approve_change", "reject_change", "select_course", "start_packaging_run":
-		default:
+		if !knownWriteAction(args.Action) {
 			return ToolCall{}, fmt.Errorf("%w: unknown action", ErrToolInvalid)
 		}
 		call.Write = args
@@ -238,6 +239,24 @@ func ParseReply(raw []byte) (ModelReply, error) {
 	return reply, nil
 }
 
+// WriteActions lists every action governed_write accepts.
+func WriteActions() []string {
+	return []string{
+		"add_eval_case", "propose_memory", "cancel_packaging_run", "rerun_packaging_run",
+		"promote", "recall", "approve_change", "reject_change", "select_course", "start_packaging_run",
+	}
+}
+
+func knownWriteAction(action string) bool {
+	action = strings.TrimSpace(action)
+	for _, known := range WriteActions() {
+		if action == known {
+			return true
+		}
+	}
+	return false
+}
+
 // Risk is low when the caller's role may apply the action after Confirm.
 // Promote, recall, approval, and resource changes stay high and open a change request.
 func Risk(action string) string {
@@ -258,6 +277,13 @@ func MissingFields(args WriteArgs) []Field {
 		}
 		fields = append(fields, Field{Name: name, Label: label, Type: "string", Required: true, Options: options})
 	}
+	// changeTarget is what a change request is filed against. The caller names
+	// all three; none of them has a default.
+	changeTarget := func() {
+		need("environment", "Environment", args.Environment)
+		need("installationId", "Installation", args.InstallationID)
+		need("productId", "Product", args.ProductID)
+	}
 	switch strings.TrimSpace(args.Action) {
 	case "add_eval_case":
 		need("justification", "Scenario", args.Justification)
@@ -266,11 +292,14 @@ func MissingFields(args WriteArgs) []Field {
 	case "propose_memory", "select_course":
 		need("value", "Memory value", args.Value, "512Mi", "1Gi", "8Gi")
 		need("justification", "Justification", args.Justification)
-		need("environment", "Environment", args.Environment)
+		changeTarget()
 	case "promote", "recall":
 		need("targetId", "Target", args.TargetID)
 		need("justification", "Justification", args.Justification)
-		need("environment", "Environment", args.Environment)
+		changeTarget()
+	case "cancel_packaging_run":
+		need("targetId", "Packaging run", args.TargetID)
+		changeTarget()
 	case "approve_change", "reject_change":
 		need("targetId", "Change request", args.TargetID)
 		need("justification", "Justification", args.Justification)

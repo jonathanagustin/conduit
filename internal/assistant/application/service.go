@@ -252,8 +252,38 @@ func (service Service) Invoke(ctx context.Context, actor Actor, mode string, nam
 	return service.finish(ctx, actor, call, result, started, nil)
 }
 
+// Refusal reasons a write can carry before any rule or service is consulted.
+const (
+	ReasonNotExecutable = "action is not executable in this deployment: no service is wired to run it"
+	ReasonNoActionRule  = "no action rule governs this action, so it is refused"
+	ReasonNoGovernor    = "action rules are not configured"
+	// ReasonIntentOnly is what an opened change request means today. Nothing
+	// reads the action id back out of an approved request.
+	ReasonIntentOnly = "opened for a separate approver; the change request records the proposal and its approval, and approving it does not run the action"
+)
+
 func (service Service) write(ctx context.Context, actor Actor, args domain.WriteArgs, result Result) Result {
+	args.Action = strings.TrimSpace(args.Action)
 	result.Risk = domain.Risk(args.Action)
+	refuse := func(reason string) Result {
+		result.Allowed = false
+		result.Reason = reason
+		result.Constraints = []Constraint{{ID: args.Action, Status: "DENY", Reason: reason}}
+		return result
+	}
+	// Refuse before asking the person for fields or a confirmation that could
+	// not lead anywhere.
+	effect := effectOf(args.Action)
+	if effect == effectNone {
+		return refuse(ReasonNotExecutable)
+	}
+	rule := ruleID(args.Action)
+	if rule == "" && !ruleExempt(args.Action) {
+		return refuse(ReasonNoActionRule)
+	}
+	if rule != "" && service.Governor == nil {
+		return refuse(ReasonNoGovernor)
+	}
 	if fields := domain.MissingFields(args); len(fields) > 0 {
 		result.Fields = fields
 		result.Elicitation = &args
@@ -270,14 +300,11 @@ func (service Service) write(ctx context.Context, actor Actor, args domain.Write
 			return result
 		}
 		if strings.EqualFold(strings.TrimSpace(author), strings.TrimSpace(actor.Username)) && author != "" {
-			result.Allowed = false
-			result.Reason = "a person cannot approve their own change request"
-			result.Constraints = []Constraint{{ID: args.Action, Status: "DENY", Reason: result.Reason}}
-			return result
+			return refuse("a person cannot approve their own change request")
 		}
 	}
-	if service.Governor != nil && ruleID(args.Action) != "" {
-		decision, err := service.Governor.Evaluate(ctx, actor.Username, ruleID(args.Action), domain.Resource("PackagingRun", firstNonEmpty(args.TargetID, args.Value)), actor.Roles())
+	if rule != "" {
+		decision, err := service.Governor.Evaluate(ctx, actor.Username, rule, domain.Resource("PackagingRun", firstNonEmpty(args.TargetID, args.Value)), actor.Roles())
 		if err != nil {
 			result.OK = false
 			result.Reason = err.Error()
@@ -285,10 +312,7 @@ func (service Service) write(ctx context.Context, actor Actor, args domain.Write
 		}
 		result.DecisionAuditEventID = decision.AuditEventID
 		if !decision.Allowed || !decision.Known {
-			result.Allowed = false
-			result.Reason = decision.Reason
-			result.Constraints = []Constraint{{ID: args.Action, Status: "DENY", Reason: decision.Reason}}
-			return result
+			return refuse(decision.Reason)
 		}
 	}
 	if result.Risk == "low" && !args.Confirm {
@@ -297,7 +321,8 @@ func (service Service) write(ctx context.Context, actor Actor, args domain.Write
 		result.Reason = "confirm to apply this action"
 		return result
 	}
-	if args.Action == "approve_change" || args.Action == "reject_change" {
+	switch effect {
+	case effectReview:
 		if service.Reviews == nil {
 			result.OK = false
 			result.Reason = "reviews are not configured"
@@ -312,10 +337,7 @@ func (service Service) write(ctx context.Context, actor Actor, args domain.Write
 		}
 		if err != nil {
 			result.OK = false
-			result.Allowed = false
-			result.Reason = err.Error()
-			result.Constraints = []Constraint{{ID: args.Action, Status: "DENY", Reason: err.Error()}}
-			return result
+			return refuse(err.Error())
 		}
 		result.Applied = true
 		result.Allowed = true
@@ -324,8 +346,7 @@ func (service Service) write(ctx context.Context, actor Actor, args domain.Write
 		result.Reason = "review recorded"
 		result.WriteOps = 1
 		return result
-	}
-	if result.Risk == "high" {
+	case effectChangeRequest:
 		if service.Changes == nil {
 			result.OK = false
 			result.Reason = "change requests are not configured"
@@ -333,8 +354,8 @@ func (service Service) write(ctx context.Context, actor Actor, args domain.Write
 		}
 		opened, err := service.Changes.Open(ctx, Proposal{
 			ActionID: args.Action, TargetEntityID: firstNonEmpty(args.TargetID, args.Value),
-			ObjectType: "ChangeRequest", Environment: firstNonEmpty(args.Environment, "dev"),
-			InstallationID: "sample-app", ProductID: "app.example:sample-app",
+			ObjectType: "ChangeRequest", Environment: strings.TrimSpace(args.Environment),
+			InstallationID: strings.TrimSpace(args.InstallationID), ProductID: strings.TrimSpace(args.ProductID),
 			Author: actor.Username, Reason: args.Justification,
 		})
 		if err != nil {
@@ -347,11 +368,10 @@ func (service Service) write(ctx context.Context, actor Actor, args domain.Write
 		result.ChangeRequestStatus = opened.Status
 		result.ObjectID = opened.ID
 		result.State = opened.Status
-		result.Reason = "opened for a separate approver"
+		result.Reason = ReasonIntentOnly
 		result.WriteOps = 1
 		return result
-	}
-	if args.Action == "add_eval_case" {
+	case effectEvalCase:
 		if service.Cases == nil {
 			result.OK = false
 			result.Reason = "eval cases are not configured"
@@ -371,15 +391,40 @@ func (service Service) write(ctx context.Context, actor Actor, args domain.Write
 		result.WriteOps = 1
 		return result
 	}
-	result.Applied = true
-	result.Allowed = true
-	result.ObjectID = args.TargetID
-	result.State = "applied"
-	result.Reason = "applied after confirm"
-	result.WriteOps = 1
-	return result
+	return refuse(ReasonNotExecutable)
 }
 
+// effect is the one service call an action makes. effectNone has no service
+// behind it and is refused: a result never reports an effect that did not happen.
+type effect int
+
+const (
+	effectNone effect = iota
+	effectReview
+	effectChangeRequest
+	effectEvalCase
+)
+
+// effectOf names what runs for an action. start_packaging_run and
+// rerun_packaging_run are low risk, so they would apply directly, and this
+// service has no port that starts a packaging run.
+func effectOf(action string) effect {
+	switch action {
+	case "approve_change", "reject_change":
+		return effectReview
+	case "add_eval_case":
+		return effectEvalCase
+	case "start_packaging_run", "rerun_packaging_run":
+		return effectNone
+	}
+	if domain.Risk(action) == "high" {
+		return effectChangeRequest
+	}
+	return effectNone
+}
+
+// ruleID maps a write to its ontology action rule. recall, propose_memory, and
+// select_course have no rule in the catalog and are refused.
 func ruleID(action string) string {
 	switch action {
 	case "approve_change":
@@ -395,6 +440,12 @@ func ruleID(action string) string {
 	default:
 		return ""
 	}
+}
+
+// ruleExempt is the one write with no action rule that still runs: an eval case
+// is the operator's own feedback record, kept after an explicit Confirm.
+func ruleExempt(action string) bool {
+	return action == "add_eval_case"
 }
 
 func firstNonEmpty(values ...string) string {
