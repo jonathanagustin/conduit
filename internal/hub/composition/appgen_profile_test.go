@@ -78,6 +78,9 @@ func TestAppgenProfileStartTurnReadyAcceptAndBinding(t *testing.T) {
 	if session.Status != planningdomain.StatusReady || session.Plan == nil || session.Plan.Text == "" {
 		t.Fatalf("expected ready session with plan, got %+v", session)
 	}
+	if !strings.Contains(session.Plan.Text, `"healthCheckPath":"/health"`) || strings.Contains(session.Plan.Text, "/healthz") || !strings.Contains(session.Plan.Text, `"sourceRule":"exactly one source file"`) {
+		t.Fatalf("plan does not state the source rule and health path: %s", session.Plan.Text)
+	}
 	if session.ResolvedCommit != planningdomain.NoRepositoryCommit {
 		t.Fatalf("expected resolvedCommit %q, got %q", planningdomain.NoRepositoryCommit, session.ResolvedCommit)
 	}
@@ -148,11 +151,36 @@ func TestAppgenProfileMissingAppNameRaisesNeedsInput(t *testing.T) {
 	}
 }
 
+func writeZarfStub(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "zarf")
+	script := `#!/bin/sh
+out=
+prev=
+for arg in "$@"; do
+  if [ "$prev" = "--output" ]; then
+    out=$arg
+  fi
+  prev=$arg
+done
+if [ -n "$out" ]; then
+  mkdir -p "$out"
+  printf 'archive\n' > "$out/zarf-package-test.tar.zst"
+fi
+exit 0
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
 func TestAppgenProfileRefusesComputeBeforeAcceptAndGeneratesBeforePackaging(t *testing.T) {
 	gitRoot := t.TempDir()
 	handoffDir := t.TempDir()
 	t.Setenv("DEVWORKSPACE_GIT_ROOT", gitRoot)
 	t.Setenv("PACKAGING_FIXTURE_DIR", handoffDir)
+	t.Setenv("ZARF_BIN", writeZarfStub(t))
 	sandbox := &testAppgenSandbox{}
 	publisher := &testAppgenPublisher{}
 	repository := controlplane.NewMemoryRepository()
@@ -253,7 +281,7 @@ func TestAppgenProfileRefusesComputeBeforeAcceptAndGeneratesBeforePackaging(t *t
 		t.Fatal(err)
 	}
 	repoDir := store.RepoDir("wsp_" + session.ID)
-	for _, wantFile := range []string{"main.go", "values.yaml", "Dockerfile", ".dockerignore", "zarf.yaml", "uds-package.yaml", "package-source.yaml"} {
+	for _, wantFile := range []string{"main.go", "values.yaml", "Dockerfile", ".dockerignore", "zarf.yaml", "uds-package.yaml", "package-source.yaml", "chart/Chart.yaml", "chart/values.yaml", "chart/templates/deployment.yaml", "chart/templates/service.yaml"} {
 		if _, err := os.Stat(filepath.Join(repoDir, wantFile)); err != nil {
 			t.Fatalf("missing expected generated/packaged file %s: %v", wantFile, err)
 		}
@@ -274,6 +302,18 @@ func TestAppgenProfileRefusesComputeBeforeAcceptAndGeneratesBeforePackaging(t *t
 	if reason := checks.PackageCR(string(crBytes)); reason != "" {
 		t.Fatalf("PackageCR gate failed: %s", reason)
 	}
+	pinned := "127.0.0.1:5000/hello-http@sha256:" + strings.Repeat("a", 64)
+	values, err := os.ReadFile(filepath.Join(repoDir, "chart/values.yaml"))
+	if err != nil || !strings.Contains(string(values), pinned) {
+		t.Fatalf("chart values = %s %v", values, err)
+	}
+	zarf, err := os.ReadFile(filepath.Join(repoDir, "zarf.yaml"))
+	if err != nil || !strings.Contains(string(zarf), pinned) || !strings.Contains(string(zarf), `localPath: "chart"`) {
+		t.Fatalf("zarf = %s %v", zarf, err)
+	}
+	if !strings.Contains(string(crBytes), `service: "hello-http"`) || !strings.Contains(string(crBytes), "expose:") {
+		t.Fatalf("package = %s", crBytes)
+	}
 	outEntries, err := os.ReadDir(filepath.Join(repoDir, "out"))
 	if err != nil || len(outEntries) == 0 {
 		t.Fatalf("expected zarf package create archive in %s/out, got entries=%d err=%v", repoDir, len(outEntries), err)
@@ -289,6 +329,46 @@ func TestAppgenProfileRefusesComputeBeforeAcceptAndGeneratesBeforePackaging(t *t
 	}
 	if _, _, err := governanceSvc.Approve(t.Context(), crs[0].ID, controlplane.Principal{Username: "alice", Teams: []string{"release-reviewers"}}, "self-approve"); !errors.Is(err, controlplane.ErrForbidden) {
 		t.Fatalf("expected author self-approval to be forbidden, got %v", err)
+	}
+
+	// Verify GET /v1/dev-workspaces/wsp_<id> and GET /v1/dev-workspaces/wsp_<id>/diff on the NewHub handler.
+	wsResp := planningRequest(t, handler, "alice", http.MethodGet, "/v1/dev-workspaces/wsp_"+session.ID, "")
+	if wsResp.Code != http.StatusOK {
+		t.Fatalf("get dev-workspace: %d %s", wsResp.Code, wsResp.Body.String())
+	}
+	var wsView struct {
+		WorkspaceID       string `json:"workspaceId"`
+		HeadCommit        string `json:"headCommit"`
+		ApprovalID        string `json:"approvalId"`
+		ValidationOutcome string `json:"validationOutcome"`
+	}
+	if err := json.Unmarshal(wsResp.Body.Bytes(), &wsView); err != nil {
+		t.Fatal(err)
+	}
+	if wsView.WorkspaceID != "wsp_"+session.ID || wsView.HeadCommit == "" || wsView.HeadCommit == planningdomain.NoRepositoryCommit || wsView.ApprovalID != crs[0].ID || wsView.ValidationOutcome != "PASS" {
+		t.Fatalf("unexpected dev-workspace view: %+v (want approvalId=%s)", wsView, crs[0].ID)
+	}
+
+	diffResp := planningRequest(t, handler, "alice", http.MethodGet, "/v1/dev-workspaces/wsp_"+session.ID+"/diff", "")
+	if diffResp.Code != http.StatusOK {
+		t.Fatalf("get dev-workspace diff: %d %s", diffResp.Code, diffResp.Body.String())
+	}
+	var diffView struct {
+		Files []struct {
+			Path string `json:"path"`
+		} `json:"files"`
+	}
+	if err := json.Unmarshal(diffResp.Body.Bytes(), &diffView); err != nil {
+		t.Fatal(err)
+	}
+	diffPaths := make(map[string]bool, len(diffView.Files))
+	for _, f := range diffView.Files {
+		diffPaths[f.Path] = true
+	}
+	for _, wantPath := range []string{"Dockerfile", "zarf.yaml", "uds-package.yaml", "main.go", "package-source.yaml"} {
+		if !diffPaths[wantPath] {
+			t.Fatalf("dev-workspace diff missing %q in %+v", wantPath, diffView.Files)
+		}
 	}
 }
 

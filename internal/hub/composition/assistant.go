@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/assistant/adapters/modelcli"
+	assistantmodelhttp "github.com/jonathanagustin/conduit/internal/assistant/adapters/modelhttp"
+	"github.com/jonathanagustin/conduit/internal/assistant/adapters/threadmemory"
 	"github.com/jonathanagustin/conduit/internal/assistant/application"
 	assistantdomain "github.com/jonathanagustin/conduit/internal/assistant/domain"
 	assistanthttp "github.com/jonathanagustin/conduit/internal/assistant/httpapi"
@@ -24,8 +26,15 @@ func mountAssistant(
 	legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, hub Options, model assistantdomain.Model, cases evalAdder,
 ) http.Handler {
 	governanceService := controlplane.NewGovernanceService(repository)
+	threads := hub.AssistantThreads
+	if threads == nil {
+		// No durable store was handed in. Threads still work, in this process
+		// only: they are lost on restart and not shared between replicas.
+		threads = threadmemory.New()
+	}
 	api := assistantAPI{
 		repository: repository, governance: governanceService, options: options, hub: hub, model: model, cases: cases,
+		threads: threads,
 	}
 	mux := http.NewServeMux()
 	assistanthttp.Register(mux, assistanthttp.Config{
@@ -51,6 +60,11 @@ func mountAssistant(
 func assistantModel(getenv func(string) string) (assistantdomain.Model, error) {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
+	}
+	if client, err := modelHTTPClient(getenv); err != nil {
+		return nil, err
+	} else if client != nil {
+		return assistantmodelhttp.Adapter{Client: client}, nil
 	}
 	raw := strings.TrimSpace(getenv("CONDUIT_MODEL_CMD"))
 	if raw == "" {
@@ -78,6 +92,7 @@ type assistantAPI struct {
 	hub        Options
 	model      assistantdomain.Model
 	cases      evalAdder
+	threads    application.Threads
 }
 
 type evalAdder interface {
@@ -95,6 +110,7 @@ func (api assistantAPI) service(actor application.Actor) application.Service {
 		Cases:    api.cases,
 		Authors:  requestAuthor{repository: api.repository},
 		Reviews:  changeReviewer{service: api.governance},
+		Threads:  api.threads,
 	}
 }
 
@@ -102,8 +118,24 @@ func (api assistantAPI) Invoke(ctx context.Context, actor application.Actor, mod
 	return api.service(actor).Invoke(ctx, actor, mode, name, arguments)
 }
 
-func (api assistantAPI) Turn(ctx context.Context, actor application.Actor, mode, message string, chips []assistantdomain.Chip) (application.Turn, error) {
-	return api.service(actor).Turn(ctx, actor, mode, message, chips)
+func (api assistantAPI) Converse(ctx context.Context, actor application.Actor, request application.TurnRequest, observer application.Observer) (application.Turn, error) {
+	return api.service(actor).Converse(ctx, actor, request, observer)
+}
+
+func (api assistantAPI) CreateThread(ctx context.Context, actor application.Actor, title string) (assistantdomain.Thread, error) {
+	return api.service(actor).CreateThread(ctx, actor, title)
+}
+
+func (api assistantAPI) ListThreads(ctx context.Context, actor application.Actor) ([]assistantdomain.Thread, error) {
+	return api.service(actor).ListThreads(ctx, actor)
+}
+
+func (api assistantAPI) GetThread(ctx context.Context, actor application.Actor, id string) (assistantdomain.Thread, error) {
+	return api.service(actor).GetThread(ctx, actor, id)
+}
+
+func (api assistantAPI) DeleteThread(ctx context.Context, actor application.Actor, id string) error {
+	return api.service(actor).DeleteThread(ctx, actor, id)
 }
 
 type catalogQuery struct {

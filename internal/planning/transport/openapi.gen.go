@@ -25,6 +25,7 @@ const (
 	ALREADYACCEPTED      ErrorCode = "ALREADY_ACCEPTED"
 	COMMITNOTPINNED      ErrorCode = "COMMIT_NOT_PINNED"
 	COMPUTEBEFOREACCEPT  ErrorCode = "COMPUTE_BEFORE_ACCEPT"
+	COMPUTEINPROGRESS    ErrorCode = "COMPUTE_IN_PROGRESS"
 	COMPUTENOTCONFIGURED ErrorCode = "COMPUTE_NOT_CONFIGURED"
 	INVALIDANSWER        ErrorCode = "INVALID_ANSWER"
 	INVALIDINTAKE        ErrorCode = "INVALID_INTAKE"
@@ -46,6 +47,8 @@ func (e ErrorCode) Valid() bool {
 	case COMMITNOTPINNED:
 		return true
 	case COMPUTEBEFOREACCEPT:
+		return true
+	case COMPUTEINPROGRESS:
 		return true
 	case COMPUTENOTCONFIGURED:
 		return true
@@ -228,6 +231,15 @@ type Binding struct {
 	ResolvedCommit string    `json:"resolvedCommit"`
 }
 
+// ComputeReceipt defines model for ComputeReceipt.
+type ComputeReceipt struct {
+	CompletedAt    time.Time `json:"completedAt"`
+	Outcome        string    `json:"outcome"`
+	PlanDigest     string    `json:"planDigest"`
+	PlanRevisionId string    `json:"planRevisionId"`
+	SessionId      string    `json:"sessionId"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	Code  *ErrorCode `json:"code,omitempty"`
@@ -319,21 +331,22 @@ type QuestionType string
 
 // Session defines model for Session.
 type Session struct {
-	Answers        []Answer      `json:"answers"`
-	Binding        *Binding      `json:"binding"`
-	CreatedAt      time.Time     `json:"createdAt"`
-	Events         []Event       `json:"events"`
-	Id             string        `json:"id"`
-	Inspection     *Inspection   `json:"inspection"`
-	Intake         Intake        `json:"intake"`
-	Messages       []Message     `json:"messages"`
-	Model          string        `json:"model"`
-	NeedsInput     []Question    `json:"needsInput"`
-	Plan           *Plan         `json:"plan"`
-	Profile        Profile       `json:"profile"`
-	ResolvedCommit string        `json:"resolvedCommit"`
-	Status         SessionStatus `json:"status"`
-	UpdatedAt      time.Time     `json:"updatedAt"`
+	Answers        []Answer        `json:"answers"`
+	Binding        *Binding        `json:"binding"`
+	ComputeReceipt *ComputeReceipt `json:"computeReceipt,omitempty"`
+	CreatedAt      time.Time       `json:"createdAt"`
+	Events         []Event         `json:"events"`
+	Id             string          `json:"id"`
+	Inspection     *Inspection     `json:"inspection"`
+	Intake         Intake          `json:"intake"`
+	Messages       []Message       `json:"messages"`
+	Model          string          `json:"model"`
+	NeedsInput     []Question      `json:"needsInput"`
+	Plan           *Plan           `json:"plan"`
+	Profile        Profile         `json:"profile"`
+	ResolvedCommit string          `json:"resolvedCommit"`
+	Status         SessionStatus   `json:"status"`
+	UpdatedAt      time.Time       `json:"updatedAt"`
 }
 
 // SessionStatus defines model for Session.Status.

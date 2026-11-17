@@ -712,6 +712,63 @@ func TestExpiredRunningPlanCanBeReLeased(t *testing.T) {
 	}
 }
 
+func TestFinishPlanRejectsAStaleAttempt(t *testing.T) {
+	repository := NewMemoryRepository()
+	lifecycle := NewLifecycle(repository)
+	now := time.Date(2026, time.August, 1, 12, 0, 0, 0, time.UTC)
+	lifecycle.now = func() time.Time { return now }
+	tokens := []string{"first-token", "second-token"}
+	lifecycle.newToken = func() (string, error) {
+		token := tokens[0]
+		tokens = tokens[1:]
+		return token, nil
+	}
+	record, err := lifecycle.CreatePlan(context.Background(), foundation())
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err = lifecycle.ApprovePlan(context.Background(), record.ID, "reviewer", "approved")
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err = lifecycle.LeaseNextPlan(context.Background(), "dev-use2", "agent-one", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := lifecycle.StartPlan(context.Background(), record.ID, record.Lease.Token); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(2 * time.Minute)
+	released, err := lifecycle.LeaseNextPlan(context.Background(), "dev-use2", "agent-two", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	released, err = lifecycle.StartPlan(context.Background(), released.ID, released.Lease.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if released.Lease.Attempt != 2 {
+		t.Fatalf("attempt = %d", released.Lease.Attempt)
+	}
+	installationID := released.Plan.Steps[0].InstallationID
+	execution := failedPlanExecution(released, installationID)
+	execution.Attempt = 1
+	_, err = lifecycle.FinishPlan(
+		context.Background(), released.ID, released.Lease.Token, false, "stale report",
+		installationID, execution, &EnvironmentReport{},
+	)
+	if !errors.Is(err, ErrLeaseRejected) {
+		t.Fatalf("stale attempt error = %v", err)
+	}
+	persisted, err := repository.GetPlan(context.Background(), released.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted.Status != PlanRunning || persisted.Execution != nil {
+		t.Fatalf("stale attempt was recorded: status=%s execution=%#v", persisted.Status, persisted.Execution)
+	}
+}
+
 func TestGenerationIsImmutable(t *testing.T) {
 	repository := NewMemoryRepository()
 	lifecycle := NewLifecycle(repository)

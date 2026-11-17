@@ -113,6 +113,19 @@ func main() {
 		Environment:  environment, AgentID: agentID, LeaseDuration: leaseDuration,
 	}
 	attachMaterialPreparer(&executor, &worker, materialPreparer)
+	// Helm stays the executor for every step that names no artifact kind, as
+	// the exact value assembled above. Zarf packages and UDS bundles go to a
+	// second executor that exists only when the Spoke was configured for it;
+	// without it such a step fails with a blocked diagnostic.
+	packageExecutor, err := packageExecutorFromEnvironment(os.Getenv)
+	if err != nil {
+		slog.Error("configure package executor", "error", err)
+		os.Exit(1)
+	}
+	if packageExecutor != nil {
+		slog.Info("Zarf and UDS package execution is enabled")
+	}
+	worker.Executor = stepExecutor(worker.Executor, packageExecutor)
 
 	monitor := agent.HealthMonitor{
 

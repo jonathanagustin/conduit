@@ -21,7 +21,7 @@ func (Adapter) Generate(ctx context.Context, request domain.Request) (domain.Spe
 	}
 	prompt := []byte(domain.Prompt(request))
 	provenance := domain.Provenance{
-		Adapter: "recorded", PromptSHA256: domain.Digest(prompt), ResponseSHA256: domain.Digest(specJSON),
+		Adapter: domain.AdapterRecorded, PromptSHA256: domain.Digest(prompt), ResponseSHA256: domain.Digest(specJSON),
 	}
 	spec, err := domain.ParseSpec(specJSON)
 	if err != nil {

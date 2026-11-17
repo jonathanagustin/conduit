@@ -104,7 +104,12 @@ type Proposal struct {
 // Provenance records who produced a proposal and the digests of the exchange.
 // Adapter is a command name or a model id. The digests are lowercase sha256 hex.
 type Provenance struct {
-	Adapter          string           `json:"adapter,omitempty"`
+	Adapter string `json:"adapter,omitempty"`
+	// ConfiguredModel is the operator-configured model name. ProviderModel is
+	// the id from the provider's response metadata. Neither is ever taken
+	// from text the model wrote.
+	ConfiguredModel  string           `json:"configuredModel,omitempty"`
+	ProviderModel    string           `json:"providerModel,omitempty"`
 	PromptSHA256     string           `json:"promptSha256,omitempty"`
 	ResponseSHA256   string           `json:"responseSha256,omitempty"`
 	SkillSHA256      string           `json:"skillSha256,omitempty"`

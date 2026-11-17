@@ -10,10 +10,14 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/jonathanagustin/conduit/internal/localcmd"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	"github.com/jonathanagustin/conduit/internal/planning/adapters/repoclone"
 )
 
+// agentExecModelName is written into the deterministic agent's replies. It is
+// model-authored text: the planner ignores it and binds the operator's
+// CONDUIT_MODEL_NAME or the unverified marker instead.
 const agentExecModelName = "conduit-packaging-agent-v1"
 
 func addAgentExecCommand(root *cobra.Command) {
@@ -29,6 +33,11 @@ func addAgentExecCommand(root *cobra.Command) {
 			raw, err := io.ReadAll(cmd.InOrStdin())
 			if err != nil {
 				return err
+			}
+			// A preset with no recorded run says so on stderr every turn;
+			// stdout carries only the reply.
+			if preset, ok := localcmd.PresetByName(provider); ok && !preset.Verified {
+				warnPreset(preset)
 			}
 			var reply string
 			if provider == "" || provider == providerDeterministic {
@@ -169,7 +178,7 @@ func agentExecPlanPhase(prompt string) (string, error) {
 	return marshalCompact(map[string]any{
 		"model":        agentExecModelName,
 		"summary":      fmt.Sprintf("%s packaged for airgap delivery with Zarf and Defense Unicorns UDS on Node %s.", appLabel, nodeVer),
-		"baseImage":    fmt.Sprintf("cgr.dev/chainguard/node:%s-dev@sha256:1111111111111111111111111111111111111111111111111111111111111111", nodeVer),
+		"baseImage":    fmt.Sprintf("cgr.dev/chainguard/node:%s-dev@sha256:a7e8f028496a951ef5f97fd5de75d98ef5a74383148a346e6858264de0b211a8", nodeVer),
 		"buildSteps":   buildSteps,
 		"ports":        []int{8080},
 		"networkAllow": networkAllow,
@@ -199,7 +208,7 @@ func agentExecPackageProposal(prompt string) (string, error) {
 func agentExecDockerfileProposal(_ string) (string, error) {
 	return marshalCompact(domain.DockerfileProposal{
 		Dockerfile: strings.Join([]string{
-			"FROM cgr.dev/chainguard/node@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+			"FROM cgr.dev/chainguard/node@sha256:a7e8f028496a951ef5f97fd5de75d98ef5a74383148a346e6858264de0b211a8",
 			"WORKDIR /app",
 			"COPY package.json ./",
 			"USER 65532:65532",

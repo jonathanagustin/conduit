@@ -16,7 +16,14 @@ pid_file="${state_dir}/pids"
 : >"${pid_file}"
 
 if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
-  echo "Docker is required to publish the sample image and chart" >&2
+  echo "Docker is required and its daemon must be running. Install Docker and start it, then run this script again." >&2
+  exit 1
+fi
+if ! command -v zarf >/dev/null 2>&1 && [[ -z "${ZARF_BIN:-}" ]]; then
+  echo "zarf is required for package lint and package create." >&2
+  echo "Install zarf v0.82.0 and put it on PATH, or set ZARF_BIN to that binary." >&2
+  echo "Archive: https://github.com/zarf-dev/zarf/releases/download/v0.82.0/zarf_v0.82.0_Linux_amd64" >&2
+  echo "sha256: e372002110600a458ca2a9222a34b8cdebc9c0fcd81d7e34febd3d8411d7beaf" >&2
   exit 1
 fi
 # shellcheck source=SCRIPTDIR/lib/demo-docker-network.sh
@@ -147,6 +154,7 @@ nohup go run ./cmd/packaging-workflow worker \
 echo $! >>"${pid_file}"
 sleep 2
 
+mkdir -p "${state_dir}/workspaces"
 workspace_env=""
 if [[ "${DEMO_WORKSPACES:-}" == "1" ]]; then
   workspace_env="DEVWORKSPACE_RUNTIME=recorded DEVWORKSPACE_PODS=1"
@@ -154,6 +162,10 @@ fi
 
 nohup env LISTEN_ADDRESS=127.0.0.1:8081 \
   DATA_DIRECTORY="${state_dir}/data" \
+  DEVWORKSPACE_GIT_ROOT="${state_dir}/workspaces" \
+  CONDUIT_IMAGE_BUILDER=docker \
+  CONDUIT_HTTP_WRITE_TIMEOUT="${CONDUIT_HTTP_WRITE_TIMEOUT:-45m}" \
+  CONDUIT_LOCAL_REGISTRY=127.0.0.1:5000 \
   ALLOW_INSECURE_OPERATOR_IDENTITY_HEADERS=true \
   ALLOW_INSECURE_AGENT_IDENTITY_HEADERS=true \
   ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY=true \

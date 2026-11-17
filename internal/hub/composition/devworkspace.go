@@ -9,6 +9,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	devchange "github.com/jonathanagustin/conduit/internal/devworkspace/adapters/changerequest"
 	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/cluster"
+	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/container"
 	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/gitstore"
 	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/process"
 	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/recorded"
@@ -29,6 +30,7 @@ func assembleDevWorkspace(
 	var records ports.Catalog = store
 	var files ports.Files = store.Files()
 	var runtime ports.Runtime
+	var fallbackPods ports.Provisioner = store.Pods()
 	if gitRoot := strings.TrimSpace(getenv("DEVWORKSPACE_GIT_ROOT")); gitRoot != "" {
 		if gitBacked, err := gitstore.Open(gitstore.Options{
 			RootDir: gitRoot,
@@ -36,6 +38,7 @@ func assembleDevWorkspace(
 			records = gitBacked
 			files = gitBacked.Tree()
 			runtime = gitBacked
+			fallbackPods = gitBacked.Pods()
 		}
 	}
 	switch getenv("DEVWORKSPACE_RUNTIME") {
@@ -43,11 +46,18 @@ func assembleDevWorkspace(
 		runtime = process.New(nil, nil)
 	case "recorded":
 		runtime = store
+	case "container":
+		isolated, isolateErr := container.NewFromEnv(getenv)
+		if isolateErr != nil {
+			runtime = container.Unavailable{Reason: isolateErr}
+		} else {
+			runtime = isolated
+		}
 	}
 	var pods ports.Provisioner
 	podsOn := getenv("DEVWORKSPACE_PODS") == "1"
 	if podsOn {
-		pods = cluster.Fallback{Primary: cluster.New(getenv("DEVWORKSPACE_IMAGE")), Secondary: store.Pods()}
+		pods = cluster.Fallback{Primary: cluster.New(getenv("DEVWORKSPACE_IMAGE")), Secondary: fallbackPods}
 	}
 	return application.New(application.Dependencies{
 		Records: records, Files: files, Runtime: runtime, Pods: pods,

@@ -26,9 +26,10 @@ type Result struct {
 	Error            string   `json:"error,omitempty"`
 }
 
-// Attachments loads stored intake files by digest as bound, read-only context.
+// Attachments loads stored intake files by digest as bound, read-only context
+// for the operator named by actor.
 type Attachments interface {
-	Resolve(ctx context.Context, digests []string) ([]domain.Attachment, error)
+	Resolve(ctx context.Context, actor string, digests []string) ([]domain.Attachment, error)
 }
 
 // PendingChange is a proposal that passed the gate and still needs a person.
@@ -81,7 +82,7 @@ func (service Service) Propose(ctx context.Context, input domain.PackagingContex
 			result.Error = "attachments are not configured"
 			return result, nil
 		}
-		bound, err := service.Attachments.Resolve(ctx, input.AttachmentSHA256)
+		bound, err := service.Attachments.Resolve(ctx, author, input.AttachmentSHA256)
 		if err != nil {
 			result.Error = err.Error()
 			return result, nil

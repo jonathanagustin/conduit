@@ -144,7 +144,7 @@ func validateArtifactScanRelease(release Release) error {
 	var errs []ValidationError
 	validateArtifact("release.chart", release.Chart, &errs)
 	for index, artifact := range release.Images {
-		validateArtifact(fmt.Sprintf("release.images[%d]", index), artifact, &errs)
+		validateImageArtifact(fmt.Sprintf("release.images[%d]", index), artifact, &errs)
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("invalid artifact scan release: %s: %s", errs[0].Path, errs[0].Message)

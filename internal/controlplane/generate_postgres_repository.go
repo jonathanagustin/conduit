@@ -50,7 +50,7 @@ func main() {
 			if !methodExported(function.Name.Name) {
 				continue
 			}
-			if function.Name.Name == "PutBlob" || function.Name.Name == "OpenBlob" || function.Name.Name == "Transaction" || function.Name.Name == "AppendAuthorizationAudit" || function.Name.Name == "ListAuthorizationAudit" {
+			if function.Name.Name == "PutBlob" || function.Name.Name == "OpenBlob" || function.Name.Name == "Transaction" || function.Name.Name == "AppendAuthorizationAudit" || function.Name.Name == "ListAuthorizationAudit" || function.Name.Name == "PageAuthorizationAudit" || function.Name.Name == "ReadCommittedEvents" {
 				continue
 			}
 			methods = append(methods, function)

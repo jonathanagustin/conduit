@@ -11,6 +11,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"github.com/jonathanagustin/conduit/internal/governance/domain"
 )
@@ -45,4 +46,53 @@ type AuditSink interface {
 	AppendAuthorizationAudit(
 		ctx context.Context, event domain.AuthorizationAuditEvent,
 	) (domain.AuthorizationAuditEvent, error)
+}
+
+// ChangeRequestOpening is what Governance knows at the moment a change request
+// starts waiting for a person: which request, what it targets, and who wrote
+// it. It carries identifiers rather than the record, because the record is the
+// legacy control plane's and a port that named it would import it.
+type ChangeRequestOpening struct {
+	ID          string
+	Environment string
+	TargetKind  string
+	TargetID    string
+	Title       string
+	Author      string
+	// Revision separates one round of review from the next. A request that is
+	// rejected and reopened waits for approval a second time, and that second
+	// wait is a new fact; the same round restated is not.
+	Revision uint64
+	At       time.Time
+}
+
+// ChangeRequestOpenings is told when a change request has been committed in a
+// state that waits for an approver, so that something outside this context can
+// tell one.
+//
+// A port rather than a call into notifications, for the reason catalog's
+// RecallOpenings gives: the caller must not learn what a notification is. It is
+// called after the write it describes has been committed and never inside its
+// transaction, so a rolled-back proposal announces nothing; and the caller
+// drops the error, because the request is stored by then and reporting a
+// refusal would misdescribe work that happened.
+type ChangeRequestOpenings interface {
+	AwaitingApproval(ctx context.Context, opening ChangeRequestOpening) error
+}
+
+// GrantChange is one committed write of a resource grant. Before is nil for a
+// grant that did not exist.
+type GrantChange struct {
+	Before *domain.ResourceGrant
+	After  domain.ResourceGrant
+	// Actor is the principal who made the change, not the team that gained or
+	// lost authority; the team is on the grant.
+	Actor string
+}
+
+// GrantChanges is told when a resource grant was written, after the write and
+// its audit record both landed. The same after-commit, dropped-error contract
+// as ChangeRequestOpenings.
+type GrantChanges interface {
+	GrantChanged(ctx context.Context, change GrantChange) error
 }

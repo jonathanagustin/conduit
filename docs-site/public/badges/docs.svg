@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="132" height="20" viewBox="0 0 132 20" role="img" aria-label="Documentation">
+  <title>Documentation</title>
+  <linearGradient id="docs-badge" x1="0" x2="0" y1="0" y2="20" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#4c90f0"/>
+    <stop offset="1" stop-color="#215db0"/>
+  </linearGradient>
+  <rect width="132" height="20" rx="3" fill="url(#docs-badge)"/>
+  <text x="66" y="14" text-anchor="middle" fill="#f6f7f9" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="650">Documentation</text>
+</svg>

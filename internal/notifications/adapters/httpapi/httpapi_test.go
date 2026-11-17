@@ -566,6 +566,47 @@ func TestAPreferenceRoundTripsAtTheTupleTheStoreKeysOn(t *testing.T) {
 	}
 }
 
+// A preference may name a type nothing in this build raises -- the vocabulary
+// is Apollo's and the console offers all of it -- so the write is accepted and
+// the response says which of the named types will not fire yet. Without that a
+// subscriber to BLUE_GREEN_UPGRADE_FAILED reads silence as "no upgrade failed".
+func TestAPreferenceResponseSaysWhichOfItsTypesNothingRaises(t *testing.T) {
+	t.Parallel()
+	test := newHarness(t, alice())
+	written := test.do(http.MethodPut, "/v1/notifications/preferences", fmt.Sprintf(
+		`{"resourceRid":%q,"channel":"EMAIL","types":["PLAN_FAILURES","BLUE_GREEN_UPGRADE_FAILED","RBAC_CHANGE"]}`,
+		resource))
+	if written.Code != http.StatusOK {
+		t.Fatalf("a preference naming an unraised type was refused: %d %s", written.Code, written.Body.String())
+	}
+	read := test.do(http.MethodGet,
+		"/v1/notifications/preferences?resourceRid="+resource+"&channel=EMAIL", "")
+	for name, response := range map[string]*httptest.ResponseRecorder{"write": written, "read": read} {
+		var body struct {
+			Types              []domain.EventType `json:"types"`
+			TypesNotYetEmitted []domain.EventType `json:"typesNotYetEmitted"`
+		}
+		decode(t, response, &body)
+		if len(body.Types) != 3 {
+			t.Errorf("%s: the stored types were altered: %v", name, body.Types)
+		}
+		if len(body.TypesNotYetEmitted) != 2 ||
+			body.TypesNotYetEmitted[0] != domain.EventBlueGreenUpgradeFailed ||
+			body.TypesNotYetEmitted[1] != domain.EventRBACChange {
+			t.Errorf("%s: typesNotYetEmitted = %v", name, body.TypesNotYetEmitted)
+		}
+	}
+
+	raised := test.do(http.MethodPut, "/v1/notifications/preferences", fmt.Sprintf(
+		`{"resourceRid":%q,"channel":"IN_APP","types":["CHANGE_REQUEST_PENDING_APPROVAL"]}`, resource))
+	if raised.Code != http.StatusOK {
+		t.Fatalf("write answered %d: %s", raised.Code, raised.Body.String())
+	}
+	if strings.Contains(raised.Body.String(), "typesNotYetEmitted") {
+		t.Errorf("a preference whose every type is raised carries the field: %s", raised.Body.String())
+	}
+}
+
 func TestAnUnauthenticatedCallerReachesNoNotificationRoute(t *testing.T) {
 	t.Parallel()
 	test := newHarness(t, alice())

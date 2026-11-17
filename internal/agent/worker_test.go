@@ -79,9 +79,6 @@ type fakeMaterials struct {
 	// rollbackErr makes the rollback itself fail, which is the only way to
 	// reach the reporting that combines both failures.
 	rollbackErr error
-	// rollbackBudget records how long the rollback was given; like the final
-	// report it runs detached, so nothing else can see its deadline.
-	rollbackBudget time.Duration
 }
 
 func (fake *fakeMaterials) ApplySecretMutation(_ context.Context, mutation controlplane.SecretMutation) error {
@@ -95,9 +92,6 @@ func (fake *fakeMaterials) ApplySecretMutation(_ context.Context, mutation contr
 func (fake *fakeMaterials) RollbackSecretMutation(ctx context.Context, mutation controlplane.SecretMutation) error {
 	if err := ctx.Err(); err != nil {
 		return err
-	}
-	if deadline, ok := ctx.Deadline(); ok {
-		fake.rollbackBudget = time.Until(deadline).Round(time.Minute)
 	}
 	fake.rolledBack = append(fake.rolledBack, mutation)
 	return fake.rollbackErr
@@ -641,12 +635,11 @@ func TestWorkerBoundsTheFinalReport(t *testing.T) {
 		}
 	})
 
-	t.Run("a failing plan still reports and rolls back after cancellation", func(t *testing.T) {
+	t.Run("a cancelled caller still reports and does not roll back", func(t *testing.T) {
 		t.Parallel()
-		// The failure path builds its own detached context, and so does the
-		// rollback. A caller that gives up mid-plan must still leave the Hub
-		// told and the secrets unwound; otherwise a cancelled deploy leaves an
-		// Environment half-changed with no record of it.
+		// The final report stays detached so the Hub hears the failure. Rollback
+		// does not: the caller's cancellation is the signal that this attempt
+		// must stop touching the cluster.
 		record := leasedRecord()
 		record.Plan.SecretMutations = []controlplane.SecretMutation{
 			{Position: 1, Action: controlplane.SecretCreate, Namespace: "ns-a",
@@ -669,16 +662,16 @@ func TestWorkerBoundsTheFinalReport(t *testing.T) {
 		if !control.finished {
 			t.Error("the Hub was never told the plan failed; the report was not detached")
 		}
-		if len(materials.rolledBack) != 1 {
-			t.Errorf("rolled back %d mutations, want 1; the rollback was not detached", len(materials.rolledBack))
+		if len(materials.rolledBack) != 0 {
+			t.Errorf("rolled back %d mutations after the caller cancelled", len(materials.rolledBack))
 		}
 	})
 
-	t.Run("a rollback is bounded at ten minutes", func(t *testing.T) {
+	t.Run("rollback stops when the lease is no longer held", func(t *testing.T) {
 		t.Parallel()
-		// Rolling back can involve several secret stores, so it gets far more
-		// than the report does -- but not forever, or a wedged store keeps the
-		// Agent from ever leasing another plan.
+		// Renewal is checked before the first unwind. An expired lease must
+		// abort that unwind even though the earlier steps already changed the
+		// environment, because the Hub may already have assigned the plan.
 		record := leasedRecord()
 		record.Plan.SecretMutations = []controlplane.SecretMutation{
 			{Position: 1, Action: controlplane.SecretCreate, Namespace: "ns-a",
@@ -687,16 +680,19 @@ func TestWorkerBoundsTheFinalReport(t *testing.T) {
 				Current: &controlplane.SecretAccess{Assignment: "assignment-b"}},
 		}
 		materials := &fakeMaterials{failNamespace: "ns-b"}
+		control := &fakeControlPlane{record: record, renewErr: errors.New("lease expired")}
 		worker := Worker{
-			ControlPlane: &fakeControlPlane{record: record}, Executor: &fakeExecutor{},
-			Materials:   materials,
+			ControlPlane: control, Executor: &fakeExecutor{}, Materials: materials,
 			Environment: "dev", AgentID: "agent-dev", LeaseDuration: time.Minute,
 		}
 		if _, err := worker.RunOnce(context.Background()); err == nil {
 			t.Fatal("a failing plan was reported as success")
 		}
-		if materials.rollbackBudget != 10*time.Minute {
-			t.Errorf("rollback budget = %v, want 10m", materials.rollbackBudget)
+		if len(materials.rolledBack) != 0 {
+			t.Fatalf("rolled back %d mutations after the lease was gone", len(materials.rolledBack))
+		}
+		if !strings.Contains(control.failure, "lease is no longer held") {
+			t.Fatalf("failure %q does not say the lease stopped the rollback", control.failure)
 		}
 	})
 }

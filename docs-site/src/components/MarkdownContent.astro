@@ -1,0 +1,11 @@
+---
+import Default from '@astrojs/starlight/components/MarkdownContent.astro';
+import versions from '../generated/versions.json';
+import { versionForPath } from '../lib/versions.mjs';
+
+const version = versionForPath(Astro.url.pathname, versions);
+---
+
+<div data-docs-version={version.id} data-pagefind-filter={`version:${version.id}`}>
+  <Default><slot /></Default>
+</div>

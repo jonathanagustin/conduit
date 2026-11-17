@@ -70,7 +70,11 @@ The rewrite is a reviewed commit, never automatic. The runner compares each
 measured efficacy with its existing tolerated floor independently of the engine's
 exit status. A regressed result refuses `--write` and leaves the baseline intact.
 `scripts/test-mutation-sweep.sh` checks this with failed and misleadingly
-successful engine exits, plus missing configuration for recorded web targets.
+successful engine exits, missing configuration for recorded web targets, and a
+configured Stryker sweep that has no `pnpm`. `pnpm` is required only when
+`web/stryker.config.json` is present. The candidate lint lane does not install
+it, and an unconfigured frontend sweep is exercised with `pnpm` removed from
+`PATH`. A failure prints the sweep log instead of exiting with no reason.
 These fixture results are not measurements; only an actual engine sweep can
 refresh the committed baseline.
 

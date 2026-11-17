@@ -2,6 +2,7 @@ import { areaObject } from "../../console/operator/kit.js";
 import { describe, it, expect } from "vite-plus/test";
 import {
   WORKSPACE_ISOLATION_NOTICE,
+  WORKSPACE_HOST_PREVIEW_NOTICE,
   workspaceScope,
   currentWorkspaceDiff,
   safeWorkspaceDownload,
@@ -14,9 +15,12 @@ const row = {
   sourceDigest: "sha256:a",
 };
 describe("workspace studio binding", () => {
-  it("states the local preview isolation limit", () => {
+  it("states container isolation and the host preview limit", () => {
     expect(WORKSPACE_ISOLATION_NOTICE).toBe(
-      "Workspace isolation must be configured; local previews run on the host.",
+      "container isolation now, stronger isolation planned",
+    );
+    expect(WORKSPACE_HOST_PREVIEW_NOTICE).toBe(
+      "A local process preview runs on the host and is not that boundary.",
     );
   });
   it("binds drafts to native identity, owner and immutable source coordinates", () => {

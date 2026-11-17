@@ -1,0 +1,55 @@
+# Example deployment configuration for the Conduit UDS bundle
+# (uds-bundle.yaml). Copy it, replace every REPLACE-WITH value, and deploy:
+#
+#   UDS_CONFIG=uds-config.yaml uds deploy uds-bundle-conduit-amd64-<version>.tar.zst --confirm
+#
+# UDS CLI v0.41.0 reads `variables.<package name>.<NAME>` and passes each one
+# to that Zarf package as a deploy variable. The package name is the bundle's
+# `packages[].name`. Variables left out keep the defaults in zarf.yaml.
+#
+# No value in this file is a secret, and none may become one: it is read as
+# plain text and its values reach Pod specs. Credentials stay in the
+# Environment-owned Secrets that README.md lists; the *_SECRET variables here
+# carry only the names of those Secrets.
+#
+# scripts/verify-zarf-package.rb holds this file to the variables zarf.yaml
+# declares, so a renamed variable fails the gate instead of being silently
+# ignored at deploy time.
+variables:
+  platform-runtime:
+    # Identity of this Spoke. Both are required; the package has no default.
+    ENVIRONMENT_ID: REPLACE-WITH-environment-id
+    AGENT_ID: REPLACE-WITH-agent-id
+    # Comma-separated authenticated subjects allowed to establish initial
+    # governance. These are the token's username claim, not passwords.
+    BOOTSTRAP_ADMINISTRATORS: REPLACE-WITH-first-administrator,REPLACE-WITH-second-administrator
+
+    # The production profile: two Hub replicas on PostgreSQL, rolled without
+    # losing a serving Hub. `file` is for development and evaluation only.
+    REPOSITORY_KIND: postgres
+    # host:port of the Temporal frontend that holds planning sessions. The
+    # second replica exists only when this is set; without it the Hub runs
+    # one replica, because replicas cannot share a process-local store.
+    PLANNING_TEMPORAL_ADDRESS: REPLACE-WITH-temporal-frontend.temporal.svc.cluster.local:7233
+    # Name of the Secret whose `dsn` key holds the PostgreSQL DSN.
+    PACKAGING_POSTGRES_SECRET: platform-postgres
+    # Where the `uds` component's network allow finds in-cluster PostgreSQL.
+    POSTGRES_NAMESPACE: postgres
+    POSTGRES_NAME_LABEL: postgres
+
+    # Names of the Environment-owned TLS and signing Secrets.
+    HUB_TLS_SECRET: platform-hub-tls
+    AGENT_TLS_SECRET: platform-agent-tls
+    BUNDLE_SIGNING_SECRET: platform-bundle-signing
+
+    # Operator sign-in through the Keycloak client the `uds` component
+    # registers. These are the UDS Core slim-dev defaults; a real deployment
+    # uses its own domain.
+    CONSOLE_PUBLIC_URL: https://conduit.uds.dev
+    OPERATOR_OIDC_ISSUER: https://sso.uds.dev/realms/uds
+    OPERATOR_OIDC_CLIENT_ID: conduit-hub
+    OPERATOR_OIDC_USERNAME_CLAIM: preferred_username
+    OPERATOR_OIDC_GROUPS_CLAIM: groups
+    # The issuer CA that UDS Core writes to the uds-trust-bundle ConfigMap,
+    # which the Hub mounts at this path.
+    OPERATOR_OIDC_CA_FILE: /etc/ssl/platform-ca/ca-bundle.pem

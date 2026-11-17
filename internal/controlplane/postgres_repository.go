@@ -346,6 +346,7 @@ type memoryRepositoryState struct {
 	ChangeRequests              map[string]ChangeRequest                 `json:"changeRequests"`
 	AuthorizationAudit          map[string]AuthorizationAuditEvent       `json:"authorizationAudit,omitempty"`
 	ProductPublications         map[string]ProductPublication            `json:"productPublications"`
+	ComputeExecutions           map[string]ComputeReservation            `json:"computeExecutions,omitempty"`
 }
 
 func (repository *MemoryRepository) stateLocked() memoryRepositoryState {
@@ -364,6 +365,7 @@ func (repository *MemoryRepository) stateLocked() memoryRepositoryState {
 		ImportedCatalogs: repository.importedCatalogs, Teams: repository.teams, ResourceGrants: repository.resourceGrants,
 		ApprovalPolicies: repository.approvalPolicies, ChangeRequests: repository.changeRequests,
 		AuthorizationAudit: repository.authorizationAudit, ProductPublications: repository.productPublications,
+		ComputeExecutions: repository.computeExecutions,
 	}
 }
 
@@ -384,6 +386,7 @@ func decodeMemoryRepositoryState(encoded []byte) (*MemoryRepository, error) {
 		ImportedCatalogs: repository.importedCatalogs, Teams: repository.teams, ResourceGrants: repository.resourceGrants,
 		ApprovalPolicies: repository.approvalPolicies, ChangeRequests: repository.changeRequests,
 		AuthorizationAudit: repository.authorizationAudit, ProductPublications: repository.productPublications,
+		ComputeExecutions: repository.computeExecutions,
 	}
 	if len(encoded) != 0 {
 		if err := json.Unmarshal(encoded, &state); err != nil {
@@ -422,6 +425,7 @@ func (repository *MemoryRepository) applyStateLocked(state memoryRepositoryState
 	repository.changeRequests = nonNilMap(state.ChangeRequests)
 	repository.authorizationAudit = nonNilMap(state.AuthorizationAudit)
 	repository.productPublications = nonNilMap(state.ProductPublications)
+	repository.computeExecutions = nonNilMap(state.ComputeExecutions)
 }
 
 func nonNilMap[K comparable, V any](value map[K]V) map[K]V {

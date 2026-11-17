@@ -21,23 +21,27 @@ const (
 // maxBody bounds the JSON envelope. Escaping can make a file larger than its bytes.
 const maxBody = 4*domain.MaxFileBytes + 4096
 
-// Attachments stores and reads attachments.
+// Attachments stores and reads one operator's attachments.
 type Attachments interface {
-	Add(ctx context.Context, name string, content []byte) (domain.Attachment, error)
-	Get(ctx context.Context, digest string) (domain.Stored, error)
-	List(ctx context.Context) ([]domain.Attachment, error)
+	Add(ctx context.Context, actor, name string, content []byte) (domain.Attachment, error)
+	Get(ctx context.Context, actor, digest string) (domain.Stored, error)
+	List(ctx context.Context, actor string) ([]domain.Attachment, error)
 }
 
-// Config is the route's dependencies. A nil Authorize refuses everyone.
+// Config is the route's dependencies. A nil Authorize or Operator refuses everyone.
 type Config struct {
 	Service   Attachments
 	Authorize func(*http.Request) error
+	// Operator is the authenticated operator. It is resolved the same way a
+	// planning session selects its owner, and it is not taken from the body.
+	Operator func(*http.Request) (string, error)
 }
 
 // Register mounts the attachment routes.
 func Register(mux *http.ServeMux, cfg Config) {
 	mux.HandleFunc(CreateRoute, func(writer http.ResponseWriter, request *http.Request) {
-		if !authorized(cfg, writer, request) {
+		actor, ok := caller(cfg, writer, request)
+		if !ok {
 			return
 		}
 		if cfg.Service == nil {
@@ -60,7 +64,7 @@ func Register(mux *http.ServeMux, cfg Config) {
 			writeError(writer, http.StatusBadRequest, "request body must be a JSON object with filename and content")
 			return
 		}
-		item, err := cfg.Service.Add(request.Context(), body.Filename, []byte(body.Content))
+		item, err := cfg.Service.Add(request.Context(), actor, body.Filename, []byte(body.Content))
 		if err != nil {
 			var rejection domain.Rejection
 			if errors.As(err, &rejection) {
@@ -77,12 +81,13 @@ func Register(mux *http.ServeMux, cfg Config) {
 		writeJSON(writer, http.StatusCreated, item)
 	})
 	mux.HandleFunc(ListRoute, func(writer http.ResponseWriter, request *http.Request) {
-		if !authorized(cfg, writer, request) {
+		actor, ok := caller(cfg, writer, request)
+		if !ok {
 			return
 		}
 		items := []domain.Attachment{}
 		if cfg.Service != nil {
-			rows, err := cfg.Service.List(request.Context())
+			rows, err := cfg.Service.List(request.Context(), actor)
 			if err != nil {
 				writeError(writer, http.StatusBadGateway, "attachments are unavailable")
 				return
@@ -100,14 +105,15 @@ func Register(mux *http.ServeMux, cfg Config) {
 		})
 	})
 	mux.HandleFunc(GetRoute, func(writer http.ResponseWriter, request *http.Request) {
-		if !authorized(cfg, writer, request) {
+		actor, ok := caller(cfg, writer, request)
+		if !ok {
 			return
 		}
 		if cfg.Service == nil {
 			writeError(writer, http.StatusNotFound, "attachment was not found")
 			return
 		}
-		item, err := cfg.Service.Get(request.Context(), request.PathValue("digest"))
+		item, err := cfg.Service.Get(request.Context(), actor, request.PathValue("digest"))
 		if errors.Is(err, domain.ErrNotFound) {
 			writeError(writer, http.StatusNotFound, "attachment was not found")
 			return
@@ -126,6 +132,22 @@ func authorized(cfg Config, writer http.ResponseWriter, request *http.Request) b
 		return false
 	}
 	return true
+}
+
+func caller(cfg Config, writer http.ResponseWriter, request *http.Request) (string, bool) {
+	if !authorized(cfg, writer, request) {
+		return "", false
+	}
+	if cfg.Operator == nil {
+		writeError(writer, http.StatusUnauthorized, "unauthorized")
+		return "", false
+	}
+	name, err := cfg.Operator(request)
+	if err != nil || strings.TrimSpace(name) == "" {
+		writeError(writer, http.StatusUnauthorized, "unauthorized")
+		return "", false
+	}
+	return strings.TrimSpace(name), true
 }
 
 func writeError(writer http.ResponseWriter, status int, message string) {

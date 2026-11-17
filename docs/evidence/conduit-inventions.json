@@ -99,6 +99,20 @@
       "riskIfWrong": "Low, and reversible in one function. Nothing leaves Conduit under these type names except a notification a Conduit deployment delivers to its own configured transport, and both names are Apollo's own, so a wrong split mislabels an inbox row rather than inventing a vocabulary. What it costs is a subscriber who ticked exactly one of the two: they see the recalls Conduit routed to their type and not the others, which reads as no recall having opened."
     },
     {
+      "id": "governance.NotificationEventSelection",
+      "what": "Which Governance writes raise which of Apollo's observed notification event types, and on what resource: CHANGE_REQUEST_PENDING_APPROVAL on the request's Environment each time a change request is committed waiting for an approver (once per review round, keyed on the request id and revision), and ROLE_CHANGE on the resource a grant names each time a resource grant's relationship, roles or operations change. RBAC_CHANGE is raised by nothing.",
+      "why": "Both type labels are observed, in docs/evidence/apollo-notification-types.json, and nothing captured says what triggers either or who receives it. Leaving them unraised was the state #840 records: an approver was never told a request was waiting. The Environment is the subscription grain because it is the identifier Conduit already publishes and the one the existing recall and reconciliation events join on; reviewer requirements name roles and teams, and resolving those to recipients here would be a second fan-out rule beside notifications.Fan. A grant is a write against exactly one resource, which matches the per-resource page ROLE_CHANGE was observed on; raising RBAC_CHANGE for the same write would assert the two are one event, which the capture does not establish.",
+      "displacedBy": "A capture of which resource Apollo raises CHANGE_REQUEST_PENDING_APPROVAL and ROLE_CHANGE on, who receives each, and what separates ROLE_CHANGE from RBAC_CHANGE.",
+      "riskIfWrong": "Low, and reversible in one adapter. Nothing leaves Conduit under these names except a notification a deployment delivers to its own transport. What a wrong choice costs is reach: an approver who is not subscribed to the Environment is still not told, and a subscriber who ticked RBAC_CHANGE expecting grant changes hears nothing -- which the preference response's typesNotYetEmitted field states rather than hides."
+    },
+    {
+      "id": "catalog.PromotionFailureSelection",
+      "what": "What counts as a failed promotion for PRODUCT_RELEASE_PROMOTION_FAILED -- a stored evaluation whose lifecycle is ABORTED (evaluation window timed out, a canary recall condition triggered, or an operator aborted the run), and not one that is merely BLOCKED or was CANCELLED -- and the resource the event is raised on, product/<coordinate>.",
+      "why": "The type label is observed on a Product's settings page and its prose name is 'Promotion failures'; nothing captured says which outcome raises it. A staged promotion is BLOCKED on every evaluation until its soak elapses, so raising on BLOCKED would notify on a stage working as designed and teach subscribers to ignore the type. ABORTED is the one lifecycle in which the run is over and the Release did not cross the channel boundary without a person choosing that. Conduit mints no ri.apollo.main identifier for a Product, so the event uses the identifier Governance authorizes a Product by, which is the one a preference can be authorized on.",
+      "displacedBy": "A capture of what Apollo counts as a failed promotion for PRODUCT_RELEASE_PROMOTION_FAILED and which resource identifier the event carries.",
+      "riskIfWrong": "Low. A wrong outcome rule changes how often an inbox row appears, not any stored promotion record. A wrong resource identifier is the costlier half: a preference set on some other spelling of the Product matches nothing, silently, and would have to be re-keyed when a published Product identifier arrives."
+    },
+    {
       "id": "reporting.FleetFacets",
       "what": "A `facets` object on GET /v1/fleet/installations counting installations per value of environment, product, health, rolloutStatus, configStatus and lifecycle, where each dimension's count is computed with that dimension's own filter excluded from the query.",
       "why": "The console needed a faceted filter rail, and the Hub already served per-dimension counts as `summary`. `summary` is computed after the whole query is applied, so once health=UNHEALTHY is selected every other health bucket reads zero -- a control that says \"HEALTHY 0\" beside a fleet that is mostly healthy. Excluding a dimension from its own facet is the conventional resolution and the only one under which the number beside a filter answers the question the click asks: how many rows would I get if I picked this instead. The alternative considered was serving `summary` unchanged and labelling the rail \"within the current selection\", which needs no invention and was rejected because it makes the rail unusable for navigation -- every unselected sibling reads zero, so there is nothing to navigate to. What is NOT established is that Apollo serves such a shape at all: the pinned OpenAPI snapshot publishes no fleet-installation filter-count operation, and the 2020 screenshot in docs/ui/evidence/legacy-apollo-2020/ shows a rail with counts and proportional bars without showing what the counts are computed over. The key names are Conduit's own query parameters, deliberately, so that a facet cannot be served under a name the filter would not accept.",
@@ -372,6 +386,13 @@
       "riskIfWrong": "The URI and enrollment shape may differ from an eventual supported protocol. Parsing is not certificate-chain verification or execution authority, and no production transport or broker is enabled by this primitive."
     },
     {
+      "id": "devworkspace.IsolatedContainer",
+      "what": "A per-workspace container on a dedicated internal network. A forwarder on that network is the only path to the operator-configured git host and local registry. The workspace process runs as uid 65534 with a read-only root, no capabilities, no host container socket, and no cluster credential mounts or environment.",
+      "why": "No published workspace runtime in this repository states how a packaging command is confined, which destinations it may reach, or how those destinations are named. Standard network policy does not match DNS names, and a host process with a filtered environment can open sockets and read host files directly. The container boundary is marked CONDUIT_NATIVE.",
+      "displacedBy": "an admitted per-workspace runtime that enforces default-deny egress and credential absence",
+      "riskIfWrong": "The forwarder could pass a destination the operator did not list, or a mount could expose a kubeconfig. The live probe fails closed on either mistake, and an unconfigured git host refuses to start. This is container isolation, not a separate machine, and it does not admit an image build."
+    },
+    {
       "id": "devworkspace.WorkspaceRecord",
       "what": "A native workspace record with a confined file tree, a local preview runtime, a least-privilege pod document, and a submit port that opens a change request.",
       "why": "The console needs an authorized working copy for a profile. No published object schema in this repository defines that record, its pod contract, or the submit seam. The record is marked CONDUIT_NATIVE. Submit calls the existing change-request command and does not approve it.",
@@ -380,10 +401,10 @@
     },
     {
       "id": "appgen.HttpPackageTemplate",
-      "what": "The fixed HTTP application template renders a scratch image definition, chart values, and package documents from a validated spec. The generator supplies the spec and allowlisted source files only.",
-      "why": "No captured packaging profile states the fields a generated HTTP application must carry. One template family keeps the rendered documents deterministic, and the generator cannot write the package configuration.",
+      "what": "The fixed HTTP application template renders one image definition for exactly one allowlisted source file (main.go, main.py, or index.html), a chart whose Deployment and Service run that image, and a package document that exposes the Service. The generator supplies the spec and the one source file only. The built image digest is stamped after publish.",
+      "why": "No captured packaging profile states the image definition, chart workload, or package expose fields for a generated HTTP application. One template family keeps the rendered documents deterministic, and the generator cannot write the package configuration.",
       "displacedBy": "a reviewed packaging profile that states the image definition, chart values, and package document fields for a generated HTTP application.",
-      "riskIfWrong": "The rendered documents may differ from a later profile. They are marked CONDUIT_NATIVE, are produced only after the spec gates pass, and do not approve a change or publish a release."
+      "riskIfWrong": "The rendered documents may differ from a later profile. They are marked CONDUIT_NATIVE, are produced only after the spec gates pass, and do not approve a change or publish a release. A main.py image uses one pinned interpreter digest; a later profile can replace that pin."
     },
     {
       "id": "intake.AttachmentStore",
@@ -447,6 +468,20 @@
       "why": "The ACP wire protocol (@agentclientprotocol/sdk@2.6.0, protocolVersion 1) and AG-UI 1.0 event envelopes are public contracts, whereas how a Conduit Hub routes workspace editor ACP turns, classifies governed permission risk tiers, and correlates sessionId/runId/threadId across audit and console streams is unestablished in public Apollo sources.",
       "displacedBy": "a published or authorized sanitized workspace coding-agent ACP transport, governed permission mapping, and console activity projection contract.",
       "riskIfWrong": "Marked CONDUIT_NATIVE; actual file and terminal callbacks require fresh governed decisions. Transport HTTP egress filtering does not confine direct filesystem or network access by spawned agent/terminal processes. Risk-pattern matching is not an OS sandbox. The Node implementation remains draft pending enforced isolation/egress and workspace identity/branch integration evidence; no complete offline or production-governance guarantee is established."
+    },
+    {
+      "id": "catalog.PackageArtifactKind",
+      "what": "Three optional fields on a Release's deployable artifact (the existing chart coordinate): kind (helm-chart by default, zarf-package or uds-bundle), architectures, and packageName, the Zarf package name the artifact deploys as. A package kind is addressed by repository and sha256 digest only; a tag is refused.",
+      "why": "The pinned Apollo publication models carry Helm charts and services and state no Zarf or UDS artifact. Without a declared kind the Spoke's Zarf/UDS executor derived an OCI reference from the Product name, and nothing told a reviewer or the Spoke which tool a step would run. The existing coordinate was extended, rather than a second artifact added, so that scanning coverage, availability evidence, registry assignment and Bundle transfer cover a package by the rules they already apply to a chart.",
+      "displacedBy": "a published or owner-approved Product Release contract that states how a Zarf package or UDS bundle artifact, its architectures and its deployed package name are declared.",
+      "riskIfWrong": "The field names and the reuse of the chart coordinate may need replacing. Absent fields mean a Helm chart, so no stored Release changes meaning or digest. Architecture is enforced by the Spoke at execution, not at planning, because the Environment model records none. A multi-architecture index digest does not match what Zarf records and fails closed. The Apollo manifest routes cannot publish a package kind."
+    },
+    {
+      "id": "agent.AppliedPackageRecord",
+      "what": "A ConfigMap named conduit-applied-<zarf package name>, written by the Spoke in the step's namespace after a Zarf or UDS deploy has succeeded and been read back. It holds the Release digest, version, config digest, a digest of the exact variables passed, the artifact digest, and the digest and generation Zarf recorded for that deploy. The Spoke reports a configuration as APPLIED, and a Release or config digest at all, only from this record and only while its Zarf digest and generation match what Zarf currently holds.",
+      "why": "Zarf v0.82.0 records which package is deployed and its generation but not the variables a deployment was given, and uds v0.41.0 has no machine-readable record of a deployed bundle. Without a record of its own the executor could only echo the Plan or report the configuration as indeterminate, and the Hub accepts neither as a success, so no package Plan could finish. The Helm executor already keeps the same kind of identity in the release description.",
+      "displacedBy": "a Zarf or UDS release that records the variables and source reference a deployment was given in its own deployed-package state, or a published contract for reading them back.",
+      "riskIfWrong": "The record is the Spoke's account of its own action, not a read of live configuration: changes made underneath the package without a Zarf deploy are not detected, and anyone who can write ConfigMaps in the namespace can write it. For a bundle only the one named package is bound. A reader between the delete and the create sees no record and reports INDETERMINATE."
     }
   ],
   "displaced": [

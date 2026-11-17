@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/jonathanagustin/conduit/internal/appgen/domain"
 )
 
 // DockerPublisher tags a local image and pushes it, then uploads the chart.
@@ -40,6 +42,10 @@ func (publisher DockerPublisher) Push(ctx context.Context, imageID, name string,
 	}
 	if !strings.HasPrefix(digest, "sha256:") {
 		return "", "", "", fmt.Errorf("image digest was not a sha256")
+	}
+	chart, err = domain.StampChartValues(chart, registry+"/"+name, digest)
+	if err != nil {
+		return "", "", "", err
 	}
 	chartDigest, err := PushChart(ctx, registry, name+"-chart", chart)
 	if err != nil {

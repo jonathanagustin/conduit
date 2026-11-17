@@ -54,6 +54,7 @@ type MemoryRepository struct {
 	changeRequests              map[string]ChangeRequest
 	authorizationAudit          map[string]AuthorizationAuditEvent
 	productPublications         map[string]ProductPublication
+	computeExecutions           map[string]ComputeReservation
 }
 
 type memoryBlob struct {
@@ -91,6 +92,7 @@ func NewMemoryRepository() *MemoryRepository {
 		changeRequests:              make(map[string]ChangeRequest),
 		authorizationAudit:          make(map[string]AuthorizationAuditEvent),
 		productPublications:         make(map[string]ProductPublication),
+		computeExecutions:           make(map[string]ComputeReservation),
 	}
 }
 
@@ -986,6 +988,41 @@ func NewFileRepository(root string) (*FileRepository, error) {
 		}
 	}
 	return repository, nil
+}
+
+// Transaction runs operation against a copy of the repository tree and
+// replaces the tree only after success. A failure leaves the original files
+// unchanged, including a crash between two writes inside the operation.
+func (repository *FileRepository) Transaction(ctx context.Context, operation func(Repository) error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if operation == nil {
+		return errors.New("repository transaction operation is required")
+	}
+	repository.mu.Lock()
+	defer repository.mu.Unlock()
+	snapshot, err := os.MkdirTemp(filepath.Dir(repository.root), ".txn-")
+	if err != nil {
+		return fmt.Errorf("create repository transaction snapshot: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = os.RemoveAll(snapshot)
+		}
+	}()
+	if err := copyRepositoryTree(repository.root, snapshot); err != nil {
+		return fmt.Errorf("snapshot repository: %w", err)
+	}
+	if err := operation(&FileRepository{root: snapshot}); err != nil {
+		return err
+	}
+	if err := replaceRepositoryTree(repository.root, snapshot); err != nil {
+		return err
+	}
+	committed = true
+	return nil
 }
 
 func (repository *FileRepository) PutExportPipeline(
@@ -2594,5 +2631,71 @@ func atomicWriteJSON(path string, value any) error {
 	if err := directoryHandle.Sync(); err != nil {
 		return fmt.Errorf("sync repository directory: %w", err)
 	}
+	return nil
+}
+
+func copyRepositoryTree(src, dst string) error {
+	return filepath.WalkDir(src, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if entry.IsDir() {
+			info, err := entry.Info()
+			if err != nil {
+				return err
+			}
+			return os.MkdirAll(target, info.Mode().Perm())
+		}
+		if !entry.Type().IsRegular() {
+			return nil
+		}
+		return copyRegularFile(path, target)
+	})
+}
+
+func copyRegularFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	info, err := in.Stat()
+	if err != nil {
+		return err
+	}
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode().Perm())
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		return err
+	}
+	return out.Close()
+}
+
+func replaceRepositoryTree(root, snapshot string) error {
+	backup, err := os.MkdirTemp(filepath.Dir(root), ".txn-backup-")
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(backup); err != nil {
+		return err
+	}
+	if err := os.Rename(root, backup); err != nil {
+		return err
+	}
+	if err := os.Rename(snapshot, root); err != nil {
+		if restoreErr := os.Rename(backup, root); restoreErr != nil {
+			return fmt.Errorf("commit repository transaction: %w; restore failed: %v", err, restoreErr)
+		}
+		return fmt.Errorf("commit repository transaction: %w", err)
+	}
+	_ = os.RemoveAll(backup)
 	return nil
 }

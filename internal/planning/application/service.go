@@ -481,9 +481,9 @@ func (service *Service) appendEvent(session *domain.Session, event domain.Event)
 	session.Events = append(session.Events, event)
 }
 
-// Compute is refused until Accept. After Accept, appgen sessions run the
-// configured appgen compute hook when present; otherwise compute reports that
-// it is not configured.
+// Compute is refused until Accept. After Accept, the configured compute hook
+// runs for the appgen and onboard profiles. The hook reports that compute is
+// not configured when no image builder is admitted.
 func (service *Service) Compute(ctx context.Context, id string) (*domain.Session, error) {
 	service.mu.Lock()
 	session, err := service.mutable(id)
@@ -498,7 +498,7 @@ func (service *Service) Compute(ctx context.Context, id string) (*domain.Session
 	cloned := domain.CloneSession(session)
 	compute := service.appgenCompute
 	service.mu.Unlock()
-	if cloned.Binding != nil && cloned.Binding.Profile.Name == domain.ProfileAppgen && compute != nil {
+	if compute != nil && cloned.Binding != nil && (cloned.Binding.Profile.Name == domain.ProfileAppgen || cloned.Binding.Profile.Name == domain.ProfileOnboard) {
 		if err := compute(ctx, cloned); err != nil {
 			return nil, err
 		}
@@ -605,19 +605,24 @@ func BuildAppgenTurnResult(session *domain.Session, message, skillSource string)
 		"summary":          summary,
 		"appName":          appName,
 		"problemStatement": ps,
-		"baseImage":        "cgr.dev/chainguard/static@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-		"buildSteps":       []string{"go build -trimpath -ldflags='-s -w' -o /out/app ./main.go"},
+		"baseImage":        "scratch for main.go and index.html; a digest-pinned CPython 3.12 interpreter for main.py",
+		"buildSteps":       []string{"compile main.go or the static server, or copy main.py, then build with no network as uid 65532"},
 		"startCommand":     "/app",
 		"ports":            []int{8080},
-		"healthCheckPath":  "/healthz",
-		"envVars":          []string{"PORT=8080"},
-		"memoryRequest":    "128Mi",
-		"memoryLimit":      "256Mi",
-		"cpuRequest":       "100m",
-		"cpuLimit":         "500m",
-		"generatedFiles":   []string{"main.go", "index.html", "values.yaml"},
-		"packagedFiles":    []string{"Dockerfile", ".dockerignore", "zarf.yaml", "uds-package.yaml", "package-source.yaml"},
-		"notes":            []string{"No source repository; generated after Accept and validated through appgen and packaging gates."},
+		"healthCheckPath":  "/health",
+		"sso": map[string]any{
+			"required": false,
+			"notes":    "The generated package exposes the Service and does not register a client.",
+		},
+		"envVars":        []string{"PORT=8080"},
+		"memoryRequest":  "64Mi",
+		"memoryLimit":    "64Mi",
+		"cpuRequest":     "50m",
+		"cpuLimit":       "50m",
+		"sourceRule":     "exactly one source file",
+		"generatedFiles": []string{"main.go", "main.py", "index.html"},
+		"packagedFiles":  []string{"Dockerfile", ".dockerignore", "chart/templates/deployment.yaml", "chart/templates/service.yaml", "zarf.yaml", "uds-package.yaml", "package-source.yaml"},
+		"notes":          []string{"No source repository; generated after Accept and validated through appgen and packaging gates."},
 	}
 	rawPlan, _ := json.Marshal(planObj)
 	plan := domain.Plan{Text: string(rawPlan)}

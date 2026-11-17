@@ -92,6 +92,13 @@ CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/spaces/adapters/post
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/productassets/adapters/postgres
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/changeactivity/adapters/postgres
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/debugsessions/adapters/postgres
+# The assistant conversation store runs the same conformance suite its
+# in-memory adapter runs on every `go test`, plus the schema's own bounds.
+CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/assistant/adapters/threadpostgres
+CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/appgen/adapters/postgres
+# The Hub-level check that a generation outlives the Hub that made it. The
+# filter keeps this to the one database-backed test in a large package.
+CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/hub/composition -run '^TestPostgresAppGenerations'
 # This package opens two independent pools and writes concurrently; the
 # cmd/platform-delivery drill below separately proves its migration and one
 # exact resolution survive the pinned-client dump/restore path.

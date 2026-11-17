@@ -44,11 +44,17 @@ export class PlanningAgent {
     this.active = false;
     this.forms = null;
   }
-  /** @param {{message?: string, answers?: Array<{id: string, value: string}>, formAction?: any, recover?: boolean}} options */
+  /**
+   * @param {{message?: string, answers?: Array<{id: string, value: string}>, formAction?: any, recover?: boolean}} options
+   * @param {any} binding
+   * @param {(run: any, event: any) => void} update
+   * @param {AbortSignal} [signal] aborts the stream being read; the Hub has no cancel route
+   */
   async run(
     { message = "", answers, formAction, recover = false } = {},
     binding,
     update,
+    signal,
   ) {
     if (this.active) throw new Error("An agent exchange is already running.");
     if (this.recoveryRequired && !recover)
@@ -84,6 +90,8 @@ export class PlanningAgent {
         });
       let results = [];
       for (let round = 0; round < 5; round++) {
+        // Stop ends the exchange between rounds too, before any form tool runs.
+        signal?.throwIfAborted();
         const input = {
           protocolVersion: "1.0",
           threadId: this.threadId,
@@ -105,6 +113,7 @@ export class PlanningAgent {
             update(current, event);
           },
           this.fetch,
+          signal,
         );
         this.messages = mergeAgentMessages(this.messages, [
           ...run.messages.values(),

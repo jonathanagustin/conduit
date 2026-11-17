@@ -6,8 +6,32 @@ import (
 )
 
 // Prompt is the instruction sent to a generator. The response must be one JSON object.
+// The supported matrix it states is recorded in docs/operations/app-generation.md.
 func Prompt(request Request) string {
-	return strings.TrimSpace(base(request) + attachmentContext(request.Attachments))
+	// A repair is added after the plan and never in place of it, so a
+	// corrected reply is asked for under the same accepted plan.
+	return strings.TrimSpace(base(request) + planContext(request) + attachmentContext(request.Attachments) + repairContext(request))
+}
+
+// planContext binds generation to the accepted plan and the conversation that
+// reviewed it. Requirements that arrived after the original problem statement
+// are in one of those two places.
+func planContext(request Request) string {
+	if strings.TrimSpace(request.AcceptedPlan) == "" && len(request.Conversation) == 0 {
+		return ""
+	}
+	var out strings.Builder
+	fmt.Fprintf(&out, "\nAccepted plan revision %s digest %s. Implement this plan, including requirements added during review.", oneLine(request.PlanRevisionID), oneLine(request.PlanDigest))
+	if strings.TrimSpace(request.AcceptedPlan) != "" {
+		fmt.Fprintf(&out, "\n--- accepted plan ---\n%s\n--- end accepted plan ---", request.AcceptedPlan)
+	}
+	if len(request.Conversation) > 0 {
+		out.WriteString("\nPlanning conversation:")
+		for _, turn := range request.Conversation {
+			fmt.Fprintf(&out, "\n%s: %s", oneLine(turn.Role), turn.Text)
+		}
+	}
+	return out.String()
 }
 
 // attachmentContext lists the bound files as read-only reference text.
@@ -32,9 +56,9 @@ One route must be GET /health with status 200.
 page has title and body.
 resources has memory, such as 64Mi, and cpu, such as 50m.
 memory must not exceed 1Gi. cpu must not exceed 1.
-files is an array of at most 3 objects with path, language, and content.
-Allowed files: main.go language go, main.py language python, index.html language html.
-main.go is required. Each file is at most 4096 bytes.
+files is an array of exactly one object with path, language, and content.
+Allowed source shapes, exactly one file: main.go language go, main.py language python, or index.html language html.
+Do not send more than one of these files. Each file is at most 4096 bytes.
 Do not include a Dockerfile, chart values, a package document, or any other path.
 Description: %s`, oneLine(request.Name), oneLine(request.Description)))
 }

@@ -29,6 +29,10 @@ const NoRepositoryCommit = "none (no source repository — problem-statement int
 // DefaultModelLabel is the neutral label shown when the model does not report its name.
 const DefaultModelLabel = "Configured model"
 
+// UnverifiedModelLabel is bound when a model CLI ran with no operator-configured
+// model name. The model's own claim about its name is never recorded instead.
+const UnverifiedModelLabel = "unverified (model CLI, CONDUIT_MODEL_NAME not set)"
+
 // Session statuses. A session is created at started. Turns move it through
 // inspecting, needs_input, and planning. Ready means a plan is waiting for
 // Accept. Accepted means the binding is recorded.
@@ -78,6 +82,7 @@ const (
 	CodeTurnInProgress       = "TURN_IN_PROGRESS"
 	CodeNotAccepted          = "NOT_ACCEPTED"
 	CodeComputeBeforeAccept  = "COMPUTE_BEFORE_ACCEPT"
+	CodeComputeInProgress    = "COMPUTE_IN_PROGRESS"
 	CodeComputeNotConfigured = "COMPUTE_NOT_CONFIGURED"
 	CodeNoPendingQuestions   = "NO_PENDING_QUESTIONS"
 	CodeUnknownQuestion      = "UNKNOWN_QUESTION"
@@ -94,7 +99,9 @@ var (
 	ErrAlreadyAccepted      = errors.New("the planning session is already accepted")
 	ErrTurnInProgress       = errors.New("a planning turn is already in progress")
 	ErrComputeBeforeAccept  = errors.New("compute is refused before Accept")
+	ErrComputeInProgress    = errors.New("compute is already running for this session")
 	ErrComputeNotConfigured = errors.New("package compute is not configured")
+	ErrPlanDigestMismatch   = errors.New("accepted plan digest does not match the recorded plan text")
 	ErrNoPendingQuestions   = errors.New("there are no pending Needs Input questions")
 	ErrUnknownQuestion      = errors.New("the answer does not match a pending question")
 	ErrInvalidAnswer        = errors.New("the answer is not valid for the question")
@@ -187,6 +194,16 @@ type Event struct {
 	Code       string      `json:"code,omitempty"`
 }
 
+// ComputeReceipt is the recorded result of a completed compute. A repeat
+// request returns it instead of running generation again.
+type ComputeReceipt struct {
+	SessionID      string    `json:"sessionId"`
+	PlanRevisionID string    `json:"planRevisionId"`
+	PlanDigest     string    `json:"planDigest"`
+	Outcome        string    `json:"outcome"`
+	CompletedAt    time.Time `json:"completedAt"`
+}
+
 // Binding is recorded at Accept and never rewritten. It is the profile
 // version and hash, the intake, the source commit, the model, and the plan.
 type Binding struct {
@@ -200,21 +217,22 @@ type Binding struct {
 
 // Session is the planning-session document the HTTP contract returns.
 type Session struct {
-	ID             string      `json:"id"`
-	Status         string      `json:"status"`
-	Profile        ProfileRef  `json:"profile"`
-	Intake         Intake      `json:"intake"`
-	ResolvedCommit string      `json:"resolvedCommit"`
-	Model          string      `json:"model"`
-	Inspection     *Inspection `json:"inspection"`
-	NeedsInput     []Question  `json:"needsInput"`
-	Answers        []Answer    `json:"answers"`
-	Plan           *Plan       `json:"plan"`
-	Binding        *Binding    `json:"binding"`
-	Messages       []Message   `json:"messages"`
-	Events         []Event     `json:"events"`
-	CreatedAt      time.Time   `json:"createdAt"`
-	UpdatedAt      time.Time   `json:"updatedAt"`
+	ID             string          `json:"id"`
+	Status         string          `json:"status"`
+	Profile        ProfileRef      `json:"profile"`
+	Intake         Intake          `json:"intake"`
+	ResolvedCommit string          `json:"resolvedCommit"`
+	Model          string          `json:"model"`
+	Inspection     *Inspection     `json:"inspection"`
+	NeedsInput     []Question      `json:"needsInput"`
+	Answers        []Answer        `json:"answers"`
+	Plan           *Plan           `json:"plan"`
+	Binding        *Binding        `json:"binding"`
+	ComputeReceipt *ComputeReceipt `json:"computeReceipt,omitempty"`
+	Messages       []Message       `json:"messages"`
+	Events         []Event         `json:"events"`
+	CreatedAt      time.Time       `json:"createdAt"`
+	UpdatedAt      time.Time       `json:"updatedAt"`
 }
 
 // IntakeError is a rejected repository URL, ref, or problem-statement intake.
@@ -429,6 +447,10 @@ func CloneSession(session *Session) *Session {
 		binding := *session.Binding
 		out.Binding = &binding
 	}
+	if session.ComputeReceipt != nil {
+		receipt := *session.ComputeReceipt
+		out.ComputeReceipt = &receipt
+	}
 	if out.NeedsInput == nil {
 		out.NeedsInput = []Question{}
 	}
@@ -485,6 +507,34 @@ func RequireAccepted(session *Session) error {
 		return ErrComputeBeforeAccept
 	}
 	return nil
+}
+
+// AcceptedGeneration is the plan revision generation must consume: the session
+// that accepted it, the recorded digest, the plan text, and the planning
+// conversation. The digest is checked against the text here.
+type AcceptedGeneration struct {
+	RevisionID   string
+	Digest       string
+	PlanText     string
+	Conversation []Message
+}
+
+// AcceptedGenerationFrom returns the binding generation implements. A stored
+// digest that does not match the plan text is refused.
+func AcceptedGenerationFrom(session *Session) (AcceptedGeneration, error) {
+	if err := RequireAccepted(session); err != nil {
+		return AcceptedGeneration{}, err
+	}
+	plan := session.Binding.Plan
+	if strings.TrimSpace(plan.Text) == "" || plan.SHA256 == "" || PlanHash(plan) != plan.SHA256 {
+		return AcceptedGeneration{}, ErrPlanDigestMismatch
+	}
+	return AcceptedGeneration{
+		RevisionID:   session.ID,
+		Digest:       plan.SHA256,
+		PlanText:     plan.Text,
+		Conversation: append([]Message(nil), session.Messages...),
+	}, nil
 }
 
 // PendingRequired reports whether any required Needs Input question is

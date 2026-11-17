@@ -70,11 +70,44 @@ end
 # to start -- and before it refused, it signed Bundles with a key it generated
 # for itself, so a chart profile that dropped the key would have produced a Hub
 # that reported healthy while signing as a signer no target trusts.
+#
+# The match is on ALLOW_INSECURE anywhere in the name, not on a prefix. The
+# prefix form passed CONDUIT_MODEL_ALLOW_INSECURE_HTTP unseen; this form sees
+# it and refuses it in every profile checked here. Exactly one render may
+# carry that one variable, and assert_model_plaintext_opt_in! below is the only
+# place that admits it.
+def insecure_opt_ins(environment)
+  environment.keys.select { |name| name.include?("ALLOW_INSECURE") }
+end
+
 def assert_signs_as_a_trusted_signer!(deployment, profile)
   environment = deployment.dig("spec", "template", "spec", "containers", 0, "env")
     .to_h { |item| [item["name"], item["value"]] }
-  insecure = environment.keys.select { |name| name.start_with?("ALLOW_INSECURE_") }
+  insecure = insecure_opt_ins(environment)
   abort "#{profile} Hub enabled insecure opt-ins: #{insecure.join(', ')}" unless insecure.empty?
+  abort "#{profile} Hub renders no BUNDLE_SIGNING_KEY_FILE and would refuse to start" if
+    environment["BUNDLE_SIGNING_KEY_FILE"].to_s.strip.empty?
+end
+
+# The one insecure opt-in a chart-rendered Hub may carry (#807).
+#
+# A model served inside the cluster is commonly a plaintext Service (vLLM,
+# Ollama, LeapfrogAI), and under UDS Core the mesh encrypts that hop, so the
+# chart can express it. It is deliberate, not a prefix accident: the variable
+# is admitted only by name, only with the value "true", only beside an http://
+# CONDUIT_MODEL_BASE_URL (the chart refuses it with https), and only alone.
+# It weakens the model hop and nothing else: it is not an identity opt-in, and
+# the signing and mTLS inputs are still required of the same Hub.
+MODEL_PLAINTEXT_OPT_IN = "CONDUIT_MODEL_ALLOW_INSECURE_HTTP"
+
+def assert_model_plaintext_opt_in!(deployment, profile)
+  environment = deployment.dig("spec", "template", "spec", "containers", 0, "env")
+    .to_h { |item| [item["name"], item["value"]] }
+  insecure = insecure_opt_ins(environment)
+  abort "#{profile} Hub must carry exactly the model plaintext opt-in, found: #{insecure.join(', ')}" unless insecure == [MODEL_PLAINTEXT_OPT_IN]
+  abort "#{profile} Hub model plaintext opt-in must be the literal true" unless environment[MODEL_PLAINTEXT_OPT_IN] == "true"
+  abort "#{profile} Hub carries the model plaintext opt-in without an http:// model endpoint" unless
+    environment["CONDUIT_MODEL_BASE_URL"].to_s.start_with?("http://")
   abort "#{profile} Hub renders no BUNDLE_SIGNING_KEY_FILE and would refuse to start" if
     environment["BUNDLE_SIGNING_KEY_FILE"].to_s.strip.empty?
 end
@@ -392,9 +425,34 @@ abort "Hub probes must use HTTPS" unless %w[startupProbe readinessProbe liveness
 hub_env = hub_container.fetch("env").to_h { |item| [item["name"], item["value"]] }
 required_hub_env = %w[REPOSITORY_KIND POSTGRES_DSN_FILE AGENT_CLIENT_CA_FILE TLS_CERT_FILE TLS_KEY_FILE BUNDLE_SIGNING_KEY_FILE CONSOLE_BOOTSTRAP_FILE PLATFORM_BOOTSTRAP_ADMINISTRATORS]
 abort "Hub production identity/signing inputs are incomplete" unless (required_hub_env - hub_env.keys).empty?
-abort "chart enabled insecure identity" if hub_env.keys.any? { |name| name.start_with?("ALLOW_INSECURE_") }
+abort "chart enabled an insecure opt-in" unless insecure_opt_ins(hub_env).empty?
 abort "Hub console bootstrap path drifted" unless hub_env["CONSOLE_BOOTSTRAP_FILE"] == "/etc/conduit/console/bootstrap.json"
 abort "Hub PostgreSQL mode drifted" unless hub_env["REPOSITORY_KIND"] == "postgres" && hub_env["POSTGRES_DSN_FILE"] == "/run/conduit-database/dsn"
+abort "production chart must publish the shared planning frontend" unless
+  hub.dig("spec", "replicas") == 2 &&
+    hub_env["HUB_REPLICA_COUNT"] == "2" &&
+    hub_env["CONDUIT_TEMPORAL_ADDRESS"] == "planning-frontend.platform-system.svc:7233" &&
+    hub_env["CONDUIT_TEMPORAL_SHARED"] == "true" &&
+    hub_env["CONDUIT_TEMPORAL_TASK_QUEUE"] == "planning-sessions" &&
+    hub_env["CONDUIT_IMAGE_BUILDER"] == "docker" &&
+    hub_env["DEVWORKSPACE_GIT_ROOT"] == "/var/lib/conduit-workspaces" &&
+    hub_env["CONDUIT_HTTP_WRITE_TIMEOUT"] == "45m"
+workspace_mount = hub_container.fetch("volumeMounts").find { |item| item["name"] == "planning-workspaces" }
+abort "planning workspace volume is missing" unless workspace_mount&.fetch("mountPath") == "/var/lib/conduit-workspaces"
+local_failure = capture(
+  helm, "template", "platform-hub", charts.fetch(:hub), "--namespace", "platform-system",
+  "--values", File.join(charts.fetch(:hub), "ci/test-values.yaml"),
+  "--set", "planning.backend=local", "--set", "replicaCount=2"
+)
+abort "two replicas with a process-local planning store rendered" if local_failure[2].success?
+abort "process-local replica guard did not name the failure" unless (local_failure[0] + local_failure[1]).include?("process-local planning store")
+local_hub = render!(
+  helm, "platform-hub", charts.fetch(:hub), File.join(charts.fetch(:hub), "ci/test-values.yaml"),
+  ["--set", "planning.backend=local", "--set", "replicaCount=1"]
+).find { |item| item["kind"] == "Deployment" }
+local_env = local_hub.dig("spec", "template", "spec", "containers", 0, "env").to_h { |item| [item["name"], item["value"]] }
+abort "one replica may stay process-local" unless local_hub.dig("spec", "replicas") == 1 && local_env["HUB_REPLICA_COUNT"] == "1"
+abort "process-local planning rendered a workflow frontend" if local_env.key?("CONDUIT_TEMPORAL_ADDRESS")
 database_mount = hub_container.fetch("volumeMounts").find { |item| item["name"] == "database" }
 database_volume = hub.dig("spec", "template", "spec", "volumes").find { |item| item["name"] == "database" }
 abort "PostgreSQL DSN must come from one read-only Secret mount" unless
@@ -538,5 +596,227 @@ stdout, stderr, status = capture(
 )
 abort "packaging worker rendered without its Temporal address" if status.success?
 abort "packaging worker failure did not name the address" unless (stdout + stderr).include?("address")
+
+# Optional shipped features (#838). Each is off by default and typed: the chart
+# has no free-form environment escape hatch, so a feature the Hub or Agent ships
+# is reachable only through a value this gate has rendered.
+hub_values = File.join(charts.fetch(:hub), "ci/test-values.yaml")
+spoke_values = File.join(charts.fetch(:spoke), "ci/test-values.yaml")
+optional_hub_env = %w[METRICS_ADDRESS PLAN_ORCHESTRATOR PLAN_TEMPORAL_ADDRESS]
+abort "default Hub enables an optional feature nobody asked for" unless
+  (hub_env.keys & optional_hub_env).empty? && hub_env.keys.none? { |name| name.start_with?("NOTIFICATION_", "CONDUIT_MODEL_") }
+abort "default Hub mounts model credentials nobody configured" if
+  hub.dig("spec", "template", "spec", "volumes").any? { |item| item["name"].start_with?("conduit-model") }
+abort "default Hub declares a metrics port nothing listens on" if
+  hub_container.fetch("ports").any? { |port| port["name"] == "metrics" } ||
+    hub_documents.find { |item| item["kind"] == "Service" }.dig("spec", "ports").any? { |port| port["name"] == "metrics" }
+abort "default Spoke configures a material preparer" if spoke_env.key?("EXTERNAL_MATERIAL_PREPARER")
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set-string", "extraEnv.METRICS_ADDRESS=:9090"])
+
+metrics_documents = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set", "metrics.enabled=true", "--set", "metrics.port=9191", "--set", "metrics.service.port=9292", "--set", "metrics.serviceMonitor.enabled=true"]
+)
+metrics_hub = metrics_documents.find { |item| item["kind"] == "Deployment" }
+metrics_container = metrics_hub.dig("spec", "template", "spec", "containers", 0)
+metrics_env = metrics_container.fetch("env").to_h { |item| [item["name"], item["value"]] }
+abort "metrics.enabled did not set the listener address from metrics.port" unless metrics_env["METRICS_ADDRESS"] == ":9191"
+abort "metrics.enabled did not declare the container port" unless
+  metrics_container.fetch("ports").include?({"name" => "metrics", "containerPort" => 9191})
+metrics_service = metrics_documents.find { |item| item["kind"] == "Service" }
+abort "metrics.enabled did not add the Service port" unless
+  metrics_service.dig("spec", "ports").include?({"name" => "metrics", "port" => 9292, "targetPort" => "metrics", "protocol" => "TCP"})
+service_monitor = metrics_documents.find { |item| item["kind"] == "ServiceMonitor" }
+abort "metrics.serviceMonitor.enabled did not render a ServiceMonitor" unless service_monitor
+abort "ServiceMonitor does not select the Hub Service it scrapes" unless
+  service_monitor.dig("spec", "selector", "matchLabels").all? { |key, value| metrics_service.dig("metadata", "labels", key) == value } &&
+    service_monitor.dig("spec", "endpoints") == [{"port" => "metrics", "path" => "/metrics", "scheme" => "http", "interval" => "30s"}] &&
+    service_monitor.dig("spec", "namespaceSelector", "matchNames") == ["platform-system"]
+abort "metrics.enabled alone must not require the Prometheus Operator" if
+  render!(helm, "platform-hub", charts.fetch(:hub), hub_values, ["--set", "metrics.enabled=true"]).any? { |item| item["kind"] == "ServiceMonitor" }
+# The Hub serves /metrics only for PostgreSQL. A file-repository Hub with a
+# metrics port is a scrape target that is permanently down.
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub),
+  ["--values", hub_values, "--set", "repository.kind=file", "--set", "replicaCount=1", "--set", "metrics.enabled=true"])
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub),
+  ["--values", hub_values, "--skip-schema-validation", "--set", "repository.kind=file", "--set", "replicaCount=1", "--set", "metrics.enabled=true"])
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set", "metrics.serviceMonitor.enabled=true"])
+
+# Notification credentials reach the Hub only as Secret references. An env
+# entry carrying a literal value for a credential would put it in the release
+# record, which is exactly what the file-mounted Secrets elsewhere avoid.
+webhook_container = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set", "notifications.transport=webhook", "--set", "notifications.webhook.urlSecretName=notification-webhook", "--set", "notifications.webhook.timeout=10s"]
+).find { |item| item["kind"] == "Deployment" }.dig("spec", "template", "spec", "containers", 0)
+webhook_url = webhook_container.fetch("env").find { |item| item["name"] == "NOTIFICATION_WEBHOOK_URL" }
+abort "webhook URL must come from a required Secret key and never a literal" unless
+  webhook_url == {"name" => "NOTIFICATION_WEBHOOK_URL", "valueFrom" => {"secretKeyRef" => {"name" => "notification-webhook", "key" => "url", "optional" => false}}}
+abort "webhook timeout did not render" unless
+  webhook_container.fetch("env").include?({"name" => "NOTIFICATION_WEBHOOK_TIMEOUT", "value" => "10s"})
+log_env = render!(helm, "platform-hub", charts.fetch(:hub), hub_values, ["--set", "notifications.transport=log"])
+  .find { |item| item["kind"] == "Deployment" }.dig("spec", "template", "spec", "containers", 0, "env")
+abort "log transport did not render exactly" unless
+  log_env.select { |item| item["name"].start_with?("NOTIFICATION_") } == [{"name" => "NOTIFICATION_DELIVERY_LOG", "value" => "true"}]
+native_pod = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set", "notifications.transport=native",
+   "--set-string", "notifications.native.smtp.address=smtp.example.test:587",
+   "--set-string", "notifications.native.smtp.from=conduit@example.test",
+   "--set", "notifications.native.smtp.credentialsSecretName=notification-smtp",
+   "--set", "notifications.native.smtp.caConfigMapName=notification-smtp-ca",
+   "--set", "notifications.native.slack.tokenSecretName=notification-slack"]
+).find { |item| item["kind"] == "Deployment" }.dig("spec", "template", "spec")
+native_container = native_pod.fetch("containers").first
+native_env = native_container.fetch("env").select { |item| item["name"].start_with?("NOTIFICATION_") }
+abort "native notification environment did not render exactly" unless native_env.to_h { |item| [item["name"], item["value"]] } == {
+  "NOTIFICATION_SMTP_ADDRESS" => "smtp.example.test:587",
+  "NOTIFICATION_SMTP_FROM" => "conduit@example.test",
+  "NOTIFICATION_SMTP_USERNAME_FILE" => "/run/notification-smtp/username",
+  "NOTIFICATION_SMTP_PASSWORD_FILE" => "/run/notification-smtp/password",
+  "NOTIFICATION_SMTP_CA_FILE" => "/run/notification-smtp-ca/ca.pem",
+  "NOTIFICATION_SLACK_TOKEN_FILE" => "/run/notification-slack/token"
+}
+native_volumes = native_pod.fetch("volumes").to_h { |item| [item["name"], item] }
+abort "SMTP credentials must be one required Secret mounted as files" unless
+  native_volumes.dig("notification-smtp", "secret") == {
+    "secretName" => "notification-smtp", "optional" => false,
+    "items" => [{"key" => "username", "path" => "username"}, {"key" => "password", "path" => "password"}]
+  }
+abort "Slack token must be one required Secret mounted as a file" unless
+  native_volumes.dig("notification-slack", "secret") == {
+    "secretName" => "notification-slack", "optional" => false, "items" => [{"key" => "token", "path" => "token"}]
+  }
+abort "notification credential mounts must be read-only" unless
+  %w[notification-smtp notification-smtp-ca notification-slack].all? do |name|
+    native_container.fetch("volumeMounts").include?({"name" => name, "mountPath" => "/run/#{name}", "readOnly" => true})
+  end
+# Every way of putting a credential in values is refused by the schema, and so
+# is every transport the Hub would refuse at startup.
+[
+  ["--set", "notifications.transport=webhook"],
+  ["--set", "notifications.transport=webhook", "--set-string", "notifications.webhook.url=https://hooks.example.test/secret"],
+  ["--set", "notifications.transport=native"],
+  ["--set", "notifications.transport=native", "--set-string", "notifications.native.smtp.address=smtp.example.test:587"],
+  ["--set", "notifications.transport=native", "--set", "notifications.native.slack.tokenSecretName=notification-slack",
+   "--set-string", "notifications.native.slack.token=xoxb-literal"],
+  ["--set", "notifications.transport=native", "--set-string", "notifications.native.smtp.address=smtp.example.test:587",
+   "--set-string", "notifications.native.smtp.from=conduit@example.test", "--set-string", "notifications.native.smtp.password=literal"],
+  ["--set", "notifications.transport=log", "--set", "repository.kind=file", "--set", "replicaCount=1"]
+].each do |arguments|
+  assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, *arguments])
+end
+
+# Model provider (#807). The chart configures the HTTP transport only. The key
+# is a Secret reference mounted as a file, the CA is a ConfigMap reference, and
+# nothing model-related renders until model.baseURL is set.
+model_pod = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set-string", "model.baseURL=https://models.example.test/v1", "--set-string", "model.name=served-model",
+   "--set-string", "model.timeout=90s", "--set", "model.apiKeySecret.name=model-api-key",
+   "--set", "model.caConfigMap.name=model-ca", "--set", "model.caConfigMap.key=bundle.pem"]
+).find { |item| item["kind"] == "Deployment" }
+validate_deployment!(model_pod)
+assert_signs_as_a_trusted_signer!(model_pod, "https model")
+model_container = model_pod.dig("spec", "template", "spec", "containers", 0)
+model_env = model_container.fetch("env").select { |item| item["name"].start_with?("CONDUIT_MODEL_") }
+abort "model environment did not render exactly" unless model_env == [
+  {"name" => "CONDUIT_MODEL_BASE_URL", "value" => "https://models.example.test/v1"},
+  {"name" => "CONDUIT_MODEL_NAME", "value" => "served-model"},
+  {"name" => "CONDUIT_MODEL_TIMEOUT", "value" => "90s"},
+  {"name" => "CONDUIT_MODEL_API_KEY_FILE", "value" => "/run/conduit-model/api-key"},
+  {"name" => "CONDUIT_MODEL_CA_FILE", "value" => "/run/conduit-model-ca/ca.pem"}
+]
+abort "the chart must not configure a model command: the Hub image carries no model CLI" if
+  model_container.fetch("env").any? { |item| item["name"] == "CONDUIT_MODEL_CMD" }
+model_volumes = model_pod.dig("spec", "template", "spec", "volumes").to_h { |item| [item["name"], item] }
+abort "model API key must be one required Secret key mounted as a file" unless
+  model_volumes.dig("conduit-model", "secret") == {
+    "secretName" => "model-api-key", "optional" => false, "items" => [{"key" => "api-key", "path" => "api-key"}]
+  }
+abort "model CA must be one ConfigMap key mounted where CONDUIT_MODEL_CA_FILE points" unless
+  model_volumes.dig("conduit-model-ca", "configMap") == {"name" => "model-ca", "items" => [{"key" => "bundle.pem", "path" => "ca.pem"}]}
+abort "model credential mounts must be read-only" unless
+  %w[conduit-model conduit-model-ca].all? do |name|
+    model_container.fetch("volumeMounts").include?({"name" => name, "mountPath" => "/run/#{name}", "readOnly" => true})
+  end
+# A keyless endpoint with the system roots mounts nothing.
+keyless_pod = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set-string", "model.baseURL=https://models.example.test/v1", "--set-string", "model.name=served-model"]
+).find { |item| item["kind"] == "Deployment" }
+abort "keyless model endpoint did not render exactly" unless
+  keyless_pod.dig("spec", "template", "spec", "containers", 0, "env").select { |item| item["name"].start_with?("CONDUIT_MODEL_") } == [
+    {"name" => "CONDUIT_MODEL_BASE_URL", "value" => "https://models.example.test/v1"},
+    {"name" => "CONDUIT_MODEL_NAME", "value" => "served-model"}
+  ] && keyless_pod.dig("spec", "template", "spec", "volumes").none? { |item| item["name"].start_with?("conduit-model") }
+# The plaintext in-cluster endpoint: the single insecure opt-in this gate
+# admits, and the general check still refuses it.
+plaintext_pod = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set-string", "model.baseURL=http://vllm.models.svc.cluster.local:8000/v1", "--set-string", "model.name=served-model",
+   "--set", "model.allowInsecureHTTP=true"]
+).find { |item| item["kind"] == "Deployment" }
+validate_deployment!(plaintext_pod)
+assert_model_plaintext_opt_in!(plaintext_pod, "plaintext model")
+plaintext_env = plaintext_pod.dig("spec", "template", "spec", "containers", 0, "env").to_h { |item| [item["name"], item["value"]] }
+abort "the general insecure check no longer sees the model plaintext opt-in" unless insecure_opt_ins(plaintext_env) == [MODEL_PLAINTEXT_OPT_IN]
+abort "the general insecure check must not see an ordinary model variable" unless
+  insecure_opt_ins({"CONDUIT_MODEL_BASE_URL" => "x", "CONDUIT_MODEL_NAME" => "y"}).empty?
+# Refused by the schema and, where the Hub itself would refuse at startup, by
+# the template too: a key in values, a missing name, plain http without the
+# opt-in, the opt-in without plain http, inline credentials, and settings that
+# would be silently inert without a base URL.
+model_base = ["--set-string", "model.baseURL=https://models.example.test/v1", "--set-string", "model.name=served-model"]
+[
+  ["--set-string", "model.baseURL=https://models.example.test/v1"],
+  ["--set-string", "model.name=served-model"],
+  ["--set", "model.apiKeySecret.name=model-api-key"],
+  ["--set", "model.allowInsecureHTTP=true"],
+  [*model_base, "--set-string", "model.apiKey=sk-literal"],
+  [*model_base, "--set-string", "model.apiKeySecret.value=sk-literal"],
+  [*model_base, "--set", "model.allowInsecureHTTP=true"],
+  [*model_base, "--set-string", "model.command=codex exec -"],
+  ["--set-string", "model.baseURL=http://vllm.models.svc.cluster.local:8000/v1", "--set-string", "model.name=served-model"],
+  ["--set-string", "model.baseURL=https://user:secret@models.example.test/v1", "--set-string", "model.name=served-model"],
+  ["--set-string", "model.baseURL=https://models.example.test/v1?key=secret", "--set-string", "model.name=served-model"],
+  ["--set-string", "model.baseURL=ftp://models.example.test/v1", "--set-string", "model.name=served-model"],
+  ["--set-string", "extraEnv.CONDUIT_MODEL_ALLOW_INSECURE_HTTP=true"]
+].each do |arguments|
+  assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, *arguments])
+end
+[
+  ["--set-string", "model.baseURL=https://models.example.test/v1"],
+  ["--set-string", "model.name=served-model"],
+  [*model_base, "--set", "model.allowInsecureHTTP=true"],
+  ["--set-string", "model.baseURL=http://vllm.models.svc.cluster.local:8000/v1", "--set-string", "model.name=served-model"]
+].each do |arguments|
+  assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--skip-schema-validation", *arguments])
+end
+
+orchestrator_env = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set", "planOrchestrator.driver=temporal", "--set-string", "planOrchestrator.temporalAddress=temporal.example.test:7233"]
+).find { |item| item["kind"] == "Deployment" }.dig("spec", "template", "spec", "containers", 0, "env").to_h { |item| [item["name"], item["value"]] }
+abort "Temporal plan orchestrator did not render exactly" unless
+  orchestrator_env["PLAN_ORCHESTRATOR"] == "temporal" && orchestrator_env["PLAN_TEMPORAL_ADDRESS"] == "temporal.example.test:7233"
+# The Hub refuses PLAN_ORCHESTRATOR=temporal with no address to dial.
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set", "planOrchestrator.driver=temporal"])
+
+preparer_pod = render!(
+  helm, "platform-spoke", charts.fetch(:spoke), spoke_values,
+  ["--set-string", "materialPreparer.command=/opt/platform-material/prepare", "--set", "materialPreparer.toolsPersistentVolumeClaimName=material-tools"]
+).find { |item| item["kind"] == "Deployment" }
+validate_deployment!(preparer_pod)
+preparer_container = preparer_pod.dig("spec", "template", "spec", "containers", 0)
+abort "Spoke material preparer did not render" unless
+  preparer_container.fetch("env").include?({"name" => "EXTERNAL_MATERIAL_PREPARER", "value" => "/opt/platform-material/prepare"})
+abort "Spoke material preparer tools must be an externally supplied read-only PVC" unless
+  preparer_container.fetch("volumeMounts").include?({"name" => "material-preparer-tools", "mountPath" => "/opt/platform-material", "readOnly" => true}) &&
+    preparer_pod.dig("spec", "template", "spec", "volumes").include?(
+      {"name" => "material-preparer-tools", "persistentVolumeClaim" => {"claimName" => "material-tools", "readOnly" => true}}
+    )
+# The Agent refuses anything but a clean absolute path; so does the schema.
+assert_fails_closed!(helm, "platform-spoke", charts.fetch(:spoke), ["--values", spoke_values, "--set-string", "materialPreparer.command=bin/prepare"])
 
 puts "Two-chart Helm runtime and bounded Rubix profile verified with #{run!(helm, 'version', '--short').strip}"

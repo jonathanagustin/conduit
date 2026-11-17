@@ -71,7 +71,14 @@ func ChainAuthorizationAudit(events []AuthorizationAuditEvent) ([]AuthorizationA
 		}
 		return ordered[i].CreatedAt.Before(ordered[j].CreatedAt)
 	})
-	previous := EmptyAuditCheckpoint()
+	return ChainAuthorizationAuditFrom(EmptyAuditCheckpoint(), ordered)
+}
+
+// ChainAuthorizationAuditFrom continues the projection after a predecessor
+// checkpoint, in the order given. A paginated read folds each page from the
+// checkpoint its previous page ended on, so concatenated pages equal the fold
+// of the whole read. The caller owns the order; this function does not sort.
+func ChainAuthorizationAuditFrom(previous AuditCheckpoint, ordered []AuthorizationAuditEvent) ([]AuthorizationAuditChainEntry, error) {
 	entries := make([]AuthorizationAuditChainEntry, 0, len(ordered))
 	for _, event := range ordered {
 		record, err := NewAuditChainRecord(previous, event, AuditOriginLive)

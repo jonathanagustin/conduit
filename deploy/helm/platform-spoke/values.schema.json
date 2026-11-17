@@ -34,6 +34,16 @@
     "healthPollInterval": {"type": "string", "pattern": "^[1-9][0-9]*(ms|s|m|h)$"},
     "healthProbeCAConfigMapName": {"type": "string", "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"},
     "healthProbeCAKey": {"type": "string", "minLength": 1},
+    "materialPreparer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "toolsPersistentVolumeClaimName", "toolsMountPath"],
+      "properties": {
+        "command": {"type": "string", "pattern": "^$|^(/[A-Za-z0-9._+-]+)+$", "maxLength": 4096},
+        "toolsPersistentVolumeClaimName": {"type": "string", "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 253},
+        "toolsMountPath": {"type": "string", "pattern": "^(/[A-Za-z0-9._+-]+)+$"}
+      }
+    },
     "resources": {"type": "object"},
     "nodeSelector": {"type": "object", "additionalProperties": {"type": "string"}},
     "affinity": {"type": "object"},

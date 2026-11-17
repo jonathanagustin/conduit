@@ -1,5 +1,7 @@
 # Conduit
 
+[![Documentation](docs-site/public/badges/docs.svg)](https://jonathanagustin.github.io/conduit/)
+
 Conduit is a proprietary delivery control plane for governed software rollout
 across connected and disconnected environments. A central Hub owns desired
 state, approval, artifact admission, and durable history. Outbound-only Spoke
@@ -9,6 +11,46 @@ observe.
 The repository was extracted from the former `platform/` subtree. It now owns
 its architecture, contracts, documentation, and release workflow. The exact
 source boundary is recorded in [MIGRATION.md](MIGRATION.md).
+
+## Demo
+
+![Conduit Excalidraw Packaging & App Generation Demo](docs/ui/conduit-excalidraw-demo.webp)
+
+The still above is a recorded console walkthrough. The command that
+reproduces the source-packaging run is
+[`scripts/demo-excalidraw-e2e.sh`](scripts/demo-excalidraw-e2e.sh). It needs a
+running Docker daemon and `zarf` v0.82.0 on `PATH` (or `ZARF_BIN`). If either
+is missing, the script exits with the install location and checksum instead of
+reporting a package.
+
+```bash
+./scripts/demo-excalidraw-e2e.sh
+```
+
+That script checks out `https://github.com/excalidraw/excalidraw` at
+`a2ec2889babf7d2295469c6d90ebe77fae57df84`, runs planning turns with the
+deterministic writer unless `CONDUIT_MODEL_CMD` is set, records Accept, then
+runs post-accept compute. Compute commits a workspace `Dockerfile`,
+`zarf.yaml`, and UDS `Package` CR, builds the image, and runs the dockerfile
+gate, the Package CR schema gate, `zarf dev lint`, and `zarf package create`.
+It opens a change request and does not approve it. The printed digest is the
+local engine image id. It is not a registry manifest digest unless that image
+is pushed. The console profile for this path is `onboard`. Work intake is
+`/console/#s01-intake`.
+
+Problem-statement generation uses profile `appgen`. After `mise run demo`,
+`scripts/demo-generate.sh` runs that path. Its package gates are `zarf dev lint`
+and `zarf package create`. It also leaves a change request for a person.
+The generator accepts exactly one of `main.go`, `main.py`, or `index.html`.
+The chart deploys that application, and the package resource exposes its
+Service. `mise run appgen-deploy` requests the running Service.
+
+<details>
+<summary>Planning-only walkthrough ending at Accept (<code>COMPUTE_BEFORE_ACCEPT</code> enforced)</summary>
+
+![Conduit Excalidraw Planning-Only Walkthrough](docs/ui/conduit-excalidraw-planning-only.webp)
+
+</details>
 
 ## Quick start
 
@@ -29,8 +71,13 @@ not request administrator privileges. Source `./install.sh` instead of
 executing it when you want mise activated in the current shell. Executing it
 prints the activation command.
 
-Install Docker yourself and start its daemon before the demo. When the seed
-finishes, open <http://127.0.0.1:8081/console/>.
+Install Docker and start its daemon before the demo. Install `zarf` v0.82.0
+and put it on `PATH`, or set `ZARF_BIN`. `scripts/demo-seed.sh` and
+`scripts/demo-excalidraw-e2e.sh` exit with the archive URL and checksum when
+either prerequisite is missing. The seed starts the Hub with
+`CONDUIT_IMAGE_BUILDER=docker`, which admits the local image builder, the
+engine image inspector, and the zarf package creator together. When the seed
+finishes, open <http://127.0.0.1:8081/console/#s01-intake>.
 
 `mise run demo` runs [`scripts/demo-reset.sh`](scripts/demo-reset.sh) and then
 [`scripts/demo-seed.sh`](scripts/demo-seed.sh). You can run those two scripts
@@ -91,6 +138,7 @@ governance, execution, or persistence models.
   deployment repositories.
 - `docs/` contains the curated living documentation and retained evidence.
 
+Published guides are at <https://jonathanagustin.github.io/conduit/>.
 Start with the [documentation index](docs/README.md),
 [bounded-context map](docs/architecture/bounded-contexts.md), and
 [native reconciliation design](docs/architecture/reconciliation.md). Production

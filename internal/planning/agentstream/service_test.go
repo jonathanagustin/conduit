@@ -78,6 +78,48 @@ func inputFor(session *domain.Session, runID string) RunInput {
 	return RunInput{ThreadID: session.ID, RunID: runID, ProtocolVersion: agui.Version, Messages: []map[string]any{{"id": "user-1", "role": "user", "content": "inspect"}}}
 }
 
+func TestEmptyOpeningMessageStillInspectsTheIntake(t *testing.T) {
+	calls := 0
+	var gotMessage string
+	runner := plannerFunction(func(_ context.Context, s *domain.Session, message string) (*application.TurnResult, error) {
+		calls++
+		gotMessage = message
+		if s.Intake.RepoURL == "" {
+			t.Fatal("intake was not on the session")
+		}
+		return &application.TurnResult{
+			Messages:       []domain.Message{{Role: domain.RoleModel, Text: "Which Node version?"}},
+			NeedsInput:     []domain.Question{{ID: "node_version", Name: "node_version", Type: domain.QuestionSelect, Required: true, Options: []string{"20"}}},
+			ResolvedCommit: strings.Repeat("b", 40),
+		}, nil
+	})
+	service, sessions, session, _ := makeRunService(t, runner)
+	input := RunInput{ThreadID: session.ID, RunID: "run-empty", ProtocolVersion: agui.Version, Messages: []map[string]any{}}
+	events := eventCollector{}
+	if err := service.Run(t.Context(), input, events.write); err != nil {
+		t.Fatal(err)
+	}
+	events.validate(t, session.ID, "run-empty")
+	got, err := sessions.Get(t.Context(), session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 || gotMessage != "" || got.Status != domain.StatusNeedsInput {
+		t.Fatalf("empty intake did not advance: calls=%d message=%q status=%s", calls, gotMessage, got.Status)
+	}
+	if events.last()["outcome"].(map[string]any)["type"] != "interrupt" {
+		t.Fatalf("outcome=%v", events.last()["outcome"])
+	}
+	again := input
+	again.RunID = "run-empty-2"
+	if err := service.Run(t.Context(), again, (&eventCollector{}).write); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("a later empty run called the planner %d times", calls)
+	}
+}
+
 func TestRunInterruptResumesIntoExistingPlanningSession(t *testing.T) {
 	calls := 0
 	runner := plannerFunction(func(ctx context.Context, s *domain.Session, _ string) (*application.TurnResult, error) {

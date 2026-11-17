@@ -203,6 +203,29 @@ for (const [pattern, row] of registered) {
   }
 }
 
+// App generation and the intake attachments a result names are one operator's
+// rows. operator-any would publish the description, the generated source, and
+// the file bytes to every authenticated operator. A shared catalog is not a
+// decision this register carries; adding one would be a separate explicit row.
+const ownerScoped = [
+  "GET /v1/app-generations",
+  "GET /v1/app-generations/{id}",
+  "POST /v1/app-generations",
+  "GET /v1/intake-attachments",
+  "GET /v1/intake-attachments/{digest}",
+  "POST /v1/intake-attachments",
+];
+for (const pattern of ownerScoped) {
+  if (!mounted.has(pattern)) continue;
+  const row = registered.get(pattern);
+  if (row && row.decision !== "DecisionOperatorSelf") {
+    failures.push(
+      `${pattern} must be DecisionOperatorSelf so one operator cannot read another's app generation or intake attachment. ` +
+        `It is registered as ${row.decision}. There is no shared-catalog decision.`,
+    );
+  }
+}
+
 // --- reconciliation, both directions ---------------------------------------
 for (const [pattern, where] of mounted) {
   if (!registered.has(pattern)) {

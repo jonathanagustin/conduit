@@ -65,7 +65,9 @@ export function safeWorkspaceDownload(path, id) {
   }
 }
 export const WORKSPACE_ISOLATION_NOTICE =
-  "Workspace isolation must be configured; local previews run on the host.";
+  "container isolation now, stronger isolation planned";
+export const WORKSPACE_HOST_PREVIEW_NOTICE =
+  "A local process preview runs on the host and is not that boundary.";
 export function createDevWorkspaces({
   getIdentity,
   getReady = () => true,
@@ -186,7 +188,7 @@ export function createDevWorkspaces({
     const item = selected();
     onSelection(item);
     const canWrite = owner(item) && !state.busy;
-    host.innerHTML = `<div data-workspace-studio data-value-tier="CONDUIT_NATIVE" class="space-y-3"><section class="so-panel p-3"><h2>Developer workspaces</h2><button type="button" class="so-btn" data-engineer-studio-entry data-onclick="toggleEngineerWorkspace('studio')">Open engineer workspace</button><p>Hub records and authorized file views (${esc(WORKSPACE_ISOLATION_NOTICE)}; rootless builder, default-deny egress, zero cluster credentials). Source is read only here; a branch-backed editor and coding-agent bridge are separate features. No commit history is inferred.</p><button type="button" class="so-btn" data-ws-action="refresh"${state.busy || !getReady() ? " disabled" : ""}>Refresh workspaces</button>${state.error ? `<p role="alert">${esc(state.error)}</p>` : ""}${state.message ? `<p role="status">${esc(state.message)}</p>` : ""}${
+    host.innerHTML = `<div data-workspace-studio data-value-tier="CONDUIT_NATIVE" class="space-y-3"><section class="so-panel p-3"><h2>Developer workspaces</h2><button type="button" class="so-btn" data-engineer-studio-entry data-onclick="toggleEngineerWorkspace('studio')">Open engineer workspace</button><p>Hub records and authorized file views. ${esc(WORKSPACE_ISOLATION_NOTICE)}. Governed workspace commands run as a non-root container with default-deny egress and no cluster credentials. ${esc(WORKSPACE_HOST_PREVIEW_NOTICE)} Source is read only here; a branch-backed editor and coding-agent bridge are separate features. No commit history is inferred.</p><button type="button" class="so-btn" data-ws-action="refresh"${state.busy || !getReady() ? " disabled" : ""}>Refresh workspaces</button>${state.error ? `<p role="alert">${esc(state.error)}</p>` : ""}${state.message ? `<p role="status">${esc(state.message)}</p>` : ""}${
       state.items.length
         ? `<ul>${state.items
             .slice(0, 256)

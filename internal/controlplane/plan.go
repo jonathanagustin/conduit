@@ -163,7 +163,7 @@ func buildPlanWithObserved(state DesiredState, observed EnvironmentReport, now t
 			UpgradeRationale: installation.Entity.upgradeRationale,
 			DependsOn:        dependencies[id],
 			Maintenance:      maintenanceConstraintFor(state.Environment, installation.Entity, release, installation.ID),
-			HelmExecution:    effectiveHelmExecution(state.Environment.HelmExecution, release),
+			HelmExecution:    stepHelmExecution(state.Environment.HelmExecution, release),
 		})
 	}
 	plan := Plan{
@@ -180,6 +180,17 @@ func buildPlanWithObserved(state DesiredState, observed EnvironmentReport, now t
 		}
 	}
 	return plan, nil
+}
+
+// stepHelmExecution is the execution policy a step carries. A Zarf package or
+// UDS bundle is not executed by Helm: its CLI always waits for the deployment,
+// so the Environment's Helm defaults (a no-wait rollout among them) must not
+// reach the step, where they would change what a successful report looks like.
+func stepHelmExecution(defaults *HelmExecutionDefaults, release Release) HelmExecutionPolicy {
+	if release.Chart.IsPackage() {
+		return HelmExecutionPolicy{RolloutStrategy: RolloutManageRollout}
+	}
+	return effectiveHelmExecution(defaults, release)
 }
 
 func effectiveHelmExecution(defaults *HelmExecutionDefaults, release Release) HelmExecutionPolicy {
