@@ -173,6 +173,11 @@ workflows="${repository_root}/.github/workflows"
 expect_workflow_refusal() {
   local name="$1"
   shift
+  local expected=""
+  if [[ $# -ge 2 && "$1" == --reason ]]; then
+    expected="$2"
+    shift 2
+  fi
   local directory="${fixture}/workflow-${name}"
   mkdir -p "${directory}"
   cp "${workflows}/platform-release.yml" "${workflows}/platform-images.yml" \
@@ -184,7 +189,25 @@ expect_workflow_refusal() {
     printf 'expected the workflow mutation to fail: %s\n' "${name}" >&2
     exit 1
   fi
+  if [[ -n "$expected" ]] && ! grep -qF "$expected" <<<"$output"; then
+    printf 'workflow refusal for %s did not explain the targeted defect: %s\n' "$name" "$output" >&2
+    exit 1
+  fi
   printf '  refused %-28s %s\n' "${name}" "${output}"
+}
+
+drop_trunk_activity() {
+  ruby -ryaml -e '
+    document = YAML.safe_load_file(ARGV[0], aliases: true)
+    triggers = document["on"] || document[true]
+    pull_request = triggers.fetch("pull_request")
+    if ARGV[1] == "default"
+      pull_request.delete("types")
+    else
+      pull_request.fetch("types").delete(ARGV[1])
+    end
+    File.write(ARGV[0], YAML.dump(document))
+  ' "$2/platform-ci.yml" "$1"
 }
 
 automatic_release_trigger() {
@@ -223,6 +246,28 @@ widen_release_permissions() {
 drop_pull_request_permission() {
   sed -i '/^      pull-requests: read$/d' "$1/platform-release.yml"
 }
+
+# A reordered block-style list is the same contract; parse YAML rather than
+# depending on the workflow's current inline spelling or activity order.
+trunk_positive="$fixture/workflow-trunk-reordered"
+mkdir -p "$trunk_positive"
+cp "$workflows/platform-release.yml" "$workflows/platform-images.yml" \
+  "$workflows/platform-ci.yml" "$trunk_positive/"
+ruby -ryaml -e '
+  document = YAML.safe_load_file(ARGV[0], aliases: true)
+  triggers = document["on"] || document[true]
+  triggers.fetch("pull_request").fetch("types").reverse!
+  File.write(ARGV[0], YAML.dump(document))
+' "$trunk_positive/platform-ci.yml"
+ruby "$verifier" "$trunk_positive/platform-release.yml" \
+  "$trunk_positive/platform-images.yml" "$trunk_positive/platform-ci.yml"
+
+trunk_activity_refusal='Trunk pull_request must explicitly cover opened, synchronize, reopened and ready_for_review'
+expect_workflow_refusal missing_ready_transition --reason "$trunk_activity_refusal" drop_trunk_activity ready_for_review
+expect_workflow_refusal default_pr_activities --reason "$trunk_activity_refusal" drop_trunk_activity default
+expect_workflow_refusal missing_opened_activity --reason "$trunk_activity_refusal" drop_trunk_activity opened
+expect_workflow_refusal missing_synchronize_activity --reason "$trunk_activity_refusal" drop_trunk_activity synchronize
+expect_workflow_refusal missing_reopened_activity --reason "$trunk_activity_refusal" drop_trunk_activity reopened
 
 expect_workflow_refusal automatic_release_trigger automatic_release_trigger
 expect_workflow_refusal automatic_publication_trigger automatic_publication_trigger
