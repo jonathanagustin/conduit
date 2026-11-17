@@ -31,9 +31,10 @@ type PageRow struct {
 }
 
 // createdAtExpression reads the event time out of the stored payload. The
-// table has no time column and its rows are immutable, so the bound is applied
-// to the digest-covered bytes. PostgreSQL compares at microsecond resolution.
-const createdAtExpression = "(convert_from(payload, 'UTF8')::jsonb->>'createdAt')::timestamptz"
+// table has no writable time mirror: the immutable extractor and both time
+// indexes derive it from the digest-covered bytes. Keep this exact expression
+// aligned with migration 0002. PostgreSQL compares at microsecond resolution.
+const createdAtExpression = "conduit_authorization_audit_created_at(payload)"
 
 func (query PageQuery) predicate(seek bool) (string, []any) {
 	var clauses []string
