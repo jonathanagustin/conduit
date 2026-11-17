@@ -19,7 +19,9 @@ source boundary is recorded in [MIGRATION.md](MIGRATION.md).
 The still above is a recorded console walkthrough. The command that
 reproduces the source-packaging run is
 [`scripts/demo-excalidraw-e2e.sh`](scripts/demo-excalidraw-e2e.sh). It needs a
-running Docker daemon and `zarf` v0.82.0 on `PATH` (or `ZARF_BIN`). If either
+running Docker daemon, an explicitly configured HTTP model endpoint
+(`CONDUIT_MODEL_BASE_URL` and `CONDUIT_MODEL_NAME`), and `zarf` v0.82.0 on
+`PATH` (or `ZARF_BIN`). If either tool
 is missing, the script exits with the install location and checksum instead of
 reporting a package.
 
