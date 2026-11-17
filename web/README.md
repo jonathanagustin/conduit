@@ -29,6 +29,14 @@ The assistant-ui thread and its imports remain; the unmounted registry catalog
 and template model route have been removed. The loopback workspace ACP bridge
 in `src/server` is a separate Hub-mediated service.
 
+## Supported copy language
+
+The current release supports English console copy and declares `lang="en"`.
+Translated locales and right-to-left layouts are not currently supported.
+See [ADR 0019](../docs/decisions/0019-console-copy-language.md) for scope and
+future locale requirements; domain identifiers and browser-native formatting
+retain their existing behavior.
+
 ## What the console writes to the Hub
 
 `src/console/Workbench.tsx` mounts the operator engine in
