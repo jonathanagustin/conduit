@@ -1309,6 +1309,7 @@ func (repository *FileRepository) ListBundles(_ context.Context, pipelineID stri
 		if err := readJSON(filepath.Join(repository.bundleDirectory(), entry.Name()), &bundle); err != nil {
 			return nil, err
 		}
+		restoreStoredBundlePayloads(&bundle)
 		if pipelineID == "" || bundle.Manifest.PipelineID == pipelineID {
 			result = append(result, bundle)
 		}
@@ -2400,7 +2401,26 @@ func (repository *FileRepository) readBundle(id string) (BundleEnvelope, error) 
 	if err := readJSON(repository.bundlePath(id), &bundle); err != nil {
 		return BundleEnvelope{}, err
 	}
+	restoreStoredBundlePayloads(&bundle)
 	return bundle, nil
+}
+
+// File JSON indentation also indents json.RawMessage payloads. Recover their
+// original compact bytes only when the existing resource digest proves that
+// exact representation. Already matching bytes are opaque; other mismatches
+// remain for the normal manifest, signature and resource verifier to reject.
+func restoreStoredBundlePayloads(bundle *BundleEnvelope) {
+	for index := range bundle.Manifest.Resources {
+		resource := &bundle.Manifest.Resources[index]
+		if resource.Deleted || sha256Digest(sha256.Sum256(resource.Payload)) == resource.Digest {
+			continue
+		}
+		var compact bytes.Buffer
+		if err := json.Compact(&compact, resource.Payload); err == nil &&
+			sha256Digest(sha256.Sum256(compact.Bytes())) == resource.Digest {
+			resource.Payload = compact.Bytes()
+		}
+	}
 }
 
 func (repository *FileRepository) readBundleImport(id string) (BundleImport, error) {
