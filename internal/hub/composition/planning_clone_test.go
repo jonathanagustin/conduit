@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/jonathanagustin/conduit/internal/testsupport/modelhttpfixture"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -23,6 +22,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/planning/adapters/planner"
 	"github.com/jonathanagustin/conduit/internal/planning/adapters/repoclone"
 	planningdomain "github.com/jonathanagustin/conduit/internal/planning/domain"
+	"github.com/jonathanagustin/conduit/internal/testsupport/modelhttpfixture"
 )
 
 const legacyPlaceholderSHA = "3a317b550123456789abcdef0123456789abcdef"

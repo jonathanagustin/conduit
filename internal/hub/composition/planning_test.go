@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/jonathanagustin/conduit/internal/testsupport/modelhttpfixture"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,6 +20,7 @@ import (
 	planningapp "github.com/jonathanagustin/conduit/internal/planning/application"
 	planningdomain "github.com/jonathanagustin/conduit/internal/planning/domain"
 	planningworkflow "github.com/jonathanagustin/conduit/internal/planning/workflow"
+	"github.com/jonathanagustin/conduit/internal/testsupport/modelhttpfixture"
 )
 
 type readyPlanningRunner struct{}
