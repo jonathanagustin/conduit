@@ -25,6 +25,20 @@ ruby "$work/tree/scripts/verify-zarf-chart-equivalence.rb" > "$work/baseline.log
 }
 
 cases=0
+# must_reject <expected message> <description>
+must_reject() {
+  if ruby "$work/tree/scripts/verify-zarf-chart-equivalence.rb" > "$work/case.log" 2>&1; then
+    echo "gate accepted a mutation it must reject: $2" >&2
+    exit 1
+  fi
+  if ! grep -qF -- "$1" "$work/case.log"; then
+    cat "$work/case.log" >&2
+    echo "gate failed for the wrong reason; expected: $1" >&2
+    exit 1
+  fi
+  cases=$((cases + 1))
+}
+
 # rejects <expected message> <file relative to the copy> <sed expression>
 rejects() {
   fresh
@@ -34,16 +48,7 @@ rejects() {
     echo "mutation changed nothing: $2: $3" >&2
     exit 1
   fi
-  if ruby "$work/tree/scripts/verify-zarf-chart-equivalence.rb" > "$work/case.log" 2>&1; then
-    echo "gate accepted a mutation it must reject: $2: $3" >&2
-    exit 1
-  fi
-  if ! grep -qF -- "$1" "$work/case.log"; then
-    cat "$work/case.log" >&2
-    echo "gate failed for the wrong reason; expected: $1" >&2
-    exit 1
-  fi
-  cases=$((cases + 1))
+  must_reject "$1" "$2: $3"
 }
 
 runtime=deploy/zarf/manifests/runtime.yaml
@@ -117,4 +122,32 @@ rejects 'chartOnlyLabels lists labels the charts no longer render: example.test/
 rejects 'chart equivalence must cover exactly the file, postgres and postgres-single profiles' "$contract" 's/^  postgres:$/  production:/'
 rejects 'profile file must select itself with REPOSITORY_KIND' "$contract" 's/^    repositoryKind: file$/    repositoryKind: postgres/'
 
-echo "Zarf chart-equivalence gate rejects ${cases} mutations of the package, the charts and the reviewed difference list"
+# A label present only in nested Pod metadata is sufficient. The same key in
+# annotations, or a label with only a matching prefix, cannot rescue a stale
+# allowlist entry. These fixtures render the actual charts for every profile.
+label_fixture() {
+  fresh
+  ruby -ryaml - "$work/tree/$contract" "$1" "$2" <<'RUBY'
+path, field, rendered_key = ARGV
+contract = YAML.safe_load_file(path, aliases: true)
+contract.fetch("chartOnlyLabels").fetch("keys") << "example.test/structural-only"
+contract.fetch("profiles").each_value do |profile|
+  profile.fetch("hubValues")[field] = {rendered_key => "fixture"}
+end
+File.write(path, YAML.dump(contract))
+RUBY
+}
+
+label_fixture podLabels example.test/structural-only
+ruby "$work/tree/scripts/verify-zarf-chart-equivalence.rb" > "$work/nested-label.log" 2>&1 || {
+  cat "$work/nested-label.log" >&2
+  echo 'gate rejected a label rendered only in nested Pod metadata' >&2
+  exit 1
+}
+
+label_fixture podAnnotations example.test/structural-only
+must_reject 'chartOnlyLabels lists labels the charts no longer render: example.test/structural-only' 'allowlisted key exists only as an annotation'
+label_fixture podLabels example.test/structural-only-suffix
+must_reject 'chartOnlyLabels lists labels the charts no longer render: example.test/structural-only' 'only a different label with a matching prefix exists'
+
+echo "Zarf chart-equivalence gate rejects ${cases} mutations of the package, the charts and the reviewed difference list, and accepts nested-only labels"

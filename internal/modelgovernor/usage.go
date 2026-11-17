@@ -2,12 +2,19 @@ package modelgovernor
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"fmt"
 	"time"
 )
 
 // UsageRecord is one model call as it is metered. Token counts are nil when
 // the provider reported none; they are never estimated.
 type UsageRecord struct {
+	// ReceiptID is set only for budgeted provider invocations. Completion is
+	// idempotent for this exact receipt and payload.
+	ReceiptID string
 	// Day is the UTC calendar day, YYYY-MM-DD.
 	Day             string
 	Owner           string
@@ -36,9 +43,14 @@ type UsageRow struct {
 	ProviderModel   string `json:"providerModel"`
 	Outcome         string `json:"outcome"`
 	Calls           int64  `json:"calls"`
-	Attempts        int64  `json:"attempts"`
-	PromptBytes     int64  `json:"promptBytes"`
-	ResponseBytes   int64  `json:"responseBytes"`
+	// BudgetedCalls is the exact policy charge: new requests charge once
+	// when their transport was invoked, and migrated legacy rows retain
+	// conservative prior charges where invocation evidence was aggregated.
+	// It does not assert an exact historical count of provider invocations.
+	BudgetedCalls int64 `json:"budgetedCalls"`
+	Attempts      int64 `json:"attempts"`
+	PromptBytes   int64 `json:"promptBytes"`
+	ResponseBytes int64 `json:"responseBytes"`
 	// Token sums are null when no call in the row reported the count.
 	// CallsWithTokens says how many did.
 	PromptTokens     *int64 `json:"promptTokens"`
@@ -48,8 +60,8 @@ type UsageRow struct {
 }
 
 // Totals is what a budget is checked against: one owner, one UTC day. Calls
-// refused here (throttled, budget_exceeded) are not counted; they reached no
-// model.
+// is the policy charge: new attempted requests count once regardless of
+// retries; ambiguous historical rows retain conservative legacy charges.
 type Totals struct {
 	Calls  int64 `json:"calls"`
 	Tokens int64 `json:"tokens"`
@@ -65,15 +77,45 @@ type UsageQuery struct {
 // UsageStore persists usage. An implementation shared by two replicas makes
 // the budget hold across them.
 type UsageStore interface {
+	// BeginUsage durably reserves one unsettled receipt for an owner/day and
+	// returns totals read atomically with that reservation. Another unsettled
+	// receipt returns ErrUsagePending. Repeating the same open receipt is safe.
+	BeginUsage(ctx context.Context, receipt UsageReceipt) (Totals, error)
+	// CancelUsage releases a receipt before any provider invocation. Completed
+	// receipts cannot be cancelled. A missing receipt is already cancelled.
+	CancelUsage(ctx context.Context, receiptID string) error
+	// Record atomically completes ReceiptID and updates usage, or adds a
+	// best-effort unreceipted observation. Exact completion retries deduplicate;
+	// different payloads at a completed coordinate are refused.
 	Record(ctx context.Context, record UsageRecord) error
 	OwnerDay(ctx context.Context, owner, day string) (Totals, error)
 	Summary(ctx context.Context, query UsageQuery) ([]UsageRow, error)
 }
 
-// CountsTowardBudget reports whether an outcome is a call that reached, or
-// tried to reach, a model.
-func CountsTowardBudget(outcome string) bool {
-	return outcome != string(OutcomeThrottled) && outcome != string(OutcomeBudgetExceeded)
+var (
+	ErrUsagePending         = errors.New("an unsettled model usage receipt blocks this owner and day")
+	ErrUsageReceiptConflict = errors.New("model usage receipt does not match its recorded evidence")
+)
+
+type UsageReceipt struct {
+	ID, Owner, Day string
+}
+
+func (receipt UsageReceipt) Validate() error {
+	day, err := time.Parse("2006-01-02", receipt.Day)
+	if receipt.ID == "" || len(receipt.ID) > 128 || receipt.Owner == "" || len(receipt.Owner) > 256 ||
+		err != nil || Day(day) != receipt.Day {
+		return errors.New("usage receipt requires a bounded identity, owner and UTC day")
+	}
+	return nil
+}
+
+func newUsageReceipt(owner, day string) (UsageReceipt, error) {
+	var entropy [16]byte
+	if _, err := rand.Read(entropy[:]); err != nil {
+		return UsageReceipt{}, fmt.Errorf("draw model usage receipt identity: %w", err)
+	}
+	return UsageReceipt{ID: "musage_" + hex.EncodeToString(entropy[:]), Owner: owner, Day: day}, nil
 }
 
 // Budget is one owner's standing for today.

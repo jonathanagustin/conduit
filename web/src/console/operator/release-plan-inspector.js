@@ -1,5 +1,6 @@
-import { artifactMarkup } from "./artifact-display.js";
+import { artifactMarkup as compactArtifactMarkup } from "./artifact-display.js";
 import { releaseCalendarMarkup } from "./release-calendar.js";
+import { artifactMarkup as declaredArtifactMarkup } from "./package-artifact.js";
 const esc = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -44,8 +45,8 @@ export function timelineMarkup(rows, note = "") {
 
 /** The step's deployable artifact, when the Hub returned one. */
 function stepArtifact(step) {
-  const markup = artifactMarkup(step?.chart, esc);
-  return markup ? ` · ${markup}` : "";
+  const compact = compactArtifactMarkup(step?.chart, esc);
+  return `${compact ? ` · ${compact}` : ""}${declaredArtifactMarkup(step?.chart)}`;
 }
 
 export function planInspectorMarkup(plans, id = "", timeline = [], note = "") {

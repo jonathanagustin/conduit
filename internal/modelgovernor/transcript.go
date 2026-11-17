@@ -56,7 +56,9 @@ type CallAudit struct {
 	EventID string
 }
 
-// Auditor writes the event. An error fails the model call.
+// Auditor writes the event. An error fails the model call. A failed
+// acknowledgement may be retried with the identical event; implementations
+// must deduplicate it by its run/round coordinate or stable event identity.
 type Auditor interface {
 	RecordModelCall(ctx context.Context, event CallAudit) error
 }

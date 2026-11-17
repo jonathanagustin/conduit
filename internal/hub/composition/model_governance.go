@@ -2,9 +2,12 @@ package composition
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -181,6 +184,11 @@ func (audit modelCallAudit) RecordModelCall(ctx context.Context, call modelgover
 		call.At, call.Owner, modelgovernor.ActionModelCall, modelgovernor.ResourcePrefix+call.RunID, decision,
 		"model call "+call.Outcome, attributes,
 	)
+	// A clock can report the same instant for distinct exchanges. The native
+	// run/round coordinate distinguishes them and remains stable when an
+	// acknowledgement is lost and the exact event is retried.
+	identity := sha256.Sum256([]byte(modelgovernor.ActionModelCall + "\x00" + call.RunID + "\x00" + strconv.Itoa(call.Round)))
+	event.ID = "aud_" + hex.EncodeToString(identity[:16])
 	_, err := audit.repository.AppendAuthorizationAudit(ctx, event)
 	return err
 }

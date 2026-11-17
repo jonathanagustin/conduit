@@ -69,6 +69,9 @@ type Run struct {
 	chain           string
 	transcriptBytes int64
 	refusal         error
+	// pendingAudit holds real exchanges whose audit acknowledgement failed.
+	// Their coordinates stay reserved until the exact events can be retried.
+	pendingAudit []CallAudit
 }
 
 // NewRun starts a run with a random id.

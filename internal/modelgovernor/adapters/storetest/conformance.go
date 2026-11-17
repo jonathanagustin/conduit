@@ -21,9 +21,14 @@ func count(n int64) *int64 { return &n }
 func RunUsage(t *testing.T, open func(*testing.T) modelgovernor.UsageStore) {
 	ctx := context.Background()
 	call := func(owner, capability, outcome string, prompt, completion *int64) modelgovernor.UsageRecord {
+		attempts := 2
+		switch outcome {
+		case "throttled", "budget_exceeded", "usage_unavailable":
+			attempts = 0
+		}
 		return modelgovernor.UsageRecord{
 			Day: "2026-11-17", Owner: owner, Capability: capability, Transport: "http", ConfiguredModel: "m",
-			ProviderModel: "m-1", Outcome: outcome, Attempts: 2, PromptBytes: 10, ResponseBytes: 20,
+			ProviderModel: "m-1", Outcome: outcome, Attempts: attempts, PromptBytes: 10, ResponseBytes: 20,
 			PromptTokens: prompt, CompletionTokens: completion, Latency: 150 * time.Millisecond,
 		}
 	}

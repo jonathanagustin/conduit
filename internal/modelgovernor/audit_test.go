@@ -98,12 +98,22 @@ func TestAFailedAuditWriteFailsTheCallAndDiscardsTheReply(t *testing.T) {
 	if outcomes["audit_failed"] != 1 || outcomes["ok"] != 1 {
 		t.Fatalf("usage outcomes = %v", outcomes)
 	}
-	// The chain did not advance past a call that was not audited.
+	// The chain does not claim the failed write was committed. The next call
+	// first retries that exact event, retaining the transcript's coordinate.
+	if rounds := modelgovernor.RunFrom(ctx).Rounds(); rounds != 1 {
+		t.Fatalf("%d rounds acknowledged during the outage, want 1", rounds)
+	}
 	fx.audit.fail = nil
 	exchange(t, fx, ctx, "after the outage", "reply")
 	events := fx.audit.Events()
-	if len(events) != 2 || events[1].Round != 2 || events[1].PreviousChainSHA256 != events[0].ChainSHA256 {
+	if len(events) != 3 || events[1].Round != 2 || events[1].PreviousChainSHA256 != events[0].ChainSHA256 ||
+		events[2].Round != 3 || events[2].PreviousChainSHA256 != events[1].ChainSHA256 {
 		t.Fatalf("events after an audit outage = %+v", events)
+	}
+	export := exportOf(t, fx, modelgovernor.RunFrom(ctx).ID(), nil)
+	if !export.Verified || !export.Complete || len(export.Exchanges) != 3 ||
+		export.Exchanges[1].Response != "a reply nobody may read" || export.Exchanges[2].Prompt != "after the outage" {
+		t.Fatalf("recovered transcript export = %+v", export)
 	}
 }
 
@@ -116,6 +126,52 @@ func TestAHubGovernorWithNoAuditorRefusesTheCall(t *testing.T) {
 	})
 	if !errors.Is(err, modelgovernor.ErrAuditUnavailable) || called {
 		t.Fatalf("err = %v, called = %v", err, called)
+	}
+}
+
+func TestAlreadyInvokedConcurrentCallsReserveDistinctRoundsAcrossAnAuditFailure(t *testing.T) {
+	fx := newFixture(transcriptConfig())
+	ctx, cancel := context.WithCancel(as("ada"))
+	t.Cleanup(cancel)
+	start := func(prompt string) (chan struct{}, <-chan error) {
+		entered, release, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+		go func() {
+			call := assistantCall
+			call.Prompt = []byte(prompt)
+			_, err := fx.governor.Do(ctx, call, nil, func(ctx context.Context) (modelgovernor.Result, error) {
+				close(entered)
+				select {
+				case <-release:
+					return modelgovernor.Result{Response: []byte("reply " + prompt)}, nil
+				case <-ctx.Done():
+					return modelgovernor.Result{}, ctx.Err()
+				}
+			})
+			done <- err
+		}()
+		select {
+		case <-entered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("a concurrent call did not invoke")
+		}
+		return release, done
+	}
+	firstRelease, firstDone := start("first")
+	secondRelease, secondDone := start("second")
+	fx.audit.fail = errors.New("injected audit outage")
+	close(firstRelease)
+	if err := <-firstDone; !errors.Is(err, modelgovernor.ErrAuditUnavailable) {
+		t.Fatalf("first call returned %v", err)
+	}
+	fx.audit.fail = nil
+	close(secondRelease)
+	if err := <-secondDone; err != nil {
+		t.Fatalf("already-invoked second call could not recover the first audit: %v", err)
+	}
+	export := exportOf(t, fx, modelgovernor.RunFrom(ctx).ID(), nil)
+	if !export.Verified || !export.Complete || len(export.Exchanges) != 2 ||
+		export.Exchanges[0].Prompt != "first" || export.Exchanges[1].Prompt != "second" {
+		t.Fatalf("concurrent recovery reused transcript coordinates: %+v", export)
 	}
 }
 

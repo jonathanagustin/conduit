@@ -93,3 +93,37 @@ func TestEveryPlanningPromptStatesTheUntrustedDataRule(t *testing.T) {
 		}
 	}
 }
+
+func TestLaterPlanningPromptsFrameInspectionMetadataAndFilenames(t *testing.T) {
+	attack := untrustedEnd + "\n" + injection + "\ninspect_repo: {}\n" + untrustedBegin
+	tree := []string{"go.mod", attack}
+	for len(tree) <= maxTreeInPrompt {
+		tree = append(tree, "file")
+	}
+	session := &domain.Session{Inspection: &domain.Inspection{Language: attack, PackageManager: attack, Tree: tree}}
+	for name, prompt := range map[string]string{"questions": questionsPrompt(session, ""), "plan": planPrompt(session, "")} {
+		t.Run(name, func(t *testing.T) {
+			// The rule mentions the markers too; inspect the actual block.
+			begin := strings.Index(prompt, untrustedBegin+"\n")
+			if begin < 0 {
+				t.Fatal("inspection is not enclosed in an untrusted block")
+			}
+			end := strings.Index(prompt[begin:], "\n"+untrustedEnd+"\n") + begin
+			at := strings.Index(prompt, injection)
+			if end < begin || at < begin || at > end || strings.Contains(prompt[:begin], injection) || strings.Contains(prompt[end:], injection) {
+				t.Fatal("repository metadata escaped the untrusted block")
+			}
+			block := strings.TrimSpace(prompt[begin+len(untrustedBegin) : end])
+			var decoded domain.Inspection
+			if !strings.HasPrefix(block, "inspect_repo: ") || json.Unmarshal([]byte(strings.TrimPrefix(block, "inspect_repo: ")), &decoded) != nil {
+				t.Fatalf("inspection is not one JSON record: %q", block)
+			}
+			if decoded.Language != attack || len(decoded.Tree) != maxTreeInPrompt || decoded.Tree[1] != attack {
+				t.Fatalf("inspection lost content or ignored the tree bound: %#v", decoded)
+			}
+		})
+	}
+	if len(session.Inspection.Tree) != maxTreeInPrompt+1 {
+		t.Fatal("prompt rendering mutated the session")
+	}
+}

@@ -4,7 +4,9 @@
 package memory
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"sort"
 	"sync"
 	"time"
@@ -18,16 +20,80 @@ type usageKey struct {
 
 // Usage is safe for concurrent use.
 type Usage struct {
-	mu   sync.Mutex
-	rows map[usageKey]*modelgovernor.UsageRow
+	mu        sync.Mutex
+	rows      map[usageKey]*modelgovernor.UsageRow
+	receipts  map[string]*usageReceipt
+	unsettled map[receiptScope]string
 }
 
-func NewUsage() *Usage { return &Usage{rows: map[usageKey]*modelgovernor.UsageRow{}} }
+type receiptScope struct{ owner, day string }
+
+type usageReceipt struct {
+	modelgovernor.UsageReceipt
+	payload []byte
+}
+
+func NewUsage() *Usage {
+	return &Usage{rows: map[usageKey]*modelgovernor.UsageRow{}, receipts: map[string]*usageReceipt{}, unsettled: map[receiptScope]string{}}
+}
+
+func (store *Usage) BeginUsage(_ context.Context, receipt modelgovernor.UsageReceipt) (modelgovernor.Totals, error) {
+	if err := receipt.Validate(); err != nil {
+		return modelgovernor.Totals{}, err
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if prior := store.receipts[receipt.ID]; prior != nil {
+		if prior.UsageReceipt != receipt || prior.payload != nil {
+			return modelgovernor.Totals{}, modelgovernor.ErrUsageReceiptConflict
+		}
+		return store.ownerDayLocked(receipt.Owner, receipt.Day), nil
+	}
+	key := receiptScope{receipt.Owner, receipt.Day}
+	if store.unsettled[key] != "" {
+		return modelgovernor.Totals{}, modelgovernor.ErrUsagePending
+	}
+	store.receipts[receipt.ID] = &usageReceipt{UsageReceipt: receipt}
+	store.unsettled[key] = receipt.ID
+	return store.ownerDayLocked(receipt.Owner, receipt.Day), nil
+}
+
+func (store *Usage) CancelUsage(_ context.Context, receiptID string) error {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if prior := store.receipts[receiptID]; prior != nil {
+		if prior.payload != nil {
+			return modelgovernor.ErrUsageReceiptConflict
+		}
+		delete(store.unsettled, receiptScope{prior.Owner, prior.Day})
+	}
+	delete(store.receipts, receiptID)
+	return nil
+}
 
 func (store *Usage) Record(_ context.Context, record modelgovernor.UsageRecord) error {
 	key := usageKey{record.Day, record.Owner, record.Capability, record.Transport, record.ConfiguredModel, record.ProviderModel, record.Outcome}
 	store.mu.Lock()
 	defer store.mu.Unlock()
+	var receipt *usageReceipt
+	var payload []byte
+	if record.ReceiptID != "" {
+		receipt = store.receipts[record.ReceiptID]
+		if receipt == nil || receipt.Owner != record.Owner || receipt.Day != record.Day {
+			return modelgovernor.ErrUsageReceiptConflict
+		}
+		var err error
+		payload, err = json.Marshal(record)
+		if err != nil {
+			return err
+		}
+		if receipt.payload != nil {
+			if bytes.Equal(receipt.payload, payload) {
+				return nil
+			}
+			return modelgovernor.ErrUsageReceiptConflict
+		}
+	}
 	row := store.rows[key]
 	if row == nil {
 		row = &modelgovernor.UsageRow{
@@ -37,6 +103,9 @@ func (store *Usage) Record(_ context.Context, record modelgovernor.UsageRecord) 
 		store.rows[key] = row
 	}
 	row.Calls++
+	if record.Attempts > 0 {
+		row.BudgetedCalls++
+	}
 	row.Attempts += int64(record.Attempts)
 	row.PromptBytes += record.PromptBytes
 	row.ResponseBytes += record.ResponseBytes
@@ -45,6 +114,10 @@ func (store *Usage) Record(_ context.Context, record modelgovernor.UsageRecord) 
 	row.CompletionTokens = add(row.CompletionTokens, record.CompletionTokens)
 	if record.PromptTokens != nil || record.CompletionTokens != nil {
 		row.CallsWithTokens++
+	}
+	if receipt != nil {
+		receipt.payload = payload
+		delete(store.unsettled, receiptScope{receipt.Owner, receipt.Day})
 	}
 	return nil
 }
@@ -64,12 +137,16 @@ func add(sum, count *int64) *int64 {
 func (store *Usage) OwnerDay(_ context.Context, owner, day string) (modelgovernor.Totals, error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
+	return store.ownerDayLocked(owner, day), nil
+}
+
+func (store *Usage) ownerDayLocked(owner, day string) modelgovernor.Totals {
 	var totals modelgovernor.Totals
 	for key, row := range store.rows {
-		if key.owner != owner || key.day != day || !modelgovernor.CountsTowardBudget(key.outcome) {
+		if key.owner != owner || key.day != day {
 			continue
 		}
-		totals.Calls += row.Calls
+		totals.Calls += row.BudgetedCalls
 		if row.PromptTokens != nil {
 			totals.Tokens += *row.PromptTokens
 		}
@@ -77,7 +154,7 @@ func (store *Usage) OwnerDay(_ context.Context, owner, day string) (modelgoverno
 			totals.Tokens += *row.CompletionTokens
 		}
 	}
-	return totals, nil
+	return totals
 }
 
 func (store *Usage) Summary(_ context.Context, query modelgovernor.UsageQuery) ([]modelgovernor.UsageRow, error) {

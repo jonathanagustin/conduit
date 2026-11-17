@@ -59,7 +59,8 @@ func Execute(ctx context.Context, argv []string, timeout time.Duration, stdin []
 	command := exec.CommandContext(runCtx, argv[0], argv[1:]...)
 	command.Dir = dir
 	// The child gets an explicit allowlist, never the caller's environment,
-	// so a model CLI cannot read the Hub's own secrets.
+	// so it does not inherit unrelated Hub environment variables. This is
+	// not filesystem isolation: the command still runs with the Hub's UID.
 	command.Env = childEnv()
 	command.Stdin = bytes.NewReader(stdin)
 	var stdout, stderr bytes.Buffer

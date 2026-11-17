@@ -934,4 +934,85 @@ abort "Spoke material preparer is not told exactly the namespaces the chart bind
 # The Agent refuses anything but a clean absolute path; so does the schema.
 assert_fails_closed!(helm, "platform-spoke", charts.fetch(:spoke), ["--values", spoke_values, "--set-string", "materialPreparer.command=bin/prepare"])
 
+# Audit checkpoints use a separate, SELECT-only database credential and a
+# trusted prefix supplied by the deployment. No auto-bootstrap or automatic
+# trusted-checkpoint replacement can turn an untrusted rewrite into success.
+abort "default Hub schedules an audit check without an explicit request" if hub_documents.any? { |item| item["kind"] == "CronJob" }
+audit_example = render!(helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--values", File.join(charts.fetch(:hub), "audit-checkpoint-values.example.yaml")])
+abort "audit checkpoint example must render the scheduled verifier" unless
+  audit_example.count { |item| item["kind"] == "CronJob" } == 1
+audit_settings = [
+  "--set", "auditCheckpoint.enabled=true",
+  "--set", "auditCheckpoint.databaseSecretName=audit-reader",
+  "--set", "auditCheckpoint.databaseSecretKey=reader-dsn",
+  "--set", "auditCheckpoint.checkpointConfigMapName=audit-trusted-prefix",
+  "--set", "auditCheckpoint.checkpointKey=retained.json",
+  "--set-string", "auditCheckpoint.schedule=15 * * * *",
+  "--set", "auditCheckpoint.timeoutSeconds=90",
+  "--set", "auditCheckpoint.activeDeadlineSeconds=120",
+  "--set", "auditCheckpoint.startingDeadlineSeconds=600"
+]
+audit_documents = render!(helm, "platform-hub", charts.fetch(:hub), hub_values, audit_settings)
+audit_job = audit_documents.find { |item| item["kind"] == "CronJob" }
+abort "audit check must render one namespaced CronJob and no API authorization" unless
+  audit_job && audit_job.dig("metadata", "namespace") == "platform-system" &&
+    audit_documents.count { |item| item["kind"] == "CronJob" } == 1 &&
+    (audit_documents.map { |item| item["kind"] } & %w[Role RoleBinding ClusterRole ClusterRoleBinding]).empty?
+abort "audit check must run in UTC without overlapping or replayed Jobs" unless
+  audit_job.dig("spec", "schedule") == "15 * * * *" && audit_job.dig("spec", "timeZone") == "Etc/UTC" &&
+    audit_job.dig("spec", "concurrencyPolicy") == "Forbid" && audit_job.dig("spec", "startingDeadlineSeconds") == 600 &&
+    audit_job.dig("spec", "jobTemplate", "spec", "activeDeadlineSeconds") == 120 &&
+    audit_job.dig("spec", "jobTemplate", "spec", "backoffLimit") == 0
+audit_template = audit_job.dig("spec", "jobTemplate", "spec", "template")
+audit_pod = audit_template.fetch("spec")
+validate_deployment!({"spec" => {"template" => audit_template}})
+abort "audit check must hold no Kubernetes API credential" unless
+  audit_pod["automountServiceAccountToken"] == false && audit_pod["serviceAccountName"] == "platform-hub" &&
+    audit_pod["restartPolicy"] == "Never"
+audit_service = audit_documents.find { |item| item["kind"] == "Service" }
+abort "audit check Pods must not become Hub Service endpoints" if
+  audit_service.dig("spec", "selector").all? { |key, value| audit_template.dig("metadata", "labels", key) == value }
+abort "audit check component label must override conflicting user labels" unless
+  audit_template.dig("metadata", "labels", "app.kubernetes.io/component") == "audit-checkpoint"
+audit_container = audit_pod.fetch("containers").first
+abort "audit check must run only the verifier against the retained prefix" unless
+  audit_container["image"] == hub_container["image"] && audit_container["command"] == ["/platform-delivery"] &&
+    audit_container["args"] == ["verify-authorization-audit", "--checkpoint-file=/trusted/checkpoint.json", "--timeout=90s"] &&
+    audit_container["env"] == [{"name" => "POSTGRES_DSN_FILE", "value" => "/run/audit-database/dsn"}] &&
+    !audit_container.key?("ports") && audit_pod["containers"].length == 1 && !audit_pod.key?("initContainers")
+abort "audit check must mount only its required credential and trusted checkpoint" unless
+  audit_container["volumeMounts"] == [
+    {"name" => "audit-database", "mountPath" => "/run/audit-database", "readOnly" => true},
+    {"name" => "audit-checkpoint", "mountPath" => "/trusted", "readOnly" => true}
+  ] && audit_pod["volumes"] == [
+    {"name" => "audit-database", "secret" => {"secretName" => "audit-reader", "optional" => false, "defaultMode" => 0o440,
+      "items" => [{"key" => "reader-dsn", "path" => "dsn"}]}},
+    {"name" => "audit-checkpoint", "configMap" => {"name" => "audit-trusted-prefix", "optional" => false, "defaultMode" => 0o440,
+      "items" => [{"key" => "retained.json", "path" => "checkpoint.json"}]}}
+  ]
+[
+  ["--set", "auditCheckpoint.enabled=true"],
+  [*audit_settings, "--set", "auditCheckpoint.databaseSecretName="],
+  [*audit_settings, "--set", "auditCheckpoint.checkpointConfigMapName="],
+  [*audit_settings, "--set", "auditCheckpoint.databaseSecretName=platform-postgres"],
+  [*audit_settings, "--set", "repository.kind=file", "--set", "replicaCount=1"],
+  [*audit_settings, "--set", "auditCheckpoint.activeDeadlineSeconds=90"],
+  [*audit_settings, "--set", "auditCheckpoint.timeoutSeconds=0"],
+  [*audit_settings, "--set-string", "auditCheckpoint.databaseDSN=postgres://literal"]
+].each do |arguments|
+  assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, *arguments])
+end
+# Required trust inputs and separation from the writer credential are checked
+# by the template too, even if a caller bypasses JSON-schema validation.
+[
+  ["--set", "auditCheckpoint.enabled=true"],
+  [*audit_settings, "--set", "auditCheckpoint.checkpointConfigMapName="],
+  [*audit_settings, "--set", "auditCheckpoint.databaseSecretName=platform-postgres"],
+  [*audit_settings, "--set", "repository.kind=file", "--set", "replicaCount=1"],
+  [*audit_settings, "--set", "auditCheckpoint.activeDeadlineSeconds=90"]
+].each do |arguments|
+  assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--skip-schema-validation", *arguments])
+end
+
 puts "Two-chart Helm runtime and bounded Rubix profile verified with #{run!(helm, 'version', '--short').strip}"

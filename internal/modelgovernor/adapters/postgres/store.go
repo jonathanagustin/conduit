@@ -62,7 +62,22 @@ CREATE TABLE conduit_ai_transcripts (
 	CHECK (octet_length(prompt) + octet_length(response) <= 16777216)
 );
 CREATE INDEX conduit_ai_transcripts_expiry ON conduit_ai_transcripts (expires_at);
-CREATE INDEX conduit_ai_transcripts_session ON conduit_ai_transcripts (session_id, created_at);`}}
+CREATE INDEX conduit_ai_transcripts_session ON conduit_ai_transcripts (session_id, created_at);`},
+	{Name: "0003-model-usage-receipts", Statements: `
+CREATE TABLE conduit_model_usage_receipts (
+	receipt_id text PRIMARY KEY CHECK (octet_length(receipt_id) BETWEEN 1 AND 128),
+	owner text NOT NULL CHECK (octet_length(owner) BETWEEN 1 AND 256),
+	day date NOT NULL,
+	payload bytea CHECK (payload IS NULL OR octet_length(payload) BETWEEN 2 AND 32768)
+);
+CREATE UNIQUE INDEX conduit_model_usage_one_unsettled ON conduit_model_usage_receipts (owner, day) WHERE payload IS NULL;`},
+	{Name: "0004-model-attempted-calls", Statements: `
+ALTER TABLE conduit_model_usage_daily ADD COLUMN attempted_calls bigint NOT NULL DEFAULT 0 CHECK (attempted_calls >= 0 AND attempted_calls <= calls);
+-- Historical rows mix requests with zero and positive attempts. Preserve
+-- their former conservative budget count; summed attempts cannot recover
+-- an exact count of previously attempted requests.
+UPDATE conduit_model_usage_daily SET attempted_calls = calls
+WHERE outcome NOT IN ('throttled', 'budget_exceeded', 'usage_unavailable');`}}
 
 // Migrations is what a start would apply. See pgmigrate.Pending.
 func Migrations() []pgmigrate.Migration { return slices.Clone(migrations) }
@@ -86,20 +101,36 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 
 func (store *Store) Close() error { return store.db.Close() }
 
-// Record adds one call to its row in a single statement, so two replicas
-// recording at once both land.
+// Record completes a budgeted receipt exactly once, or records an unbudgeted
+// observation with the existing additive semantics.
 func (store *Store) Record(ctx context.Context, record modelgovernor.UsageRecord) error {
+	if record.ReceiptID != "" {
+		return store.completeUsage(ctx, record)
+	}
+	return recordUsage(ctx, store.db, record)
+}
+
+type usageExecer interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+func recordUsage(ctx context.Context, executor usageExecer, record modelgovernor.UsageRecord) error {
+	attempted := 0
+	if record.Attempts > 0 {
+		attempted = 1
+	}
 	withTokens := 0
 	if record.PromptTokens != nil || record.CompletionTokens != nil {
 		withTokens = 1
 	}
-	_, err := store.db.ExecContext(ctx, `
+	_, err := executor.ExecContext(ctx, `
 INSERT INTO conduit_model_usage_daily AS usage (
 	day, owner, capability, transport, configured_model, provider_model, outcome,
-	calls, attempts, prompt_bytes, response_bytes, prompt_tokens, completion_tokens, calls_with_tokens, latency_millis)
-VALUES ($1::date, $2, $3, $4, $5, $6, $7, 1, $8, $9, $10, $11, $12, $13, $14)
+	calls, attempts, prompt_bytes, response_bytes, prompt_tokens, completion_tokens, calls_with_tokens, latency_millis, attempted_calls)
+VALUES ($1::date, $2, $3, $4, $5, $6, $7, 1, $8, $9, $10, $11, $12, $13, $14, $15)
 ON CONFLICT (day, owner, capability, transport, configured_model, provider_model, outcome) DO UPDATE SET
 	calls = usage.calls + 1,
+	attempted_calls = usage.attempted_calls + EXCLUDED.attempted_calls,
 	attempts = usage.attempts + EXCLUDED.attempts,
 	prompt_bytes = usage.prompt_bytes + EXCLUDED.prompt_bytes,
 	response_bytes = usage.response_bytes + EXCLUDED.response_bytes,
@@ -111,7 +142,7 @@ ON CONFLICT (day, owner, capability, transport, configured_model, provider_model
 	latency_millis = usage.latency_millis + EXCLUDED.latency_millis`,
 		record.Day, record.Owner, record.Capability, record.Transport, record.ConfiguredModel, record.ProviderModel, record.Outcome,
 		record.Attempts, record.PromptBytes, record.ResponseBytes, nullable(record.PromptTokens), nullable(record.CompletionTokens),
-		withTokens, max(record.Latency.Milliseconds(), 0))
+		withTokens, max(record.Latency.Milliseconds(), 0), attempted)
 	return err
 }
 
@@ -130,12 +161,19 @@ func pointer(count sql.NullInt64) *int64 {
 }
 
 func (store *Store) OwnerDay(ctx context.Context, owner, day string) (modelgovernor.Totals, error) {
+	return readOwnerDay(ctx, store.db, owner, day)
+}
+
+type usageReader interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func readOwnerDay(ctx context.Context, reader usageReader, owner, day string) (modelgovernor.Totals, error) {
 	var totals modelgovernor.Totals
-	err := store.db.QueryRowContext(ctx, `
-SELECT COALESCE(sum(calls), 0), COALESCE(sum(COALESCE(prompt_tokens, 0) + COALESCE(completion_tokens, 0)), 0)
+	err := reader.QueryRowContext(ctx, `
+SELECT COALESCE(sum(attempted_calls), 0), COALESCE(sum(COALESCE(prompt_tokens, 0) + COALESCE(completion_tokens, 0)), 0)
 FROM conduit_model_usage_daily
-WHERE owner = $1 AND day = $2::date AND outcome NOT IN ($3, $4)`,
-		owner, day, string(modelgovernor.OutcomeThrottled), string(modelgovernor.OutcomeBudgetExceeded),
+WHERE owner = $1 AND day = $2::date`, owner, day,
 	).Scan(&totals.Calls, &totals.Tokens)
 	return totals, err
 }
@@ -143,7 +181,7 @@ WHERE owner = $1 AND day = $2::date AND outcome NOT IN ($3, $4)`,
 func (store *Store) Summary(ctx context.Context, query modelgovernor.UsageQuery) ([]modelgovernor.UsageRow, error) {
 	rows, err := store.db.QueryContext(ctx, `
 SELECT to_char(day, 'YYYY-MM-DD'), owner, capability, transport, configured_model, provider_model, outcome,
-	calls, attempts, prompt_bytes, response_bytes, prompt_tokens, completion_tokens, calls_with_tokens, latency_millis
+	calls, attempted_calls, attempts, prompt_bytes, response_bytes, prompt_tokens, completion_tokens, calls_with_tokens, latency_millis
 FROM conduit_model_usage_daily
 WHERE day BETWEEN $1::date AND $2::date AND ($3 = '' OR owner = $3)
 ORDER BY day DESC, owner, capability, transport, configured_model, provider_model, outcome`,
@@ -157,7 +195,7 @@ ORDER BY day DESC, owner, capability, transport, configured_model, provider_mode
 		var row modelgovernor.UsageRow
 		var promptTokens, completionTokens sql.NullInt64
 		if err := rows.Scan(&row.Day, &row.Owner, &row.Capability, &row.Transport, &row.ConfiguredModel, &row.ProviderModel, &row.Outcome,
-			&row.Calls, &row.Attempts, &row.PromptBytes, &row.ResponseBytes, &promptTokens, &completionTokens,
+			&row.Calls, &row.BudgetedCalls, &row.Attempts, &row.PromptBytes, &row.ResponseBytes, &promptTokens, &completionTokens,
 			&row.CallsWithTokens, &row.LatencyMillis); err != nil {
 			return nil, err
 		}

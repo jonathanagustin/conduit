@@ -181,10 +181,21 @@ func (repository *PostgresRepository) withState(
 }
 
 func (repository *PostgresRepository) withStateTransaction(ctx context.Context, write bool, operation func(*MemoryRepository, *sql.Tx) error) error {
+	return repository.withStateTransactionAtIsolation(ctx, write, sql.LevelReadCommitted, operation)
+}
+
+// withStateReadSnapshot keeps compatibility tables and legacy metadata in one
+// database snapshot. Ordinary repository reads and writes retain their existing
+// READ COMMITTED behavior.
+func (repository *PostgresRepository) withStateReadSnapshot(ctx context.Context, operation func(*MemoryRepository, *sql.Tx) error) error {
+	return repository.withStateTransactionAtIsolation(ctx, false, sql.LevelRepeatableRead, operation)
+}
+
+func (repository *PostgresRepository) withStateTransactionAtIsolation(ctx context.Context, write bool, isolation sql.IsolationLevel, operation func(*MemoryRepository, *sql.Tx) error) error {
 	if repository == nil || repository.database == nil {
 		return errors.New("PostgreSQL repository is closed")
 	}
-	transaction, err := repository.database.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted, ReadOnly: !write})
+	transaction, err := repository.database.BeginTx(ctx, &sql.TxOptions{Isolation: isolation, ReadOnly: !write})
 	if err != nil {
 		return fmt.Errorf("begin repository transaction: %w", err)
 	}

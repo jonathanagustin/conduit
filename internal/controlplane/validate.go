@@ -38,6 +38,9 @@ func Validate(state DesiredState) []ValidationError {
 	if strings.TrimSpace(state.Environment.Generation) == "" {
 		add("environment.generation", "must pin a Git commit or other immutable generation")
 	}
+	if architecture := state.Environment.PackageArchitecture; architecture != "" && architecture != "amd64" && architecture != "arm64" {
+		add("environment.packageArchitecture", "must be amd64 or arm64 when configured")
+	}
 	if state.Environment.DefaultReleaseChannel != "" && !releaseChannelPattern.MatchString(state.Environment.DefaultReleaseChannel) {
 		errs = append(errs, ValidationError{Path: "environment.defaultReleaseChannel", Message: "must be a valid Release Channel name"})
 	}
@@ -687,6 +690,9 @@ func incompatibilityApplies(version string, incompatibility Incompatibility) boo
 }
 
 func validateSelectedReleasePolicies(path string, release Release, environment Environment, errs *[]ValidationError) {
+	if reason := packageArchitectureIneligibility(release, environment); reason != nil {
+		*errs = append(*errs, ValidationError{Path: path + ".release.chart.architectures", Message: reason.Message})
+	}
 	if policy := environment.ArtifactSecurityPolicy; policy != nil {
 		assessment := release.VulnerabilityAssessment
 		if assessment == nil {

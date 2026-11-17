@@ -28,6 +28,27 @@
         }
       }
     },
+    "auditCheckpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "schedule", "timeoutSeconds", "activeDeadlineSeconds", "startingDeadlineSeconds", "databaseSecretName", "databaseSecretKey", "checkpointConfigMapName", "checkpointKey", "resources"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "schedule": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[^\\r\\n]+$"},
+        "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 86400},
+        "activeDeadlineSeconds": {"type": "integer", "minimum": 2, "maximum": 172800},
+        "startingDeadlineSeconds": {"type": "integer", "minimum": 10, "maximum": 86400},
+        "databaseSecretName": {"$ref": "#/definitions/optionalDnsName"},
+        "databaseSecretKey": {"$ref": "#/definitions/secretKey"},
+        "checkpointConfigMapName": {"$ref": "#/definitions/optionalDnsName"},
+        "checkpointKey": {"$ref": "#/definitions/secretKey"},
+        "resources": {"type": "object", "additionalProperties": true}
+      },
+      "allOf": [{
+        "if": {"properties": {"enabled": {"const": true}}},
+        "then": {"properties": {"databaseSecretName": {"minLength": 1}, "checkpointConfigMapName": {"minLength": 1}}}
+      }]
+    },
     "consoleBootstrap": {
       "type": "object",
       "additionalProperties": false,
@@ -411,6 +432,10 @@
     }
   },
   "allOf": [
+    {
+      "if": {"required": ["auditCheckpoint"], "properties": {"auditCheckpoint": {"required": ["enabled"], "properties": {"enabled": {"const": true}}}}},
+      "then": {"properties": {"repository": {"properties": {"kind": {"const": "postgres"}}}}}
+    },
     {
       "if": {"required": ["metrics"], "properties": {"metrics": {"required": ["enabled"], "properties": {"enabled": {"const": true}}}}},
       "then": {"properties": {"repository": {"properties": {"kind": {"const": "postgres"}}}}}

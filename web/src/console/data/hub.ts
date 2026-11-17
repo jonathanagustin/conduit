@@ -14,6 +14,10 @@ import {
 
 import { HubError } from "../../api/hub-error.js";
 import {
+  planApprovalTransport,
+  submitPlanApproval,
+} from "../../api/plan-approval.js";
+import {
   fetchProductSummaries,
   productSummariesTransport,
 } from "../../api/product-summaries.js";
@@ -380,11 +384,14 @@ export async function listProducts(
 export async function approvePlan(
   id: string,
   rationale: string,
+  signal?: AbortSignal,
 ): Promise<void> {
-  await send(`/v1/plans/${encodeURIComponent(id)}/approvals`, {
-    method: "POST",
-    body: JSON.stringify({ rationale }),
-  });
+  await submitPlanApproval(
+    planApprovalTransport(window.location.origin),
+    id,
+    rationale,
+    signal,
+  );
 }
 
 export type ChangeRequestCard = {

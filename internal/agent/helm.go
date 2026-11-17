@@ -101,7 +101,8 @@ func (executor HelmExecutor) Apply(
 			return Receipt{}, err
 		}
 		_, err = executor.runner().Run(ctx, "helm", "uninstall", step.HelmRelease(), "--namespace", step.Namespace,
-			"--keep-history", "--wait", "--timeout", timeout.String())
+			"--keep-history", "--description", executor.ownedReleaseDescription(ctx, step),
+			"--wait", "--timeout", timeout.String())
 		if err != nil {
 			return Receipt{}, fmt.Errorf("Helm uninstall: %w", err)
 		}
@@ -450,7 +451,7 @@ func (executor HelmExecutor) confirmReleaseOwnership(ctx context.Context, receip
 	}
 	live, ok := parseReleaseFence(status.Info.Description)
 	if !ok {
-		return nil
+		return fmt.Errorf("helm release %s/%s has no readable execution fence; rollback ownership is unknown", receipt.Step.Namespace, releaseName)
 	}
 	if !fenceMatches(receipt.Fence, live) {
 		return fmt.Errorf("helm release %s/%s is owned by generation %s attempt %d", receipt.Step.Namespace, releaseName, live.Generation, live.Attempt)

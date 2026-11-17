@@ -56,17 +56,18 @@ const (
 	OutcomeInvalidResponse Outcome = "invalid_response"
 	OutcomeCanceled        Outcome = "canceled"
 	OutcomeError           Outcome = "error"
-	// The next three are decided here, not by a provider.
-	OutcomeThrottled      Outcome = "throttled"
-	OutcomeBudgetExceeded Outcome = "budget_exceeded"
-	OutcomeAuditFailed    Outcome = "audit_failed"
+	// The following outcomes are decided here, not by a provider.
+	OutcomeThrottled        Outcome = "throttled"
+	OutcomeBudgetExceeded   Outcome = "budget_exceeded"
+	OutcomeAuditFailed      Outcome = "audit_failed"
+	OutcomeUsageUnavailable Outcome = "usage_unavailable"
 )
 
 // Outcomes is every value of Outcome.
 func Outcomes() []Outcome {
 	return []Outcome{
 		OutcomeOK, OutcomeTimeout, OutcomeRateLimited, OutcomeUpstream, OutcomeTransport, OutcomeAuth,
-		OutcomeInvalidResponse, OutcomeCanceled, OutcomeError, OutcomeThrottled, OutcomeBudgetExceeded, OutcomeAuditFailed,
+		OutcomeInvalidResponse, OutcomeCanceled, OutcomeError, OutcomeThrottled, OutcomeBudgetExceeded, OutcomeAuditFailed, OutcomeUsageUnavailable,
 	}
 }
 
@@ -255,9 +256,13 @@ type Governor struct {
 	deps   Dependencies
 	global chan struct{}
 
-	mu     sync.Mutex
-	owners map[string]*ownerSlots
+	mu             sync.Mutex
+	owners         map[string]*ownerSlots
+	usageMu        sync.Mutex
+	unacknowledged map[usageScope]UsageRecord
 }
+
+type usageScope struct{ owner, day string }
 
 type ownerSlots struct {
 	slots chan struct{}
@@ -282,6 +287,7 @@ func New(config Config, deps Dependencies) *Governor {
 	return &Governor{
 		config: config, deps: deps,
 		global: make(chan struct{}, config.GlobalConcurrency), owners: map[string]*ownerSlots{},
+		unacknowledged: map[usageScope]UsageRecord{},
 	}
 }
 
@@ -310,11 +316,14 @@ func (governor *Governor) Do(
 		run.refuse(err)
 		return Result{}, err
 	}
+	if err := governor.retryUsage(ctx, owner, Day(started)); err != nil {
+		return refuse(OutcomeUsageUnavailable, err)
+	}
 	if err := governor.checkBudget(ctx, owner, started); err != nil {
 		if errors.Is(err, ErrBudgetExceeded) {
 			return refuse(OutcomeBudgetExceeded, err)
 		}
-		return refuse(OutcomeError, err)
+		return refuse(OutcomeUsageUnavailable, err)
 	}
 	if governor.config.AuditRequired && governor.deps.Audit == nil {
 		return refuse(OutcomeAuditFailed, fmt.Errorf("%w: no auditor is configured", ErrAuditUnavailable))
@@ -338,7 +347,24 @@ func (governor *Governor) Do(
 		if errors.Is(err, ErrBudgetExceeded) {
 			return refuse(OutcomeBudgetExceeded, err)
 		}
-		return refuse(OutcomeError, err)
+		return refuse(OutcomeUsageUnavailable, err)
+	}
+	if err := governor.retryPendingAudit(ctx, run); err != nil {
+		return refuse(OutcomeAuditFailed, fmt.Errorf("%w: %w", ErrAuditUnavailable, err))
+	}
+	if governor.budgeted() {
+		receiptID, err := governor.beginUsage(ctx, owner, admittedAt)
+		if err != nil {
+			switch {
+			case errors.Is(err, ErrBusy):
+				return refuse(OutcomeThrottled, err)
+			case errors.Is(err, ErrBudgetExceeded):
+				return refuse(OutcomeBudgetExceeded, err)
+			default:
+				return refuse(OutcomeUsageUnavailable, err)
+			}
+		}
+		record.ReceiptID = receiptID
 	}
 	result, outcome, attempts, callErr := governor.attempt(ctx, classify, invoke)
 
@@ -489,12 +515,10 @@ func (governor *Governor) InFlight() (calls, owners int) {
 	return len(governor.global), len(governor.owners)
 }
 
-// checkBudget refuses a call whose owner has spent today's budget. The check
-// reads persisted usage, so it holds across replicas up to the calls in
-// flight when it is read: see docs/operations/ai-usage-and-transcripts.md.
+// checkBudget cheaply refuses an already-spent budget before queueing.
+// BeginUsage's atomic totals are checked again with the durable reservation.
 func (governor *Governor) checkBudget(ctx context.Context, owner string, now time.Time) error {
-	tokens, calls := governor.config.DailyTokenBudget, governor.config.DailyCallBudget
-	if tokens <= 0 && calls <= 0 {
+	if !governor.budgeted() {
 		return nil
 	}
 	if governor.deps.Usage == nil {
@@ -504,6 +528,15 @@ func (governor *Governor) checkBudget(ctx context.Context, owner string, now tim
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrUsageUnavailable, err)
 	}
+	return governor.budgetError(used, now)
+}
+
+func (governor *Governor) budgeted() bool {
+	return governor.config.DailyTokenBudget > 0 || governor.config.DailyCallBudget > 0
+}
+
+func (governor *Governor) budgetError(used Totals, now time.Time) error {
+	tokens, calls := governor.config.DailyTokenBudget, governor.config.DailyCallBudget
 	reset := NextDay(now).Sub(now)
 	if tokens > 0 && used.Tokens >= tokens {
 		return &BudgetError{Unit: "tokens", Limit: tokens, Used: used.Tokens, RetryAfter: reset}
@@ -526,10 +559,81 @@ func (governor *Governor) finish(ctx context.Context, record UsageRecord, starte
 	storeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	if err := governor.deps.Usage.Record(storeCtx, record); err != nil {
+		if record.ReceiptID != "" {
+			// Freeze pointer values before the caller can reuse its Result.
+			if record.PromptTokens != nil {
+				value := *record.PromptTokens
+				record.PromptTokens = &value
+			}
+			if record.CompletionTokens != nil {
+				value := *record.CompletionTokens
+				record.CompletionTokens = &value
+			}
+			governor.usageMu.Lock()
+			governor.unacknowledged[usageScope{record.Owner, record.Day}] = record
+			governor.usageMu.Unlock()
+		}
 		governor.deps.Metrics.usageWriteFailed()
-		governor.deps.Logger.ErrorContext(ctx, "model usage was not recorded", "error", err,
+		governor.deps.Logger.ErrorContext(ctx, "model usage was not acknowledged", "error", err,
 			"capability", record.Capability, "outcome", record.Outcome)
 	}
+}
+
+// beginUsage obtains a durable accounting reservation and checks the totals
+// returned with it. Checking only before BeginUsage would admit stale totals
+// when another replica finishes between the read and the reservation.
+func (governor *Governor) beginUsage(ctx context.Context, owner string, now time.Time) (string, error) {
+	receipt, err := newUsageReceipt(owner, Day(now))
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrUsageUnavailable, err)
+	}
+	used, err := governor.deps.Usage.BeginUsage(ctx, receipt)
+	if errors.Is(err, ErrUsagePending) {
+		return "", &BusyError{Scope: "owner accounting", RetryAfter: governor.config.QueueWait}
+	}
+	if err == nil {
+		err = governor.budgetError(used, now)
+	}
+	if err == nil {
+		return receipt.ID, nil
+	}
+	// No provider was invoked. Even an ambiguously committed begin may be
+	// safely cancelled by this exact receipt ID. Failed cleanup stays closed.
+	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if cleanupErr := governor.deps.Usage.CancelUsage(cleanup, receipt.ID); cleanupErr != nil {
+		return "", fmt.Errorf("%w: release unused receipt: %w", ErrUsageUnavailable, cleanupErr)
+	}
+	if errors.Is(err, ErrBudgetExceeded) {
+		return "", err
+	}
+	return "", fmt.Errorf("%w: %w", ErrUsageUnavailable, err)
+}
+
+// retryUsage uses the exact receipt and payload, so an acknowledgement lost
+// after commit cannot increment the additive daily aggregate twice.
+func (governor *Governor) retryUsage(ctx context.Context, owner, day string) error {
+	if !governor.budgeted() {
+		return nil
+	}
+	key := usageScope{owner, day}
+	governor.usageMu.Lock()
+	record, exists := governor.unacknowledged[key]
+	governor.usageMu.Unlock()
+	if !exists {
+		return nil
+	}
+	storeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if err := governor.deps.Usage.Record(storeCtx, record); err != nil {
+		return fmt.Errorf("%w: earlier model spend is not acknowledged: %w", ErrUsageUnavailable, err)
+	}
+	governor.usageMu.Lock()
+	if governor.unacknowledged[key].ReceiptID == record.ReceiptID {
+		delete(governor.unacknowledged, key)
+	}
+	governor.usageMu.Unlock()
+	return nil
 }
 
 // audit writes the transcript, if one is kept, and then the audit event. The
@@ -539,12 +643,16 @@ func (governor *Governor) audit(
 ) error {
 	run.mu.Lock()
 	defer run.mu.Unlock()
-	round := run.round + 1
+	round, previous := run.round+1, run.chain
+	if count := len(run.pendingAudit); count > 0 {
+		last := run.pendingAudit[count-1]
+		round, previous = last.Round+1, last.ChainSHA256
+	}
 	event := CallAudit{
 		Owner: owner, Capability: string(call.Capability), Transport: string(call.Transport),
 		RunID: run.id, SessionID: run.session, Round: round,
 		PromptSHA256: Digest(call.Prompt), ResponseSHA256: Digest(result.Response),
-		PreviousChainSHA256: run.chain,
+		PreviousChainSHA256: previous,
 		ConfiguredModel:     call.ConfiguredModel, ProviderModel: result.ProviderModel,
 		Outcome: string(outcome), Attempts: attempts, At: governor.deps.Clock.Now().UTC(),
 		Transcript: TranscriptOff,
@@ -557,12 +665,39 @@ func (governor *Governor) audit(
 	if governor.config.Transcripts && governor.deps.Transcripts != nil {
 		governor.keepTranscript(storeCtx, run, &event, call.Prompt, result.Response)
 	}
-	if governor.deps.Audit != nil {
-		if err := governor.deps.Audit.RecordModelCall(storeCtx, event); err != nil {
-			return err
-		}
+	// Reserve this coordinate even when the audit acknowledgement fails. The
+	// transcript may already exist, so reusing the round would bind a later
+	// exchange to the earlier text. Retry the unchanged event instead.
+	run.pendingAudit = append(run.pendingAudit, event)
+	return governor.flushAuditLocked(storeCtx, run)
+}
+
+// retryPendingAudit repairs an interrupted acknowledgement before another
+// model is invoked. Concurrent calls that already invoked still append unique
+// pending rounds under audit's lock, and are flushed in the same order.
+func (governor *Governor) retryPendingAudit(ctx context.Context, run *Run) error {
+	run.mu.Lock()
+	defer run.mu.Unlock()
+	if len(run.pendingAudit) == 0 {
+		return nil
 	}
-	run.round, run.chain = round, event.ChainSHA256
+	storeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	return governor.flushAuditLocked(storeCtx, run)
+}
+
+func (governor *Governor) flushAuditLocked(ctx context.Context, run *Run) error {
+	for len(run.pendingAudit) > 0 {
+		event := run.pendingAudit[0]
+		if governor.deps.Audit != nil {
+			if err := governor.deps.Audit.RecordModelCall(ctx, event); err != nil {
+				return err
+			}
+		}
+		run.round, run.chain = event.Round, event.ChainSHA256
+		run.pendingAudit[0] = CallAudit{}
+		run.pendingAudit = run.pendingAudit[1:]
+	}
 	return nil
 }
 

@@ -52,6 +52,10 @@ func TestPostgresStoresConform(t *testing.T) {
 	storetest.RunTranscripts(t, func(t *testing.T) modelgovernor.TranscriptStore { return open(t) })
 }
 
+func TestPostgresTranscriptAuditRecovery(t *testing.T) {
+	storetest.RunAuditRecovery(t, func(t *testing.T) modelgovernor.TranscriptStore { return open(t) })
+}
+
 type fixedClock struct{ now time.Time }
 
 func (clock fixedClock) Now() time.Time                       { return clock.now }
@@ -107,7 +111,7 @@ func TestMigrationsAreWhatAStartApplies(t *testing.T) {
 	}
 	defer db.Close()
 	pending, err := pgmigrate.Pending(ctx, db, Component, Migrations())
-	if err != nil || len(pending) != 2 {
+	if err != nil || len(pending) != 4 {
 		t.Fatalf("pending before a start = %v, err = %v", pending, err)
 	}
 	store, err := New(ctx, dsn)

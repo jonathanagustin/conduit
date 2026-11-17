@@ -64,6 +64,10 @@ A reply the capability cannot parse is not a transport failure and is never retr
 
 Each call records its capability, transport, configured model, provider-reported model, outcome class, attempts, latency, and prompt and response bytes. Token counts are recorded only when the provider's response carries a `usage` object. They are never estimated: a model command reports none, and an endpoint that omits `usage` leaves them null. A token budget therefore does not bind an owner whose provider reports no tokens; set a call budget for that case.
 
+Usage rows keep `calls` for all requests with that outcome, `budgetedCalls` for the exact number of policy charges, and `attempts` for the total reported attempts including retries. For new requests, one policy charge requires at least one transport invocation: a request retried three times spends one call, while a queue cancellation, missing-auditor refusal or unsuccessful pending-audit retry before invocation spends none. A request that invoked the provider and then cancelled or failed audit still spends a call. Request/outcome metrics retain all requests, including refusals.
+
+Historical PostgreSQL rows written before `0004-model-attempted-calls` can mix zero-attempt and attempted requests in one outcome row. Summed attempts cannot reconstruct the exact count of attempted requests. The migration therefore preserves each row's former conservative budget charge rather than guessing or refunding it. `budgetedCalls` combines those retained legacy charges with exact policy charges from new invocation evidence; it never claims to establish an exact historical invocation count. New requests add their charges independently, even when they share that historical row's key. A new UTC day starts without those prior-day charges. The internal `attempted_calls` column keeps its original migration name and stores this policy charge, which is exposed as `budgetedCalls`.
+
 Usage is kept in `conduit_model_usage_daily`, one row per UTC day, owner, capability, transport, configured model, provider model and outcome. With the file repository it is kept in memory: it is lost on restart, and each replica has its own.
 
 - `GET /v1/ai/usage?days=N` returns the caller's own rows, today's totals and the remaining budget. Any authenticated operator may call it; it never answers about another owner.
@@ -76,9 +80,17 @@ Usage is kept in `conduit_model_usage_daily`, one row per UTC day, owner, capabi
 
 A budget is checked against persisted usage when a request arrives and again after it acquires its owner and global slots, using the current UTC day. The slots stay held through audit and metering, so a queued request cannot reuse a budget decision made before an earlier call spent it. The budget resets at 00:00 UTC. Calls refused by a limit do not count; every call that reached or tried to reach a model does, failures included.
 
-The check is a read followed, after the call, by a write. It is not a reservation. Calls already in flight when the check is read are not counted, so an owner can pass the budget by at most the calls in flight across all replicas when the limit is crossed: with the defaults, two calls per replica, plus whatever the last calls cost in tokens, which is unknown until they return. With PostgreSQL the budget is shared by every replica. With the file repository it is per process.
+When either budget is configured, the governor reserves a usage receipt before invoking the provider. The receipt and the current owner/day totals are read atomically, and those totals are checked again before invocation. A spent budget cancels the unused receipt without counting a model call. Only one receipt for an owner and UTC day may remain unsettled: budgeted calls for that owner are conservatively serialized, across replicas when they share PostgreSQL. Another active or orphaned receipt returns `MODEL_BUSY` with `Retry-After`; it is never cleared to admit a contender. Other owners and other UTC days remain independent. The concurrency settings continue to bound calls without a budget and calls across owners.
 
-If a budget is configured and usage cannot be read, the call is refused. Without a budget a usage outage is logged and counted, and the call proceeds.
+The receipt does not predict provider token consumption. A final admitted call can cross a token limit by its actual reported cost; a provider that reports no tokens is still not bound by a token budget. All replicas must use the same receipt and attempted-call accounting protocol implementation as well as consistent budget settings. Applying the database migrations alone does not upgrade an older writer: older governors can ignore receipts or fail to maintain attempted-call counts even with matching settings. Quiesce model-call admission while replacing those writers, and resume only after every participating replica uses the current protocol. A replica running without a budget uses the unbudgeted path and does not participate in receipt admission. With the file repository, totals and receipts are process-local and restarting loses both; it is not a durable budget deployment.
+
+If a budget is configured and usage cannot be read or reserved, no provider is invoked. Completion updates the daily aggregate and the receipt's exact final payload together. The first call's reply may already be returned when metering fails, but the active governor retains the exact usage record and refuses further calls for that owner/day until an idempotent completion retry succeeds. A committed write whose acknowledgement was lost is recognized by receipt ID and exact payload and is not added twice. Refusals caused by unavailable usage are metered as `usage_unavailable` and do not spend the call budget. Without a budget, usage remains best effort: no receipt is created, an outage is logged and counted, and the call proceeds.
+
+### Interrupted accounting and recovery
+
+PostgreSQL receipts survive a pool, Hub or process restart. An incomplete receipt keeps its original owner/day closed even if the process lost the final token counts. The new UTC day has its own budget and can admit calls; rollover does not delete or mark the old receipt complete. There is no automatic expiry or reset of an unsettled receipt, and no public reconciliation endpoint.
+
+Within the original running governor, restoring the usage store allows the next call for that owner/day to retry the retained final record and then check the resulting budget. After process loss, do not guess the final payload, blindly replay additive usage updates, delete the receipt, or cancel a receipt when a provider may have run. Leave the affected day closed if exact final evidence is unavailable. Any exceptional reconciliation before rollover requires a separately reviewed operation that recovers the exact final `UsageRecord` and completes its original receipt idempotently; this document grants no reset authority. Backups and restores must retain receipt and aggregate tables together.
 
 ## Metrics
 
@@ -97,7 +109,11 @@ Each call that reached a model, or failed trying to, writes one `ai.model_call` 
 
 One run is one request, or one planning turn in the workflow worker. Rounds are numbered from 1 and chained: each event carries the previous event's `chainSha256`, and its own is the SHA-256 of that value, the round, and the two digests. A removed, reordered or altered event breaks the chain.
 
-If the event cannot be written the call fails with `AUDIT_UNAVAILABLE` and the reply is discarded. A call refused by a limit reached no model and writes no `ai.model_call` event; it is in the usage rows and the metrics.
+New model-call audit event IDs are derived from the run and round, independently of timestamp resolution. Distinct rounds remain distinct even at the same instant, while retrying one round retains its original event identity. Previously stored audit records keep their existing IDs and bytes.
+
+If the event cannot be acknowledged the call fails with `AUDIT_UNAVAILABLE` and the caller receives no reply. The run retains the exact pending event and reserves its transcript round. Before another model call in that run, the governor retries the event unchanged; a continuing audit outage refuses the new invocation. A recovered event joins the chain once, including when the original write committed but its acknowledgement was lost. Audit adapters must deduplicate identical retries. Only acknowledged events advance the run's reported round count.
+
+Pending events are held in the active run's memory. If the process or run ends before recovery, a stored transcript can remain without an audit event until its normal expiry. Export explicitly reports that orphan as a mismatch; it cannot be verified or silently reused for another exchange. A call refused by a limit reached no model and writes no `ai.model_call` event; it is in the usage rows and the metrics.
 
 ## Transcripts
 
@@ -129,4 +145,4 @@ The check proves the stored text is what the audit log vouches for. It rests on 
 
 ## PostgreSQL
 
-The store's migrations are component `model-governance`: `0001-model-usage-daily` and `0002-ai-transcripts`. They are applied at Hub start and checked by `verify-schema`.
+The store's migrations are component `model-governance`: `0001-model-usage-daily`, `0002-ai-transcripts`, `0003-model-usage-receipts` and `0004-model-attempted-calls`. They are applied at Hub start and checked by `verify-schema`. Receipt payloads contain usage metadata, not prompt or response text; the attempted-call migration preserves their exact bytes and idempotent completion semantics.
