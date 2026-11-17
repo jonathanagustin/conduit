@@ -46,22 +46,24 @@ in [`docs/architecture/deployment-invariants.md`](../../docs/architecture/deploy
 ## Installation
 
 Each deployment supplies exact release-image digests and externally owned
-identity material. From a verified published release (see
+identity material. Complete the signed asset-inventory and signature checks in
 [`docs/operations/release-and-publication.md`](../../docs/operations/release-and-publication.md#installing-and-verifying-a-published-release)
-for `cosign verify` of the chart, image, provenance, and SBOM):
+first, then run the following from that downloaded release directory. The next
+publication provides the complete asset set; the older `v0.17.5` release predates
+it. The local chart archives and image references below come from the verified
+inventory, so installation does not resolve a mutable OCI chart tag again.
 
 ```sh
-HUB_IMAGE="$(jq -er '.images[] | select(.component == "hub") | .reference' platform-oci-manifest.json)"
-SPOKE_IMAGE="$(jq -er '.images[] | select(.component == "spoke-agent") | .reference' platform-oci-manifest.json)"
+VERSION="$(jq -er '.version' platform-oci-manifest.json)"
+HUB_IMAGE="$(jq -er '.images.hub.reference' platform-oci-manifest.json)"
+SPOKE_IMAGE="$(jq -er '.images["spoke-agent"].reference' platform-oci-manifest.json)"
 
-helm upgrade --install platform-hub oci://ghcr.io/jonathanagustin/conduit/platform-hub \
-  --version 0.17.5 \
+helm upgrade --install platform-hub "./platform-hub-${VERSION}.tgz" \
   --namespace platform-system \
   --values hub-values.yaml \
   --set-string "image=${HUB_IMAGE}"
 
-helm upgrade --install platform-spoke oci://ghcr.io/jonathanagustin/conduit/platform-spoke \
-  --version 0.17.5 \
+helm upgrade --install platform-spoke "./platform-spoke-${VERSION}.tgz" \
   --namespace environment-system \
   --values spoke-values.yaml \
   --set-string "image=${SPOKE_IMAGE}"

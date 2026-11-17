@@ -198,6 +198,50 @@ run_verifier "${good}" >/dev/null
 }
 head -n 1 "${FAKE_COSIGN_LOG}" | grep -qF 'release-assets.sha256.sigstore.json'
 
+# Execute the install snippets against the real producer-shaped fixture. Helm
+# and Cosign are explicit boundaries: no registry, namespace or cluster changes.
+cat > "${test_dir}/bin/helm" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$1" == upgrade && "$2" == --install ]]
+release="$3"
+chart="$4"
+[[ "${chart}" == "./${release}-${VERSION}.tgz" && -s "${chart}" ]] || {
+  echo 'install example did not select its authenticated local chart archive' >&2
+  exit 1
+}
+shift 4
+case "${release}" in
+  platform-hub) component=hub ;;
+  platform-spoke) component=spoke-agent ;;
+  *) exit 1 ;;
+esac
+expected_image="$(jq -er --arg c "${component}" '.images[$c].reference' platform-oci-manifest.json)"
+found=false
+while [[ $# -gt 0 ]]; do
+  if [[ "$1" == --set-string && "${2:-}" == "image=${expected_image}" ]]; then found=true; fi
+  shift
+done
+[[ "${found}" == true ]]
+printf '%s\n' "${release}" >> "${DOCUMENTED_HELM_LOG}"
+STUB
+chmod 0755 "${test_dir}/bin/helm"
+for documentation in deploy/helm/README.md docs/operations/release-and-publication.md; do
+  install_example="$(awk '
+    /^```/ { if (inside) { if (block ~ /HUB_IMAGE=.*jq/) printf "%s", block; block=""; inside=0 } else inside=1; next }
+    inside { block=block $0 "\n" }
+  ' "${repo_root}/${documentation}")"
+  [[ -n "${install_example}" ]] || { echo "no install example found: ${documentation}" >&2; exit 1; }
+  if ! (cd "${good}" && PATH="${test_dir}/bin:${PATH}" VERSION="${version}" \
+    IDENTITY="https://github.com/jonathanagustin/conduit/.github/workflows/platform-images.yml@refs/tags/v${version}" \
+    ISSUER=https://token.actions.githubusercontent.com DOCUMENTED_HELM_LOG="${test_dir}/helm.log" \
+    bash -euo pipefail -c "${install_example}"); then
+    echo "documented release install example failed: ${documentation}" >&2
+    exit 1
+  fi
+done
+[[ "$(wc -l < "${test_dir}/helm.log" | tr -d ' ')" -eq 4 ]]
+
 expect_failure "missing_manifest" "missing or empty release asset: platform-oci-manifest.json" \
   bash -c 'rm -f "$1/platform-oci-manifest.json"' _
 expect_signed_failure "version_drift" "platform-oci-manifest.json version '0.17.5' disagrees with '0.18.0'" \
