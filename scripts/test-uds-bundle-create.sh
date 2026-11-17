@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Runs the pinned `uds create` on deploy/zarf/uds-bundle.yaml, with no cluster,
-# no registry and no container runtime.
+# Runs the pinned `uds create` on deploy/zarf/uds-bundle.yaml and on the real
+# udsconverge renderers' output, with no cluster or container runtime. The Go
+# integration test below owns a disposable loopback registry, with no external
+# registry access, and fails rather than skips when either CLI is missing.
 #
 # A bundle needs a built Zarf package, and building the real one pulls the Hub
 # and Agent images. So this builds the same package definition with its
@@ -19,6 +21,14 @@ set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 : "${ZARF_BIN:?ZARF_BIN must name the pinned Zarf executable}"
 : "${UDS_BIN:?UDS_BIN must name the pinned UDS CLI executable}"
+
+# #835: schema validation alone does not establish that generated bundles
+# build. Keep both production renderer entry points and the real pinned CLI in
+# this gate. Run before isolating HOME below, retaining Go's normal module and
+# build caches; each CLI subprocess gets its own isolated home inside the test.
+(cd "$root" && CONDUIT_TEST_UDS_CREATE=1 ZARF_BIN="$ZARF_BIN" UDS_BIN="$UDS_BIN" \
+  go test -count=1 -run '^TestRenderedBundlesCreateWithPinnedCLI$' -v ./internal/gitless/adapters/udsconverge)
+
 version=$(tr -d '\n' < "$root/VERSION")
 architecture=amd64
 work=$(mktemp -d)
