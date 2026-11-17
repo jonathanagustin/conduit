@@ -9,9 +9,11 @@ import (
 	"flag"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/governance/adapters/auditpostgres"
+	"github.com/jonathanagustin/conduit/internal/governance/application"
 	"github.com/jonathanagustin/conduit/internal/governance/domain"
 )
 
@@ -60,13 +62,19 @@ func verifyAuthorizationAudit(ctx context.Context, getenv func(string) string, a
 	flags := flag.NewFlagSet(verifyAuthorizationAuditCommand, flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	var checkpointFile string
+	var exportFile, archiveFile string
 	var bootstrap bool
 	var timeout time.Duration
 	flags.StringVar(&checkpointFile, "checkpoint-file", "", "independently retained checkpoint receipt")
+	flags.StringVar(&exportFile, "export-file", "", "create a new private JSONL archive of the verified database ledger")
+	flags.StringVar(&archiveFile, "archive-file", "", "verify a JSONL archive offline instead of connecting to PostgreSQL")
 	flags.BoolVar(&bootstrap, "bootstrap-checkpoint", false, "check internal consistency and create an initial checkpoint")
 	flags.DurationVar(&timeout, "timeout", 2*time.Minute, "verification deadline")
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 || timeout <= 0 || bootstrap == (checkpointFile != "") {
 		return errors.New("choose either --checkpoint-file or --bootstrap-checkpoint and a positive timeout")
+	}
+	if exportFile != "" && archiveFile != "" {
+		return errors.New("--export-file and --archive-file cannot be combined")
 	}
 	var expected *domain.AuditCheckpoint
 	if !bootstrap {
@@ -76,12 +84,38 @@ func verifyAuthorizationAudit(ctx context.Context, getenv func(string) string, a
 		}
 		expected = &checkpoint
 	}
+	bounded, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	mode := "CHECKPOINT_PREFIX_MATCHED"
+	if bootstrap {
+		mode = "BOOTSTRAP_INTERNAL_CONSISTENCY_ONLY"
+	}
+	if archiveFile != "" {
+		// Reject routine FIFO/device/symlink inputs before opening them. In
+		// particular, opening a FIFO can block before a post-open Stat runs.
+		info, err := os.Lstat(archiveFile)
+		if err != nil || !info.Mode().IsRegular() {
+			return errors.New("authorization audit archive must be a regular file")
+		}
+		archive, err := os.Open(archiveFile)
+		if err != nil {
+			return errors.New("authorization audit archive cannot be opened")
+		}
+		defer archive.Close()
+		opened, err := archive.Stat()
+		if err != nil || !opened.Mode().IsRegular() || !os.SameFile(info, opened) {
+			return errors.New("authorization audit archive must be a regular file")
+		}
+		tip, err := application.VerifyAuditExport(bounded, archive, expected)
+		if err != nil {
+			return errors.New("authorization audit archive verification failed")
+		}
+		return json.NewEncoder(output).Encode(authorizationAuditReceipt{AuditCheckpoint: tip, Verification: mode})
+	}
 	dsn, err := readSingleLineSecretFile(getenv("POSTGRES_DSN_FILE"), "POSTGRES_DSN_FILE")
 	if err != nil {
 		return errors.New("POSTGRES_DSN_FILE must name a readable single-line database credential")
 	}
-	bounded, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
 	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return errors.New("open audit verification database")
@@ -105,16 +139,50 @@ func verifyAuthorizationAudit(ctx context.Context, getenv func(string) string, a
 	if pending {
 		return errors.New("unchained legacy audit records remain; complete the Hub audit adoption before verifying")
 	}
-	tip, err := auditpostgres.New(transaction).Verify(bounded, expected)
+	var staged *os.File
+	if exportFile != "" {
+		staged, err = os.CreateTemp(filepath.Dir(exportFile), ".conduit-audit-export-*")
+		if err != nil {
+			return errors.New("authorization audit export cannot be staged")
+		}
+		defer func() {
+			_ = staged.Close()
+			_ = os.Remove(staged.Name())
+		}()
+	}
+	var tip domain.AuditCheckpoint
+	if staged != nil {
+		tip, err = auditpostgres.New(transaction).Export(bounded, expected, staged)
+	} else {
+		tip, err = auditpostgres.New(transaction).Verify(bounded, expected)
+	}
 	if err != nil {
 		return errors.New("authorization audit chain verification failed")
 	}
 	if err := transaction.Commit(); err != nil {
 		return errors.New("complete audit verification snapshot")
 	}
-	mode := "CHECKPOINT_PREFIX_MATCHED"
-	if bootstrap {
-		mode = "BOOTSTRAP_INTERNAL_CONSISTENCY_ONLY"
+	if staged != nil {
+		if err := staged.Sync(); err != nil {
+			return errors.New("authorization audit export cannot be synced")
+		}
+		if err := staged.Close(); err != nil {
+			return errors.New("authorization audit export cannot be closed")
+		}
+		// A hard link publishes the complete private file atomically and refuses
+		// an existing destination, including a symlink. Never replace an archive.
+		if err := os.Link(staged.Name(), exportFile); err != nil {
+			return errors.New("authorization audit export cannot be published; destination must be new and on the staging filesystem")
+		}
+		directory, err := os.Open(filepath.Dir(exportFile))
+		if err != nil {
+			return errors.New("authorization audit export directory cannot be opened for sync")
+		}
+		syncErr := directory.Sync()
+		closeErr := directory.Close()
+		if syncErr != nil || closeErr != nil {
+			return errors.New("authorization audit export directory cannot be synced; no receipt issued")
+		}
 	}
 	return json.NewEncoder(output).Encode(authorizationAuditReceipt{AuditCheckpoint: tip, Verification: mode})
 }

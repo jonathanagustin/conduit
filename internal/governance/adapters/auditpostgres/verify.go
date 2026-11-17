@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 
+	"github.com/jonathanagustin/conduit/internal/governance/application"
 	"github.com/jonathanagustin/conduit/internal/governance/domain"
 )
 
@@ -12,6 +14,29 @@ import (
 // supply a repeatable-read or serializable transaction, preferably read-only.
 // A nil checkpoint proves internal consistency, not independence from a DBA.
 func (store *Store) Verify(ctx context.Context, expected *domain.AuditCheckpoint) (domain.AuditCheckpoint, error) {
+	return store.verify(ctx, expected, nil)
+}
+
+// Export verifies the stored chain while writing its original records as JSONL.
+// The caller must stage output privately and publish it only after this method
+// and the read-only snapshot's commit both succeed.
+func (store *Store) Export(ctx context.Context, expected *domain.AuditCheckpoint, output io.Writer) (domain.AuditCheckpoint, error) {
+	if output == nil {
+		return domain.AuditCheckpoint{}, errors.New("authorization audit export requires an output writer")
+	}
+	tip, err := store.verify(ctx, expected, func(record domain.AuditChainRecord) error {
+		return application.WriteAuditExportRecord(output, record)
+	})
+	if err != nil {
+		return domain.AuditCheckpoint{}, err
+	}
+	if err := application.FinishAuditExport(output, tip); err != nil {
+		return domain.AuditCheckpoint{}, err
+	}
+	return tip, nil
+}
+
+func (store *Store) verify(ctx context.Context, expected *domain.AuditCheckpoint, visit func(domain.AuditChainRecord) error) (domain.AuditCheckpoint, error) {
 	var isolation string
 	if err := store.transaction.QueryRowContext(ctx, "SHOW transaction_isolation").Scan(&isolation); err != nil {
 		return domain.AuditCheckpoint{}, err
@@ -43,6 +68,11 @@ func (store *Store) Verify(ctx context.Context, expected *domain.AuditCheckpoint
 			return domain.AuditCheckpoint{}, err
 		}
 		current = next
+		if visit != nil {
+			if err := visit(record); err != nil {
+				return domain.AuditCheckpoint{}, err
+			}
+		}
 		if expected != nil && current.Sequence == trusted.Sequence {
 			if current.Digest != trusted.Digest {
 				return domain.AuditCheckpoint{}, errors.New("authorization audit chain does not match the independent checkpoint")
