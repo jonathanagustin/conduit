@@ -5,7 +5,7 @@ package application
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -162,12 +162,33 @@ type Constraint struct {
 	Reason string `json:"reason"`
 }
 
-// Turn is one model round after its tool calls have run.
+// Turn is one operator message answered: the model's last text and every tool
+// call that ran across the rounds. ToolCalls and Results have the same order.
 type Turn struct {
 	Label      string            `json:"label"`
 	Text       string            `json:"text"`
 	Provenance domain.Provenance `json:"provenance"`
 	Results    []Result          `json:"results"`
+	ToolCalls  []ToolCall        `json:"toolCalls,omitempty"`
+	// Rounds is how many model calls the turn made.
+	Rounds   int     `json:"rounds"`
+	ThreadID string  `json:"threadId,omitempty"`
+	Model    *Served `json:"model,omitempty"`
+}
+
+// ToolCall is one call as the server ran it.
+type ToolCall struct {
+	ID        string          `json:"id"`
+	Round     int             `json:"round"`
+	Name      string          `json:"name"`
+	Arguments json.RawMessage `json:"arguments"`
+}
+
+// Served names what answered the turn. Kind is the adapter; Model is the id
+// the provider reported, when the adapter reads one.
+type Served struct {
+	Kind  string `json:"kind"`
+	Model string `json:"model,omitempty"`
 }
 
 // Service executes tools. A nil Model means turns are refused.
@@ -181,7 +202,11 @@ type Service struct {
 	Cases    EvalCases
 	Authors  ChangeAuthor
 	Reviews  Reviews
-	Now      func() time.Time
+	// Threads stores conversations. Nil refuses a turn that names a thread.
+	Threads Threads
+	Now     func() time.Time
+	// NewID returns 32 hex characters for a thread id. Nil uses crypto/rand.
+	NewID func() (string, error)
 }
 
 // EvalCases stores one operator feedback case.
@@ -194,7 +219,15 @@ type ChangeAuthor interface {
 	Author(ctx context.Context, id string) (string, error)
 }
 
+// Invoke runs one tool call a person submitted.
 func (service Service) Invoke(ctx context.Context, actor Actor, mode string, name string, arguments json.RawMessage) (Result, error) {
+	return service.invoke(ctx, actor, mode, name, arguments, false)
+}
+
+// invoke runs one tool call. held marks a call a model made after it read
+// earlier turns or tool results: such a call can open a change request, and it
+// can never apply anything. See write.
+func (service Service) invoke(ctx context.Context, actor Actor, mode string, name string, arguments json.RawMessage, held bool) (Result, error) {
 	started := service.now()
 	call, err := domain.ParseToolCall(name, arguments)
 	if err != nil {
@@ -226,7 +259,7 @@ func (service Service) Invoke(ctx context.Context, actor Actor, mode string, nam
 	case domain.ToolPropose:
 		result = service.propose(ctx, actor, call.Propose, result)
 	case domain.ToolWrite:
-		result = service.write(ctx, actor, call.Write, result)
+		result = service.write(ctx, actor, call.Write, result, held)
 	case domain.ToolDiff:
 		if service.Diffs == nil {
 			result.OK = false
@@ -262,7 +295,7 @@ const (
 	ReasonIntentOnly = "opened for a separate approver; the change request records the proposal and its approval, and approving it does not run the action"
 )
 
-func (service Service) write(ctx context.Context, actor Actor, args domain.WriteArgs, result Result) Result {
+func (service Service) write(ctx context.Context, actor Actor, args domain.WriteArgs, result Result, held bool) Result {
 	args.Action = strings.TrimSpace(args.Action)
 	result.Risk = domain.Risk(args.Action)
 	refuse := func(reason string) Result {
@@ -315,7 +348,12 @@ func (service Service) write(ctx context.Context, actor Actor, args domain.Write
 			return refuse(decision.Reason)
 		}
 	}
-	if result.Risk == "low" && !args.Confirm {
+	// Confirm is the person's. A held call is the model's, made after it read
+	// text the operator did not type, so its confirm flag counts for nothing
+	// and a review waits for the person like any other direct effect. Text a
+	// tool returned cannot confirm or approve on the operator's behalf.
+	confirmed := args.Confirm && !held
+	if (result.Risk == "low" || (held && effect == effectReview)) && !confirmed {
 		result.NeedsConfirm = true
 		result.Elicitation = &args
 		result.Reason = "confirm to apply this action"
@@ -513,32 +551,6 @@ func (service Service) propose(ctx context.Context, actor Actor, args domain.Pro
 	return result
 }
 
-func (service Service) Turn(ctx context.Context, actor Actor, mode, message string, chips []domain.Chip) (Turn, error) {
-	if service.Model == nil {
-		return Turn{Label: domain.LabelNoModel}, domain.ErrModelUnavailable
-	}
-	prompt := domain.Prompt(mode, message, chips)
-	raw, provenance, err := service.Model.Complete(ctx, prompt)
-	if err != nil {
-		return Turn{Label: domain.LabelLiveModel, Provenance: provenance}, err
-	}
-	reply, err := domain.ParseReply([]byte(raw))
-	if err != nil {
-		_, _ = service.audit(ctx, actor.Username, "model_reply", []byte(prompt), []byte(raw), "DENY", err.Error(), "assistant/turn")
-		return Turn{Label: domain.LabelLiveModel, Provenance: provenance}, err
-	}
-	turn := Turn{Label: domain.LabelLiveModel, Text: reply.Text, Provenance: provenance}
-	for _, call := range reply.ToolCalls {
-		result, err := service.Invoke(ctx, actor, mode, call.Name, call.Arguments)
-		if err != nil {
-			return Turn{}, err
-		}
-		result.Label = domain.LabelLiveModel
-		turn.Results = append(turn.Results, result)
-	}
-	return turn, nil
-}
-
 func (service Service) finish(ctx context.Context, actor Actor, call domain.ToolCall, result Result, started time.Time, failed error) (Result, error) {
 	result.DurationMs = service.now().Sub(started).Milliseconds()
 	if result.DurationMs < 0 {
@@ -579,11 +591,15 @@ func (service Service) finish(ctx context.Context, actor Actor, call domain.Tool
 
 func (service Service) audit(ctx context.Context, actor, tool string, args, result []byte, decision, reason, resource string) (string, error) {
 	if service.Audit == nil {
-		return "", errors.New("assistant audit is not configured")
+		return "", fmt.Errorf("%w: assistant audit is not configured", domain.ErrAuditUnavailable)
 	}
-	return service.Audit.Record(ctx, AuditRecord{
+	id, err := service.Audit.Record(ctx, AuditRecord{
 		Actor: actor, Tool: tool, Args: args, Result: result, Decision: decision, Reason: reason, Resource: resource,
 	})
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", domain.ErrAuditUnavailable, err)
+	}
+	return id, nil
 }
 
 func (service Service) now() time.Time {

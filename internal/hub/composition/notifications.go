@@ -3,6 +3,7 @@ package composition
 import (
 	"context"
 	"errors"
+	assistantapp "github.com/jonathanagustin/conduit/internal/assistant/application"
 	"net/http"
 	"strings"
 	"sync"
@@ -46,6 +47,9 @@ type Options struct {
 	DebugSessionJournal requestports.Journal
 	// ChangeDiscussion persists native discussion separately from review records.
 	ChangeDiscussion activityports.Store
+	// AssistantThreads persists assistant conversations per operator. Nil keeps
+	// them in this process's memory: lost on restart, not shared by replicas.
+	AssistantThreads assistantapp.Threads
 	// ProductAssets persists native download declarations. Nil mounts no asset routes.
 	ProductAssets assetports.Store
 	// Spaces persists native grouping identities and anchors. Nil mounts no Space routes.

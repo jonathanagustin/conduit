@@ -132,21 +132,19 @@ func TestDiffReturnsTheStoredHunk(t *testing.T) {
 	}
 }
 
-type scriptModel struct{ body string }
-
-func (model scriptModel) Complete(context.Context, string) (string, domain.Provenance, error) {
-	return model.body, domain.Provenance{Adapter: "script"}, nil
-}
-
 func TestModelTurnValidatesThenGatesTheAction(t *testing.T) {
 	changes := &memoryChanges{}
+	model := &scripted{replies: []string{
+		`{"text":"checking the rule","toolCalls":[{"name":"propose_governed_action","arguments":` + string(proposeBody()) + `}]}`,
+		`{"text":"the rule refused it: the run is not running"}`,
+	}}
 	service := Service{
-		Model:    scriptModel{body: `{"text":"checking the rule","toolCalls":[{"name":"propose_governed_action","arguments":` + string(proposeBody()) + `}]}`},
+		Model:    model,
 		Governor: scriptGovernor{decision: Decision{Known: true, Reason: "run is not queued, running, or staged"}},
 		Changes:  changes, Audit: &memoryAudit{}, Now: fixedClock(),
 	}
 	turn, err := service.Turn(context.Background(), operator(), domain.ModeOntology, "cancel the run", nil)
-	if err != nil || turn.Label != domain.LabelLiveModel || turn.Text != "checking the rule" || len(turn.Results) != 1 {
+	if err != nil || turn.Label != domain.LabelLiveModel || turn.Text != "the rule refused it: the run is not running" || len(turn.Results) != 1 {
 		t.Fatalf("turn = %#v %v", turn, err)
 	}
 	if turn.Results[0].Allowed || changes.calls != 0 || turn.Results[0].Reason == "" {
