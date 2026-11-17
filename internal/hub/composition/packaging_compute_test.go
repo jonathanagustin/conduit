@@ -98,7 +98,7 @@ func TestGovernedOnboardPackagingFromSource(t *testing.T) {
 	if err != nil || !strings.Contains(string(cr), digest) || !strings.Contains(string(cr), "kind: Package") {
 		t.Fatalf("package cr: %v\n%s", err, cr)
 	}
-	matches, err := filepath.Glob(filepath.Join(repo, "out", "zarf-package-*"))
+	matches, err := filepath.Glob(filepath.Join(repo, "out", "create-*", "zarf-package-*"))
 	if err != nil || len(matches) != 1 {
 		t.Fatalf("archive: %v %v", matches, err)
 	}
