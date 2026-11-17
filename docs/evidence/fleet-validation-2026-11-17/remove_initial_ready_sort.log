@@ -1,0 +1,6 @@
+--- FAIL: TestGeneratedFleetPlannerInvariants (0.00s)
+    fleet_invariants_test.go:112: seed=14104409206228959650: input permutation changed the Plan: <nil>
+    fleet_invariants_test.go:118: #1: failed on input 0xc3bced71d806c1a2
+FAIL
+FAIL	github.com/jonathanagustin/conduit/internal/controlplane	0.434s
+FAIL

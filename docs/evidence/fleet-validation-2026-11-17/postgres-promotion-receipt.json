@@ -1,0 +1,1 @@
+{"schema_version":1,"kind":"CONDUIT_POSTGRES_PROMOTION","result":"PASS","commit":"e2a4518658cf9660938ca928b56ca1cb96bdf7c7","tree":"81e6030af35478e8d7c827f0380882c63d0841a2","report_sha256":"ad28989e1c38190b7ebd767092a900337d178b98aba669f46fc32f903d0cf20e","log_sha256":"06b1a858b1211793af0b77fb2bdeee518fb53273542fbf5d5c9989199971dedb","production_capacity_established":false}
