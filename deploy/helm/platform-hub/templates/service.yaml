@@ -28,3 +28,9 @@ spec:
       port: {{ .Values.service.port }}
       targetPort: https
       protocol: TCP
+    {{- if .Values.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.metrics.service.port }}
+      targetPort: metrics
+      protocol: TCP
+    {{- end }}

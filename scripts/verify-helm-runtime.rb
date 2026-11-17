@@ -564,4 +564,137 @@ stdout, stderr, status = capture(
 abort "packaging worker rendered without its Temporal address" if status.success?
 abort "packaging worker failure did not name the address" unless (stdout + stderr).include?("address")
 
+# Optional shipped features (#838). Each is off by default and typed: the chart
+# has no free-form environment escape hatch, so a feature the Hub or Agent ships
+# is reachable only through a value this gate has rendered.
+hub_values = File.join(charts.fetch(:hub), "ci/test-values.yaml")
+spoke_values = File.join(charts.fetch(:spoke), "ci/test-values.yaml")
+optional_hub_env = %w[METRICS_ADDRESS PLAN_ORCHESTRATOR PLAN_TEMPORAL_ADDRESS]
+abort "default Hub enables an optional feature nobody asked for" unless
+  (hub_env.keys & optional_hub_env).empty? && hub_env.keys.none? { |name| name.start_with?("NOTIFICATION_") }
+abort "default Hub declares a metrics port nothing listens on" if
+  hub_container.fetch("ports").any? { |port| port["name"] == "metrics" } ||
+    hub_documents.find { |item| item["kind"] == "Service" }.dig("spec", "ports").any? { |port| port["name"] == "metrics" }
+abort "default Spoke configures a material preparer" if spoke_env.key?("EXTERNAL_MATERIAL_PREPARER")
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set-string", "extraEnv.METRICS_ADDRESS=:9090"])
+
+metrics_documents = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set", "metrics.enabled=true", "--set", "metrics.port=9191", "--set", "metrics.service.port=9292", "--set", "metrics.serviceMonitor.enabled=true"]
+)
+metrics_hub = metrics_documents.find { |item| item["kind"] == "Deployment" }
+metrics_container = metrics_hub.dig("spec", "template", "spec", "containers", 0)
+metrics_env = metrics_container.fetch("env").to_h { |item| [item["name"], item["value"]] }
+abort "metrics.enabled did not set the listener address from metrics.port" unless metrics_env["METRICS_ADDRESS"] == ":9191"
+abort "metrics.enabled did not declare the container port" unless
+  metrics_container.fetch("ports").include?({"name" => "metrics", "containerPort" => 9191})
+metrics_service = metrics_documents.find { |item| item["kind"] == "Service" }
+abort "metrics.enabled did not add the Service port" unless
+  metrics_service.dig("spec", "ports").include?({"name" => "metrics", "port" => 9292, "targetPort" => "metrics", "protocol" => "TCP"})
+service_monitor = metrics_documents.find { |item| item["kind"] == "ServiceMonitor" }
+abort "metrics.serviceMonitor.enabled did not render a ServiceMonitor" unless service_monitor
+abort "ServiceMonitor does not select the Hub Service it scrapes" unless
+  service_monitor.dig("spec", "selector", "matchLabels").all? { |key, value| metrics_service.dig("metadata", "labels", key) == value } &&
+    service_monitor.dig("spec", "endpoints") == [{"port" => "metrics", "path" => "/metrics", "scheme" => "http", "interval" => "30s"}] &&
+    service_monitor.dig("spec", "namespaceSelector", "matchNames") == ["platform-system"]
+abort "metrics.enabled alone must not require the Prometheus Operator" if
+  render!(helm, "platform-hub", charts.fetch(:hub), hub_values, ["--set", "metrics.enabled=true"]).any? { |item| item["kind"] == "ServiceMonitor" }
+# The Hub serves /metrics only for PostgreSQL. A file-repository Hub with a
+# metrics port is a scrape target that is permanently down.
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub),
+  ["--values", hub_values, "--set", "repository.kind=file", "--set", "replicaCount=1", "--set", "metrics.enabled=true"])
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub),
+  ["--values", hub_values, "--skip-schema-validation", "--set", "repository.kind=file", "--set", "replicaCount=1", "--set", "metrics.enabled=true"])
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set", "metrics.serviceMonitor.enabled=true"])
+
+# Notification credentials reach the Hub only as Secret references. An env
+# entry carrying a literal value for a credential would put it in the release
+# record, which is exactly what the file-mounted Secrets elsewhere avoid.
+webhook_container = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set", "notifications.transport=webhook", "--set", "notifications.webhook.urlSecretName=notification-webhook", "--set", "notifications.webhook.timeout=10s"]
+).find { |item| item["kind"] == "Deployment" }.dig("spec", "template", "spec", "containers", 0)
+webhook_url = webhook_container.fetch("env").find { |item| item["name"] == "NOTIFICATION_WEBHOOK_URL" }
+abort "webhook URL must come from a required Secret key and never a literal" unless
+  webhook_url == {"name" => "NOTIFICATION_WEBHOOK_URL", "valueFrom" => {"secretKeyRef" => {"name" => "notification-webhook", "key" => "url", "optional" => false}}}
+abort "webhook timeout did not render" unless
+  webhook_container.fetch("env").include?({"name" => "NOTIFICATION_WEBHOOK_TIMEOUT", "value" => "10s"})
+log_env = render!(helm, "platform-hub", charts.fetch(:hub), hub_values, ["--set", "notifications.transport=log"])
+  .find { |item| item["kind"] == "Deployment" }.dig("spec", "template", "spec", "containers", 0, "env")
+abort "log transport did not render exactly" unless
+  log_env.select { |item| item["name"].start_with?("NOTIFICATION_") } == [{"name" => "NOTIFICATION_DELIVERY_LOG", "value" => "true"}]
+native_pod = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set", "notifications.transport=native",
+   "--set-string", "notifications.native.smtp.address=smtp.example.test:587",
+   "--set-string", "notifications.native.smtp.from=conduit@example.test",
+   "--set", "notifications.native.smtp.credentialsSecretName=notification-smtp",
+   "--set", "notifications.native.smtp.caConfigMapName=notification-smtp-ca",
+   "--set", "notifications.native.slack.tokenSecretName=notification-slack"]
+).find { |item| item["kind"] == "Deployment" }.dig("spec", "template", "spec")
+native_container = native_pod.fetch("containers").first
+native_env = native_container.fetch("env").select { |item| item["name"].start_with?("NOTIFICATION_") }
+abort "native notification environment did not render exactly" unless native_env.to_h { |item| [item["name"], item["value"]] } == {
+  "NOTIFICATION_SMTP_ADDRESS" => "smtp.example.test:587",
+  "NOTIFICATION_SMTP_FROM" => "conduit@example.test",
+  "NOTIFICATION_SMTP_USERNAME_FILE" => "/run/notification-smtp/username",
+  "NOTIFICATION_SMTP_PASSWORD_FILE" => "/run/notification-smtp/password",
+  "NOTIFICATION_SMTP_CA_FILE" => "/run/notification-smtp-ca/ca.pem",
+  "NOTIFICATION_SLACK_TOKEN_FILE" => "/run/notification-slack/token"
+}
+native_volumes = native_pod.fetch("volumes").to_h { |item| [item["name"], item] }
+abort "SMTP credentials must be one required Secret mounted as files" unless
+  native_volumes.dig("notification-smtp", "secret") == {
+    "secretName" => "notification-smtp", "optional" => false,
+    "items" => [{"key" => "username", "path" => "username"}, {"key" => "password", "path" => "password"}]
+  }
+abort "Slack token must be one required Secret mounted as a file" unless
+  native_volumes.dig("notification-slack", "secret") == {
+    "secretName" => "notification-slack", "optional" => false, "items" => [{"key" => "token", "path" => "token"}]
+  }
+abort "notification credential mounts must be read-only" unless
+  %w[notification-smtp notification-smtp-ca notification-slack].all? do |name|
+    native_container.fetch("volumeMounts").include?({"name" => name, "mountPath" => "/run/#{name}", "readOnly" => true})
+  end
+# Every way of putting a credential in values is refused by the schema, and so
+# is every transport the Hub would refuse at startup.
+[
+  ["--set", "notifications.transport=webhook"],
+  ["--set", "notifications.transport=webhook", "--set-string", "notifications.webhook.url=https://hooks.example.test/secret"],
+  ["--set", "notifications.transport=native"],
+  ["--set", "notifications.transport=native", "--set-string", "notifications.native.smtp.address=smtp.example.test:587"],
+  ["--set", "notifications.transport=native", "--set", "notifications.native.slack.tokenSecretName=notification-slack",
+   "--set-string", "notifications.native.slack.token=xoxb-literal"],
+  ["--set", "notifications.transport=native", "--set-string", "notifications.native.smtp.address=smtp.example.test:587",
+   "--set-string", "notifications.native.smtp.from=conduit@example.test", "--set-string", "notifications.native.smtp.password=literal"],
+  ["--set", "notifications.transport=log", "--set", "repository.kind=file", "--set", "replicaCount=1"]
+].each do |arguments|
+  assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, *arguments])
+end
+
+orchestrator_env = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set", "planOrchestrator.driver=temporal", "--set-string", "planOrchestrator.temporalAddress=temporal.example.test:7233"]
+).find { |item| item["kind"] == "Deployment" }.dig("spec", "template", "spec", "containers", 0, "env").to_h { |item| [item["name"], item["value"]] }
+abort "Temporal plan orchestrator did not render exactly" unless
+  orchestrator_env["PLAN_ORCHESTRATOR"] == "temporal" && orchestrator_env["PLAN_TEMPORAL_ADDRESS"] == "temporal.example.test:7233"
+# The Hub refuses PLAN_ORCHESTRATOR=temporal with no address to dial.
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set", "planOrchestrator.driver=temporal"])
+
+preparer_pod = render!(
+  helm, "platform-spoke", charts.fetch(:spoke), spoke_values,
+  ["--set-string", "materialPreparer.command=/opt/platform-material/prepare", "--set", "materialPreparer.toolsPersistentVolumeClaimName=material-tools"]
+).find { |item| item["kind"] == "Deployment" }
+validate_deployment!(preparer_pod)
+preparer_container = preparer_pod.dig("spec", "template", "spec", "containers", 0)
+abort "Spoke material preparer did not render" unless
+  preparer_container.fetch("env").include?({"name" => "EXTERNAL_MATERIAL_PREPARER", "value" => "/opt/platform-material/prepare"})
+abort "Spoke material preparer tools must be an externally supplied read-only PVC" unless
+  preparer_container.fetch("volumeMounts").include?({"name" => "material-preparer-tools", "mountPath" => "/opt/platform-material", "readOnly" => true}) &&
+    preparer_pod.dig("spec", "template", "spec", "volumes").include?(
+      {"name" => "material-preparer-tools", "persistentVolumeClaim" => {"claimName" => "material-tools", "readOnly" => true}}
+    )
+# The Agent refuses anything but a clean absolute path; so does the schema.
+assert_fails_closed!(helm, "platform-spoke", charts.fetch(:spoke), ["--values", spoke_values, "--set-string", "materialPreparer.command=bin/prepare"])
+
 puts "Two-chart Helm runtime and bounded Rubix profile verified with #{run!(helm, 'version', '--short').strip}"

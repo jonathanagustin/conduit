@@ -1,3 +1,22 @@
+{{- if and .Values.metrics.enabled (ne .Values.repository.kind "postgres") }}
+{{- fail "metrics.enabled requires repository.kind postgres: the Hub serves /metrics only for the PostgreSQL repository" }}
+{{- end }}
+{{- if and (ne .Values.notifications.transport "none") (ne .Values.repository.kind "postgres") }}
+{{- fail "notifications.transport requires repository.kind postgres: delivery needs the durable queue" }}
+{{- end }}
+{{- $smtp := .Values.notifications.native.smtp -}}
+{{- $slack := .Values.notifications.native.slack -}}
+{{- if eq .Values.notifications.transport "native" }}
+{{- if and (not $smtp.address) (not $slack.tokenSecretName) }}
+{{- fail "notifications.transport=native requires notifications.native.smtp.address or notifications.native.slack.tokenSecretName" }}
+{{- end }}
+{{- if and $smtp.address (not $smtp.from) }}
+{{- fail "notifications.native.smtp.from is required when notifications.native.smtp.address is set" }}
+{{- end }}
+{{- end }}
+{{- if and (eq .Values.planOrchestrator.driver "temporal") (not .Values.planOrchestrator.temporalAddress) (not .Values.packagingWorkflow.enabled) }}
+{{- fail "planOrchestrator.driver=temporal requires planOrchestrator.temporalAddress or packagingWorkflow.enabled" }}
+{{- end }}
 {{- $planningBackend := .Values.planning.backend | default "local" -}}
 {{- if and (gt (int .Values.replicaCount) 1) (ne $planningBackend "temporal") }}
 {{- fail "replicaCount greater than 1 requires planning.backend temporal; a process-local planning store is not shared across Hub replicas" }}
@@ -141,8 +160,54 @@ spec:
             - { name: PACKAGING_TEMPORAL_API_KEY_FILE, value: /run/packaging-temporal-api-key/api-key }
             {{- end }}
             {{- end }}
+            {{- if .Values.metrics.enabled }}
+            - { name: METRICS_ADDRESS, value: {{ printf ":%d" (int .Values.metrics.port) | quote }} }
+            {{- end }}
+            {{- if eq .Values.notifications.transport "webhook" }}
+            - name: NOTIFICATION_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "notifications.webhook.urlSecretName is required when notifications.transport=webhook" .Values.notifications.webhook.urlSecretName }}
+                  key: {{ .Values.notifications.webhook.urlSecretKey }}
+                  optional: false
+            {{- with .Values.notifications.webhook.timeout }}
+            - { name: NOTIFICATION_WEBHOOK_TIMEOUT, value: {{ . | quote }} }
+            {{- end }}
+            {{- else if eq .Values.notifications.transport "log" }}
+            - { name: NOTIFICATION_DELIVERY_LOG, value: "true" }
+            {{- else if eq .Values.notifications.transport "native" }}
+            {{- with .Values.notifications.native.timeout }}
+            - { name: NOTIFICATION_NATIVE_TIMEOUT, value: {{ . | quote }} }
+            {{- end }}
+            {{- if $smtp.address }}
+            - { name: NOTIFICATION_SMTP_ADDRESS, value: {{ $smtp.address | quote }} }
+            - { name: NOTIFICATION_SMTP_FROM, value: {{ $smtp.from | quote }} }
+            {{- with $smtp.tlsMode }}
+            - { name: NOTIFICATION_SMTP_TLS_MODE, value: {{ . | quote }} }
+            {{- end }}
+            {{- if $smtp.credentialsSecretName }}
+            - { name: NOTIFICATION_SMTP_USERNAME_FILE, value: /run/notification-smtp/username }
+            - { name: NOTIFICATION_SMTP_PASSWORD_FILE, value: /run/notification-smtp/password }
+            {{- end }}
+            {{- if $smtp.caConfigMapName }}
+            - { name: NOTIFICATION_SMTP_CA_FILE, value: /run/notification-smtp-ca/ca.pem }
+            {{- end }}
+            {{- end }}
+            {{- if $slack.tokenSecretName }}
+            - { name: NOTIFICATION_SLACK_TOKEN_FILE, value: /run/notification-slack/token }
+            {{- end }}
+            {{- end }}
+            {{- if eq .Values.planOrchestrator.driver "temporal" }}
+            - { name: PLAN_ORCHESTRATOR, value: temporal }
+            {{- with .Values.planOrchestrator.temporalAddress }}
+            - { name: PLAN_TEMPORAL_ADDRESS, value: {{ . | quote }} }
+            {{- end }}
+            {{- end }}
           ports:
             - { name: https, containerPort: {{ .Values.service.port }} }
+            {{- if .Values.metrics.enabled }}
+            - { name: metrics, containerPort: {{ .Values.metrics.port }} }
+            {{- end }}
           startupProbe:
             httpGet: { path: /health/live, port: https, scheme: HTTPS }
             periodSeconds: 5
@@ -189,6 +254,17 @@ spec:
             {{- end }}
             {{- with .Values.packagingWorkflow.apiKeySecretName }}
             - { name: packaging-temporal-api-key, mountPath: /run/packaging-temporal-api-key, readOnly: true }
+            {{- end }}
+            {{- end }}
+            {{- if eq .Values.notifications.transport "native" }}
+            {{- if and $smtp.address $smtp.credentialsSecretName }}
+            - { name: notification-smtp, mountPath: /run/notification-smtp, readOnly: true }
+            {{- end }}
+            {{- if and $smtp.address $smtp.caConfigMapName }}
+            - { name: notification-smtp-ca, mountPath: /run/notification-smtp-ca, readOnly: true }
+            {{- end }}
+            {{- if $slack.tokenSecretName }}
+            - { name: notification-slack, mountPath: /run/notification-slack, readOnly: true }
             {{- end }}
             {{- end }}
       volumes:
@@ -264,6 +340,32 @@ spec:
             optional: false
             items:
               - { key: api-key, path: api-key }
+        {{- end }}
+        {{- end }}
+        {{- if eq .Values.notifications.transport "native" }}
+        {{- if and $smtp.address $smtp.credentialsSecretName }}
+        - name: notification-smtp
+          secret:
+            secretName: {{ $smtp.credentialsSecretName }}
+            optional: false
+            items:
+              - { key: {{ $smtp.usernameKey }}, path: username }
+              - { key: {{ $smtp.passwordKey }}, path: password }
+        {{- end }}
+        {{- if and $smtp.address $smtp.caConfigMapName }}
+        - name: notification-smtp-ca
+          configMap:
+            name: {{ $smtp.caConfigMapName }}
+            items:
+              - { key: {{ $smtp.caKey }}, path: ca.pem }
+        {{- end }}
+        {{- if $slack.tokenSecretName }}
+        - name: notification-slack
+          secret:
+            secretName: {{ $slack.tokenSecretName }}
+            optional: false
+            items:
+              - { key: {{ $slack.tokenKey }}, path: token }
         {{- end }}
         {{- end }}
       {{- with .Values.nodeSelector }}

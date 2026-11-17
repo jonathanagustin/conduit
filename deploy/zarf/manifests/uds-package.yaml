@@ -1,13 +1,12 @@
 # UDS Core reconciles this Package into a Keycloak client, NetworkPolicies,
-# a tenant-gateway route, and a ServiceMonitor. It is applied only by the
-# optional `uds` Zarf component, because a cluster without the UDS CRDs
-# cannot accept it.
+# and a tenant-gateway route. It is applied only by the optional `uds` Zarf
+# component, because a cluster without the UDS CRDs cannot accept it.
 #
-# The metrics monitor is declared against Service port `metrics`. On this
-# file-backed baseline the Hub does not listen there: /metrics is served only
-# when METRICS_ADDRESS is set and REPOSITORY_KIND=postgres, and exporting
-# zeroes for the file repository would report an idle fleet. The monitor
-# object can still be registered. A scrape of this baseline has no series.
+# It declares no metrics monitor. The default Hub is file-backed and serves
+# no /metrics, so a ServiceMonitor here would be a scrape target that is down
+# for the life of the deployment. `uds-package-metrics.yaml`, applied by the
+# `uds-metrics` component instead of this one, is this file plus the monitor;
+# scripts/verify-zarf-package.rb fails if the two differ anywhere else.
 apiVersion: uds.dev/v1alpha1
 kind: Package
 metadata:
@@ -180,14 +179,6 @@ spec:
             id.token.claim: "true"
             access.token.claim: "true"
             userinfo.token.claim: "true"
-  monitor:
-    - description: Hub metrics
-      kind: ServiceMonitor
-      selector:
-        app.kubernetes.io/name: platform-delivery
-      portName: metrics
-      targetPort: 9090
-      path: /metrics
   caBundle:
     configMap:
       name: uds-trust-bundle

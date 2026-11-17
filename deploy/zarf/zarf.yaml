@@ -46,8 +46,16 @@ variables:
     description: Frontend address of the operator-supplied Temporal server. Used only by the optional packaging-worker component.
     default: "127.0.0.1:7233"
   - name: PACKAGING_POSTGRES_SECRET
-    description: Existing Secret whose dsn key is the Hub Postgres DSN. Used only by the optional packaging-worker component.
+    description: Existing Secret whose dsn key is the Hub Postgres DSN. Read by the Hub when REPOSITORY_KIND=postgres and by the optional packaging-worker component.
     default: platform-postgres
+  - name: REPOSITORY_KIND
+    description: Hub repository. file is the single-replica baseline on the package PVC. postgres reads the DSN from PACKAGING_POSTGRES_SECRET and is required for metrics.
+    default: file
+    pattern: "^(file|postgres)$"
+  - name: METRICS_ADDRESS
+    description: Hub metrics listener. Leave empty for none. Set to :9090 only together with REPOSITORY_KIND=postgres; the file repository serves no metrics.
+    default: ""
+    pattern: "^(:9090)?$"
   - name: CONSOLE_PUBLIC_URL
     description: Browser origin of the Hub console. Used only by the optional uds component as the SSO redirect prefix.
     default: https://conduit.uds.dev
@@ -143,9 +151,18 @@ components:
   - name: uds
     required: false
     default: false
-    description: UDS Package custom resource. Deploy only on a cluster that already has UDS Core. A plain Zarf install does not select this component.
+    description: UDS Package custom resource without a metrics monitor. Deploy only on a cluster that already has UDS Core. A plain Zarf install does not select this component. Do not combine with uds-metrics.
     manifests:
       - name: uds-package
         namespace: platform-system
         files:
           - manifests/uds-package.yaml
+  - name: uds-metrics
+    required: false
+    default: false
+    description: The same UDS Package custom resource plus a ServiceMonitor for the Hub. Select instead of uds, and only with REPOSITORY_KIND=postgres and METRICS_ADDRESS=:9090; otherwise the monitor's target is permanently down.
+    manifests:
+      - name: uds-package
+        namespace: platform-system
+        files:
+          - manifests/uds-package-metrics.yaml
