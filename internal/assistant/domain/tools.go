@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 )
 
@@ -370,7 +371,8 @@ func decode[T any](raw []byte) (T, error) {
 	if err := decoder.Decode(&value); err != nil {
 		return value, fmt.Errorf("%w: %v", ErrToolInvalid, err)
 	}
-	if decoder.More() {
+	var extra json.RawMessage
+	if err := decoder.Decode(&extra); err != io.EOF {
 		return value, fmt.Errorf("%w: extra data after the object", ErrToolInvalid)
 	}
 	return value, nil
