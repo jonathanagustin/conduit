@@ -1,3 +1,7 @@
+import {
+  capabilityBlocks,
+  deliveryCapabilityHook,
+} from "./delivery-actions.js";
 import { paintOperatorIdentity } from "./shell.js";
 import {
   INDEX_DEFINITIONS,
@@ -89,6 +93,25 @@ async function postJSON(path, body, signal) {
   });
   if (!response.ok) throw new Error(`${path} returned ${response.status}`);
   return response.json();
+}
+
+async function proposeDriftRepair(environment, installationId) {
+  const gate = deliveryCapabilityHook(
+    "change:propose",
+    `environment/${environment}`,
+  );
+  if (capabilityBlocks(gate)) throw new Error(gate.reason);
+  return postJSON("/v1/fleet/propose-fix", { environment, installationId });
+}
+
+function driftRepairButton(row) {
+  if (reportedDrift(row) !== "drifted") return "";
+  const gate = deliveryCapabilityHook(
+    "change:propose",
+    `environment/${row.environment}`,
+  );
+  const blocked = capabilityBlocks(gate);
+  return `<button type="button" class="so-btn so-btn-sm" data-propose-fix="${esc(row.environment)}" data-installation="${esc(row.installationId)}"${blocked ? ` disabled title="${esc(gate.reason)}"` : ""}>Propose fix</button>${blocked ? `<span role="status" data-fleet-repair-capability>${esc(gate.reason)}</span>` : ""}`;
 }
 
 /** Pages read per index in one refresh. Past it the read stops, not fails. */
@@ -1417,7 +1440,7 @@ export function createLiveHub({
       )}</div>`;
     },
     proposeFix(environment, installationId) {
-      return postJSON("/v1/fleet/propose-fix", { environment, installationId });
+      return proposeDriftRepair(environment, installationId);
     },
     renderEnvironments(root) {
       const rows = hub(state).environments || [];
@@ -1453,7 +1476,7 @@ export function createLiveHub({
             <td>${esc(row.observedVersion || "")}</td>
             <td>${esc(reportedDrift(row))}</td>
             <td>${freshnessPill(row.observedAt, { esc, stale: row.stale })}</td>
-            <td>${reportedDrift(row) === "drifted" ? `<button type="button" class="so-btn so-btn-sm" data-propose-fix="${esc(row.environment)}" data-installation="${esc(row.installationId)}">Propose fix</button>` : ""}</td>
+            <td>${driftRepairButton(row)}</td>
           </tr>`,
         )
         .join("");
@@ -1517,12 +1540,13 @@ export function createLiveHub({
       root.innerHTML = split(`${spokeTable}${installTable}`);
       root.querySelectorAll("[data-propose-fix]").forEach((button) => {
         button.addEventListener("click", async () => {
+          if (button.disabled) return;
           button.disabled = true;
           try {
-            const opened = await postJSON("/v1/fleet/propose-fix", {
-              environment: button.getAttribute("data-propose-fix"),
-              installationId: button.getAttribute("data-installation"),
-            });
+            const opened = await proposeDriftRepair(
+              button.getAttribute("data-propose-fix"),
+              button.getAttribute("data-installation"),
+            );
             button.textContent = opened.changeRequestId || "Proposed";
           } catch {
             button.textContent = "Refused";

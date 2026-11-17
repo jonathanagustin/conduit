@@ -2,6 +2,7 @@ package composition
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/delivery/driftfix/application"
@@ -21,6 +22,9 @@ func mountDriftFix(legacy http.Handler, repository controlplane.Repository, opti
 			principal, ok := packagingPrincipal(request, governance, options)
 			if !ok {
 				return application.Result{}, http.ErrNoCookie
+			}
+			if !governance.AuthorizeResourceOperation(request.Context(), principal, options, "environment/"+strings.TrimSpace(environment), controlplane.OperationProposeChange) {
+				return application.Result{}, controlplane.ErrForbidden
 			}
 			return service.Propose(request.Context(), principal, environment, installation)
 		},

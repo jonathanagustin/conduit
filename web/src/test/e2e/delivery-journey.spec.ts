@@ -101,6 +101,7 @@ type Hub = {
   /** What /v1/session lists at platform/root; read and operate when absent. */
   globalOperations?: string[];
   resourceOperations?: string[];
+  installations?: Record<string, unknown>[];
   plans: Record<string, unknown>[];
   changes: Record<string, unknown>[];
   promotions: Record<string, unknown>[];
@@ -186,7 +187,8 @@ async function stubHub(page: Page, hub: Hub) {
     if (path === "/v1/change-requests/crq_new")
       return json(hub.changes[0] ?? changeRequest(hub.operator));
     if (path === "/v1/promotions") return json({ promotions: hub.promotions });
-    if (path === "/v1/fleet/installations") return json({ installations: [] });
+    if (path === "/v1/fleet/installations")
+      return json({ installations: hub.installations ?? [] });
     return route.fulfill({ status: 404, json: { error: "not stubbed" } });
   });
 }
@@ -521,6 +523,98 @@ test("a session without resource:operate is not offered a promotion, and is told
   await expect(review).toHaveAttribute("title", reason);
   expect(hub.writes).toHaveLength(0);
 });
+
+for (const permission of ["denied", "allowed", "unknown"]) {
+  test(`drift repair controls respect ${permission} environment capabilities`, async ({
+    page,
+  }) => {
+    const hub: Hub = {
+      operator: "alice",
+      resourceOperations:
+        permission === "unknown"
+          ? undefined
+          : permission === "allowed"
+            ? ["resource:read", "change:propose"]
+            : ["resource:read"],
+      plans: [basePlan],
+      changes: [],
+      promotions: [],
+      writes: [],
+      installations: [
+        {
+          environment: "dev",
+          installationId: "api-1",
+          product: "app.example:api",
+          desiredVersion: "2",
+          observedVersion: "1",
+          desiredReleaseDigest: "sha256:desired",
+          observedReleaseDigest: "sha256:observed",
+          desiredConfigDigest: "sha256:config",
+          observedConfigDigest: "sha256:config",
+          observedAt: "2026-11-17T12:00:00Z",
+          stale: false,
+        },
+      ],
+      answer: (path) =>
+        path === "/v1/fleet/propose-fix"
+          ? { status: 201, json: { changeRequestId: "reviewed-repair" } }
+          : null,
+    };
+    await hydrate(page);
+    await stubHub(page, hub);
+    await page.goto("/console/");
+    await openArea(page, "Releases", "Environments");
+    const selectedRepair = page.locator("[data-release-propose-fix]");
+    const reason =
+      "Your session does not hold change:propose on environment/dev.";
+    if (permission === "denied") {
+      await expect(selectedRepair).toBeDisabled();
+      await expect(selectedRepair).toHaveAttribute("title", reason);
+      await expect(page.locator("[data-release-repair-capability]")).toHaveText(
+        reason,
+      );
+    } else {
+      await selectedRepair.click();
+      await expect(selectedRepair).toHaveText("reviewed-repair");
+    }
+    // The retained fleet renderer is not currently mounted by the rail.
+    // Exercise its real method as a browser component, not a navigation claim.
+    await page.evaluate(() => {
+      const host = document.createElement("div");
+      host.id = "legacy-fleet-fixture";
+      document.body.append(host);
+      (
+        Reflect.get(window, "state") as {
+          liveHub: { renderEnvironments(node: HTMLElement): void };
+        }
+      ).liveHub.renderEnvironments(host);
+    });
+    const fleetRepair = page.locator(
+      "#legacy-fleet-fixture [data-propose-fix]",
+    );
+    if (permission === "denied") {
+      await expect(fleetRepair).toBeDisabled();
+      await expect(fleetRepair).toHaveAttribute("title", reason);
+      await expect(page.locator("[data-fleet-repair-capability]")).toHaveText(
+        reason,
+      );
+      expect(hub.writes).toHaveLength(0);
+    } else {
+      await fleetRepair.click();
+      await expect(fleetRepair).toHaveText("reviewed-repair");
+      expect(hub.writes.map(({ path, body }) => ({ path, body }))).toEqual([
+        {
+          path: "/v1/fleet/propose-fix",
+          body: { environment: "dev", installationId: "api-1" },
+        },
+        {
+          path: "/v1/fleet/propose-fix",
+          body: { environment: "dev", installationId: "api-1" },
+        },
+      ]);
+    }
+  });
+}
 
 for (const permitted of [false, true]) {
   test(`maintenance proposal ${permitted ? "uses a reviewed preview" : "states the missing environment operation"}`, async ({

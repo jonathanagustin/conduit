@@ -513,7 +513,7 @@ func HubRouteAuthorization() []RouteAuthorization {
 		{Pattern: "POST /v1/rollouts",
 			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; pause confirms, start resume and roll back open a change request"},
 		{Pattern: "POST /v1/fleet/propose-fix",
-			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; opens a change request for one drifted installation and does not apply it"},
+			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + change:propose on the requested environment; opens a reviewed drift repair and does not apply it"},
 		{Pattern: "POST /v1/fleet/actions",
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requireBulkTargetOperation"},
 		{Pattern: "POST /v1/module-installations/{installationID}/pause",

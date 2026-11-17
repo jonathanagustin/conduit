@@ -98,6 +98,9 @@ func bodyFor(pattern string) string {
 	if pattern == "POST /v1/debug-session-requests" {
 		return `{"sessionId":"dsr_abcdefghijklmnopqrstuvwxyz","target":{"environment":"tenant-a-use2","namespace":"example","profile":"probe"}}`
 	}
+	if pattern == "POST /v1/fleet/propose-fix" {
+		return `{"environment":"` + fixtureEnvironment + `","installationId":"probe"}`
+	}
 	if pattern == "POST /v1/temporary-maintenance-overrides" {
 		return `{"entities":[{"environment":"tenant-a-use2","entity":"probe"}],"duration":"1h","reason":"CAB-364"}`
 	}
