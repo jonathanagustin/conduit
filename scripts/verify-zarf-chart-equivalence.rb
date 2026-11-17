@@ -236,7 +236,8 @@ Dir.mktmpdir("zarf-chart-equivalence") do |work|
       ConduitSafeYAML.stream(run!(helm, "template", "platform-delivery", File.join(root, "deploy/helm/platform-hub"), "--namespace", "platform-system", "--values", hub_values)) +
       ConduitSafeYAML.stream(run!(helm, "template", "platform-spoke-agent", File.join(root, "deploy/helm/platform-spoke"), "--namespace", "platform-system", "--values", spoke_values))
 
-    stale = chart_labels["keys"].reject { |key| chart_documents.to_s.include?(%("#{key}"=>)) }
+    # Compare parsed labels; Hash#inspect spacing differs between Ruby versions.
+    stale = chart_labels["keys"].reject { |key| without_labels(chart_documents, [key]) != chart_documents }
     abort "chartOnlyLabels lists labels the charts no longer render: #{stale.join(', ')}" unless stale.empty?
     found = compare(zarf_documents, chart_documents, chart_labels["keys"], renames)
     if worker

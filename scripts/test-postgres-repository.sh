@@ -2,6 +2,8 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/development-host.sh
+source "${root}/scripts/lib/development-host.sh"
 # PostgreSQL 18 on alpine 3.24, built 2026-08-13 (resolved from the registry:
 # org.opencontainers.image.source is docker-library/postgres#…:18/alpine3.24).
 #
@@ -14,15 +16,14 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 image="postgres@sha256:a1d02e4bd40c94d3bf2bdd3678c137388e76d9efcd23c285e9429d336a834b44"
 name="conduit-postgres-repository-${$}"
 
-command -v docker >/dev/null || { echo "docker is required for the PostgreSQL repository gate" >&2; exit 1; }
-docker info >/dev/null
+container_engine="$(conduit_container_engine)"
 
 cleanup() {
-  docker rm -f -v "${name}" >/dev/null 2>&1 || true
+  "${container_engine}" rm -f -v "${name}" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
-docker run --rm --detach --name "${name}" \
+"${container_engine}" run --rm --detach --name "${name}" \
   --env POSTGRES_PASSWORD=conduit_test \
   --env POSTGRES_USER=conduit \
   --env POSTGRES_DB=conduit_test \
@@ -38,7 +39,7 @@ docker run --rm --detach --name "${name}" \
 # when the temporary server stops, so only the real one can satisfy it.
 ready=0
 for _ in $(seq 1 90); do
-  if docker exec "${name}" pg_isready --username conduit --dbname conduit_test >/dev/null 2>&1; then
+  if "${container_engine}" exec "${name}" pg_isready --username conduit --dbname conduit_test >/dev/null 2>&1; then
     ready=$((ready + 1))
     [[ "${ready}" -ge 3 ]] && break
   else
@@ -48,11 +49,11 @@ for _ in $(seq 1 90); do
 done
 [[ "${ready}" -ge 3 ]] || {
   echo "PostgreSQL never became consistently ready" >&2
-  docker logs "${name}" 2>&1 | tail -20 >&2
+  "${container_engine}" logs "${name}" 2>&1 | tail -20 >&2
   exit 1
 }
 
-port="$(docker port "${name}" 5432/tcp | awk -F: '/127[.]0[.]0[.]1/ {print $NF; exit}')"
+port="$("${container_engine}" port "${name}" 5432/tcp | awk -F: '/127[.]0[.]0[.]1/ {print $NF; exit}')"
 [[ "${port}" =~ ^[0-9]+$ ]] || { echo "could not resolve the disposable PostgreSQL port" >&2; exit 1; }
 
 cd "${root}"
@@ -74,7 +75,7 @@ dsn="postgres://conduit:conduit_test@127.0.0.1:${port}/conduit_test?sslmode=disa
 # pinned. The archive moves over the drill's stdin and stdout because the client
 # does not share this filesystem, and the DSN below is the server's address from
 # inside the container rather than from here.
-export CONDUIT_TEST_PG_TOOL_PREFIX="docker exec -i ${name}"
+export CONDUIT_TEST_PG_TOOL_PREFIX="${container_engine} exec -i ${name}"
 export CONDUIT_TEST_PG_TOOL_DSN="postgres://conduit:conduit_test@127.0.0.1:5432/conduit_test?sslmode=disable"
 # No -run filters, deliberately. The '^TestPostgres' filter these two lines
 # carried encodes a naming convention nobody wrote down, and it silently
