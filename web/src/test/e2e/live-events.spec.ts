@@ -56,7 +56,10 @@ async function fixture(page: Page, status = 200) {
     "**/conduit.packaging.v1.PackagingRunService/ListPackagingRuns",
     async (route) => {
       expect(route.request().method()).toBe("POST");
-      expect(route.request().postDataJSON()).toEqual({});
+      expect(route.request().postDataJSON()).toEqual({
+        view: "summary",
+        limit: 20,
+      });
       packagingRPCs.push(route.request().method());
       await route.fulfill({
         json: {
@@ -278,8 +281,7 @@ test("live invalidations refetch the native Plan view under the Hub CSP without 
     "live",
   );
   expect(current.writes).toEqual([]);
-  expect(current.packagingRPCs.length).toBeGreaterThan(0);
-  expect(current.packagingRPCs.every((method) => method === "POST")).toBe(true);
+  expect(current.packagingRPCs).toEqual([]);
   await page.screenshot({
     path: testInfo.outputPath("live-plan-invalidation.png"),
   });
@@ -296,7 +298,6 @@ test("live permission failure is visible and leaves polling active without recon
   );
   await expect(page.locator("#live-events-retry")).toBeVisible();
   const before = current.reads.filter((path) => path === "/v1/plans").length;
-  const packagingBefore = current.packagingRPCs.length;
   await page.clock.runFor(30000);
   await expect
     .poll(() => current.reads.filter((path) => path === "/v1/plans").length)
@@ -313,8 +314,7 @@ test("live permission failure is visible and leaves polling active without recon
     cursor: null,
   });
   expect(current.writes).toEqual([]);
-  expect(current.packagingRPCs.length).toBeGreaterThan(packagingBefore);
-  expect(current.packagingRPCs.every((method) => method === "POST")).toBe(true);
+  expect(current.packagingRPCs).toEqual([]);
   expect(current.reads.some((path) => path === "/v1/packaging-runs")).toBe(
     false,
   );
@@ -332,10 +332,10 @@ test("Audit session feed and native KPI counts update from authorized invalidati
   );
   const kpi = (id: string) =>
     page.locator(`[data-kpi="${id}"] .kpi-value .tnum`);
-  await expect(kpi("convergence")).toHaveText("0");
+  await expect(kpi("convergence")).toHaveText("—");
   await expect(kpi("packaging")).toHaveText("1");
-  await expect(kpi("changes")).toHaveText("1");
-  await expect(kpi("spokes")).toHaveText("0");
+  await expect(kpi("changes")).toHaveText("—");
+  await expect(kpi("spokes")).toHaveText("—");
   current.completeMetrics();
   await page.evaluate(() => {
     const source = (
@@ -359,10 +359,10 @@ test("Audit session feed and native KPI counts update from authorized invalidati
       );
     }
   });
-  await expect(kpi("convergence")).toHaveText("1");
+  await expect(kpi("convergence")).toHaveText("—");
   await expect(kpi("packaging")).toHaveText("0");
-  await expect(kpi("changes")).toHaveText("0");
-  await expect(kpi("spokes")).toHaveText("1");
+  await expect(kpi("changes")).toHaveText("—");
+  await expect(kpi("spokes")).toHaveText("—");
   await page.evaluate(() =>
     (window as unknown as { switchScreen: (id: string) => void }).switchScreen(
       "au01-audit",

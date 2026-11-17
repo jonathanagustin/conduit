@@ -81,11 +81,18 @@ export function applySpaceScope(next, spaceId) {
 export function spaceSelectorMarkup(hubState, selectedId) {
   const spaces = Array.isArray(hubState?.spaces) ? hubState.spaces : [];
   const active = activeSpaceId(selectedId, spaces);
+  const paged = hubState?.pagedIndexes === true;
+  const scoped = paged ? ["environments (by the Hub)"] : SPACE_SCOPED;
+  const unscoped = paged
+    ? ["installations", "plans", "change requests", ...SPACE_UNSCOPED]
+    : SPACE_UNSCOPED;
   const title = hubState?.spaceNote
     ? hubState.spaceNote
     : active
-      ? `Scoped to this Space: ${SPACE_SCOPED.join(", ")}. Not scoped by the Hub API: ${SPACE_UNSCOPED.join(", ")}.`
-      : "All Spaces. Selecting one scopes environments at the Hub, and the installations, plans and change requests that name them.";
+      ? `Scoped to this Space: ${scoped.join(", ")}. Not scoped by the Hub API: ${unscoped.join(", ")}.`
+      : paged
+        ? "All Spaces. Selecting one filters the environment index; other pages use their displayed server-side filters."
+        : "All Spaces. Selecting one scopes environments at the Hub, and the installations, plans and change requests that name them.";
   const rows = spaces
     .map(
       (space) =>

@@ -48,16 +48,31 @@ or an out-of-range limit returns `422`.
   `previousCursor` represents the first page.
 - Keep the last requested URL when a read fails so retry does not widen the query.
 - Do not infer totals or previous cursors from the rows in the current page.
-- The operator workbench's background refresh
-  (`web/src/console/operator/live-hub.js`) is a bounded catch-up, not a
-  cursor-owning index view: it follows `nextCursor` for at most five pages per
-  index. Reaching that bound is a truncated read, not a failed one. The rows read
-  are kept and the affected views state "Showing the first N of `total`", using
-  the envelope's `total` when present and no count otherwise.
-- That refresh still requests the `full` view for Products, Environments, and
-  Plans, because its views read fields the summaries omit (`plan.steps`,
-  `desiredState`, `approvals`, `reported.entities`, `releases`). With the 20-row
-  full-view maximum, the bound is 100 rows for those three indexes.
+- The operator workbench requests one 20-row page for each operational index
+  required by its visible screen (Product, Environment, Plan, Fleet, Change
+  Request, Promotion and Packaging). It uses summary views for Product, Environment and Plan
+  indexes, and expands only that visible page when the existing rich views
+  need releases, reports, desired state or approval rows. Expansion has at most
+  four concurrent reads; it never traverses the whole catalog.
+- Each index has its own filter and cursor parameters in the hash query, such
+  as `plans.search`, `plans.status`, `plans.environment` and `plans.cursor`.
+  Changing filters resets that index's cursor and selection. Next/Previous use
+  the Hub's opaque cursors, including an absent previous cursor for page one.
+- `tab`, `plan`, `environment`, `change` and `run` retain the current area tab
+  and explicitly selected native object. A linked selection outside the
+  current page is read by exact id and identified as outside that page; it
+  does not change the page's returned count or filters.
+- Counts say "Showing N of total in this page", using only the authorized
+  server total. No starting row or complete-catalog count is inferred from a
+  seek cursor. Failed reads retain the exact query for retry.
+- Header metrics remain unknown when their inputs are unread, filtered or
+  incomplete. A partial page is not reported as a complete Hub count.
+- The Space selector is also retained in the hash as `space`. The Hub's Space
+  filter applies to the Environment index. Other indexes use their displayed
+  server-side filters: a single Environment page is not used to infer Space
+  membership of unrelated pages. The selector explicitly lists this scope.
+- A route change prevents an older read from publishing into the new view.
+  Every refresh still verifies the operator identity before publishing data.
 
 Packaging-run pages use the same cursor shape: version, filter fingerprint,
 and seek key, capped at 2,048 bytes. The index fingerprint is `phase`,

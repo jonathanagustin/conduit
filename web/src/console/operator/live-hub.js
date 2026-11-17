@@ -1,5 +1,19 @@
 import { paintOperatorIdentity } from "./shell.js";
 import {
+  INDEX_DEFINITIONS,
+  INDEX_LIMIT,
+  indexFilters,
+  indexPage,
+  indexRequest,
+  readIndexPage,
+  routeQuery,
+  screenReads,
+} from "./index-pages.js";
+import {
+  fetchPackagingRunDetail,
+  packagingRunTransport,
+} from "../../api/packaging-run.js";
+import {
   fetchPackagingRuns,
   packagingRunsTransport,
 } from "../../api/packaging-runs.js";
@@ -321,7 +335,13 @@ function constraintRows(events) {
     .join("")}</div>`;
 }
 
-export function createLiveHub({ state, render, navigate = () => {} }) {
+export function createLiveHub({
+  state,
+  render,
+  navigate = () => {},
+  getScreen = () => state.detailScreen || state.screen || "",
+  routeChanged = () => {},
+}) {
   state.operatorName = "";
   state.hub = {
     loading: true,
@@ -340,6 +360,43 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
   let refreshing = 0,
     refreshGeneration = 0;
   let identityKey = "";
+  let activeViewKey = "";
+  let ensuredViewKey = "";
+  let ensuredDataKey = "";
+  function viewRequest() {
+    const screen = getScreen();
+    const query = new URLSearchParams(
+      state.indexQuery ||
+        routeQuery(globalThis.window?.location?.hash).toString(),
+    );
+    return {
+      screen,
+      query,
+      viewKey: `${screen}?${query}&space:${state.spaceId || ""}`,
+    };
+  }
+  function viewDataKey(request) {
+    const query = new URLSearchParams(request.query);
+    query.delete("tab");
+    for (const [key, rows, identity] of [
+      ["plan", state.hub?.plans, (row) => row?.id],
+      ["environment", state.hub?.environments, (row) => row?.environment?.id],
+      ["change", state.hub?.changes, (row) => row?.id],
+      ["run", state.hub?.packaging, (row) => row?.runId],
+    ]) {
+      const id = query.get(key);
+      if (
+        !id ||
+        (Array.isArray(rows) ? rows : []).some((row) => identity(row) === id)
+      )
+        query.delete(key);
+    }
+    return JSON.stringify([
+      [...screenReads(request.screen)].sort((a, b) => a.localeCompare(b)),
+      query.toString(),
+      state.spaceId || "",
+    ]);
+  }
   const eventListeners = new Set();
   const operations = createLiveOperations();
   const stream = new LiveSubscription({
@@ -454,6 +511,9 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
     }, 30000);
   }
   function refresh(options = {}) {
+    options = { ...viewRequest(), ...options };
+    options.dataKey = viewDataKey(options);
+    activeViewKey = options.viewKey;
     const generation = refreshGeneration;
     const task = refreshTail
       .catch(() => {})
@@ -480,6 +540,7 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       element.addEventListener("change", () => {
         state.packagingRunId = element.value;
         state.packagingStageId = "";
+        routeChanged();
         render();
       }),
     );
@@ -562,13 +623,51 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
   function paintOperator() {
     paintOperatorIdentity(state.operatorName);
     paintAvailability();
-    mountSpaceSelector(globalThis.document, state, () => refresh());
+    mountSpaceSelector(globalThis.document, state, () => {
+      routeChanged();
+      return refresh();
+    });
   }
 
   async function readRefresh(options, generation) {
-    const read = (path) => readJSON(path, options.signal);
+    const current = () =>
+      generation === refreshGeneration &&
+      (options.viewKey === activeViewKey ||
+        options.dataKey === viewDataKey(viewRequest()));
+    const read = (path) => {
+      if (!current()) throw new DOMException("Hub view changed", "AbortError");
+      return readJSON(path, options.signal);
+    };
+    const required = options.screen ? screenReads(options.screen) : null;
+    const wants = (index) => !required || required.has(index);
     const truncated = {};
     const pages = async (path, key, index) => {
+      if (options.screen && INDEX_DEFINITIONS[index]) {
+        const extra = Object.fromEntries(
+          new URL(path, "http://hub.local").searchParams,
+        );
+        const url = indexRequest(index, options.query, extra);
+        try {
+          const page = await readIndexPage(index, options.query, read, extra);
+          next.indexPages[index] = page;
+          if (page.nextCursor || page.hasPrevious)
+            truncated[index] = {
+              shown: page.shown,
+              total: page.total,
+              window: true,
+            };
+          return page.rows;
+        } catch (error) {
+          next.indexPages[index] = {
+            rows: [],
+            shown: 0,
+            total: null,
+            url,
+            error: `Hub did not return this ${INDEX_DEFINITIONS[index].label} page. Retry keeps its filters and cursor.`,
+          };
+          throw error;
+        }
+      }
       const page = await readPages(path, key, read, true);
       if (page.truncated)
         truncated[index] = { shown: page.rows.length, total: page.total };
@@ -589,13 +688,28 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       preview: null,
       note: "",
       truncated,
+      indexPages: {},
+      pagedIndexes: Boolean(options.screen),
     };
+    if (options.screen) {
+      for (const index of [
+        "packaging",
+        "changes",
+        "promotions",
+        "plans",
+        "environments",
+        "installations",
+        "products",
+      ]) {
+        if (!wants(index)) next[index] = null;
+      }
+    }
     try {
       session = await read("/v1/session");
     } catch {
       session = null;
     }
-    if (options.signal?.aborted || generation !== refreshGeneration)
+    if (options.signal?.aborted || !current())
       throw new DOMException("Hub read aborted", "AbortError");
     const observed = liveSessionIdentity(session);
     partition(observed);
@@ -617,49 +731,54 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       next.spaceNote = "Hub did not return Spaces; nothing is Space-scoped.";
     }
     const spaceId = activeSpaceId(state.spaceId, next.spaces);
-    try {
-      next.environments = await pages(
-        spaceScopedPath("/v1/environments", spaceId),
-        "environments",
-        "environments",
-      );
-    } catch {
-      next.note = spaceId
-        ? "Hub did not return environments for the selected Space."
-        : "Hub did not return environments.";
-    }
-    try {
-      next.installations = await pages(
-        "/v1/fleet/installations",
-        "installations",
-        "installations",
-      );
-    } catch {
-      next.installationNote = "Hub did not return reported installations.";
-    }
-    try {
-      const workspaces = await read("/v1/dev-workspaces");
-      if (!Array.isArray(workspaces.items))
-        throw new Error("invalid workspace index");
-      next.devWorkspaces = workspaces.items;
-    } catch {
-      next.devWorkspaces = null;
-      next.workspaceNote = "Hub did not return workspace profile status.";
-    }
-    try {
-      next.products = await pages(
-        "/v1/products?limit=20",
-        "products",
-        "products",
-      );
-    } catch {
-      next.productsNote = "Hub did not return the product catalog.";
-    }
-    try {
-      next.channels = await read("/v1/channel-subscriptions");
-    } catch {
-      next.channelNote = "Hub did not return channel subscriptions.";
-    }
+    if (wants("environments"))
+      try {
+        next.environments = await pages(
+          spaceScopedPath("/v1/environments", spaceId),
+          "environments",
+          "environments",
+        );
+      } catch {
+        next.note = spaceId
+          ? "Hub did not return environments for the selected Space."
+          : "Hub did not return environments.";
+      }
+    if (wants("installations"))
+      try {
+        next.installations = await pages(
+          "/v1/fleet/installations",
+          "installations",
+          "installations",
+        );
+      } catch {
+        next.installationNote = "Hub did not return reported installations.";
+      }
+    if (wants("workspaces"))
+      try {
+        const workspaces = await read("/v1/dev-workspaces");
+        if (!Array.isArray(workspaces.items))
+          throw new Error("invalid workspace index");
+        next.devWorkspaces = workspaces.items;
+      } catch {
+        next.devWorkspaces = null;
+        next.workspaceNote = "Hub did not return workspace profile status.";
+      }
+    if (wants("products"))
+      try {
+        next.products = await pages(
+          "/v1/products?limit=20",
+          "products",
+          "products",
+        );
+      } catch {
+        next.productsNote = "Hub did not return the product catalog.";
+      }
+    if (wants("channels"))
+      try {
+        next.channels = await read("/v1/channel-subscriptions");
+      } catch {
+        next.channelNote = "Hub did not return channel subscriptions.";
+      }
     // The environment these two reads describe comes from what the Hub
     // returned and what the operator selected, never from a fixed id.
     const scoped = refreshEnvironmentId(next.environments, [
@@ -668,7 +787,7 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
     ]);
     next.timelineEnvironment = scoped;
     next.timeline = "";
-    if (scoped) {
+    if (scoped && wants("timeline")) {
       try {
         const timeline = await read(
           `/v1/environments/${encodeURIComponent(scoped)}/timeline`,
@@ -683,15 +802,16 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
         next.timeline = "";
       }
     }
-    try {
-      const upgrades = await read("/v1/fleet/upgrades");
-      const rows = Array.isArray(upgrades.upgrades) ? upgrades.upgrades : [];
-      next.behind = rows.length ? `${rows.length} behind` : "none";
-    } catch {
-      next.behind = "";
-    }
+    if (wants("upgrades"))
+      try {
+        const upgrades = await read("/v1/fleet/upgrades");
+        const rows = Array.isArray(upgrades.upgrades) ? upgrades.upgrades : [];
+        next.behind = rows.length ? `${rows.length} behind` : "none";
+      } catch {
+        next.behind = "";
+      }
     next.blackoutReason = "";
-    if (scoped) {
+    if (scoped && wants("blackout")) {
       try {
         const blackout = await read(
           `/v1/blackouts?environment=${encodeURIComponent(scoped)}`,
@@ -701,107 +821,207 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
         next.blackoutReason = "";
       }
     }
-    try {
-      const rollouts = await read("/v1/rollouts");
-      next.rollouts = Array.isArray(rollouts.rollouts) ? rollouts.rollouts : [];
-    } catch {
-      next.rolloutNote = "Hub did not return staged rollouts.";
-    }
-    try {
-      const body = await fetchPackagingRuns(
-        packagingRunsTransport(window.location.origin),
-        options.signal,
-      );
-      if (!Array.isArray(body.items))
-        throw new Error("Invalid packaging index");
-      next.packaging = Array.isArray(body.items) ? body.items : [];
-      next.packagingEventsByRun = Object.create(null);
-      next.packagingHistoryByRun = Object.create(null);
-      next.feedbackByRun = Object.create(null);
-      for (const run of next.packaging) {
-        if (!run.runId) continue;
-        const history = await readPackagingHistory(run.runId, (query) =>
-          fetchPackagingEvents(
-            packagingEventsTransport(window.location.origin),
-            options.signal,
-            query,
-          ),
+    if (wants("rollouts"))
+      try {
+        const rollouts = await read("/v1/rollouts");
+        next.rollouts = Array.isArray(rollouts.rollouts)
+          ? rollouts.rollouts
+          : [];
+      } catch {
+        next.rolloutNote = "Hub did not return staged rollouts.";
+      }
+    if (wants("packaging"))
+      try {
+        const body = await fetchPackagingRuns(
+          packagingRunsTransport(window.location.origin),
+          options.signal,
+          options.screen
+            ? {
+                view: "summary",
+                limit: INDEX_LIMIT,
+                ...indexFilters("packaging", options.query),
+              }
+            : {},
         );
-        next.packagingEventsByRun[run.runId] = history.items;
-        next.packagingHistoryByRun[run.runId] = history;
-        try {
-          const notes = await read(
-            `/v1/packaging-runs/${encodeURIComponent(run.runId)}/feedback`,
+        if (!Array.isArray(body.items))
+          throw new Error("Invalid packaging index");
+        next.packaging = Array.isArray(body.items) ? body.items : [];
+        if (options.screen) {
+          next.indexPages.packaging = indexPage(
+            body,
+            "items",
+            "Connect ListPackagingRuns?" +
+              new URLSearchParams(
+                Object.entries(indexFilters("packaging", options.query)).filter(
+                  ([, value]) => value,
+                ),
+              ),
           );
-          next.feedbackByRun[run.runId] = Array.isArray(notes.items)
-            ? notes.items
-            : [];
-        } catch {
-          next.feedbackByRun[run.runId] = [];
+          if (
+            state.packagingRunId &&
+            !next.packaging.some((run) => run.runId === state.packagingRunId)
+          ) {
+            try {
+              const selected = await fetchPackagingRunDetail(
+                state.packagingRunId,
+                packagingRunTransport(window.location.origin),
+                options.signal,
+              );
+              if (selected.runId !== state.packagingRunId)
+                throw new Error("Packaging selection mismatch");
+              next.packaging.push(selected);
+              next.indexPages.packaging.selectedOutside = true;
+            } catch {
+              next.indexPages.packaging.selectionError =
+                "The linked run is unavailable on this Hub.";
+            }
+          }
         }
+        next.packagingEventsByRun = Object.create(null);
+        next.packagingHistoryByRun = Object.create(null);
+        next.feedbackByRun = Object.create(null);
+        for (const run of next.packaging) {
+          if (!run.runId) continue;
+          const history = await readPackagingHistory(run.runId, (query) =>
+            fetchPackagingEvents(
+              packagingEventsTransport(window.location.origin),
+              options.signal,
+              query,
+            ),
+          );
+          next.packagingEventsByRun[run.runId] = history.items;
+          next.packagingHistoryByRun[run.runId] = history;
+          try {
+            const notes = await read(
+              `/v1/packaging-runs/${encodeURIComponent(run.runId)}/feedback`,
+            );
+            next.feedbackByRun[run.runId] = Array.isArray(notes.items)
+              ? notes.items
+              : [];
+          } catch {
+            next.feedbackByRun[run.runId] = [];
+          }
+        }
+        const first = next.packaging.find((item) => item.runId);
+        next.packagingEvents = first
+          ? next.packagingEventsByRun[first.runId] || []
+          : [];
+      } catch {
+        next.packagingNote = "Hub did not return packaging runs.";
+        if (options.screen && !next.indexPages.packaging)
+          next.indexPages.packaging = {
+            shown: 0,
+            total: null,
+            error:
+              "Hub did not return this packaging runs page. Retry keeps its filters and cursor.",
+          };
       }
-      const first = next.packaging.find((item) => item.runId);
-      next.packagingEvents = first
-        ? next.packagingEventsByRun[first.runId] || []
-        : [];
-    } catch {
-      next.packagingNote = "Hub did not return packaging runs.";
-    }
-    try {
-      // The audit read is cursor-paged and oldest-first. Follow the cursor to
-      // the catch-up bound; past it the truncation mark says rows are missing.
-      next.audit = await pages(
-        "/v1/authorization-audit?view=chain&limit=200",
-        "entries",
-        "audit",
-      );
-    } catch {
-      next.auditNote = "Hub did not return the audit chain.";
-    }
-    try {
-      next.changes = await pages(
-        "/v1/change-requests",
-        "changeRequests",
-        "changes",
-      );
-    } catch {
-      next.changeNote = "Hub did not return change requests.";
-    }
-    try {
-      next.promotions = await pages(
-        "/v1/promotions",
-        "promotions",
-        "promotions",
-      );
-    } catch {
-      next.promotionNote = "Hub did not return promotions.";
-    }
-    try {
-      next.plans = await pages("/v1/plans", "plans", "plans");
-    } catch {
-      next.planNote = "Hub did not return plans.";
-    }
-    try {
-      const listed = await read("/v1/bundles");
-      const bundles = Array.isArray(listed.bundles) ? listed.bundles : [];
-      const newest = bundles[bundles.length - 1];
-      if (newest?.id) {
-        const envelope = await read(
-          `/v1/bundles/${encodeURIComponent(newest.id)}`,
+    if (wants("audit"))
+      try {
+        // The audit read is cursor-paged and oldest-first. Follow the cursor to
+        // the catch-up bound; past it the truncation mark says rows are missing.
+        next.audit = await pages(
+          "/v1/authorization-audit?view=chain&limit=200",
+          "entries",
+          "audit",
         );
+      } catch {
+        next.auditNote = "Hub did not return the audit chain.";
+      }
+    if (wants("changes"))
+      try {
+        next.changes = await pages(
+          "/v1/change-requests",
+          "changeRequests",
+          "changes",
+        );
+      } catch {
+        next.changeNote = "Hub did not return change requests.";
+      }
+    if (wants("promotions"))
+      try {
+        next.promotions = await pages(
+          "/v1/promotions",
+          "promotions",
+          "promotions",
+        );
+      } catch {
+        next.promotionNote = "Hub did not return promotions.";
+      }
+    if (wants("plans"))
+      try {
+        next.plans = await pages("/v1/plans", "plans", "plans");
+      } catch {
+        next.planNote = "Hub did not return plans.";
+      }
+    if (wants("bundles"))
+      try {
+        const listed = await read("/v1/bundles");
+        const bundles = Array.isArray(listed.bundles) ? listed.bundles : [];
+        const newest = bundles[bundles.length - 1];
+        if (newest?.id) {
+          const envelope = await read(
+            `/v1/bundles/${encodeURIComponent(newest.id)}`,
+          );
+          try {
+            next.preview = await postRead("/v1/bundles/preview", envelope);
+          } catch {
+            next.preview = await postRead("/v1/bundles/verification", envelope);
+          }
+        }
+      } catch {
+        next.bundleNote = "Hub did not return a signed bundle.";
+      }
+    if (options.screen) {
+      const selections = [
+        [
+          "plans",
+          state.releasePlanId,
+          (row) => row.id,
+          (id) => `/v1/plans/${encodeURIComponent(id)}`,
+        ],
+        [
+          "environments",
+          state.releaseEnvironmentId || state.envDetailId,
+          (row) => row.environment?.id,
+          (id) => `/v1/environments/${encodeURIComponent(id)}`,
+        ],
+        [
+          "changes",
+          state.crReview?.selectedId,
+          (row) => row.id,
+          (id) => `/v1/change-requests/${encodeURIComponent(id)}`,
+        ],
+      ];
+      for (const [index, id, identity, path] of selections) {
+        if (
+          !id ||
+          !wants(index) ||
+          next[index].some((row) => identity(row) === id)
+        )
+          continue;
         try {
-          next.preview = await postRead("/v1/bundles/preview", envelope);
+          const selected = await read(path(id));
+          if (identity(selected) !== id)
+            throw new Error("Linked record mismatch");
+          next[index].push(selected);
+          if (next.indexPages[index])
+            next.indexPages[index].selectedOutside = true;
         } catch {
-          next.preview = await postRead("/v1/bundles/verification", envelope);
+          next[index + "SelectionNote"] =
+            "The linked record is unavailable on this Hub.";
+          if (next.indexPages[index])
+            next.indexPages[index].selectionError =
+              next[index + "SelectionNote"];
         }
       }
-    } catch {
-      next.bundleNote = "Hub did not return a signed bundle.";
     }
     // Only when the Hub answered the Space-scoped environment read: an
     // unanswered read must not empty every list as if the Space were empty.
-    if (spaceId && !next.note) applySpaceScope(next, spaceId);
-    if (options.signal?.aborted || generation !== refreshGeneration)
+    if (spaceId && !next.note && !options.screen)
+      applySpaceScope(next, spaceId);
+
+    if (options.signal?.aborted || !current())
       throw new DOMException("Hub read aborted", "AbortError");
     if (started && observed) {
       const finalSession = await read("/v1/session");
@@ -814,7 +1034,7 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
         throw new DOMException("Operator session changed", "AbortError");
       }
     }
-    if (options.signal?.aborted || generation !== refreshGeneration)
+    if (options.signal?.aborted || !current())
       throw new DOMException("Hub read aborted", "AbortError");
     const name = session?.effective?.username || session?.actor?.username || "";
     state.operatorName = observed ? name : "";
@@ -831,6 +1051,7 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       ),
     ];
     state.hub = next;
+    ensuredDataKey = viewDataKey(viewRequest());
     paintOperator();
     render();
     if (
@@ -954,8 +1175,30 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
     },
     ensure() {
       paintOperator();
-      if (started) return;
+      const request = viewRequest();
+      const key = request.viewKey;
+      if (started && key === ensuredViewKey) return;
+      if (
+        started &&
+        state.hub?.loading === false &&
+        viewDataKey(request) === ensuredDataKey
+      ) {
+        ensuredViewKey = key;
+        activeViewKey = key;
+        return;
+      }
+      ensuredViewKey = key;
       started = true;
+      // A different result window must not expose the previous window's
+      // records or mutation controls while its own authorized read is pending.
+      state.hub = {
+        loading: true,
+        pagedIndexes: Boolean(request.screen),
+        indexPages: {},
+        spaces: state.hub?.spaces || [],
+        spacesNote: state.hub?.spacesNote || "",
+        note: "Reading this view's Hub state.",
+      };
       void refresh();
       schedulePoll();
     },
