@@ -29,6 +29,7 @@ import (
 	reconciliationpostgres "github.com/jonathanagustin/conduit/internal/delivery/reconciliation/adapters/postgres"
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/resolutionlogpostgres"
 	"github.com/jonathanagustin/conduit/internal/governance/adapters/auditpostgres"
+	agentcredentials "github.com/jonathanagustin/conduit/internal/identity/adapters/revocationpostgres"
 	notificationspostgres "github.com/jonathanagustin/conduit/internal/notifications/adapters/postgres"
 	"github.com/jonathanagustin/conduit/internal/pgmigrate"
 )
@@ -53,6 +54,7 @@ func hubMigrationSets() []pgmigrate.Set {
 		{Component: notificationspostgres.Component(), Migrations: notificationspostgres.Migrations()},
 		{Component: assistantthreads.Component, Migrations: assistantthreads.Migrations()},
 		{Component: appgenpostgres.Component, Migrations: appgenpostgres.Migrations()},
+		{Component: agentcredentials.Component, Migrations: agentcredentials.Migrations()},
 		{Component: resolutionlogpostgres.Component(), Migrations: resolutionlogpostgres.Migrations()},
 	}
 }

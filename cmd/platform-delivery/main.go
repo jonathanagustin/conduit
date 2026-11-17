@@ -32,6 +32,7 @@ import (
 	reconciliationapplication "github.com/jonathanagustin/conduit/internal/delivery/reconciliation/application"
 	"github.com/jonathanagustin/conduit/internal/foundryinterop"
 	"github.com/jonathanagustin/conduit/internal/hub/composition"
+	agentcredentials "github.com/jonathanagustin/conduit/internal/identity/adapters/revocationpostgres"
 	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
 	notificationspostgres "github.com/jonathanagustin/conduit/internal/notifications/adapters/postgres"
 	notificationsapplication "github.com/jonathanagustin/conduit/internal/notifications/application"
@@ -284,6 +285,7 @@ func main() {
 			NotificationContacts: notifications.Contacts,
 			AssistantThreads:     assistantThreadsFor(notifications),
 			AppgenStore:          appGenerationsFor(notifications),
+			AgentCredentials:     agentCredentialsFor(notifications),
 			PackagingStatus:      packagingReader,
 			PackagingControls:    packagingReader,
 		}), handlerOptions, requestLimiter),
@@ -359,7 +361,8 @@ func main() {
 	// METRICS_ADDRESS adds no reachable surface at all, which is what an
 	// existing deployment gets until somebody decides otherwise.
 	if stopMetrics := startMetricsListener(ctx, os.Getenv("METRICS_ADDRESS"), readStats, requestLimiterMetrics(requestLimiter),
-		requestMetrics(requestRecorder), notifications.Metrics); stopMetrics != nil {
+		requestMetrics(requestRecorder), notifications.Metrics,
+		agentCertificateExtension(notifications.AgentCredentials)); stopMetrics != nil {
 		defer stopMetrics()
 	}
 
@@ -428,6 +431,9 @@ type notificationComponent struct {
 	AppGenerations *appgenpostgres.Store
 	// Metrics publishes delivery counters and backlog; nil when delivery is off.
 	Metrics metricsExtension
+	// AgentCredentials is the Agent deny-list, on the same DSN and closer for
+	// the same reason: two replicas must read one deny-list.
+	AgentCredentials *agentcredentials.Store
 }
 
 func configureReconciliation(
@@ -517,6 +523,22 @@ func configureReconciliation(
 		_ = notificationStore.Close()
 		closeReconciliationStore()
 	}
+	// The Agent deny-list shares the database too. A revocation written through
+	// one replica is read by the other on its next Agent request, with no cache
+	// between them. The file repository has no database and keeps the deny-list
+	// in memory, which is correct only because that mode is single-replica.
+	agentCredentialStore, err := agentcredentials.New(ctx, dataSourceName)
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, nil, notificationComponent{}, err
+	}
+	closeStore = func() {
+		_ = agentCredentialStore.Close()
+		_ = appGenerationStore.Close()
+		_ = assistantThreadStore.Close()
+		_ = notificationStore.Close()
+		closeReconciliationStore()
+	}
 	emitter, err := notificationsapplication.NewEmitter(notificationStore)
 	if err != nil {
 		closeStore()
@@ -596,6 +618,7 @@ func configureReconciliation(
 		AssistantThreads: assistantThreadStore,
 		AppGenerations:   appGenerationStore,
 		Metrics:          notificationDeliveryMetrics(notificationStore, transport, deliveryRecorder),
+		AgentCredentials: agentCredentialStore,
 	}, nil
 }
 

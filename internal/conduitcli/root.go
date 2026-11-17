@@ -157,6 +157,7 @@ func NewRoot(runtime Runtime) *cobra.Command {
 	root.AddCommand(planCommand(state))
 	root.AddCommand(environmentCommand(state))
 	root.AddCommand(spaceCommand(state))
+	root.AddCommand(agentCredentialCommand(state))
 	root.AddCommand(moduleCommand(state))
 	root.AddCommand(productReleaseCommand(state))
 	root.AddCommand(productCommand(state))

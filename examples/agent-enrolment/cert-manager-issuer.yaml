@@ -1,0 +1,22 @@
+# A cert-manager CA issuer for Agent client certificates.
+#
+# Validated for shape against the cert-manager v1.18.2 Issuer CRD schema. NOT
+# exercised on a cluster by this repository.
+#
+# `conduit-agent-ca` is a `kubernetes.io/tls` Secret holding the Agent CA's
+# certificate and private key. Creating that Secret is the trust decision and
+# is deliberately not shown as a manifest: whoever can read it can mint an
+# Agent identity for any Environment this Hub trusts the CA for. Its
+# certificate -- and only its certificate -- is what goes into the Hub's
+# AGENT_CLIENT_CA_FILE bundle (the Hub chart's tls.externalCAConfigMapName).
+#
+# One CA per Environment keeps that blast radius to one Environment, at the
+# cost of one root per Environment in the Hub's bundle.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: conduit-agent-ca
+  namespace: environment-system
+spec:
+  ca:
+    secretName: conduit-agent-ca

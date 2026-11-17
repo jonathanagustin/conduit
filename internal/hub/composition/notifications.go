@@ -17,6 +17,7 @@ import (
 	requestports "github.com/jonathanagustin/conduit/internal/debugsessions/ports"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
+	identityports "github.com/jonathanagustin/conduit/internal/identity/ports"
 	liveports "github.com/jonathanagustin/conduit/internal/liveevents/ports"
 	notificationhttp "github.com/jonathanagustin/conduit/internal/notifications/adapters/httpapi"
 	notifications "github.com/jonathanagustin/conduit/internal/notifications/application"
@@ -50,6 +51,11 @@ type Options struct {
 	// AssistantThreads persists assistant conversations per operator. Nil keeps
 	// them in this process's memory: lost on restart, not shared by replicas.
 	AssistantThreads assistantapp.Threads
+	// AgentCredentials is the Agent deny-list and the record of the last
+	// certificate each Agent presented. Nil keeps both in this process's
+	// memory, which is correct only for a single replica: two replicas would
+	// each hold their own deny-list. The revocation check runs either way.
+	AgentCredentials identityports.AgentCredentialStore
 	// ProductAssets persists native download declarations. Nil mounts no asset routes.
 	ProductAssets assetports.Store
 	// Spaces persists native grouping identities and anchors. Nil mounts no Space routes.

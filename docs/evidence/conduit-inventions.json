@@ -482,6 +482,27 @@
       "why": "Zarf v0.82.0 records which package is deployed and its generation but not the variables a deployment was given, and uds v0.41.0 has no machine-readable record of a deployed bundle. Without a record of its own the executor could only echo the Plan or report the configuration as indeterminate, and the Hub accepts neither as a success, so no package Plan could finish. The Helm executor already keeps the same kind of identity in the release description.",
       "displacedBy": "a Zarf or UDS release that records the variables and source reference a deployment was given in its own deployed-package state, or a published contract for reading them back.",
       "riskIfWrong": "The record is the Spoke's account of its own action, not a read of live configuration: changes made underneath the package without a Zarf deploy are not detected, and anyone who can write ConfigMaps in the namespace can write it. For a bundle only the one named package is bound. A reader between the delete and the create sees no record and reports INDETERMINATE."
+    },
+    {
+      "id": "identity.AgentCredentialRevocation",
+      "what": "A Hub-side deny-list for Agent client certificates: a revocation record with scope SERIAL (one certificate), AGENT (one Environment/Agent identity) or ENVIRONMENT (every Agent of an Environment), a deterministic arv_ identifier derived from what is revoked, and a notBefore instant under which an identity or Environment revocation refuses certificates issued at or before it and admits ones issued after. Enforced on every route registered DecisionAgent, failing closed with 503 when the list cannot be read.",
+      "why": "#847: the Hub authenticated an Agent by a client certificate and had no way to cut one off short of replacing the CA. The pinned Apollo sources describe agents authenticating to the Hub and do not describe a revocation record, its scopes, its identifier or its re-enrolment rule. X.509 has CRL and OCSP, which need an issuer-run service this repository does not ship and cannot assume; this is the smallest control the Hub can enforce by itself.",
+      "displacedBy": "A published or sanitized Apollo agent credential revocation record defining its scope, identifier and re-enrolment semantics.",
+      "riskIfWrong": "The record schema, scope vocabulary and the notBefore re-enrolment rule would need a migration. The rule decides on a timestamp the issuer wrote: an issuer that backdates NotBefore or whose clock trails the Hub's yields a replacement that stays refused until the instant passes, and a replacement issued for the same private key readmits the key's holder. Both are stated in docs/operations/agent-enrolment.md. Revocation removes no authority from operators and is not a substitute for CA rotation when the CA itself is compromised."
+    },
+    {
+      "id": "identity.AgentRevocationHTTPSurface",
+      "what": "Conduit-native routes under /v1/environments/{environmentID}: GET and POST agent-revocations, DELETE agent-revocations/{revocationID}, and GET agent-credentials, which reports the last certificate each Agent presented (serial, validity, last seen, seconds until expiry, and the revocation that would refuse it).",
+      "why": "#847 requires the revocation control to be operable and audited, and requires certificate expiry to be visible per Agent without labelling a metric by tenant. No Apollo management wire for agent credentials is recovered. The routes reuse existing authority rather than inventing a role: manage-permissions on the Environment to change the deny-list, read on the Environment to see it, both through Governance's audited resource decision; each change is also written to the authorization audit trail as configureInfra.",
+      "displacedBy": "A published or sanitized Apollo agent credential management API establishing revocation routes, body shapes and authority.",
+      "riskIfWrong": "Routes, body shapes and the choice of manage-permissions as the bar would need migration. The surface exposes certificate serials and validity to Environment readers and never key material. A removal whose audit record cannot be written is undone; an addition whose record cannot be written stays in force and is reported as a failure."
+    },
+    {
+      "id": "identity.AgentRevocationCLI",
+      "what": "The conduit agent-credential command group: list, revocations, revoke (--serial, --agent-id or --all-agents, with --not-before and a required --reason) and unrevoke.",
+      "why": "#847 asks for an operator control, and the pinned CLI command contract has no agent credential commands. The group is a projection of identity.AgentRevocationHTTPSurface through the existing operator HTTP adapter and adds no authority of its own.",
+      "displacedBy": "A published or sanitized Apollo agent credential management CLI contract defining command paths, arguments and revocation semantics.",
+      "riskIfWrong": "Command paths and flags would be renamed. The CLI validates a revocation locally with the same domain function the Hub uses, so a divergence between them is a compile-time dependency rather than a second copy of the rule."
     }
   ],
   "displaced": [

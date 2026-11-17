@@ -42,6 +42,27 @@ func AgentIdentityFromRequest(request *http.Request, allowInsecureHeaders bool) 
 	return domain.AgentIdentity{}, errClientCertificateRequired
 }
 
+// AgentCredentialFromRequest is AgentIdentityFromRequest with the certificate
+// facts a revocation decision needs: the serial and the validity window. It
+// accepts and refuses exactly the requests AgentIdentityFromRequest does, so
+// the revocation check cannot disagree with a handler about who is asking.
+//
+// The development header path yields an identity with no certificate behind
+// it, which is what it is.
+func AgentCredentialFromRequest(request *http.Request, allowInsecureHeaders bool) (domain.AgentCredential, error) {
+	if request.TLS != nil && len(request.TLS.PeerCertificates) > 0 {
+		if len(request.TLS.VerifiedChains) == 0 {
+			return domain.AgentCredential{}, errClientCertificateRequired
+		}
+		return domain.AgentCredentialFromCertificate(request.TLS.PeerCertificates[0])
+	}
+	identity, err := AgentIdentityFromRequest(request, allowInsecureHeaders)
+	if err != nil {
+		return domain.AgentCredential{}, err
+	}
+	return domain.AgentCredential{Identity: identity}, nil
+}
+
 // OperatorResolver turns a request into operator claims: it finds the
 // credential, has the verifier establish that a token is authentic, and lets
 // the policy decide whether that token is an operator here.

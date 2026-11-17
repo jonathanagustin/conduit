@@ -15,8 +15,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
+	"github.com/jonathanagustin/conduit/internal/identity/adapters/revocationmemory"
 )
 
 // NewHubHandler assembles the Hub HTTP surface from explicitly supplied ports.
@@ -151,5 +153,17 @@ func NewHub(
 		return nil, err
 	}
 	handler = mountWorkspaceACP(handler, repository, options, workspaceACP)
+	// The Agent deny-list wraps everything mounted above, so no Agent route can
+	// be reached around it, and sits inside the unregistered-route guard, so a
+	// path this Hub does not have is still a 404 that examined no credential.
+	agentCredentials := hubOptions.AgentCredentials
+	if agentCredentials == nil {
+		agentCredentials = revocationmemory.New()
+	}
+	handler, err = mountAgentCredentials(handler, repository, options, agentCredentials, time.Now)
+	if err != nil {
+		return nil, err
+	}
+	handler = guardAgentCredentials(handler, options, agentCredentials, time.Now, slog.Default())
 	return guardUnregisteredRoutes(handler), nil
 }

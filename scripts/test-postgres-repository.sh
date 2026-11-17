@@ -99,6 +99,10 @@ CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/appgen/adapters/post
 # The Hub-level check that a generation outlives the Hub that made it. The
 # filter keeps this to the one database-backed test in a large package.
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/hub/composition -run '^TestPostgresAppGenerations'
+# The Agent deny-list: the port's conformance suite its in-memory adapter runs
+# on every `go test`, plus two pools on one database reading each other's
+# revocations with nothing cached between them.
+CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/identity/adapters/revocationpostgres
 # This package opens two independent pools and writes concurrently; the
 # cmd/platform-delivery drill below separately proves its migration and one
 # exact resolution survive the pinned-client dump/restore path.
