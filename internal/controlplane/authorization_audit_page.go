@@ -49,10 +49,16 @@ type auditPosition struct {
 	sequence uint64
 	at       time.Time
 	id       string
+	// pending binds a PostgreSQL legacy cursor to the unadopted result set.
+	// Adoption changes its ordering coordinate from time to chain sequence.
+	pending string
 }
 
 func (position auditPosition) String() string {
 	if position.timed {
+		if position.pending != "" {
+			return "l:" + position.pending + ":" + position.at.UTC().Format(time.RFC3339Nano) + "|" + position.id
+		}
 		return "t:" + position.at.UTC().Format(time.RFC3339Nano) + "|" + position.id
 	}
 	return "s:" + strconv.FormatUint(position.sequence, 10)
@@ -68,13 +74,23 @@ func parseAuditPosition(raw string) (auditPosition, error) {
 			return auditPosition{}, ErrInvalidAuthorizationAuditPosition
 		}
 		return auditPosition{sequence: sequence}, nil
-	case strings.HasPrefix(raw, "t:"):
-		stamp, id, found := strings.Cut(raw[2:], "|")
+	case strings.HasPrefix(raw, "t:"), strings.HasPrefix(raw, "l:"):
+		position := auditPosition{timed: true}
+		timed := raw[2:]
+		if strings.HasPrefix(raw, "l:") {
+			fingerprint, rest, found := strings.Cut(timed, ":")
+			if !found || len(fingerprint) != 64 || strings.Trim(fingerprint, "0123456789abcdef") != "" {
+				return auditPosition{}, ErrInvalidAuthorizationAuditPosition
+			}
+			position.pending, timed = fingerprint, rest
+		}
+		stamp, id, found := strings.Cut(timed, "|")
 		at, err := time.Parse(time.RFC3339Nano, stamp)
 		if !found || err != nil {
 			return auditPosition{}, ErrInvalidAuthorizationAuditPosition
 		}
-		return auditPosition{timed: true, at: at, id: id}, nil
+		position.at, position.id = at, id
+		return position, nil
 	}
 	return auditPosition{}, ErrInvalidAuthorizationAuditPosition
 }
@@ -129,7 +145,7 @@ func (repository *MemoryRepository) PageAuthorizationAudit(_ context.Context, qu
 	if err != nil {
 		return AuthorizationAuditPage{}, err
 	}
-	if query.After != "" && !after.timed {
+	if query.After != "" && (!after.timed || after.pending != "") {
 		return AuthorizationAuditPage{}, ErrInvalidAuthorizationAuditPosition
 	}
 	repository.mu.Lock()
@@ -156,7 +172,7 @@ func (repository *FileRepository) PageAuthorizationAudit(_ context.Context, quer
 	if err != nil {
 		return AuthorizationAuditPage{}, err
 	}
-	if query.After != "" && !after.timed {
+	if query.After != "" && (!after.timed || after.pending != "") {
 		return AuthorizationAuditPage{}, ErrInvalidAuthorizationAuditPosition
 	}
 	repository.mu.Lock()
@@ -205,6 +221,14 @@ func (view *authorizationAuditView) PageAuthorizationAudit(ctx context.Context, 
 		}
 	}
 	sort.Slice(pending, func(i, j int) bool { return auditEventBefore(pending[i], pending[j]) })
+	// A timed position cannot be continued after adoption: its remaining events
+	// now live at sequence positions that the timed branch would skip. Bind it
+	// to the complete matching pending set and require the client to restart if
+	// that set changed. Old unbound timed cursors are refused for the same reason.
+	pendingFingerprint := fingerprintJSON(pending)
+	if after.timed && after.pending != pendingFingerprint {
+		return AuthorizationAuditPage{}, ErrInvalidAuthorizationAuditPosition
+	}
 	page := AuthorizationAuditPage{Events: []AuthorizationAuditEvent{}, Total: total + len(pending)}
 	seekPending := after.timed && (after.id != "" || !after.at.IsZero())
 	if !after.timed {
@@ -226,18 +250,26 @@ func (view *authorizationAuditView) PageAuthorizationAudit(ctx context.Context, 
 		if len(page.Events) == query.Limit {
 			// The chained log ended exactly on the page boundary: the next
 			// page starts at the oldest pending legacy record.
-			page.Next = auditPosition{timed: true}.String()
+			page.Next = auditPosition{timed: true, pending: pendingFingerprint}.String()
 			return page, nil
 		}
 	}
 	window, next := pageTimedAuditEvents(pending, after, seekPending, query.Limit-len(page.Events))
+	if next != "" {
+		position, err := parseAuditPosition(next)
+		if err != nil {
+			return AuthorizationAuditPage{}, err
+		}
+		position.pending = pendingFingerprint
+		next = position.String()
+	}
 	page.Events, page.Next = append(page.Events, window...), next
 	return page, nil
 }
 
 func (repository *PostgresRepository) PageAuthorizationAudit(ctx context.Context, query AuthorizationAuditPageQuery) (AuthorizationAuditPage, error) {
 	var result AuthorizationAuditPage
-	err := repository.withStateTransaction(ctx, false, func(memory *MemoryRepository, transaction *sql.Tx) error {
+	err := repository.withStateReadSnapshot(ctx, func(memory *MemoryRepository, transaction *sql.Tx) error {
 		var err error
 		result, err = (&authorizationAuditView{Repository: memory, audit: auditpostgres.New(transaction)}).PageAuthorizationAudit(ctx, query)
 		return err
