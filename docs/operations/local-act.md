@@ -80,3 +80,63 @@ This profile does not fix an unusable Go race runtime; its fail-closed preflight
 must also pass. A browser smoke probe alone is insufficient: retain the complete
 console and real-Hub results in the full exact-head act log before using a PASS
 receipt for review.
+
+## Podman on macOS: Linux-backed scratch
+
+Issue #954 traced a FIFO-cleanup stall to the VM's shared Mac filesystem.
+Changing the archive refusal test or skipping it is not a repair. The recipe
+below is a preparation path; it has **not** been qualified on Podman/macOS.
+Keep the original failed-run evidence and do not claim a complete PASS until
+the preflights and the entire unfiltered verifier succeed.
+
+Use the already-qualified verifier image, candidate/tooling mounts and explicit
+Podman connection/API endpoint. Do not change the global connection, restart
+shared services or introduce a Docker shim. In that selected VM, create a
+unique task-owned directory on Linux-native storage, outside the Mac share.
+For example, use `mktemp -d /var/tmp/conduit-ci.XXXXXXXX` in the VM and inspect
+`findmnt -T <directory>` there. Refuse a FUSE/virtiofs/9p/shared-Mac backing.
+Create `tmp` and `go` children owned by the verifier user; do not chmod a shared
+ancestor or reuse another run's directory.
+
+Add these settings to the existing verifier-container launch, preserving all
+other image, source and API settings:
+
+```text
+--mount type=bind,source=<guest-scratch>,target=<guest-scratch>
+--env TMPDIR=<guest-scratch>/tmp
+--env GOTMPDIR=<guest-scratch>/go
+--env CONDUIT_LOCAL_CI_REPORT_ROOT=<durable-report-directory>
+```
+
+The scratch source is resolved by the selected VM's engine. Its absolute path
+must be identical inside the verifier container: tests create child containers
+whose bind sources the daemon resolves on the VM. A container-only volume or
+a renamed mount target does not satisfy that boundary. The report root must
+be an existing writable absolute directory outside scratch, mounted separately
+if necessary. `run-local-ci.sh` creates a unique report child there; omitting
+this option retains the original TMPDIR report behavior.
+
+Before the complete run, inside that verifier:
+
+1. Write a unique non-secret marker under TMPDIR. Start a child container with
+   the same pinned verifier image and an explicit bind of that exact directory;
+   read the marker with `cat` and verify exact equality. Retain both paths and
+   the selected daemon identity in the report root. An in-process read alone
+   proves nothing about daemon bind visibility.
+2. Run `go test -race ./cmd/platform-delivery -run
+   '^TestAuditArchiveRefusesFIFOWithoutWaitingForAWriter$' -count=1 -v`. Confirm
+   the named body passed and its temporary FIFO directory was removed. Then run
+   `./scripts/verify-race-runtime.sh`: positive, fatal and intentional-race
+   controls must all execute with their expected outcomes.
+3. Run the ordinary exact-head `run-local-ci.sh` with no filter. Preserve pinned
+   source/tools/image and the browser profile. Record any failed preflight or
+   interrupted attempt separately; none produces a complete success receipt.
+4. Copy/retain final reports and the failed-attempt diagnostics outside scratch.
+   Remove only the verified task-owned scratch after its processes and children
+   have exited. Do not reset the VM or clean other runs/containers.
+
+The report-root regression runs the real wrapper with a controlled act stop:
+it proves explicit-root placement, legacy fallback, relative-root refusal and
+both GitHub-token boundaries. It intentionally runs no complete CI and writes
+no PASS receipt. Linux-native FIFO/runtime controls do not qualify macOS FUSE
+recovery or the VM/container child-bind path.

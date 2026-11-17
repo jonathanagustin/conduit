@@ -26,7 +26,13 @@ if [[ ! "${expected_sha}" =~ ^[a-f0-9]{40}$ ]] || [[ "$(git rev-parse HEAD)" != 
   echo 'expected SHA must be the exact checked-out commit' >&2
   exit 1
 fi
-report_dir="$(mktemp -d "${TMPDIR:-/tmp}/conduit-local-ci.XXXXXXXX")"
+# Keep durable reports separate from disposable Linux-native fixture scratch.
+report_root="${CONDUIT_LOCAL_CI_REPORT_ROOT:-${TMPDIR:-/tmp}}"
+if [[ "${report_root}" != /* || ! -d "${report_root}" ]]; then
+  echo 'local CI report root must be an existing absolute directory' >&2
+  exit 1
+fi
+report_dir="$(mktemp -d "${report_root%/}/conduit-local-ci.XXXXXXXX")"
 export CONDUIT_LOCAL_CI_REPORT_DIR="${report_dir}"
 printf 'Local CI commit: %s\nEvidence directory: %s\n' "${expected_sha}" "${report_dir}"
 # A nondefault profile must be supported by the candidate, even when this
