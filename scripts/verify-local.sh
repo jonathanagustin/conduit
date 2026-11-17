@@ -244,7 +244,7 @@ gate 'Validate release path' release_path
 gate 'Validate Rubix substrate CRDs' ruby scripts/verify-rubix-crds.rb
 gate 'Validate Flux runtime source' ruby scripts/verify-flux-runtime.rb
 gate 'Validate Helm runtime chart' ruby scripts/verify-helm-runtime.rb
-gate 'Validate Zarf air-gap package' env ZARF_BIN="${zarf_bin}" UDS_BIN="${uds_bin}" bash -c './scripts/test-uds-bundle-create.sh && ruby scripts/verify-zarf-package.rb && ./scripts/test-zarf-runtime-selection.sh && ruby scripts/verify-zarf-chart-equivalence.rb && ./scripts/test-zarf-chart-equivalence.sh && ./scripts/test-uds-up.sh && ./scripts/test-uds-keycloak-users.sh'
+gate 'Validate Zarf air-gap package' env ZARF_BIN="${zarf_bin}" UDS_BIN="${uds_bin}" bash -c './scripts/test-uds-bundle-create.sh && ./scripts/test-zarf-package-lifecycle-plan.sh && ruby scripts/verify-zarf-package.rb && ./scripts/test-zarf-runtime-selection.sh && ruby scripts/verify-zarf-chart-equivalence.rb && ./scripts/test-zarf-chart-equivalence.sh && ./scripts/test-uds-up.sh && ./scripts/test-uds-keycloak-users.sh'
 gate 'Build commands' build_commands
 gate 'Validate offline workspace schemas' ./scripts/verify-workspace-schemas.sh
 gate 'Validate administrator status API' ./scripts/verify-admin-status-api.sh

@@ -341,6 +341,52 @@ end
 abort "uds-config.yaml must not carry credential material" if
   uds_config_text.match?(/BEGIN [A-Z ]*(?:PRIVATE KEY|CERTIFICATE)|:\/\/[^\s\/:@]+:[^\s\/@]+@|(?:password|passwd|token|api[_-]?key)\s*[:=]\s*\S/i)
 
+# Publication of the signed package to the OCI registry (#832). It is its own
+# job so `packages: write` is all it holds, it runs only after the job that
+# signed and verified the packages, and what it trusts is the read-back from
+# the registry rather than the file it pushed.
+images_workflow_text = File.read(File.join(root, ".github/workflows/platform-images.yml"), encoding: "UTF-8")
+publish_job = YAML.safe_load(images_workflow_text, aliases: true).dig("jobs", "publish-zarf-package")
+abort "publication workflow must publish the signed Zarf packages in their own job" unless publish_job
+abort "Zarf package publication may hold only packages: write" unless publish_job["permissions"] == {"contents" => "read", "packages" => "write"}
+abort "Zarf package publication must follow signing and verification" unless Array(publish_job["needs"]) == ["manifest"]
+abort "Zarf package publication must be limited to release tags" unless publish_job["if"] == "startsWith(github.ref, 'refs/tags/v')"
+publish_run = publish_job.fetch("steps").map { |step| step["run"].to_s }.join("\n")
+abort "Zarf package publication must use the checksum-pinned Zarf" unless
+  publish_run.include?("zarf_v0.82.0_Linux_amd64") && publish_run.include?("e372002110600a458ca2a9222a34b8cdebc9c0fcd81d7e34febd3d8411d7beaf  /tmp/zarf' | sha256sum --check")
+abort "Zarf packages must be published to the repository-linked packages namespace" unless
+  publish_run.include?('repository="oci://ghcr.io/${GITHUB_REPOSITORY}/packages"')
+abort "Zarf package publication must cover both architectures" unless publish_run.scan("for architecture in amd64 arm64; do").length == 2
+keyless = ['--certificate-identity "${identity}"', '--certificate-oidc-issuer "${issuer}"']
+publish_command = publish_run[/\/tmp\/zarf package publish .*?--confirm/m].to_s
+abort "Zarf package publication must verify the signature before pushing" unless
+  publish_command.include?("--verify=always") && keyless.all? { |flag| publish_command.include?(flag) }
+readback = publish_run[/\/tmp\/zarf package verify "\$\{repository\}\/platform-runtime:\$\{version\}".*?issuer\}"/m].to_s
+abort "Zarf package publication must verify what the registry serves, per architecture" unless
+  readback.include?('--architecture "${architecture}"') && keyless.all? { |flag| readback.include?(flag) } &&
+  publish_run.index(readback) > publish_run.index(publish_command)
+abort "Zarf package publication must bind the signer to this workflow run" unless
+  publish_run.include?('identity="${GITHUB_SERVER_URL}/${GITHUB_WORKFLOW_REF}"') && publish_run.include?('issuer="https://token.actions.githubusercontent.com"')
+abort "Zarf package publication must check each package against its recorded checksum" unless publish_run.include?('sha256sum --check "${package}.sha256"')
+# The lifecycle lane is a deployment rehearsal: dispatch only (ADR 0006), and
+# with no authority to write anything.
+lifecycle_workflow = YAML.safe_load(File.read(File.join(root, ".github/workflows/platform-uds-lifecycle.yml"), encoding: "UTF-8"), aliases: true)
+lifecycle_triggers = lifecycle_workflow["on"] || lifecycle_workflow[true]
+abort "UDS package lifecycle must run only on explicit dispatch" unless lifecycle_triggers.is_a?(Hash) && lifecycle_triggers.keys == ["workflow_dispatch"]
+lifecycle_permissions = [lifecycle_workflow["permissions"]] + lifecycle_workflow.fetch("jobs").values.map { |job| job["permissions"] }
+abort "UDS package lifecycle must hold no write permission" unless
+  lifecycle_permissions.compact.all? { |permissions| permissions.is_a?(Hash) && permissions.values.all? { |value| %w[read none].include?(value) } } &&
+  lifecycle_workflow["permissions"] == {"contents" => "read"}
+lifecycle_run = lifecycle_workflow.fetch("jobs").values.flat_map { |job| job.fetch("steps") }.map { |step| step["run"].to_s }.join("\n")
+abort "UDS package lifecycle must run the lifecycle script and keep its verdict" unless
+  lifecycle_run.include?("set -o pipefail") && lifecycle_run.include?("./scripts/test-zarf-package-lifecycle.sh")
+lifecycle_script = File.read(File.join(root, "scripts/test-zarf-package-lifecycle.sh"), encoding: "UTF-8")
+deploy_function = lifecycle_script[/^deploy\(\) \{.*?^\}/m].to_s
+abort "lifecycle deployments must verify the signature against the release's own identity" unless
+  ["--verify=always", '--certificate-identity "$(identity "${release}")"', '--certificate-oidc-issuer "${issuer}"'].all? { |flag| deploy_function.include?(flag) }
+abort "lifecycle lane must assert the Hub state claim survives upgrade and removal" unless
+  lifecycle_script.scan('[[ "$(claim_uid)" == "${installed_uid}" ]]').length == 2 && lifecycle_script.include?("package remove platform-runtime --confirm")
+
 example = File.join(root, "internal/packagingworkflow/fixtures/example-package")
 example_definition = YAML.safe_load(File.read(File.join(example, "zarf.yaml")))
 abort "generated package API must be pinned" unless example_definition["apiVersion"] == "zarf.dev/v1alpha1"

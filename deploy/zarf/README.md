@@ -151,6 +151,8 @@ RoleBinding for the `platform-system/platform-spoke-agent` ServiceAccount.
 Deploying this package does not grant cluster-admin or create application
 namespaces.
 
+## Release artifacts
+
 Tagged releases attach one package per supported architecture and its SHA-256
 file. Each archive contains Zarf's native `zarf.bundle.sig` Sigstore bundle,
 signed keylessly by the release workflow. Transfer those files, the pinned Zarf CLI/init
@@ -171,6 +173,40 @@ zarf package deploy zarf-package-platform-runtime-amd64-0.11.0.tar.zst \
   --set-variables AGENT_ID=spoke-example \
   --confirm
 ```
+
+The publication workflow also pushes the same signed packages to the
+repository's OCI namespace, after verifying each against the workflow's keyless
+identity, and verifies them again as read back from the registry:
+
+```sh
+zarf package deploy oci://ghcr.io/jonathanagustin/conduit/packages/platform-runtime:0.11.0 \
+  --verify=always \
+  --certificate-identity 'https://github.com/jonathanagustin/conduit/.github/workflows/platform-images.yml@refs/tags/v0.11.0' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --set-variables ENVIRONMENT_ID=example \
+  --set-variables AGENT_ID=spoke-example \
+  --confirm
+```
+
+That job was added after the last release, so no release has been published
+this way yet: the first tag cut with it is the first test of the push, of
+whether the registry keeps both architectures under one version tag, and of
+whether the signature survives the round trip. The job fails if either
+read-back verification does.
+
+The dispatch-only `UDS package lifecycle` workflow
+(`scripts/test-zarf-package-lifecycle.sh`) installs release N-1 from its
+Release asset, upgrades to N from the registry, removes the package and
+asserts the Hub state claim is the same object throughout, verifying each
+signature against its own release's identity. **It has never been run.** It
+needs a published release N and a cluster, and it does not block node egress
+or show a Spoke completing a lease.
+
+Only one flavor of the package exists;
+[ADR 0017](../../docs/decisions/0017-uds-package-flavors.md) records that and
+what another would require, without deciding. `task zarf:lint`,
+`task zarf:create`, `task uds:create` and `task zarf:lifecycle` wrap the
+commands on this page.
 
 Conduit pins Zarf v0.82.0 for package validation and construction. Package
 creation runs once for `amd64` and once for `arm64`; both bundled images

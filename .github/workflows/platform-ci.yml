@@ -804,6 +804,9 @@ jobs:
           # registry, no cluster, no container runtime. The release bundle is
           # created from the signed package at publication.
           ./scripts/test-uds-bundle-create.sh
+          # The dispatch-only lifecycle lane needs a cluster and is not run
+          # here; this checks only the plan it would follow.
+          ./scripts/test-zarf-package-lifecycle-plan.sh
           ./scripts/test-uds-up.sh
           ./scripts/test-uds-keycloak-users.sh
       - name: Validate offline workspace schemas
