@@ -36,18 +36,6 @@ new product-specific Helm values are introduced.
 
 ## Routing and delivery semantics
 
-<<<<<<< HEAD
-Recording the same event ID again preserves its first committed document and
-recipient snapshot, including an empty snapshot. A subscriber added after the
-event does not receive historical notifications when an emit site retries.
-Issue #872 found that the PostgreSQL adapter ignored a duplicate event insert
-but still inserted newly resolved recipients and queued their delivery. The
-event insert now decides ownership of the entire fan-out; concurrent callers
-commit one complete audience rather than their union. The event and inbox
-entries still roll back together when an entry cannot be recorded. Regression
-tests exercise changed and empty audiences, independent concurrent connections,
-unchanged event documents and delivery counts against PostgreSQL.
-=======
 Before recording an event's audience, the Hub checks each matching owner against
 current resource-read authority. Removing a native user from a team or removing
 a team's read grant prevents new events reaching its stale subscriptions
@@ -72,7 +60,17 @@ failure with an authorization reason; it never marks the item delivered.
 Lookup uncertainty follows the existing bounded retry budget and likewise
 never counts as sent. These checks do not delete historical inbox entries or
 decide a new policy for reading already-received notifications.
->>>>>>> c7e9b619 (fix(notifications): recheck recipient authority before fanout and delivery)
+
+Recording the same event ID again preserves its first committed document and
+recipient snapshot, including an empty snapshot. A subscriber added after the
+event does not receive historical notifications when an emit site retries.
+Issue #872 found that the PostgreSQL adapter ignored a duplicate event insert
+but still inserted newly resolved recipients and queued their delivery. The
+event insert now decides ownership of the entire fan-out; concurrent callers
+commit one complete audience rather than their union. The event and inbox
+entries still roll back together when an entry cannot be recorded. Regression
+tests exercise changed and empty audiences, independent concurrent connections,
+unchanged event documents and delivery counts against PostgreSQL.
 
 EMAIL selects SMTP, SLACK selects Slack, and IN_APP remains inbox-only. The
 native resolver re-reads the current resource preference and owner contacts at
