@@ -92,6 +92,9 @@ CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/spaces/adapters/post
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/productassets/adapters/postgres
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/changeactivity/adapters/postgres
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/debugsessions/adapters/postgres
+# The assistant conversation store runs the same conformance suite its
+# in-memory adapter runs on every `go test`, plus the schema's own bounds.
+CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/assistant/adapters/threadpostgres
 # This package opens two independent pools and writes concurrently; the
 # cmd/platform-delivery drill below separately proves its migration and one
 # exact resolution survive the pinned-client dump/restore path.
