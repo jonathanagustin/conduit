@@ -191,6 +191,19 @@ func (lifecycle *Lifecycle) createPlanFailureSuppression(
 	if strings.TrimSpace(installationID) == "" {
 		return nil
 	}
+	// Pre-receipt terminal Plans may already have recorded this effect. Keep
+	// that decision, including a later operator removal or expiry, instead of
+	// creating another time-derived ID or replaying environment escalation.
+	recorded, err := lifecycle.repository.ListSuppressions(ctx, plan.Environment)
+	if err != nil {
+		return fmt.Errorf("load recorded Plan-failure suppression: %w", err)
+	}
+	for _, suppression := range recorded {
+		if suppression.Source == SuppressionPlanFailure && suppression.Scope == SuppressionEntity &&
+			suppression.PlanID == planID && suppression.InstallationID == installationID {
+			return nil
+		}
+	}
 	threshold := plan.AutoSuppressionThreshold
 	if threshold == 0 {
 		threshold = defaultAutoSuppressionThreshold
