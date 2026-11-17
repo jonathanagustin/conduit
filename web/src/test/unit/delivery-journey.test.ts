@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
-  actionTransition,
+  bindDeliveryCapabilities,
   buildPlanDecision,
+  actionTransition,
   idleAction,
   planReviewState,
 } from "../../console/operator/delivery-actions.js";
@@ -278,4 +279,43 @@ describe("promotionMarkup", () => {
     expect(buttons(html, "data-dj-review")).toHaveLength(1);
     expect(html).toContain("no health evidence will be submitted");
   });
+});
+
+it("uses operate for CR-less decisions without imposing it on governed reviewers", () => {
+  bindDeliveryCapabilities((operation) =>
+    operation === "resource:operate"
+      ? { allowed: false, reason: "Operate is not held." }
+      : { allowed: null, reason: "" },
+  );
+  try {
+    const standalone = { ...plan, changeRequestId: "" };
+    const panel = { action: idleAction(), draft: { rationale: "reviewed" } };
+    const html = decisionMarkup(
+      standalone,
+      planReviewState(standalone, [], "bob", ["bob"]),
+      panel,
+    );
+    expect(buttons(html, "data-dj-review")).toHaveLength(2);
+    expect(
+      buttons(html, "data-dj-review").every((button) =>
+        button.includes("disabled"),
+      ),
+    ).toBe(true);
+    expect(html).toContain("Operate is not held.");
+    expect(
+      buildPlanDecision(standalone, "approve", "reviewed").capability.operation,
+    ).toBe("resource:operate");
+    const governed = decisionMarkup(
+      plan,
+      planReviewState(plan, changes, "bob", ["bob"]),
+      panel,
+    );
+    expect(
+      buttons(governed, "data-dj-review").some((button) =>
+        button.includes("disabled"),
+      ),
+    ).toBe(false);
+  } finally {
+    bindDeliveryCapabilities(null);
+  }
 });

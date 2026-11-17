@@ -432,7 +432,7 @@ export function buildPlanDecision(plan, decision, rationale) {
       body: { rationale: reason },
       summary,
       capability: {
-        operation: "change:review",
+        operation: plan.changeRequestId ? "change:review" : "resource:operate",
         resourceRid: `environment/${environment}`,
       },
     };

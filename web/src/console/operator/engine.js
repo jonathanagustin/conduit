@@ -1359,7 +1359,12 @@ export function mountOperator(host, options) {
     state.spaceId = query.get("space") || "";
   }
 
+  let indexLocationHash = location.hash;
   function writeIndexLocation({ replace = true } = {}) {
+    // A refresh can run before the browser dispatches hashchange. Consume the
+    // pending navigation before serializing state, rather than replacing it
+    // with the previous screen. Explicit internal navigation still owns pushes.
+    if (replace && location.hash !== indexLocationHash) restoreLocation();
     changeSpaceSelection(state, state.spaceId);
     const query = new URLSearchParams(state.indexQuery || "");
     const environment = state.releaseEnvironmentId || state.envDetailId || "";
@@ -1399,6 +1404,7 @@ export function mountOperator(host, options) {
       );
     if (location.hash !== hash)
       history[replace ? "replaceState" : "pushState"](null, "", hash);
+    indexLocationHash = location.hash;
   }
 
   function onIndexSubmit(event) {
