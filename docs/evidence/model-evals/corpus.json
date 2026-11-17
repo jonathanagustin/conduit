@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "version": "1.0.0",
-  "gateModel": "agent-exec/deterministic",
+  "version": "1.1.0",
+  "gateModel": "openai-http/fixture-requested",
   "cases": [
     {
       "id": "go-stateless.inspection",

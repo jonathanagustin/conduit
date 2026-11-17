@@ -149,7 +149,7 @@ be good. A green gate authorizes nothing.
 
 1. Make the change. `conduit-eval replay` now fails, naming each case whose
    prompt has no recording.
-2. Configure a real provider and run `conduit-eval record`. It prints each
+2. For real-model evidence, configure its HTTP provider and run `conduit-eval record`. It prints each
    dimension as `before -> after` and lists every assertion that regressed.
 3. Review that change and the transcript diffs. A regression is a reason to
    revise the prompt, not to commit a lower baseline.
@@ -165,6 +165,21 @@ To gate on a real model, record with it, commit its transcripts and baseline,
 and set `gateModel` in `corpus.json` to its id.
 
 ## What the committed baseline shows
+
+The active corpus 1.1.0 gate is `openai-http/fixture-requested`. Its 38 exchanges
+were freshly recorded through `internal/testsupport/modelhttpfixture` calling
+the offline deterministic agent's reply function, after the native packaging
+prompt changed. The aggregate remains 68/80 and every previously passing
+assertion remains passing. The fixture generator and refresh command are in the
+[corpus README](../evidence/model-evals/README.md). Normal tests repeat the
+HTTP run and compare its report exactly with the committed baseline.
+
+This is transport, prompt-digest and replay plumbing evidence, not model quality.
+The older host-command transcripts and baseline below remain frozen; they were
+not re-keyed or relabelled to pretend that they observed the changed prompts.
+
+### Historical host-command snapshot
+
 
 `baselines/agent-exec-deterministic.json` and
 `transcripts/agent-exec-deterministic/` were produced on 2026-11-17 by running
