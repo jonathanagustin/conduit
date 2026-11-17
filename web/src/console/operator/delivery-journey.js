@@ -424,7 +424,7 @@ export function decisionMarkup(plan, review, panel, { picker = "" } = {}) {
     return `<section class="so-panel p-3 space-y-2" data-dj-panel="decide">${head}<p class="kit-muted" data-dj-reason>No plan awaiting approval is selected.</p></section>`;
   const off = locked(action);
   const gate = deliveryCapabilityHook(
-    "change:review",
+    plan.changeRequestId ? "change:review" : "resource:operate",
     `environment/${plan.plan?.environment || ""}`,
   );
   const ready = String(draft.rationale || "").trim() !== "";

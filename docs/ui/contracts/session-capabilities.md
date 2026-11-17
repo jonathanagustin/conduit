@@ -109,3 +109,8 @@ scored memory gate does not grant proposal permission or approval.
 Offline handoff and report-back require `resource:operate` at `platform/root`,
 matching the server write boundary. Refusal disables those writes with a stated
 reason; catalog reads, signature verification and downloads remain available.
+
+Plans without a Change Request use environment `resource:operate` for their
+approve/reject controls, matching the native approval command. Governed Plans
+continue to defer to reviewer policy through the unreported `change:review`
+decision; an absent Operate grant must not suppress a policy-admitted reviewer.
