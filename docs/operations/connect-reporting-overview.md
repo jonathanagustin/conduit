@@ -106,6 +106,7 @@ view. The displayed timestamp identifies the returned snapshot; this is a
 bounded read cache, not a live subscription. An already displayed snapshot
 remains a snapshot until the next read.
 
-The older `useConsoleData` hook is not imported by the active workbench; its
-remaining REST calls are not presented as migrated. Other route families and
-any subscription transport remain #393 and the live-update contract work.
+The unused `useConsoleData` hook was removed. Retained legacy adapters are not
+presented as migrated merely because the active workbench does not call them.
+Other route families remain #393; native live subscriptions are documented in
+[Console live updates](console-live-updates.md).

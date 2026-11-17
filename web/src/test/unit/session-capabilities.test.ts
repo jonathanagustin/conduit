@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
 
+import { AREAS as MOUNTED_AREAS } from "../../console/operator/navigation.js";
 import { HUB_APPLICATIONS } from "../../console/operator/hub-vocabulary.js";
 import { escapeHtml as esc } from "../../console/operator/palette.js";
 import {
@@ -112,10 +113,6 @@ describe("application vocabulary", () => {
   });
 
   it("maps only navigation entries the console has", () => {
-    const engine = readFileSync(
-      new URL("../../console/operator/engine.js", import.meta.url),
-      "utf8",
-    );
     const settings = readFileSync(
       new URL("../../console/operator/settings.js", import.meta.url),
       "utf8",
@@ -126,12 +123,13 @@ describe("application vocabulary", () => {
         expect(settings, key).toContain(`id: "${key}"`);
         continue;
       }
-      const start = engine.indexOf(`"${area}": {`);
-      expect(start, key).toBeGreaterThan(-1);
-      if (tab) {
-        const end = engine.indexOf('"area-', start + 1);
-        expect(engine.slice(start, end), key).toContain(`id: "${tab}"`);
-      }
+      const areaSpec = MOUNTED_AREAS[area as keyof typeof MOUNTED_AREAS];
+      expect(areaSpec, key).toBeDefined();
+      if (tab)
+        expect(
+          areaSpec.tabs.some((item) => item.id === tab),
+          key,
+        ).toBe(true);
     }
   });
 });

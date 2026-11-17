@@ -1,11 +1,11 @@
-import "../../app/globals.css";
+import "../styles/assistant.css";
 import "../styles/index.css";
 
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Route, Routes } from "react-router-dom";
 
-import { Assistant } from "../../app/assistant";
+import { Assistant } from "../console/Assistant";
 import { Providers } from "../app/providers";
 import { PackagingRunPage } from "../features/packaging/PackagingRunPage.js";
 import { loadRuntimeBootstrap } from "../runtime/bootstrap";

@@ -60,12 +60,10 @@ export default defineConfig({
     sortPackageJson: false,
     ignorePatterns: [
       "**/node_modules/**",
-      "**/.next/**",
       "**/.vercel/**",
       "**/out/**",
       "**/build/**",
       "**/coverage/**",
-      "**/next-env.d.ts",
       "**/*.md",
       "**/*.mdx",
       "**/*.yaml",
@@ -89,7 +87,7 @@ export default defineConfig({
     },
   },
   plugins: lazyPlugins(() => [react(), tailwindcss(), hydrateForDevelopment]),
-  // The template's PostCSS config is for Next. The embed uses @tailwindcss/vite.
+  // Tailwind is handled by the Vite plugin; no separate PostCSS pipeline.
   css: { postcss: { plugins: [] } },
   build: {
     outDir:
