@@ -155,6 +155,7 @@ describe("notification preference save scope", () => {
         h.state.screen = "s13-fleet-overview";
         h.controller.sync();
       } else (h.controller as any).dispose?.();
+      expect(h.reads[0]!.signal.aborted).toBe(true);
       h.release();
       await settle();
       expect(h.writes).toEqual([]);
@@ -167,6 +168,7 @@ describe("notification preference save scope", () => {
     const h = harness();
     h.save();
     h.event("change", { "data-ntf-type": "PRODUCT_RECALLS" });
+    expect(h.reads[0]!.signal.aborted).toBe(true);
     h.release();
     await settle();
     expect(h.writes).toEqual([]);
