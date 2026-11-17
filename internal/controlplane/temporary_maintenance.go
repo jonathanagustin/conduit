@@ -147,10 +147,10 @@ func (s *TemporaryMaintenanceService) CreateMaintenanceOverrides(ctx context.Con
 			}
 			return result, nil
 		}
-		if !draft.DryRun {
+		if !draft.DryRun && !s.repository.InTransaction() {
 			service := NewGovernanceService(s.repository)
 			service.SetAnnouncements(s.options.Announcements)
-			service.announceAwaitingApproval(ctx, opening)
+			_ = service.announceAwaitingApproval(ctx, opening)
 		}
 		result.Requests = append(result.Requests, receipt)
 	}

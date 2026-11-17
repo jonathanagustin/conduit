@@ -14,7 +14,9 @@ import (
 // hydrating or serializing the full audit history on ordinary metadata writes.
 type authorizationAuditView struct {
 	Repository
-	audit *auditpostgres.Store
+	audit                  *auditpostgres.Store
+	notificationIntents    Announcements
+	hasNotificationIntents bool
 }
 
 var _ TransactionalRepository = (*authorizationAuditView)(nil)
@@ -61,9 +63,15 @@ func (view *authorizationAuditView) Transaction(ctx context.Context, operation f
 	if !ok {
 		return fmt.Errorf("metadata repository cannot create a nested transaction")
 	}
-	return view.audit.Savepoint(ctx, func() error {
-		return transactional.Transaction(ctx, func(working Repository) error {
-			return operation(&authorizationAuditView{Repository: working, audit: view.audit})
+	// The metadata copy must not apply before RELEASE SAVEPOINT succeeds.
+	// Otherwise a canceled child can roll back SQL audit/intent while leaving
+	// its source metadata in a parent that catches the error and commits.
+	return transactional.Transaction(ctx, func(working Repository) error {
+		return view.audit.Savepoint(ctx, func() error {
+			return operation(&authorizationAuditView{
+				Repository: working, audit: view.audit,
+				notificationIntents: view.notificationIntents, hasNotificationIntents: view.hasNotificationIntents,
+			})
 		})
 	})
 }

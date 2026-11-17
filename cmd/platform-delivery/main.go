@@ -87,7 +87,7 @@ func main() {
 			slog.Error("read packaging Temporal configuration", "error", cfgErr)
 			os.Exit(1)
 		}
-		if err := packagingruntime.RunWorker(ctx, cfg, repository); err != nil {
+		if err := runPackagingWorker(ctx, os.Getenv, cfg, repository, packagingruntime.RunWorker); err != nil {
 			slog.Error("packaging worker stopped", "error", err)
 			os.Exit(1)
 		}
@@ -140,6 +140,10 @@ func main() {
 	if notifications.Deliveries != nil {
 		slog.Info("notification delivery enabled")
 		go notifications.Deliveries.Run(ctx)
+	}
+	if notifications.Intents != nil {
+		slog.Info("durable notification intent admission enabled")
+		go notifications.Intents.Run(ctx)
 	}
 	// Nil unless there is a notification store to record into, which is the
 	// same condition the notification routes mount on. A Hub without one still
@@ -415,6 +419,7 @@ type notificationComponent struct {
 	Store       notificationports.Store
 	Contacts    notificationports.Contacts
 	Eligibility notificationports.RecipientEligibility
+	Intents     *notificationsapplication.IntentDrainer
 	Deliveries  *notificationsapplication.Dispatcher
 	// AssistantThreads rides with the notification store because it is opened
 	// on the same DSN and closed by the same closer.
@@ -519,6 +524,17 @@ func configureReconciliation(
 		closeStore()
 		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
+	if _, err := composition.ConfigureNotificationIntents(repository, notificationStore, slog.Default()); err != nil {
+		closeStore()
+		return nil, func() {}, nil, nil, notificationComponent{}, err
+	}
+	intentConfig := composition.DefaultIntentDrainerConfig()
+	intentConfig.OnError = func(err error) { slog.Error("notification intent admission cycle", "error", err) }
+	intents, err := composition.NewNotificationIntentDrainer(notificationStore, eligibility, notificationsapplication.SystemClock{}, intentConfig)
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, nil, notificationComponent{}, err
+	}
 	emitter, err := notificationsapplication.NewEmitter(notificationStore, eligibility)
 	if err != nil {
 		closeStore()
@@ -593,7 +609,7 @@ func configureReconciliation(
 		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	return bridge, closeStore, supervisor, readStats, notificationComponent{
-		Store: notificationStore, Contacts: notificationStore, Deliveries: deliveries, Eligibility: eligibility,
+		Store: notificationStore, Contacts: notificationStore, Deliveries: deliveries, Eligibility: eligibility, Intents: intents,
 		AssistantThreads: assistantThreadStore,
 		AppGenerations:   appGenerationStore,
 	}, nil

@@ -13,6 +13,27 @@ import (
 func (lifecycle *Lifecycle) EvaluatePromotion(
 	ctx context.Context, request PromotionEvaluationRequest,
 ) (PromotionRecord, error) {
+	if needsNotificationTransaction(lifecycle.repository) {
+		transactional, ok := lifecycle.repository.(TransactionalRepository)
+		if !ok {
+			return PromotionRecord{}, fmt.Errorf("%w: durable promotion notifications require a transactional repository", ErrInvalidTransition)
+		}
+		var record PromotionRecord
+		err := transactional.Transaction(ctx, func(repository Repository) error {
+			working := *lifecycle
+			working.repository = repository
+			var err error
+			record, err = working.EvaluatePromotion(ctx, request)
+			if err != nil {
+				return err
+			}
+			return ctx.Err()
+		})
+		if err != nil {
+			return PromotionRecord{}, err
+		}
+		return record, nil
+	}
 	now := lifecycle.now().UTC()
 	if label := authoredSecurityLabel(request.Release.Labels); label != "" {
 		return PromotionRecord{}, fmt.Errorf("%w: release label %s is scanner-owned", ErrInvalidTransition, label)
@@ -153,6 +174,13 @@ func (lifecycle *Lifecycle) EvaluatePromotion(
 	}
 	if err := lifecycle.reconcilePromotionSuppressions(ctx, created); err != nil {
 		return PromotionRecord{}, err
+	}
+	if lifecycle.repository.InTransaction() {
+		if announcements, configured := lifecycle.repository.TransactionAnnouncements(); configured {
+			if err := announcements.promotionEvaluated(ctx, created); err != nil {
+				return PromotionRecord{}, err
+			}
+		}
 	}
 	return created, nil
 }

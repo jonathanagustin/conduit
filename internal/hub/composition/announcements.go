@@ -27,9 +27,9 @@ import (
 // every one of these sites on purpose and a broken notification store must not
 // be silent in the place silence is the defect.
 //
-// NewHub shares these ports with the facade and the governance services used
-// by its other surfaces. Transaction-local services stay silent; the owner of
-// the transaction announces only after its writes have committed.
+// NewHub shares optional observers with the facade and its other surfaces.
+// Transaction-local services reject live observers; configured PostgreSQL
+// sources bind their own private intent ports to the exact SQL transaction.
 func NewAnnouncements(
 	store notificationports.Store, eligibility notificationports.RecipientEligibility, logger *slog.Logger,
 ) (controlplane.Announcements, error) {
@@ -43,6 +43,10 @@ func NewAnnouncements(
 	if err != nil {
 		return controlplane.Announcements{}, err
 	}
+	return mappedAnnouncements(emitter, logger, false)
+}
+
+func mappedAnnouncements(emitter notificationports.Emitter, logger *slog.Logger, transactional bool) (controlplane.Announcements, error) {
 	governance, err := governancenotifications.NewAnnouncements(emitter, notifications.SystemClock{}.Now)
 	if err != nil {
 		return controlplane.Announcements{}, err
@@ -55,11 +59,16 @@ func NewAnnouncements(
 	if err != nil {
 		return controlplane.Announcements{}, err
 	}
+	recalls, err := catalognotifications.NewRecallOpenings(emitter, notifications.SystemClock{}.Now)
+	if err != nil {
+		return controlplane.Announcements{}, err
+	}
 	logged := loggedAnnouncements{
-		openings: governance, grants: governance, plans: plans, promotions: promotions, logger: logger,
+		openings: governance, grants: governance, plans: plans, promotions: promotions, logger: logger, transactional: transactional,
 	}
 	return controlplane.Announcements{
 		ChangeRequestOpenings: logged, GrantChanges: logged, PlanFailures: logged, PromotionFailures: logged,
+		RecallOpenings: loggedRecallOpenings{inner: recalls, logger: logger},
 	}, nil
 }
 
@@ -102,11 +111,12 @@ func newGovernanceService(repository controlplane.Repository, options ...control
 // loggedAnnouncements is what makes the dropped errors honest, as
 // loggedRecallOpenings is for recalls.
 type loggedAnnouncements struct {
-	openings   governanceports.ChangeRequestOpenings
-	grants     governanceports.GrantChanges
-	plans      planports.Failures
-	promotions catalogports.PromotionFailures
-	logger     *slog.Logger
+	openings      governanceports.ChangeRequestOpenings
+	grants        governanceports.GrantChanges
+	plans         planports.Failures
+	promotions    catalogports.PromotionFailures
+	logger        *slog.Logger
+	transactional bool
 }
 
 func (logged loggedAnnouncements) AwaitingApproval(
@@ -119,6 +129,11 @@ func (logged loggedAnnouncements) AwaitingApproval(
 		// to. Recorded so that "nobody was told" has an answer, at a level
 		// that does not page anybody.
 		logged.logger.InfoContext(ctx, "change request not announced", "changeRequest", opening.ID, "reason", err)
+		if logged.transactional {
+			// A catalogue-wide request has no Environment subscription grain.
+			// It owes no notification intent and must not fail its source write.
+			return nil
+		}
 	case err != nil:
 		logged.logger.ErrorContext(ctx, "announce change request awaiting approval",
 			"changeRequest", opening.ID, "environment", opening.Environment, "error", err)
