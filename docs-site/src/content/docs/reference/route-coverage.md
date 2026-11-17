@@ -209,7 +209,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `POST /v1/export-pipelines/{pipelineID}/preview` | `operator-grant` | No native schema |
 | `POST /v1/export-pipelines/{pipelineID}/unarchive` | `operator-grant` | No native schema |
 | `POST /v1/fleet/actions` | `operator-grant` | No native schema |
-| `POST /v1/fleet/propose-fix` | `operator-any` | No native schema |
+| `POST /v1/fleet/propose-fix` | `operator-grant` | No native schema |
 | `POST /v1/intake-attachments` | `operator-self` | No native schema |
 | `POST /v1/intelligence/courses` | `operator-any` | No native schema |
 | `POST /v1/intelligence/courses/select` | `operator-grant` | No native schema |
