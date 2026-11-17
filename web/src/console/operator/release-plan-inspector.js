@@ -1,3 +1,4 @@
+import { artifactMarkup } from "./artifact-display.js";
 import { releaseCalendarMarkup } from "./release-calendar.js";
 const esc = (value) =>
   String(value ?? "").replace(
@@ -41,6 +42,12 @@ export function timelineMarkup(rows, note = "") {
   </section>`;
 }
 
+/** The step's deployable artifact, when the Hub returned one. */
+function stepArtifact(step) {
+  const markup = artifactMarkup(step?.chart, esc);
+  return markup ? ` · ${markup}` : "";
+}
+
 export function planInspectorMarkup(plans, id = "", timeline = [], note = "") {
   const rows = Array.isArray(plans) ? plans : [];
   const plan = selectedPlan(rows, id);
@@ -55,7 +62,7 @@ export function planInspectorMarkup(plans, id = "", timeline = [], note = "") {
     ${plan.failure ? `<p role="status">Recorded failure: ${esc(plan.failure)}</p>` : ""}
     ${plan.failedInstallationId ? `<p>Failed installation: ${esc(plan.failedInstallationId)}</p>` : ""}
     <h3>Planned steps</h3><p class="kit-muted">Instructions, not per-step execution receipts.</p>
-    ${steps.length ? `<ol>${steps.map((step) => `<li>${esc(step.position)}. ${esc(step.action)} · ${esc(step.installationId)} · ${esc(step.product)} ${esc(step.version)}</li>`).join("")}</ol>` : "<p>No step is recorded.</p>"}
+    ${steps.length ? `<ol>${steps.map((step) => `<li>${esc(step.position)}. ${esc(step.action)} · ${esc(step.installationId)} · ${esc(step.product)} ${esc(step.version)}${stepArtifact(step)}</li>`).join("")}</ol>` : "<p>No step is recorded.</p>"}
     </section>${timelineMarkup(timeline, note)}${releaseCalendarMarkup(steps.flatMap((step) => (Array.isArray(step.maintenance?.overrides) ? step.maintenance.overrides : [])))}</div>`;
 }
 

@@ -69,6 +69,7 @@ import { createCapabilities } from "./session-capabilities.js";
 import { createNotifications } from "./notifications.js";
 import { createLiveHub } from "./live-hub.js";
 import { bindDeliveryCapabilities } from "./delivery-actions.js";
+import { bindCopyButtons } from "./artifact-display.js";
 import {
   deliverySlots,
   mountPlanDecision,
@@ -1012,6 +1013,7 @@ export function mountOperator(host, options) {
   bindDeliveryCapabilities((operation, resourceRid) =>
     capabilities.canPerform(operation, resourceRid),
   );
+  bindCopyButtons(host);
   const notifications = createNotifications({
     state,
     render: () => renderApp({ backgroundRefresh: true }),
