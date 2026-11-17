@@ -815,6 +815,10 @@ The normalized source below preserves shared schemas, parameters, security and e
             "format": "date-time",
             "type": "string"
           },
+          "configuredModel": {
+            "description": "Operator-configured model id; absent on legacy records.",
+            "type": "string"
+          },
           "intake": {
             "$ref": "#/components/schemas/Intake"
           },
@@ -826,6 +830,10 @@ The normalized source below preserves shared schemas, parameters, security and e
           },
           "profile": {
             "$ref": "#/components/schemas/Profile"
+          },
+          "providerModel": {
+            "description": "Model id from the final call response metadata; absent when not reported.",
+            "type": "string"
           },
           "resolvedCommit": {
             "type": "string"
@@ -1152,6 +1160,10 @@ The normalized source below preserves shared schemas, parameters, security and e
             ],
             "nullable": true
           },
+          "configuredModel": {
+            "description": "Operator-configured model id; absent on legacy records.",
+            "type": "string"
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -1201,6 +1213,10 @@ The normalized source below preserves shared schemas, parameters, security and e
           },
           "profile": {
             "$ref": "#/components/schemas/Profile"
+          },
+          "providerModel": {
+            "description": "Model id from the final call response metadata; absent when not reported.",
+            "type": "string"
           },
           "resolvedCommit": {
             "type": "string"

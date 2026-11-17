@@ -1,12 +1,5 @@
 # Apollo public-documentation coverage
 
-Inventory update 2026-11-17: a complete network crawl found the same 284 pages,
-with no additions/removals, five changed label CLI pages and no unpublished
-responses. The narrow review and implementation boundary are recorded in
-[`reference/cli-labels-2026-11.md`](reference/cli-labels-2026-11.md). This refresh
-changes no implementation-status claim; inherited sign-in settings remain
-separately scoped from native label behavior.
-
 This is the evidence index for the generic delivery platform. It records which
 public Apollo contracts were reviewed, what those contracts imply, and where
 our implementation intentionally differs. It does **not** copy Palantir's

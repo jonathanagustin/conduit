@@ -37,6 +37,105 @@ Operate the Conduit Hub/Spoke delivery control plane
 conduit
 ```
 
+## conduit agent-credential
+
+Revoke Agent credentials at the Hub and see when Agent certificates expire
+
+```text
+conduit agent-credential
+```
+
+## conduit agent-credential list
+
+List each Agent's last presented certificate, its expiry and whether it is revoked
+
+```text
+conduit agent-credential list ENVIRONMENT
+```
+
+## conduit agent-credential revocations
+
+List the revocations in force for an Environment
+
+```text
+conduit agent-credential revocations ENVIRONMENT
+```
+
+## conduit agent-credential revoke
+
+Refuse one certificate (--serial), one Agent (--agent-id) or every Agent (--all-agents) of an Environment
+
+```text
+conduit agent-credential revoke ENVIRONMENT [flags]
+```
+
+| Flag | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `--agent-id` | `string` | `` | Agent identity to refuse until a certificate is issued after --not-before |
+| `--all-agents` | `bool` | `false` | refuse every Agent of the Environment |
+| `--not-before` | `string` | `` | RFC 3339 instant; certificates issued at or before it are refused (default: now) |
+| `--reason` | `string` | `` | why, for the audit trail (required) |
+| `--serial` | `string` | `` | certificate serial in hexadecimal, as \`openssl x509 -noout -serial\` prints it |
+
+## conduit agent-credential unrevoke
+
+Lift one revocation, readmitting the credentials it refused
+
+```text
+conduit agent-credential unrevoke ENVIRONMENT REVOCATION_ID
+```
+
+## conduit ai
+
+Read model usage and export AI transcripts; this does not call a model
+
+```text
+conduit ai
+```
+
+## conduit ai transcript
+
+List and export stored AI transcripts (administrator only; every export is audited)
+
+```text
+conduit ai transcript
+```
+
+## conduit ai transcript export
+
+Export one run's exchanges, verified against the audit log; exits non-zero when verification fails
+
+```text
+conduit ai transcript export RUN_ID
+```
+
+## conduit ai transcript list
+
+List runs that have a stored transcript, without their text
+
+```text
+conduit ai transcript list [flags]
+```
+
+| Flag | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `--owner` | `string` | `` | only this owner's runs |
+| `--session` | `string` | `` | only this session's runs, for example assistant-thread/&lt;id&gt; |
+
+## conduit ai usage
+
+Show your own model usage and remaining daily budget; --all shows every owner and needs an administrator
+
+```text
+conduit ai usage [flags]
+```
+
+| Flag | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `--all` | `bool` | `false` | every owner's usage (administrator only) |
+| `--days` | `int` | `0` | UTC days to include, today counted (default 1) |
+| `--owner` | `string` | `` | with --all, one owner's usage |
+
 ## conduit approval-policy
 
 Manage approval policies
@@ -729,6 +828,28 @@ conduit label set RESOURCE_TYPE RESOURCE_ID [flags]
 | `--file` | `string` | `` | next-generation desired-state YAML or JSON |
 | `--label-id` | `string` | `` | label definition ID |
 | `--label-value` | `string` | `` | label value |
+
+## conduit login
+
+Sign in as a person and store the token in the bearer token file
+
+```text
+conduit login [flags]
+```
+
+| Flag | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `--flow` | `string` | `auto` | auto, device, or loopback |
+| `--login-timeout` | `duration` | `5m0s` | how long to wait for the sign-in to finish |
+| `--token` | `string` | `id` | which token to store: id (what the Hub's default policy verifies) or access |
+
+## conduit logout
+
+Remove the stored bearer token
+
+```text
+conduit logout
+```
 
 ## conduit module
 

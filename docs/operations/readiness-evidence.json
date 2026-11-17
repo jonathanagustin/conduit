@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "reviewedAt": "2026-11-17",
-  "baselineCommit": "c8a6eb83697877aee0773502c451573cb906ea06",
+  "baselineCommit": "4f06ae60116e52025d133efde0d857590636e80c",
   "maximumAgeDays": 14,
   "maximumCommitsBehind": 50,
-  "issueSnapshotAt": "2026-11-17T05:56:56Z",
+  "issueSnapshotAt": "2026-11-17T07:01:29.492Z",
   "maximumIssueSnapshotAgeDays": 14,
   "verification": "No complete current-baseline hosted or local act receipt is recorded by this review. Gate definitions and prior scoped evidence are not a PASS for the current tree.",
   "hostedBlocker": 858,
@@ -14,11 +14,8 @@
       "number": 1,
       "area": "Notification delivery",
       "disposition": "PARTIAL",
-      "current": "Preference/contact/inbox routes and bounded durable delivery exist; duplicate replay preserves the original audience through #881. The source baseline precedes #874 and #891, whose later merges closed emitter-coverage #840 and preference-save #880. Current remaining trackers cover durable source emission and recipient-authority rechecks; these later closures are not capabilities claimed at this source baseline.",
-      "issues": [
-        869,
-        884
-      ],
+      "current": "Preference/contact/inbox routes, bounded durable delivery, emit-site coverage, original-audience replay and recipient-authority rechecks are merged. Durable emission intent is still not atomic with every source state change; #869 tracks that remaining loss window.",
+      "issues": [],
       "sources": [
         "internal/notifications",
         "internal/hub/composition/notifications.go",
@@ -29,12 +26,16 @@
       "number": 2,
       "area": "Observability",
       "disposition": "PARTIAL",
-      "current": "Opt-in PostgreSQL reconciliation and planning metrics exist. Request metrics, notification exhaustion signals, alert evaluation and tracing remain incomplete at this baseline; PR #856 is a candidate only.",
+      "current": "Request metrics, bounded access-log fields, trace identifiers, notification delivery/exhaustion signals, alert rules, dashboard assets and runbooks are merged. Trace identifiers provide log correlation only: no spans are recorded or exported. Alert expressions, dashboard loading, live selectors and thresholds remain unqualified on a running fleet.",
       "issues": [
         839
       ],
       "sources": [
-        "internal/observability"
+        "internal/observability",
+        "docs/operations/hub-observability.md",
+        "internal/hub/composition/request_observation.go",
+        "internal/hub/composition/notification_metrics.go",
+        "deploy/observability"
       ]
     },
     {
@@ -114,7 +115,7 @@
       "number": 8,
       "area": "Agent authority and credential lifecycle",
       "disposition": "PARTIAL",
-      "current": "The Spoke chart now ships namespaced RBAC derived from call sites. This is a rendered authority floor, not a ceiling on all externally granted privileges or proof of cross-Environment Bundle isolation. Independent boundary review and exercised credential lifecycle remain outstanding.",
+      "current": "Namespaced Spoke RBAC, Agent credential inventory/expiry, durable revocation with per-request rechecks and a two-root CA rehearsal are implemented. Cert-manager enrolment, mounted-certificate rotation and target-cluster lifecycle remain unexercised. A bounded threat model, selected control mapping and an uncommissioned external-review brief are merged; independent review, FIPS boundary decisions and exercised tenant authority remain open.",
       "issues": [
         846,
         847
@@ -122,7 +123,10 @@
       "sources": [
         "deploy/helm/platform-spoke/templates/rbac.yaml",
         "internal/hub/composition/authorization.go",
-        "docs/operations/route-authorization.md"
+        "docs/operations/route-authorization.md",
+        "docs/operations/agent-enrolment.md",
+        "internal/hub/composition/agent_credentials.go",
+        "docs/security"
       ]
     },
     {
@@ -146,329 +150,287 @@
       "state": "open",
       "title": "Recalls do not travel to Target Hubs, so a disconnected fleet never learns a Release was withdrawn",
       "url": "https://github.com/jonathanagustin/conduit/issues/126",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 131,
       "state": "open",
       "title": "Product-declared SLO monitor that triggers automatic recall",
       "url": "https://github.com/jonathanagustin/conduit/issues/131",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 134,
       "state": "open",
       "title": "Schema migration declarations: the rollback safety rail Conduit cannot represent",
       "url": "https://github.com/jonathanagustin/conduit/issues/134",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 391,
       "state": "open",
       "title": "Define proto and buf contracts for existing Hub REST routes",
       "url": "https://github.com/jonathanagustin/conduit/issues/391",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 392,
       "state": "open",
       "title": "Implement Connect handlers for the Hub",
       "url": "https://github.com/jonathanagustin/conduit/issues/392",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 393,
       "state": "open",
       "title": "Generate a TypeScript Connect client for the console",
       "url": "https://github.com/jonathanagustin/conduit/issues/393",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 394,
       "state": "open",
       "title": "Dual-serve REST and Connect and plan the cutover",
       "url": "https://github.com/jonathanagustin/conduit/issues/394",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 615,
       "state": "open",
       "title": "Recorded end-to-end Excalidraw packaging run from source with a pinned digest",
       "url": "https://github.com/jonathanagustin/conduit/issues/615",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 619,
       "state": "open",
       "title": "UDS Core on k3d with Keycloak SSO, two users, and portal tiles when supported",
       "url": "https://github.com/jonathanagustin/conduit/issues/619",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 639,
       "state": "open",
       "title": "Executable application validation, upgrade and recovery drills, and receipt integration for the packaging matrix",
       "url": "https://github.com/jonathanagustin/conduit/issues/639",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 807,
       "state": "open",
       "title": "The shipped Hub image and Helm chart cannot run any model path",
       "url": "https://github.com/jonathanagustin/conduit/issues/807",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 809,
       "state": "open",
       "title": "Isolate the model subprocess and mark untrusted repository content in prompts",
       "url": "https://github.com/jonathanagustin/conduit/issues/809",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 810,
       "state": "open",
       "title": "Model calls have no usage metering, budgets, concurrency limits or retries",
       "url": "https://github.com/jonathanagustin/conduit/issues/810",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 813,
       "state": "open",
       "title": "AI audit trail is digest-only and partial: add transcript retention and audit every model call",
       "url": "https://github.com/jonathanagustin/conduit/issues/813",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 814,
       "state": "open",
       "title": "No model-quality eval harness gates prompt, skill or provider changes",
       "url": "https://github.com/jonathanagustin/conduit/issues/814",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 815,
       "state": "open",
       "title": "MCP surface is thin, unshipped and partly inert; the Hub has no MCP endpoint",
       "url": "https://github.com/jonathanagustin/conduit/issues/815",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 817,
       "state": "open",
       "title": "App generation is a fixed toy profile with process-local results and builds on the Hub host",
       "url": "https://github.com/jonathanagustin/conduit/issues/817",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 818,
       "state": "open",
       "title": "No interactive sign-in: the console and CLI cannot obtain a token for a person",
       "url": "https://github.com/jonathanagustin/conduit/issues/818",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 820,
       "state": "open",
       "title": "Planning and app-generation sessions cannot be stopped, resumed, deep-linked or listed",
       "url": "https://github.com/jonathanagustin/conduit/issues/820",
-      "observedAt": "2026-11-17T05:56:56Z"
-    },
-    {
-      "number": 821,
-      "state": "open",
-      "title": "Console index loading fails past about 100 rows and ignores the pagination contract",
-      "url": "https://github.com/jonathanagustin/conduit/issues/821",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 823,
       "state": "open",
       "title": "The core delivery journey cannot be completed in the console",
       "url": "https://github.com/jonathanagustin/conduit/issues/823",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 824,
       "state": "open",
       "title": "Console navigation and write controls ignore session capabilities",
       "url": "https://github.com/jonathanagustin/conduit/issues/824",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 825,
       "state": "open",
       "title": "Consolidate the console: three component trees, an unused starter app with a model route, and docs for consoles that no longer exist",
       "url": "https://github.com/jonathanagustin/conduit/issues/825",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 827,
       "state": "open",
       "title": "Console has no accessibility, visual-regression, cross-browser or bundle-size gate",
       "url": "https://github.com/jonathanagustin/conduit/issues/827",
-      "observedAt": "2026-11-17T05:56:56Z"
-    },
-    {
-      "number": 828,
-      "state": "open",
-      "title": "Zarf package deploys a hand-written dev profile instead of the production Helm chart, and its Hub cannot use Postgres",
-      "url": "https://github.com/jonathanagustin/conduit/issues/828",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 829,
       "state": "open",
       "title": "UDS Package CR omits egress the runtime needs: Keycloak, the chart registry and Temporal",
       "url": "https://github.com/jonathanagustin/conduit/issues/829",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 830,
       "state": "open",
       "title": "Istio path to the Hub is unproven and mesh mode is pinned by a development-host workaround",
       "url": "https://github.com/jonathanagustin/conduit/issues/830",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 831,
       "state": "open",
       "title": "uds-bundle.yaml is a local stub: never built, not configured, and not bumped by release-please",
       "url": "https://github.com/jonathanagustin/conduit/issues/831",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 832,
       "state": "open",
       "title": "Publish the Conduit package to an OCI registry and prove install, upgrade and removal of the signed artifact",
       "url": "https://github.com/jonathanagustin/conduit/issues/832",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 834,
       "state": "open",
       "title": "Generated tenant packages contain no workload, and the built archive is never signed, published or attached to a Release",
       "url": "https://github.com/jonathanagustin/conduit/issues/834",
-      "observedAt": "2026-11-17T05:56:56Z"
-    },
-    {
-      "number": 836,
-      "state": "open",
-      "title": "UDS executor verifies no package signature and applies none of the reviewed configuration",
-      "url": "https://github.com/jonathanagustin/conduit/issues/836",
-      "observedAt": "2026-11-17T05:56:56Z"
-    },
-    {
-      "number": 837,
-      "state": "open",
-      "title": "UDS executor rollback removes the working version, and observe reports the desired digest as deployed",
-      "url": "https://github.com/jonathanagustin/conduit/issues/837",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 838,
       "state": "open",
       "title": "Helm charts and the Zarf package cannot enable metrics, notifications, plan orchestration or the secret preparer",
       "url": "https://github.com/jonathanagustin/conduit/issues/838",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 839,
       "state": "open",
       "title": "Observability stops at queue gauges: add request metrics, tracing, alert rules, dashboards and runbooks",
       "url": "https://github.com/jonathanagustin/conduit/issues/839",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 841,
       "state": "open",
       "title": "Authorization audit is unpaginated, unbounded and has no export",
       "url": "https://github.com/jonathanagustin/conduit/issues/841",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 843,
       "state": "open",
       "title": "The two real-cluster acceptance suites have never run in hosted CI and gate nothing",
       "url": "https://github.com/jonathanagustin/conduit/issues/843",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 844,
       "state": "open",
       "title": "main says 0.18.0 but the newest release is v0.17.5, and there is no install-from-release path",
       "url": "https://github.com/jonathanagustin/conduit/issues/844",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 845,
       "state": "open",
       "title": "Decision: the repository is public while its docs call it private and proprietary; no LICENSE or SECURITY.md",
       "url": "https://github.com/jonathanagustin/conduit/issues/845",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 846,
       "state": "open",
       "title": "No threat model, external security review, compliance control mapping or FIPS posture",
       "url": "https://github.com/jonathanagustin/conduit/issues/846",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 847,
       "state": "open",
       "title": "No Agent credential lifecycle: enrolment, rotation or revocation",
       "url": "https://github.com/jonathanagustin/conduit/issues/847",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 849,
       "state": "open",
       "title": "No load, soak, failure-injection or property tests, and no published capacity limits",
       "url": "https://github.com/jonathanagustin/conduit/issues/849",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 850,
       "state": "open",
       "title": "Re-baseline the readiness record and handoff, and publish operator, tenant and API reference docs",
       "url": "https://github.com/jonathanagustin/conduit/issues/850",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 858,
       "state": "open",
       "title": "ci: hosted Trunk checks fail before a runner is allocated",
       "url": "https://github.com/jonathanagustin/conduit/issues/858",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 865,
       "state": "open",
       "title": "Decision: define audit archive custody and expiry receipts before pruning the live ledger",
       "url": "https://github.com/jonathanagustin/conduit/issues/865",
-      "observedAt": "2026-11-17T05:56:56Z"
-    },
-    {
-      "number": 869,
-      "state": "open",
-      "title": "fix(notifications): persist emission intent with the state change before asynchronous delivery",
-      "url": "https://github.com/jonathanagustin/conduit/issues/869",
-      "observedAt": "2026-11-17T05:56:56Z"
-    },
-    {
-      "number": 884,
-      "state": "open",
-      "title": "fix(notifications): stop sending new resource events after read access is revoked",
-      "url": "https://github.com/jonathanagustin/conduit/issues/884",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     },
     {
       "number": 887,
       "state": "open",
       "title": "Decision: define trusted artifact-evidence admission after closure of #54",
       "url": "https://github.com/jonathanagustin/conduit/issues/887",
-      "observedAt": "2026-11-17T05:56:56Z"
+      "observedAt": "2026-11-17T07:01:29.492Z"
     }
   ],
   "historicalIssues": [
@@ -535,6 +497,46 @@
       "title": "fix(console): bind notification preference saves to the resource and draft that were reviewed",
       "url": "https://github.com/jonathanagustin/conduit/issues/880",
       "observedAt": "2026-11-17T05:56:56Z"
+    },
+    {
+      "number": 821,
+      "state": "closed",
+      "title": "Console index loading fails past about 100 rows and ignores the pagination contract",
+      "url": "https://github.com/jonathanagustin/conduit/issues/821",
+      "closedAt": "2026-11-17T05:58:00Z",
+      "observedAt": "2026-11-17T07:01:53.426Z"
+    },
+    {
+      "number": 828,
+      "state": "closed",
+      "title": "Zarf package deploys a hand-written dev profile instead of the production Helm chart, and its Hub cannot use Postgres",
+      "url": "https://github.com/jonathanagustin/conduit/issues/828",
+      "closedAt": "2026-11-17T05:58:11Z",
+      "observedAt": "2026-11-17T07:01:53.426Z"
+    },
+    {
+      "number": 836,
+      "state": "closed",
+      "title": "UDS executor verifies no package signature and applies none of the reviewed configuration",
+      "url": "https://github.com/jonathanagustin/conduit/issues/836",
+      "closedAt": "2026-11-17T06:42:32Z",
+      "observedAt": "2026-11-17T07:01:53.426Z"
+    },
+    {
+      "number": 837,
+      "state": "closed",
+      "title": "UDS executor rollback removes the working version, and observe reports the desired digest as deployed",
+      "url": "https://github.com/jonathanagustin/conduit/issues/837",
+      "closedAt": "2026-11-17T06:03:09Z",
+      "observedAt": "2026-11-17T07:01:53.426Z"
+    },
+    {
+      "number": 884,
+      "state": "closed",
+      "title": "fix(notifications): stop sending new resource events after read access is revoked",
+      "url": "https://github.com/jonathanagustin/conduit/issues/884",
+      "closedAt": "2026-11-17T05:56:12Z",
+      "observedAt": "2026-11-17T07:01:53.426Z"
     }
   ],
   "relatedGroups": [
@@ -555,7 +557,6 @@
       "issues": [
         818,
         820,
-        821,
         823,
         824,
         825,
@@ -565,14 +566,11 @@
     {
       "area": "Packaging and cluster acceptance",
       "issues": [
-        828,
         829,
         830,
         831,
         832,
         834,
-        836,
-        837,
         838,
         844,
         615,

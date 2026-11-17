@@ -5,7 +5,7 @@ description: The shipped route and authorization register, including explicit na
 
 Generated from `internal/hub/composition/authorization.go`; this is a route and access-decision inventory, not a substitute for request/response schemas. Compatibility adapter paths are listed by their shipped names; this does not claim a private upstream protocol. The [native API reference](/conduit/reference/native-api/) renders the available schemas. [#391](https://github.com/jonathanagustin/conduit/issues/391) owns the uncontracted remainder.
 
-250 registered patterns; 26 match a native OpenAPI operation. These counts are generated, and include method-not-allowed fallback patterns. Protobuf methods are documented separately and are not counted as additional REST schemas.
+262 registered patterns; 26 match a native OpenAPI operation. These counts are generated, and include method-not-allowed fallback patterns. Protobuf methods are documented separately and are not counted as additional REST schemas.
 
 | Registered route | Access decision | Native OpenAPI contract |
 | --- | --- | --- |
@@ -13,6 +13,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `DELETE /v1/assistant/threads/{threadID}` | `operator-self` | No native schema |
 | `DELETE /v1/debug-session-requests/{requestID}` | `operator-grant` | No native schema |
 | `DELETE /v1/dev-workspaces/{workspaceID}` | `operator-grant` | No native schema |
+| `DELETE /v1/environments/{environmentID}/agent-revocations/{revocationID}` | `operator-grant` | No native schema |
 | `DELETE /v1/export-pipelines/{pipelineID}` | `operator-grant` | No native schema |
 | `DELETE /v1/labels/{labelID}` | `operator-grant` | No native schema |
 | `DELETE /v1/notifications/contacts` | `operator-self` | No native schema |
@@ -40,7 +41,11 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `GET /console/` | `public` | No native schema |
 | `GET /health/live` | `public` | No native schema |
 | `GET /health/ready` | `public` | No native schema |
+| `GET /v1/admin/ai/transcripts` | `operator-grant` | No native schema |
+| `GET /v1/admin/ai/transcripts/{runID}` | `operator-grant` | No native schema |
+| `GET /v1/admin/ai/usage` | `operator-grant` | No native schema |
 | `GET /v1/admin/status` | `operator-grant` | [api/admin-status.json](https://github.com/jonathanagustin/conduit/blob/main/api/admin-status.json) |
+| `GET /v1/ai/usage` | `operator-self` | No native schema |
 | `GET /v1/apollo/graphql/schema` | `public` | No native schema |
 | `GET /v1/app-generations` | `operator-self` | No native schema |
 | `GET /v1/app-generations/{id}` | `operator-self` | No native schema |
@@ -49,6 +54,8 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `GET /v1/artifacts/blobs/{digest}` | `operator-grant` | No native schema |
 | `GET /v1/assistant/threads` | `operator-self` | No native schema |
 | `GET /v1/assistant/threads/{threadID}` | `operator-self` | No native schema |
+| `GET /v1/auth/callback` | `public` | No native schema |
+| `GET /v1/auth/login` | `public` | No native schema |
 | `GET /v1/authorization-audit` | `operator-grant` | No native schema |
 | `GET /v1/blackouts` | `operator-any` | No native schema |
 | `GET /v1/bundle-imports` | `operator-grant` | No native schema |
@@ -74,6 +81,8 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `GET /v1/dev-workspaces/{workspaceID}/tree` | `operator-filtered` | No native schema |
 | `GET /v1/environments` | `operator-filtered` | No native schema |
 | `GET /v1/environments/{environmentID}` | `operator-grant` | No native schema |
+| `GET /v1/environments/{environmentID}/agent-credentials` | `operator-grant` | No native schema |
+| `GET /v1/environments/{environmentID}/agent-revocations` | `operator-grant` | No native schema |
 | `GET /v1/environments/{environmentID}/commands` | `operator-grant` | No native schema |
 | `GET /v1/environments/{environmentID}/entities` | `operator-grant` | No native schema |
 | `GET /v1/environments/{environmentID}/health-targets` | `agent` | No native schema |
@@ -162,6 +171,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `POST /v1/assistant/threads` | `operator-self` | No native schema |
 | `POST /v1/assistant/tools` | `operator-any` | No native schema |
 | `POST /v1/assistant/turns` | `operator-any` | No native schema |
+| `POST /v1/auth/logout` | `public` | No native schema |
 | `POST /v1/blackouts` | `operator-any` | No native schema |
 | `POST /v1/bundle-transfer-confirmations/{confirmationID}/rescind` | `operator-grant` | No native schema |
 | `POST /v1/bundles/import` | `operator-grant` | No native schema |
@@ -188,6 +198,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `POST /v1/dev-workspaces/{workspaceID}/stop` | `operator-grant` | No native schema |
 | `POST /v1/dev-workspaces/{workspaceID}/submit` | `operator-grant` | No native schema |
 | `POST /v1/dev-workspaces/{workspaceID}/upgrade` | `operator-grant` | No native schema |
+| `POST /v1/environments/{environmentID}/agent-revocations` | `operator-grant` | No native schema |
 | `POST /v1/environments/{environmentID}/health-observations` | `agent` | No native schema |
 | `POST /v1/environments/{environmentID}/leases` | `agent` | No native schema |
 | `POST /v1/environments/{environmentID}/maintenance-admission/leases` | `agent` | No native schema |
@@ -204,6 +215,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `POST /v1/intelligence/courses/select` | `operator-grant` | No native schema |
 | `POST /v1/intelligence/evals/cases` | `operator-any` | No native schema |
 | `POST /v1/intelligence/evals/run` | `operator-any` | No native schema |
+| `POST /v1/mcp` | `operator-any` | No native schema |
 | `POST /v1/module-installations/{installationID}/pause` | `operator-grant` | No native schema |
 | `POST /v1/module-installations/{installationID}/resume` | `operator-grant` | No native schema |
 | `POST /v1/module-installations/{installationID}/unlink` | `operator-grant` | No native schema |

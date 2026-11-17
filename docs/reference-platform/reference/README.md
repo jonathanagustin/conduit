@@ -10,7 +10,6 @@ Read only the topic relevant to the current change:
 | Topic | Note | Local contract surface |
 | --- | --- | --- |
 | Public documentation inventory refresh | [documentation-inventory.md](documentation-inventory.md) | URL/hash freshness only; no semantic contract update |
-| November label CLI metadata delta | [cli-labels-2026-11.md](cli-labels-2026-11.md) | Label signatures and inherited loopback callback setting; native sign-in remains separately tracked |
 | Agent installation and distribution boundary | [agent-installation.md](agent-installation.md) | Managed configuration, secret work, public Install Manager seam, private-wire exclusion |
 | Recovered Java object alignment | [../JAVA-OBJECT-ALIGNMENT.md](../JAVA-OBJECT-ALIGNMENT.md) | Exhaustive 42-file direct Apollo closure, exact configuration adapters, Foundry/Marketplace boundaries |
 | Immutable Product artifact publication | [artifact-publication.md](artifact-publication.md) | Versioned registry charts, values-based variance, Git/Flux ownership boundary, recall identity |
