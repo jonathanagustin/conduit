@@ -8,9 +8,29 @@ Leave `CONDUIT_MODEL_CMD` unset to keep the recorded proposals and the recorded 
 
 ## Environment allowlist
 
-The model command does not inherit the Hub's environment. It receives only an allowlist: `PATH`, `HOME`, `USER`, the locale, `TZ` and temp-directory variables, the `XDG_*` base directories, the proxy and CA variables (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`, `SSL_CERT_FILE`, `SSL_CERT_DIR`, `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE`, `CURL_CA_BUNDLE`), the provider variables the CLIs read (`ANTHROPIC_*` key, token, base URL and model, `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CONFIG_DIR`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_ORG_ID`, `CODEX_HOME`, `CODEX_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_GENAI_USE_VERTEXAI`, `XAI_API_KEY`, `GROK_API_KEY`), and `CONDUIT_AGENT_PROVIDER`, `CONDUIT_MODEL_TIMEOUT` and `CONDUIT_PROVIDER_<NAME>_CMD` for `agent-exec`. Hub settings such as database DSNs, bundle signing keys, OIDC client secrets and notification credentials never reach it. To pass anything else (for example `AWS_PROFILE` and `AWS_REGION` for a Bedrock-backed CLI), set `CONDUIT_MODEL_ENV_ALLOW` on the Hub to a comma-separated list of exact variable names; the list is the operator's decision, so do not name a Hub secret in it. The exact list is `internal/localcmd/env.go`.
+The model command does not inherit the Hub's environment. It receives only an allowlist: `PATH`, `HOME`, `USER`, the locale, `TZ` and temp-directory variables, the `XDG_*` base directories, the proxy and CA variables (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`, `SSL_CERT_FILE`, `SSL_CERT_DIR`, `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE`, `CURL_CA_BUNDLE`), the provider variables the CLIs read (`ANTHROPIC_*` key, token, base URL and model, `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CONFIG_DIR`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_ORG_ID`, `CODEX_HOME`, `CODEX_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_GENAI_USE_VERTEXAI`, `XAI_API_KEY`, `GROK_API_KEY`), and `CONDUIT_AGENT_PROVIDER`, `CONDUIT_MODEL_TIMEOUT` and `CONDUIT_PROVIDER_<NAME>_CMD` for `agent-exec`. Hub settings such as database DSNs, bundle signing keys, OIDC client secrets and notification credentials are excluded by default. To pass anything else (for example `AWS_PROFILE` and `AWS_REGION` for a Bedrock-backed CLI), set `CONDUIT_MODEL_ENV_ALLOW` on the Hub to a comma-separated list of exact variable names; the list is the operator's decision, so do not name a Hub secret in it. The exact list is `internal/localcmd/env.go`.
 
 ## Provider presets
+
+Every delegated provider call uses the same environment allowlist and temporary
+working directory as a direct model command, including when `agent-exec` is run
+on its own. Provider stderr is withheld from returned errors because it can
+contain credentials or source content. A timeout still reports that the command
+timed out.
+
+These controls do not confine the command's filesystem or network access. A local
+command runs as the Hub's operating-system user and can read files available to
+that user, including mounted credentials; a CLI's read-only mode does not hide
+those files. The allowlist extension is trusted operator configuration and can
+explicitly pass a Hub secret. Use the existing HTTP model transport when the
+model must have no local process access. A container-backed command transport
+remains outstanding under [#809](https://github.com/jonathanagustin/conduit/issues/809).
+
+Planning inspection metadata and filenames, as well as packaging tool results
+(including image inspection failures), are carried in escaped untrusted-data
+blocks. Filenames retain their exact JSON string value even when they contain
+newlines or delimiter text. This framing helps the model distinguish evidence
+from instructions; it grants no execution or approval authority.
 
 `packaging-workflow agent-exec` is a ready-made `CONDUIT_MODEL_CMD`. Its `--provider` flag (or `CONDUIT_AGENT_PROVIDER`) chooses the engine:
 
