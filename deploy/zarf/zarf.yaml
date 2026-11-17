@@ -89,6 +89,87 @@ variables:
     description: Requests the Hub allows one remote address at once. Leave empty for the Hub default (60). The Hub refuses to start on more than 1000000.
     default: ""
     pattern: "^$|^[1-9][0-9]{0,6}$"
+  # Typed operational settings (#838). Secret contents are never variables.
+  - name: NOTIFICATION_TRANSPORT
+    description: Notification delivery transport. Any enabled transport requires REPOSITORY_KIND=postgres. Credentials are existing object references only.
+    default: "none"
+    pattern: "^(none|webhook|log|native)$"
+  - name: NOTIFICATION_WEBHOOK_SECRET_NAME
+    description: Existing Secret containing the full webhook URL. Required only for webhook transport.
+    default: ""
+    pattern: "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  - name: NOTIFICATION_WEBHOOK_SECRET_KEY
+    description: Key of the webhook URL in NOTIFICATION_WEBHOOK_SECRET_NAME.
+    default: "url"
+    pattern: "^[A-Za-z0-9._-]+$"
+  - name: NOTIFICATION_WEBHOOK_TIMEOUT
+    description: Bound on one webhook attempt. Empty keeps the Hub default.
+    default: ""
+    pattern: "^$|^[1-9][0-9]*(ms|s|m)$"
+  - name: NOTIFICATION_NATIVE_TIMEOUT
+    description: Bound on one SMTP or Slack attempt. Must remain below the delivery lease of 30 seconds.
+    default: ""
+    pattern: "^$|^[1-9][0-9]*(ms|s)$"
+  - name: NOTIFICATION_SMTP_ADDRESS
+    description: SMTP host:port. Enables the native email channel; requires NOTIFICATION_SMTP_FROM.
+    default: ""
+    pattern: "^$|^[^:\\p{Cc}\\p{Z}\\x{FFFE}\\x{FFFF}]+:[0-9]{1,5}$|^\\[[0-9A-Fa-f:]+\\]:[0-9]{1,5}$"
+  - name: NOTIFICATION_SMTP_FROM
+    description: Sender mailbox for native email. Unicode display names are preserved; controls and Unicode line separators are refused.
+    default: ""
+    pattern: "^$|^[^\\p{Cc}\\p{Zl}\\p{Zp}\\x{FFFE}\\x{FFFF}]*[^\\s\\p{Cc}\\p{Zl}\\p{Zp}\\x{FFFE}\\x{FFFF}]+@[^\\s\\p{Cc}\\p{Zl}\\p{Zp}\\x{FFFE}\\x{FFFF}]+$"
+  - name: NOTIFICATION_SMTP_TLS_MODE
+    description: Empty or starttls uses STARTTLS; tls uses implicit TLS. Plaintext is unsupported.
+    default: ""
+    pattern: "^(|starttls|tls)$"
+  - name: NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME
+    description: Existing Secret containing SMTP username and password. Empty uses no SMTP authentication.
+    default: ""
+    pattern: "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  - name: NOTIFICATION_SMTP_USERNAME_KEY
+    description: SMTP username key in the credentials Secret.
+    default: "username"
+    pattern: "^[A-Za-z0-9._-]+$"
+  - name: NOTIFICATION_SMTP_PASSWORD_KEY
+    description: SMTP password key in the credentials Secret.
+    default: "password"
+    pattern: "^[A-Za-z0-9._-]+$"
+  - name: NOTIFICATION_SMTP_CA_CONFIGMAP_NAME
+    description: Existing ConfigMap containing a private SMTP CA. Empty uses system trust roots.
+    default: ""
+    pattern: "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  - name: NOTIFICATION_SMTP_CA_KEY
+    description: CA bundle key in the SMTP ConfigMap.
+    default: "ca.pem"
+    pattern: "^[A-Za-z0-9._-]+$"
+  - name: NOTIFICATION_SLACK_TOKEN_SECRET_NAME
+    description: Existing Secret containing the Slack token. Enables the native Slack channel.
+    default: ""
+    pattern: "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  - name: NOTIFICATION_SLACK_TOKEN_KEY
+    description: Slack token key in the Secret.
+    default: "token"
+    pattern: "^[A-Za-z0-9._-]+$"
+  - name: PLAN_ORCHESTRATOR
+    description: Plan lifecycle driver. temporal requires PLAN_TEMPORAL_ADDRESS; the frontend is operator-supplied, plaintext, and uses Temporal namespace default.
+    default: "native"
+    pattern: "^(native|temporal)$"
+  - name: PLAN_TEMPORAL_ADDRESS
+    description: Explicit host:port of the Plan lifecycle Temporal frontend. Independent of planning sessions and packaging worker settings.
+    default: ""
+    pattern: "^$|^[^\\p{Cc}\\p{Z}\\x{FFFE}\\x{FFFF}]+:[0-9]{1,5}$"
+  - name: MATERIAL_PREPARER_COMMAND
+    description: Absolute executable path of the external Spoke material preparer. Empty leaves preparation disabled; an existing PVC can supply additional tools.
+    default: ""
+    pattern: "^$|^(/[A-Za-z0-9._+-]+)+$"
+  - name: MATERIAL_PREPARER_TOOLS_PVC
+    description: Existing PVC containing the operator-supplied preparer. Mounted read-only only when its command is configured.
+    default: ""
+    pattern: "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  - name: MATERIAL_PREPARER_TOOLS_MOUNT_PATH
+    description: Read-only mount path for the preparer tools PVC.
+    default: "/opt/platform-material"
+    pattern: "^(/[A-Za-z0-9._+-]+)+$"
   - name: CONSOLE_PUBLIC_URL
     description: Browser origin of the Hub console. The Hub builds its sign-in redirect address from it and accepts a session cookie only from it, so it must be the address people actually use. Inert while OPERATOR_OIDC_ISSUER is empty. The optional uds component registers the same address with Keycloak.
     default: https://conduit.uds.dev
@@ -275,6 +356,118 @@ components:
             cmd: 'case "${ZARF_VAR_REPOSITORY_KIND}" in postgres) echo "emptyDir: {}" ;; file) echo "persistentVolumeClaim: {claimName: platform-delivery-state}" ;; *) exit 1 ;; esac'
             setVariables:
               - name: HUB_STATE_VOLUME
+          # Zarf trims action stdout. A leading comment preserves the explicit
+          # YAML list indentation that follows it in these optional fragments.
+          - description: Derive HUB_OPERATIONAL_ENV from typed operational settings
+            cmd: |
+              echo '# typed operational settings'
+              # Admission excludes Unicode controls, line separators and YAML
+              # noncharacters. Quote permitted UTF-8 bytes without locale folding.
+              json() { printf '%s' "$1" | LC_ALL=C sed 's/\\/\\\\/g; s/"/\\"/g'; }
+              item() { printf -- '            - {"name":"%s","value":"%s"}\n' "$1" "$(json "$2")"; }
+              # All values arrive as environment data, never interpolated shell code.
+              if [ "${ZARF_VAR_NOTIFICATION_TRANSPORT}" != none ] && [ "${ZARF_VAR_REPOSITORY_KIND}" != postgres ]; then
+                echo 'notifications require REPOSITORY_KIND=postgres' >&2; exit 1
+              fi
+              case "${ZARF_VAR_NOTIFICATION_TRANSPORT}" in
+                none) : ;;
+                log) item NOTIFICATION_DELIVERY_LOG true ;;
+                webhook)
+                  test -n "${ZARF_VAR_NOTIFICATION_WEBHOOK_SECRET_NAME}" || { echo 'webhook requires NOTIFICATION_WEBHOOK_SECRET_NAME' >&2; exit 1; }
+                  printf -- '            - {"name":"NOTIFICATION_WEBHOOK_URL","valueFrom":{"secretKeyRef":{"name":"%s","key":"%s","optional":false}}}\n' "${ZARF_VAR_NOTIFICATION_WEBHOOK_SECRET_NAME}" "${ZARF_VAR_NOTIFICATION_WEBHOOK_SECRET_KEY}"
+                  test -z "${ZARF_VAR_NOTIFICATION_WEBHOOK_TIMEOUT}" || item NOTIFICATION_WEBHOOK_TIMEOUT "${ZARF_VAR_NOTIFICATION_WEBHOOK_TIMEOUT}"
+                  ;;
+                native)
+                  test -n "${ZARF_VAR_NOTIFICATION_SMTP_ADDRESS}${ZARF_VAR_NOTIFICATION_SLACK_TOKEN_SECRET_NAME}" || { echo 'native notifications require SMTP address or Slack token Secret' >&2; exit 1; }
+                  test -z "${ZARF_VAR_NOTIFICATION_NATIVE_TIMEOUT}" || item NOTIFICATION_NATIVE_TIMEOUT "${ZARF_VAR_NOTIFICATION_NATIVE_TIMEOUT}"
+                  if [ -n "${ZARF_VAR_NOTIFICATION_SMTP_ADDRESS}" ]; then
+                    test -n "${ZARF_VAR_NOTIFICATION_SMTP_FROM}" || { echo 'SMTP requires NOTIFICATION_SMTP_FROM' >&2; exit 1; }
+                    item NOTIFICATION_SMTP_ADDRESS "${ZARF_VAR_NOTIFICATION_SMTP_ADDRESS}"
+                    item NOTIFICATION_SMTP_FROM "${ZARF_VAR_NOTIFICATION_SMTP_FROM}"
+                    test -z "${ZARF_VAR_NOTIFICATION_SMTP_TLS_MODE}" || item NOTIFICATION_SMTP_TLS_MODE "${ZARF_VAR_NOTIFICATION_SMTP_TLS_MODE}"
+                    if [ -n "${ZARF_VAR_NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME}" ]; then
+                      item NOTIFICATION_SMTP_USERNAME_FILE /run/notification-smtp/username
+                      item NOTIFICATION_SMTP_PASSWORD_FILE /run/notification-smtp/password
+                    fi
+                    test -z "${ZARF_VAR_NOTIFICATION_SMTP_CA_CONFIGMAP_NAME}" || item NOTIFICATION_SMTP_CA_FILE /run/notification-smtp-ca/ca.pem
+                  fi
+                  test -z "${ZARF_VAR_NOTIFICATION_SLACK_TOKEN_SECRET_NAME}" || item NOTIFICATION_SLACK_TOKEN_FILE /run/notification-slack/token
+                  ;;
+                *) echo 'invalid NOTIFICATION_TRANSPORT' >&2; exit 1 ;;
+              esac
+              case "${ZARF_VAR_PLAN_ORCHESTRATOR}" in
+                native) : ;;
+                temporal)
+                  test -n "${ZARF_VAR_PLAN_TEMPORAL_ADDRESS}" || { echo 'temporal Plan orchestration requires PLAN_TEMPORAL_ADDRESS' >&2; exit 1; }
+                  item PLAN_ORCHESTRATOR temporal
+                  item PLAN_TEMPORAL_ADDRESS "${ZARF_VAR_PLAN_TEMPORAL_ADDRESS}"
+                  ;;
+                *) echo 'invalid PLAN_ORCHESTRATOR' >&2; exit 1 ;;
+              esac
+              # Keep a nonempty replacement when both features are disabled.
+              echo '# end operational environment'
+            setVariables:
+              - name: HUB_OPERATIONAL_ENV
+          - description: Derive HUB_OPERATIONAL_MOUNTS from typed operational settings
+            cmd: |
+              echo '# typed operational settings'
+              if [ "${ZARF_VAR_NOTIFICATION_TRANSPORT}" = native ]; then
+                if [ -n "${ZARF_VAR_NOTIFICATION_SMTP_ADDRESS}" ]; then
+                  test -z "${ZARF_VAR_NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME}" || echo '            - {name: notification-smtp, mountPath: /run/notification-smtp, readOnly: true}'
+                  test -z "${ZARF_VAR_NOTIFICATION_SMTP_CA_CONFIGMAP_NAME}" || echo '            - {name: notification-smtp-ca, mountPath: /run/notification-smtp-ca, readOnly: true}'
+                fi
+                test -z "${ZARF_VAR_NOTIFICATION_SLACK_TOKEN_SECRET_NAME}" || echo '            - {name: notification-slack, mountPath: /run/notification-slack, readOnly: true}'
+              fi
+              echo '# end operational mounts'
+            setVariables:
+              - name: HUB_OPERATIONAL_MOUNTS
+          - description: Derive HUB_OPERATIONAL_VOLUMES from typed operational settings
+            cmd: |
+              echo '# typed operational settings'
+              if [ "${ZARF_VAR_NOTIFICATION_TRANSPORT}" = native ]; then
+                if [ -n "${ZARF_VAR_NOTIFICATION_SMTP_ADDRESS}" ]; then
+                  if [ -n "${ZARF_VAR_NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME}" ]; then
+                    printf -- '        - {name: notification-smtp, secret: {secretName: "%s", optional: false, items: [{key: "%s", path: username}, {key: "%s", path: password}]}}\n' "${ZARF_VAR_NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME}" "${ZARF_VAR_NOTIFICATION_SMTP_USERNAME_KEY}" "${ZARF_VAR_NOTIFICATION_SMTP_PASSWORD_KEY}"
+                  fi
+                  if [ -n "${ZARF_VAR_NOTIFICATION_SMTP_CA_CONFIGMAP_NAME}" ]; then
+                    printf -- '        - {name: notification-smtp-ca, configMap: {name: "%s", items: [{key: "%s", path: ca.pem}]}}\n' "${ZARF_VAR_NOTIFICATION_SMTP_CA_CONFIGMAP_NAME}" "${ZARF_VAR_NOTIFICATION_SMTP_CA_KEY}"
+                  fi
+                fi
+                if [ -n "${ZARF_VAR_NOTIFICATION_SLACK_TOKEN_SECRET_NAME}" ]; then
+                  printf -- '        - {name: notification-slack, secret: {secretName: "%s", optional: false, items: [{key: "%s", path: token}]}}\n' "${ZARF_VAR_NOTIFICATION_SLACK_TOKEN_SECRET_NAME}" "${ZARF_VAR_NOTIFICATION_SLACK_TOKEN_KEY}"
+                fi
+              fi
+              echo '# end operational volumes'
+            setVariables:
+              - name: HUB_OPERATIONAL_VOLUMES
+          - description: Derive SPOKE_OPERATIONAL_ENV from typed operational settings
+            cmd: |
+              echo '# typed operational settings'
+              if [ -n "${ZARF_VAR_MATERIAL_PREPARER_COMMAND}" ]; then
+                case "/${ZARF_VAR_MATERIAL_PREPARER_COMMAND}/" in */../*|*/./*) echo 'material preparer command must be a clean absolute path' >&2; exit 1 ;; esac
+                printf -- '            - {name: EXTERNAL_MATERIAL_PREPARER, value: "%s"}\n' "${ZARF_VAR_MATERIAL_PREPARER_COMMAND}"
+              fi
+              echo '# end material preparer environment'
+            setVariables:
+              - name: SPOKE_OPERATIONAL_ENV
+          - description: Derive SPOKE_OPERATIONAL_MOUNTS from typed operational settings
+            cmd: |
+              echo '# typed operational settings'
+              if [ -n "${ZARF_VAR_MATERIAL_PREPARER_COMMAND}" ] && [ -n "${ZARF_VAR_MATERIAL_PREPARER_TOOLS_PVC}" ]; then
+                printf -- '            - {name: material-preparer-tools, mountPath: "%s", readOnly: true}\n' "${ZARF_VAR_MATERIAL_PREPARER_TOOLS_MOUNT_PATH}"
+              fi
+              echo '# end material preparer mounts'
+            setVariables:
+              - name: SPOKE_OPERATIONAL_MOUNTS
+          - description: Derive SPOKE_OPERATIONAL_VOLUMES from typed operational settings
+            cmd: |
+              echo '# typed operational settings'
+              if [ -n "${ZARF_VAR_MATERIAL_PREPARER_COMMAND}" ] && [ -n "${ZARF_VAR_MATERIAL_PREPARER_TOOLS_PVC}" ]; then
+                printf -- '        - {name: material-preparer-tools, persistentVolumeClaim: {claimName: "%s", readOnly: true}}\n' "${ZARF_VAR_MATERIAL_PREPARER_TOOLS_PVC}"
+              fi
+              echo '# end material preparer volumes'
+            setVariables:
+              - name: SPOKE_OPERATIONAL_VOLUMES
     images:
       - "###ZARF_PKG_TMPL_HUB_IMAGE###"
       - "###ZARF_PKG_TMPL_SPOKE_AGENT_IMAGE###"
@@ -312,7 +505,14 @@ components:
         kind: Deployment
         namespace: platform-system
         name: platform-packaging-worker
+  # Zarf v0.82.0 rejects selecting both Package owners before any component runs.
+  - name: uds-disabled
+    group: uds-mode
+    required: false
+    default: true
+    description: No UDS Package. Preserves the plain Zarf install default without UDS Core.
   - name: uds
+    group: uds-mode
     required: false
     default: false
     description: UDS Package custom resource without a metrics monitor. Deploy only on a cluster that already has UDS Core. A plain Zarf install does not select this component. Do not combine with uds-metrics.
@@ -322,9 +522,15 @@ components:
         files:
           - manifests/uds-package.yaml
   - name: uds-metrics
+    group: uds-mode
     required: false
     default: false
     description: The same UDS Package custom resource plus a ServiceMonitor for the Hub. Select instead of uds, and only with REPOSITORY_KIND=postgres and METRICS_ADDRESS=:9090; otherwise the monitor's target is permanently down.
+    actions:
+      onDeploy:
+        before:
+          - description: Refuse a monitor whose Hub metrics listener is disabled
+            cmd: 'test "${ZARF_VAR_REPOSITORY_KIND}:${ZARF_VAR_METRICS_ADDRESS}" = "postgres::9090" || { echo "uds-metrics requires REPOSITORY_KIND=postgres and METRICS_ADDRESS=:9090" >&2; exit 1; }'
     manifests:
       - name: uds-package
         namespace: platform-system

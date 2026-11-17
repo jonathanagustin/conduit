@@ -134,6 +134,7 @@ spec:
             - { name: CONDUIT_MODEL_API_KEY_FILE, value: "###ZARF_VAR_MODEL_API_KEY_FILE###" }
             - { name: CONDUIT_MODEL_CA_FILE, value: "###ZARF_VAR_MODEL_CA_FILE###" }
             - { name: CONDUIT_MODEL_ALLOW_INSECURE_HTTP, value: "###ZARF_VAR_MODEL_ALLOW_INSECURE_HTTP###" }
+###ZARF_VAR_HUB_OPERATIONAL_ENV###
           ports:
             - { name: https, containerPort: 8081 }
             # Declared so the Service port has a target when metrics are on.
@@ -164,7 +165,9 @@ spec:
             - { name: operator-sso, mountPath: /run/conduit-sso, readOnly: true }
             - { name: conduit-model, mountPath: /run/conduit-model, readOnly: true }
             - { name: conduit-model-ca, mountPath: /run/conduit-model-ca, readOnly: true }
+###ZARF_VAR_HUB_OPERATIONAL_MOUNTS###
       volumes:
+###ZARF_VAR_HUB_OPERATIONAL_VOLUMES###
         # Derived from REPOSITORY_KIND like the replica count. file mounts the
         # retained PVC. postgres mounts a per-Pod emptyDir, because two replicas
         # cannot share a ReadWriteOnce claim and the PostgreSQL Hub stores
@@ -285,6 +288,7 @@ spec:
             - { name: POLL_INTERVAL, value: 15s }
             - { name: HELM_TIMEOUT, value: 5m }
             - { name: HELM_PLAIN_HTTP, value: "###ZARF_VAR_HELM_PLAIN_HTTP###" }
+###ZARF_VAR_SPOKE_OPERATIONAL_ENV###
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits: { cpu: 500m, memory: 256Mi }
@@ -295,7 +299,9 @@ spec:
           volumeMounts:
             - { name: temporary, mountPath: /tmp }
             - { name: agent-tls, mountPath: /run/platform-tls, readOnly: true }
+###ZARF_VAR_SPOKE_OPERATIONAL_MOUNTS###
       volumes:
+###ZARF_VAR_SPOKE_OPERATIONAL_VOLUMES###
         - name: temporary
           emptyDir: {}
         - name: agent-tls

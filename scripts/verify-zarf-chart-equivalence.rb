@@ -16,6 +16,7 @@
 # PRINT_DIFFERENCES=1 prints every difference instead of judging them.
 
 require "open3"
+require "rbconfig"
 require "tmpdir"
 require "yaml"
 require_relative "lib/safe_yaml"
@@ -43,6 +44,11 @@ end
 def run_action(action, variables)
   env = variables.to_h { |name, value| ["ZARF_VAR_#{name}", value] }.merge("PATH" => ENV.fetch("PATH"))
   Open3.capture3(env, "sh", "-e", "-c", action.fetch("cmd"), unsetenv_others: true)
+end
+
+# Operational cases reuse a reviewed baseline, then change only typed settings.
+def deep_merge(left, right)
+  left.merge(right) { |_, old, value| old.is_a?(Hash) && value.is_a?(Hash) ? deep_merge(old, value) : value }
 end
 
 def before_actions(component)
@@ -137,7 +143,7 @@ constants = {
 }
 defaults = declared.transform_values { |item| item["default"].to_s }
 derived = before_actions(components.fetch("runtime")).flat_map { |action| (action["setVariables"] || []).map { |item| item["name"] } }
-abort "runtime component must derive exactly HUB_REPLICAS, HUB_STRATEGY and HUB_STATE_VOLUME" unless derived.sort == %w[HUB_REPLICAS HUB_STATE_VOLUME HUB_STRATEGY]
+abort "runtime component must derive exactly HUB_REPLICAS, HUB_STRATEGY and HUB_STATE_VOLUME" unless derived.sort == %w[HUB_OPERATIONAL_ENV HUB_OPERATIONAL_MOUNTS HUB_OPERATIONAL_VOLUMES HUB_REPLICAS HUB_STATE_VOLUME HUB_STRATEGY SPOKE_OPERATIONAL_ENV SPOKE_OPERATIONAL_MOUNTS SPOKE_OPERATIONAL_VOLUMES]
 abort "derived Hub settings must not also be operator-settable variables" unless (derived & declared.keys).empty?
 abort "REPOSITORY_KIND must be the profile switch, constrained to file or postgres" unless declared.dig("REPOSITORY_KIND", "pattern") == "^(file|postgres)$"
 
@@ -200,6 +206,13 @@ runtime_text = File.read(File.join(zarf_directory, "manifests/runtime.yaml"))
 worker_text = File.read(File.join(zarf_directory, "manifests/packaging-worker.yaml"))
 profiles = contract.fetch("profiles")
 abort "chart equivalence must cover exactly the file, postgres and postgres-single profiles" unless profiles.keys.sort == %w[file postgres postgres-single]
+profiles = profiles.dup
+contract.fetch("operationalProfiles").each do |name, settings|
+  base = settings.fetch("baseProfile")
+  abort "operational profile #{name} needs a reviewed baseline" unless profiles.key?(base) && !profiles[base].key?("baseProfile")
+  abort "duplicate operational profile #{name}" if profiles.key?(name)
+  profiles[name] = deep_merge(profiles.fetch(base), settings)
+end
 chart_labels = contract.fetch("chartOnlyLabels")
 abort "chartOnlyLabels needs keys and a reason" unless chart_labels["keys"].is_a?(Array) && chart_labels["reason"].to_s.strip.length >= 20
 abort "chartOnlyLabels must not hide the label the package selects Pods by" if chart_labels["keys"].include?("app.kubernetes.io/name")
@@ -211,7 +224,7 @@ allowed = contract.fetch("allow")
 allowed.each do |entry|
   abort "allowlist entry needs object, path, side, profiles and a reason: #{entry.inspect}" unless
     %w[object path side profiles reason].all? { |key| entry.key?(key) } && entry["reason"].to_s.strip.length >= 20 &&
-    %w[zarf-only chart-only differs].include?(entry["side"]) && (entry["profiles"] - profiles.keys).empty? && !entry["profiles"].empty?
+    %w[zarf-only chart-only differs].include?(entry["side"]) && (entry["profiles"] - contract.fetch("profiles").keys).empty? && !entry["profiles"].empty?
 end
 abort "allowlist entries must be unique" unless allowed.map { |entry| entry.values_at("object", "path", "side") }.uniq.length == allowed.length
 
@@ -219,9 +232,10 @@ failures = []
 Dir.mktmpdir("zarf-chart-equivalence") do |work|
   profiles.each do |profile, settings|
     kind = settings.fetch("repositoryKind")
+    baseline = settings.fetch("baseProfile", profile)
     abort "profile #{profile} must select itself with REPOSITORY_KIND" unless profile.split("-").first == kind
     shared = !settings.fetch("zarfVariables")["PLANNING_TEMPORAL_ADDRESS"].to_s.empty?
-    abort "profile #{profile} must #{profile == 'postgres' ? 'set' : 'leave empty'} PLANNING_TEMPORAL_ADDRESS" unless shared == (profile == "postgres")
+    abort "profile #{profile} must #{baseline == 'postgres' ? 'set' : 'leave empty'} PLANNING_TEMPORAL_ADDRESS" unless shared == (baseline == "postgres")
     base = defaults.merge(settings.fetch("zarfVariables")).merge("REPOSITORY_KIND" => kind)
     variables = resolve_variables(components.fetch("runtime"), base)
     worker = settings["packagingWorker"]
@@ -282,9 +296,13 @@ Dir.mktmpdir("zarf-chart-equivalence") do |work|
     if ENV.key?("ZARF_BIN")
       zarf = ENV["ZARF_BIN"]
       abort "ZARF_BIN must name a Zarf executable" if zarf.to_s.empty?
-      # stringToString flags are CSV records: quote each so commas and braces
-      # in a derived value stay inside one KEY=value.
-      deploy_set = variables.reject { |_, value| value.empty? }.flat_map { |name, value| ["--deploy-set-variables", %("#{name}=#{value.gsub('"', '""')}")] }
+      # Pinned pflag stringToString parses CSV only with two '=' characters.
+      # Repeat the same record so arbitrary quotes/commas/newlines round-trip
+      # through that CSV branch without introducing another variable.
+      deploy_set = variables.reject { |_, value| value.empty? }.flat_map do |name, value|
+        record = %("#{name}=#{value.gsub('"', '""')}")
+        ["--deploy-set-variables", "#{record},#{record}"]
+      end
       create_set = constants.merge("PLATFORM_VERSION" => "0.0.0").flat_map { |name, value| ["--create-set", "#{name}=#{value}"] }
       inspected = run!(zarf, "dev", "inspect", "manifests", zarf_directory, "--architecture", "amd64", "--no-color", *create_set, *deploy_set,
                        env: {"ZARF_NO_PROGRESS" => "true"})
@@ -353,7 +371,7 @@ Dir.mktmpdir("zarf-chart-equivalence") do |work|
       found.each { |object, path, side| puts [profile, side, object, path].join("\t") }
       next
     end
-    expected = allowed.select { |entry| entry["profiles"].include?(profile) }
+    expected = allowed.select { |entry| entry["profiles"].include?(baseline) }
     found.each do |object, path, side|
       next if expected.any? { |entry| entry.values_at("object", "path", "side") == [object, path, side] }
       failures << "#{profile}: #{object} #{path.empty? ? '(whole object)' : path} #{side} is not an allowed difference between the Zarf manifest and the chart"
@@ -367,4 +385,8 @@ end
 exit 0 if ENV["PRINT_DIFFERENCES"] == "1"
 abort "Zarf manifests and Helm charts drifted:\n  #{failures.join("\n  ")}" unless failures.empty?
 
-puts "Zarf manifests match the Helm chart render for the file, postgres and postgres-single profiles, apart from #{allowed.length} listed differences"
+if ENV.key?("ZARF_BIN")
+  print run!(RbConfig.ruby, File.join(root, "scripts/test-zarf-operational-settings.rb"))
+end
+
+puts "Zarf manifests match the Helm chart render for #{profiles.length} baseline and operational profiles, apart from #{allowed.length} listed baseline differences"
