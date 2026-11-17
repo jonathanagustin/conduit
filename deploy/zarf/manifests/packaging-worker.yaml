@@ -31,6 +31,8 @@ spec:
             - { name: REPOSITORY_KIND, value: postgres }
             - { name: POSTGRES_DSN_FILE, value: /run/conduit-database/dsn }
             - { name: PACKAGING_TEMPORAL_ADDRESS, value: "###ZARF_VAR_PACKAGING_TEMPORAL_ADDRESS###" }
+            - { name: PACKAGING_TEMPORAL_NAMESPACE, value: "###ZARF_VAR_PACKAGING_TEMPORAL_NAMESPACE###" }
+            - { name: PACKAGING_TEMPORAL_TASK_QUEUE, value: "###ZARF_VAR_PACKAGING_TEMPORAL_TASK_QUEUE###" }
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

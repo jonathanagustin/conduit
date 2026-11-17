@@ -141,6 +141,61 @@ abort "runtime component must derive exactly HUB_REPLICAS, HUB_STRATEGY and HUB_
 abort "derived Hub settings must not also be operator-settable variables" unless (derived & declared.keys).empty?
 abort "REPOSITORY_KIND must be the profile switch, constrained to file or postgres" unless declared.dig("REPOSITORY_KIND", "pattern") == "^(file|postgres)$"
 
+# The old worker-only default was loopback. Once the Hub reads the setting,
+# retaining it would turn on a client in every plain install.
+packaging_variables = %w[PACKAGING_TEMPORAL_ADDRESS PACKAGING_TEMPORAL_NAMESPACE PACKAGING_TEMPORAL_TASK_QUEUE]
+abort "packaging Temporal must default to disabled with its established namespace and queue" unless
+  defaults.values_at(*packaging_variables) == ["", "default", "packaging-localhost"]
+packaging_patterns = packaging_variables.to_h do |name|
+  pattern = declared.dig(name, "pattern")
+  abort "#{name} must constrain plain deployment configuration" if pattern.to_s.empty?
+  [name, Regexp.new("\\A(?:#{pattern})\\z")]
+end
+{
+  "PACKAGING_TEMPORAL_ADDRESS" => ["", "temporal.example.test:7233", "127.0.0.1:7233", "temporal:1", "temporal:65535", "temporal:0007233", "münchen.example:7233"],
+  "PACKAGING_TEMPORAL_NAMESPACE" => ["default", "packaging-production", "a" * 128, "namespace with spaces"],
+  "PACKAGING_TEMPORAL_TASK_QUEUE" => ["packaging-localhost", "packaging-reviewed", "q" * 300, "queue/with spaces"]
+}.each do |name, values|
+  abort "#{name} refuses a supported plain setting" unless values.all? { |value| packaging_patterns.fetch(name).match?(value) }
+end
+abort "PACKAGING_TEMPORAL_ADDRESS must preserve bracketed IPv6 endpoints and interface zones" unless
+  ["[fd00::1]:7233", "[fe80::1%eth0]:7233", "[::ffff:192.0.2.1]:7233"].all? do |address|
+    packaging_patterns.fetch("PACKAGING_TEMPORAL_ADDRESS").match?(address)
+  end
+{
+  "PACKAGING_TEMPORAL_ADDRESS" => ["https://temporal.example.test:7233", "user:secret@temporal:7233", "temporal:7233?key=secret", "temporal:7233\nOTHER=value", "fd00::1:7233"],
+  "PACKAGING_TEMPORAL_NAMESPACE" => ["", "namespace\nOTHER=value", 'namespace"', "namespace\\escape", "namespace\u0085rewrite"],
+  "PACKAGING_TEMPORAL_TASK_QUEUE" => ["", "queue\nOTHER=value", 'queue"', "queue\\escape", "queue\u0085rewrite"]
+}.each do |name, values|
+  abort "#{name} accepts a credential, URI or unsafe manifest value" if values.any? { |value| packaging_patterns.fetch(name).match?(value) }
+end
+abort "PACKAGING_TEMPORAL_ADDRESS must refuse ports outside 1 through 65535" if
+  ["temporal:0", "temporal:65536", "temporal:99999", "[fd00::1]:65536"].any? do |address|
+    packaging_patterns.fetch("PACKAGING_TEMPORAL_ADDRESS").match?(address)
+  end
+packaging_profile_guard = before_actions(components.fetch("runtime")).find do |action|
+  action["description"] == "Refuse packaging workflow configuration beside a file-backed Hub"
+end
+abort "runtime must guard packaging configuration beside a file-backed Hub" unless packaging_profile_guard
+[["file", "", true], ["postgres", "", true], ["postgres", "temporal:7233", true], ["file", "temporal:7233", false]].each do |kind, address, succeeds|
+  _stdout, stderr, status = run_action(packaging_profile_guard, defaults.merge("REPOSITORY_KIND" => kind, "PACKAGING_TEMPORAL_ADDRESS" => address))
+  abort "runtime packaging guard must refuse only a configured file-backed Hub" unless status.success? == succeeds
+  abort "runtime packaging guard must explain the shared Plan-store requirement" if !succeeds && !stderr.include?("requires REPOSITORY_KIND=postgres")
+end
+packaging_worker_guard = before_actions(components.fetch("packaging-worker")).find do |action|
+  action["description"] == "Refuse the packaging worker beside a file-backed Hub"
+end
+abort "packaging-worker must carry a deploy-time profile guard" unless packaging_worker_guard
+packaging_address_guard = before_actions(components.fetch("packaging-worker")).find do |action|
+  action["description"] == "Refuse the packaging worker without an explicit Temporal frontend"
+end
+abort "packaging-worker must require an explicit Temporal frontend" unless packaging_address_guard
+["", "temporal:7233"].each do |address|
+  _stdout, stderr, status = run_action(packaging_address_guard, defaults.merge("REPOSITORY_KIND" => "postgres", "PACKAGING_TEMPORAL_ADDRESS" => address))
+  abort "packaging-worker address guard must refuse an empty frontend" unless status.success? == !address.empty?
+  abort "packaging-worker address guard must explain the missing frontend" if address.empty? && !stderr.include?("explicit PACKAGING_TEMPORAL_ADDRESS")
+end
+
 runtime_text = File.read(File.join(zarf_directory, "manifests/runtime.yaml"))
 worker_text = File.read(File.join(zarf_directory, "manifests/packaging-worker.yaml"))
 profiles = contract.fetch("profiles")
@@ -173,7 +228,7 @@ Dir.mktmpdir("zarf-chart-equivalence") do |work|
 
     # The worker's deploy-time guard, run for real: it must refuse exactly the
     # profile whose Hub would never read what the worker writes.
-    _stdout, stderr, status = run_action(before_actions(components.fetch("packaging-worker")).fetch(0) { abort "packaging-worker must carry a deploy-time profile guard" }, variables)
+    _stdout, stderr, status = run_action(packaging_worker_guard, variables)
     if kind == "postgres"
       abort "packaging-worker guard refused the postgres profile: #{stderr}" unless status.success?
     else
@@ -181,6 +236,10 @@ Dir.mktmpdir("zarf-chart-equivalence") do |work|
       abort "packaging-worker guard must say why it refused" unless stderr.include?("REPOSITORY_KIND=postgres")
     end
     abort "profile #{profile} selects the packaging worker beside a #{kind}-backed Hub" if worker && kind != "postgres"
+    packaging_enabled = !variables.fetch("PACKAGING_TEMPORAL_ADDRESS").empty?
+    abort "#{profile}: packaged worker has no explicit Temporal frontend" if worker && !packaging_enabled
+    abort "#{profile}: chart and package disagree about packaging client enablement" unless
+      !!settings.dig("hubValues", "packagingWorkflow", "enabled") == packaging_enabled
 
     rendered = substitute(runtime_text, variables, constants)
     zarf_documents = ConduitSafeYAML.stream(rendered)
@@ -194,6 +253,16 @@ Dir.mktmpdir("zarf-chart-equivalence") do |work|
     # What the Hub itself enforces at startup (validatePlanningReplicas): it
     # must be told the true count, and more than one needs a shared frontend.
     hub_env = hub.dig("spec", "template", "spec", "containers", 0, "env").to_h { |item| [item["name"], item["value"]] }
+    packaging_variables.each do |name|
+      abort "#{profile}: Hub must forward the shared #{name}" unless hub_env[name] == variables.fetch(name)
+    end
+    if worker
+      worker_deployment = zarf_documents.find { |item| item["kind"] == "Deployment" && item.dig("metadata", "name") == "platform-packaging-worker" }
+      worker_env = worker_deployment.dig("spec", "template", "spec", "containers", 0, "env").to_h { |item| [item["name"], item["value"]] }
+      packaging_variables.each do |name|
+        abort "#{profile}: Hub and worker must share #{name}" unless worker_env[name] == hub_env.fetch(name)
+      end
+    end
     abort "#{profile}: Hub is told HUB_REPLICA_COUNT=#{hub_env['HUB_REPLICA_COUNT']} but runs #{hub.dig('spec', 'replicas')} replicas" unless
       hub_env["HUB_REPLICA_COUNT"] == hub.dig("spec", "replicas").to_s
     abort "#{profile}: more than one Hub replica without a shared planning frontend" if
@@ -225,6 +294,42 @@ Dir.mktmpdir("zarf-chart-equivalence") do |work|
       zarf_documents.each do |document|
         match = by_tool.find { |item| item["kind"] == document["kind"] && item.dig("metadata", "name") == document.dig("metadata", "name") }
         abort "Zarf templated #{document['kind']}/#{document.dig('metadata', 'name')} differently from this gate for #{profile}" unless match == document
+      end
+      if profile == "postgres"
+        # Go's POSIX [:cntrl:] class is ASCII; Ruby's also matches C1
+        # controls. Probe the actual pinned CLI so Ruby cannot accidentally
+        # vouch for a pattern that lets YAML rewrite U+0085 at deployment.
+        {
+          "PACKAGING_TEMPORAL_ADDRESS" => ["temporal:65536", "user:credential@temporal:7233"],
+          "PACKAGING_TEMPORAL_NAMESPACE" => ["namespace\u0085rewrite"],
+          "PACKAGING_TEMPORAL_TASK_QUEUE" => ["queue\u0085rewrite"]
+        }.each do |name, values|
+          values.each do |value|
+            rejected = variables.merge(name => value).reject { |_, setting| setting.empty? }.flat_map do |key, setting|
+              ["--deploy-set-variables", %("#{key}=#{setting.gsub('"', '""')}")]
+            end
+            _stdout, stderr, status = Open3.capture3({"ZARF_NO_PROGRESS" => "true"}, zarf, "dev", "inspect", "manifests", zarf_directory,
+              "--architecture", "amd64", "--no-color", *create_set, *rejected)
+            abort "pinned Zarf accepted unsafe #{name} configuration" if status.success?
+            abort "pinned Zarf refused #{name} for an unexpected reason" unless
+              stderr.include?(%(provided value for variable "#{name}" does not match pattern))
+          end
+        end
+        # Zl/Zp are not Cc controls. Keep values this exact templating/parser
+        # path preserves; the Temporal server remains the naming authority.
+        {"PACKAGING_TEMPORAL_NAMESPACE" => "namespace\u2028preserved", "PACKAGING_TEMPORAL_TASK_QUEUE" => "queue\u2029preserved"}.each do |name, value|
+          probe = variables.merge(name => value).reject { |_, setting| setting.empty? }.flat_map do |key, setting|
+            ["--deploy-set-variables", %("#{key}=#{setting.gsub('"', '""')}")]
+          end
+          preserved = run!(zarf, "dev", "inspect", "manifests", zarf_directory, "--architecture", "amd64", "--no-color", *create_set, *probe,
+            env: {"ZARF_NO_PROGRESS" => "true"})
+          documents = ConduitSafeYAML.stream(preserved).compact.select { |item| item.is_a?(Hash) }
+          %w[platform-delivery platform-packaging-worker].each do |deployment|
+            pod = documents.find { |item| item["kind"] == "Deployment" && item.dig("metadata", "name") == deployment }
+            setting = pod.dig("spec", "template", "spec", "containers", 0, "env").find { |entry| entry["name"] == name }
+            abort "pinned Zarf/parser rewrote #{name}" unless setting&.fetch("value") == value
+          end
+        end
       end
     end
 
