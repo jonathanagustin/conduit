@@ -325,6 +325,92 @@ own has a cluster.
 
 
 
+## Delivering a tenant's Zarf package or UDS bundle through the Spoke
+
+Everything above installs Conduit itself. This section is the other
+direction: a Plan step whose Release declares `chart.kind: zarf-package` or
+`uds-bundle` (see [Artifacts and releases](../architecture/artifacts-and-releases.md)).
+It is unit-tested against a recorded command model. It has not been run
+against a cluster.
+
+The Spoke picks an executor per step from the artifact kind. Helm steps run
+exactly as before. A package step runs only when the Spoke was configured
+for it; otherwise the step fails with a `Blocked` diagnostic that names the
+switch, and the Plan fails. It is never handed to Helm.
+
+| Variable | Meaning |
+| --- | --- |
+| `PACKAGE_EXECUTOR_ENABLED` | `true` turns the executor on. Anything below without it stops the Spoke at start-up. |
+| `PACKAGE_PUBLISHER_CERTIFICATE_ISSUER`, `PACKAGE_PUBLISHER_CERTIFICATE_IDENTITY` | Keyless publisher policy: two anchored regular expressions, passed to `zarf --certificate-oidc-issuer-regexp` and `--certificate-identity-regexp`. |
+| `PACKAGE_VERIFICATION_KEY_PATH` | Absolute path of a public key file, the alternative to the publisher pair. |
+| `PACKAGE_ARCHITECTURE` | `amd64` or `arm64`. Defaults to the Spoke binary's own. |
+| `ZARF_BIN`, `UDS_BIN`, `KUBECTL_BIN` | Binary paths. Default: looked up on `PATH`. |
+
+Exactly one of the publisher pair and the key path is required. `uds deploy`
+has no verification flags, so a bundle is checked with `uds inspect --key`
+first and can only be deployed by a Spoke configured with a key.
+
+The Spoke image does not contain `zarf` or `uds`. Mount pinned binaries and
+point `ZARF_BIN` and `UDS_BIN` at them. The chart in `deploy/helm/platform-spoke`
+does not yet expose these variables or the extra RBAC below.
+
+### What the Spoke needs to be allowed to do
+
+The Spoke chart grants namespaced Roles in the managed namespaces only. The
+executor's own calls need, in addition:
+
+- `get` on `secrets` in namespace `zarf` (`zarf-state` and
+  `zarf-package-<name>`);
+- `get` on the cluster-scoped `customresourcedefinitions` named
+  `packages.uds.dev`, when a bundle is deployed;
+- `get`, `create`, `delete` on `configmaps` in the step's namespace for the
+  applied record. The existing Role already grants this.
+
+`zarf package deploy` and `uds deploy` need far more than that, with the
+Spoke's token: they write `zarf-package-*` Secrets in `zarf`, create
+namespaces, and apply whatever the package contains. That is the same open
+bound the Helm path has, and it is the tenant's package that sets it.
+
+### What `APPLIED` means for a package
+
+Zarf records which package is deployed and at which generation. It does not
+record the variables a deployment was given, the Release, or the bundle a
+package came from. So after a deploy succeeds, and after Zarf's own record has
+been read back, the executor writes a ConfigMap
+`conduit-applied-<zarf package name>` in the step's namespace. It holds the
+Release digest, version, config digest, a digest of the exact `KEY=value`
+arguments passed, the artifact digest, and the digest and generation Zarf
+recorded for that deploy.
+
+The Spoke reports `configStatus: APPLIED`, and a Release and config digest at
+all, only from that record and only while the record's Zarf digest and
+generation equal what Zarf currently holds. The claim is:
+
+> Conduit deployed this Release with these values, the deploy succeeded, and
+> the Zarf package it produced has not been deployed again since.
+
+It is not an echo of the Plan. With no record, a record from an earlier
+generation, or another installation's record, the digests are empty and the
+status is `INDETERMINATE`, which the Hub refuses as a success. A record whose
+values differ from the step's reports `DRIFTED`.
+
+It is also not more than that:
+
+- It does not read live configuration. A `kubectl edit` or a `helm upgrade`
+  against what the package installed changes neither Zarf's generation nor
+  the record, so `APPLIED` does not detect it.
+- It is not tamper-evident. Whoever can write ConfigMaps in the namespace can
+  write this one.
+- For a bundle, only the one package named by `packageName` is observed. The
+  bundle's own digest cannot be read from the cluster and comes from the
+  record.
+- A rollback re-deploys the prior package with its own defaults, which moves
+  the generation, so the installation reports `INDETERMINATE` afterwards.
+
+The step's namespace must exist when the deploy finishes, because the record
+is written there. If the record cannot be written the step fails and is
+rolled back.
+
 ## Operator identity on a UDS cluster
 
 The packaged Hub does not accept insecure identity headers. On a UDS

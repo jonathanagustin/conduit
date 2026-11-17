@@ -10,6 +10,13 @@
 // the CLI rather than dropping them, and it never reports a desired value as an
 // observed one.
 //
+// Everything about the artifact comes from the step: its kind (a Zarf package
+// or a UDS bundle), its OCI repository and digest, the architectures it was
+// built for, and the Zarf package name it deploys as (#833). The source is
+// always oci://<repository>@<digest>. What was applied -- the Release, the
+// values, and for a bundle the bundle itself -- is reported from the record
+// described in applied.go, never from the step.
+//
 // CLI contracts (reviewed 2026-11-16). "VERIFIED" means read from the pinned
 // binary's --help or the pinned release's source; "ASSUMED" means the flag
 // exists but the behaviour was not exercised against a cluster.
@@ -24,8 +31,18 @@
 //     `data.metadata.version`, `deployedComponents[].status`: VERIFIED
 //     (src/pkg/state/state.go, src/pkg/cluster/zarf.go). `zarf package list -o
 //     json` omits the digest (src/cmd/package.go), so it is not used.
+//   - The `digest` zarf v0.82.0 records is the OCI manifest digest it resolved
+//     for the cluster's platform, and `generation` is the previous generation
+//     plus one on every deploy: VERIFIED (src/pkg/packager/pull.go
+//     SetRegistryDigest, src/pkg/packager/deploy.go, read 2026-11-17).
+//   - zarf v0.82.0 `package deploy oci://REPOSITORY@sha256:DIGEST`, a reference
+//     with a digest and no tag, resolves and deploys that manifest: ASSUMED.
 //   - zarf init creates Secret `zarf-state` in namespace `zarf`: VERIFIED
 //     (src/pkg/state/state.go constants).
+//   - `kubectl create configmap NAME --from-literal=KEY=VALUE` stores VALUE
+//     verbatim, splitting on the first "=" only, and `kubectl delete configmap
+//     NAME --ignore-not-found` exits zero when it is absent: ASSUMED (standard
+//     kubectl, not exercised here).
 //   - uds v0.41.0 `deploy SOURCE --confirm [--set KEY=value]...` and
 //     `remove SOURCE --confirm`: VERIFIED (--help). `uds deploy` has no
 //     verification flags at all.
@@ -370,10 +387,15 @@ func (e Executor) Apply(ctx context.Context, _ controlplane.Plan, step controlpl
 	if len(step.RegistryAccess) > 0 || len(step.SecretAccess) > 0 {
 		return agent.Receipt{}, refuse(step, "the step carries registry or secret access, which this executor cannot prepare")
 	}
-	if e.managesUDSPackage() && strings.TrimSpace(step.Namespace) == "" {
-		return agent.Receipt{}, refuse(step, "a namespace is required to apply the UDS Package manifest")
+	namespace := strings.TrimSpace(step.Namespace)
+	if namespace == "" {
+		return agent.Receipt{}, refuse(step, "a namespace is required: the applied record is kept there")
 	}
 	deploy, err := e.deployCommands(step, source, true)
+	if err != nil {
+		return agent.Receipt{}, err
+	}
+	pairs, err := valuePairs(step)
 	if err != nil {
 		return agent.Receipt{}, err
 	}
@@ -395,10 +417,39 @@ func (e Executor) Apply(ctx context.Context, _ controlplane.Plan, step controlpl
 		return agent.Receipt{}, e.failed(ctx, receipt, "deploy", err, out)
 	}
 	if e.managesUDSPackage() {
-		out, err := e.runner().Run(ctx, e.kubectlBin(), "apply", "-n", strings.TrimSpace(step.Namespace), "-f", strings.TrimSpace(e.PackageManifestPath))
+		out, err := e.runner().Run(ctx, e.kubectlBin(), "apply", "-n", namespace, "-f", strings.TrimSpace(e.PackageManifestPath))
 		if err != nil {
 			return agent.Receipt{}, e.failed(ctx, receipt, "apply UDS Package manifest", err, out)
 		}
+	}
+
+	// The deploy succeeded. Read back what Zarf recorded for it and only then
+	// write down what was applied, bound to that exact deployment. Failing to
+	// do either is a failed step: a deployment Conduit cannot later account
+	// for must not be left looking like a success.
+	landed, err := e.deployedState(ctx, name)
+	if err != nil {
+		return agent.Receipt{}, e.failed(ctx, receipt, "read back the deployment", err, nil)
+	}
+	if landed == nil {
+		return agent.Receipt{}, e.failed(ctx, receipt, "read back the deployment",
+			fmt.Errorf("the deploy reported success but Zarf holds no record of package %s", name), nil)
+	}
+	// A Zarf package is deployed by its own digest, so Zarf must have recorded
+	// that digest. It records the manifest it resolved for the cluster's
+	// architecture, so a multi-architecture index digest fails here. A bundle's
+	// digest is not the digest of the package inside it and cannot be compared.
+	if !isBundle(step) && strings.TrimSpace(landed.Digest) != step.Chart.Digest {
+		return agent.Receipt{}, e.failed(ctx, receipt, "read back the deployment",
+			fmt.Errorf("Zarf recorded digest %q for package %s, not the artifact digest %s", landed.Digest, name, step.Chart.Digest), nil)
+	}
+	if err := e.writeApplied(ctx, namespace, appliedRecord{
+		InstallationID: step.InstallationID, ReleaseDigest: step.ReleaseDigest, Version: step.Version,
+		ConfigDigest: step.ConfigDigest, ValuesDigest: valuesDigest(pairs),
+		ArtifactKind: step.Chart.Kind, ArtifactDigest: step.Chart.Digest,
+		ZarfPackage: name, ZarfDigest: strings.TrimSpace(landed.Digest), ZarfGeneration: landed.Generation,
+	}); err != nil {
+		return agent.Receipt{}, e.failed(ctx, receipt, "record what was applied", err, nil)
 	}
 	return receipt, nil
 }
@@ -482,6 +533,14 @@ func (e Executor) uninstall(ctx context.Context, step controlplane.PlanStep, nam
 	if prior == nil {
 		return receipt, nil
 	}
+	// The record goes first, while its namespace certainly still exists. If
+	// the removal then fails, the package is left with no record and reports
+	// INDETERMINATE, which is true.
+	if namespace := strings.TrimSpace(step.Namespace); namespace != "" {
+		if err := e.deleteApplied(ctx, namespace, name); err != nil {
+			return agent.Receipt{}, err
+		}
+	}
 	if out, err := e.runner().Run(ctx, remove[0], remove[1:]...); err != nil {
 		return agent.Receipt{}, agent.DiagnosticError{Err: err, Output: strings.TrimSpace(string(out))}
 	}
@@ -550,41 +609,53 @@ func (e Executor) Observe(ctx context.Context, step controlplane.PlanStep) (cont
 		}
 	}
 
-	// A bundle's digest is not the digest of the Zarf package it contains, and
-	// uds v0.41.0 has no machine-readable deployed-bundle listing, so the
-	// bundle digest is reported as not observed rather than borrowed.
-	//
-	// The Release digest is the Hub's digest of the Release document, not an
-	// OCI digest, so it is never compared with what Zarf recorded. It is
-	// reported only when the artifact Zarf recorded is the one this step's
-	// Release names; otherwise it is left empty, which the Hub refuses.
-	artifactDigest := strings.TrimSpace(deployed.Digest)
-	if isBundle(step) {
-		artifactDigest = ""
-	}
-	releaseDigest := ""
-	if artifactDigest != "" && artifactDigest == step.Chart.Digest {
-		releaseDigest = step.ReleaseDigest
-	}
-	version := strings.TrimSpace(deployed.Data.Metadata.Version)
-	if rollout == controlplane.RolloutUpToDate && (releaseDigest == "" ||
-		(strings.TrimSpace(step.Version) != "" && version != strings.TrimSpace(step.Version))) {
-		rollout = controlplane.RolloutOutOfDate
-	}
-	return controlplane.ReportedEntity{
+	// Zarf does not record the Release, the variables, or the bundle a
+	// deployment came from. Those are reported only from the applied record,
+	// and only while that record still describes the deployment Zarf holds
+	// (see applied.go). Nothing below is filled in from the step: where the
+	// record is missing, stale, or another installation's, the Release and
+	// config digests stay empty and the configuration is INDETERMINATE, which
+	// the Hub refuses as a success.
+	report := controlplane.ReportedEntity{
 		InstallationID: step.InstallationID,
 		Product:        step.Product,
-		Version:        version,
-		ReleaseDigest:  releaseDigest,
+		Version:        strings.TrimSpace(deployed.Data.Metadata.Version),
 		Namespace:      step.Namespace,
-		// Zarf does not record the variables a deployment was given, so the
-		// applied configuration cannot be read back.
-		ConfigStatus:  controlplane.ConfigIndeterminate,
-		Health:        health,
-		RolloutStatus: rollout,
-		Lifecycle:     controlplane.LifecycleInstalled,
-		ObservedAt:    e.now(),
-	}, nil
+		ConfigStatus:   controlplane.ConfigIndeterminate,
+		Health:         health,
+		Lifecycle:      controlplane.LifecycleInstalled,
+		ObservedAt:     e.now(),
+	}
+	var record *appliedRecord
+	if namespace := strings.TrimSpace(step.Namespace); namespace != "" {
+		if record, err = e.readApplied(ctx, namespace, name); err != nil {
+			return controlplane.ReportedEntity{}, err
+		}
+	}
+	bound := record != nil && record.InstallationID == step.InstallationID && record.describes(name, deployed)
+	if bound {
+		report.ReleaseDigest = record.ReleaseDigest
+		report.ConfigDigest = record.ConfigDigest
+		report.ConfigStatus = controlplane.ConfigApplied
+		// The values Conduit last applied are compared with the ones this step
+		// carries, independently of the Hub's own digest comparison.
+		pairs, pairsErr := valuePairs(step)
+		if pairsErr != nil || record.ConfigDigest != step.ConfigDigest || record.ValuesDigest != valuesDigest(pairs) {
+			report.ConfigStatus = controlplane.ConfigDrifted
+		}
+		// The version Zarf holds for a bundle is the bundled package's, not
+		// the Release's, so a bundle's version comes from the record too.
+		if isBundle(step) {
+			report.Version = record.Version
+		}
+	}
+	current := bound && record.ReleaseDigest == step.ReleaseDigest && record.ArtifactDigest == step.Chart.Digest &&
+		(strings.TrimSpace(step.Version) == "" || report.Version == strings.TrimSpace(step.Version))
+	if rollout == controlplane.RolloutUpToDate && !current {
+		rollout = controlplane.RolloutOutOfDate
+	}
+	report.RolloutStatus = rollout
+	return report, nil
 }
 
 func componentHealth(deployed *deployedPackage) (health, rollout string) {
@@ -630,6 +701,11 @@ func (e Executor) Rollback(ctx context.Context, receipt agent.Receipt) error {
 		// A deploy that failed verification or never started recorded nothing.
 		if current, err := e.deployedState(ctx, name); err != nil || current == nil {
 			return err
+		}
+		if namespace := strings.TrimSpace(step.Namespace); namespace != "" {
+			if err := e.deleteApplied(ctx, namespace, name); err != nil {
+				return err
+			}
 		}
 		if out, err := e.runner().Run(ctx, remove[0], remove[1:]...); err != nil {
 			return agent.DiagnosticError{Err: fmt.Errorf("remove failed first deployment: %w", err), Output: strings.TrimSpace(string(out))}
