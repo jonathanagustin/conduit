@@ -15,6 +15,57 @@ checks. A name filter is available for a bounded iteration:
 ./scripts/verify-local.sh Apollo
 ```
 
+The complete aggregate requires Linux x86_64, matching its pinned Helm,
+Hadolint, Zarf and UDS executables. It refuses another host before downloading
+those files. Run the complete gate in a Linux verification checkout; a native
+macOS focused check is recorded separately from that gate.
+
+## macOS focused checks
+
+Install Xcode Command Line Tools and confirm `xcode-select -p` succeeds before
+running the installer. Apple's Git, Python and compiler stubs can exist before
+their backing tools are installed. The installer checks that tools can run;
+it does not invoke an installation dialog or use administrator privileges.
+Go race tests require a working C compiler.
+Prebuilt Go, Node and Conduit CLI binaries can execute without these tools;
+the requirement applies to native compilation in the full developer setup.
+
+The locked mise toolchain supplies Go, Node, pnpm and Ruby 3.4.12. Use the
+mise-provided Ruby: macOS system Ruby 2.6 does not implement methods the
+validators use. The installer then runs `mise run install-ruby-json`, which
+checks the existing JSON version and, when needed, installs the SHA-256-pinned
+fixed gem from the [trust review](../security/THIRD-PARTY-TRUST-REVIEW.md).
+Run that task after a direct `mise install --locked` as well. Native gem
+compilation can require the Command Line Tools.
+The native Temporal helper selects and verifies an archive for
+macOS arm64 or amd64, and keeps it separate from Linux cache entries. Demo
+timestamps use the required Python interpreter and need no GNU date.
+
+A running Podman engine can run the focused repository and workspace
+isolation checks. Put its executable on `PATH`, or name its absolute path:
+
+```bash
+DEVWORKSPACE_CONTAINER_BIN=/opt/podman/bin/podman \
+  go test ./internal/devworkspace/adapters/container
+CONDUIT_CONTAINER_ENGINE=/opt/podman/bin/podman \
+  ./scripts/test-postgres-repository.sh
+```
+
+The PostgreSQL gate also detects `docker` or `podman` on `PATH`; an explicit
+`CONDUIT_CONTAINER_ENGINE` must be reachable and never falls back silently.
+It uses that engine for startup, readiness, database tools and cleanup.
+The workspace proof checks the actual single network membership and its
+inspected `Internal` property. Podman reports its bridge driver in
+`HostConfig.NetworkMode` even when the container belongs to the dedicated
+internal network, so that label alone cannot establish isolation.
+The capability proof reads both effective and bounding masks from the
+container's kernel state. It requires both to be zero; Docker's literal `ALL`
+and Podman's expanded capability names remain diagnostic launch metadata.
+
+The full demo's image builder and registry publisher still require a
+Docker-compatible executable named `docker`; selecting Podman for the two
+focused checks does not configure those separate paths.
+
 Go checks should include the changed packages and, before promotion,
 `go test -race ./...` plus `go vet ./...`. UI changes need the package's unit
 tests and the relevant browser contract. When a UI change affects the embedded
