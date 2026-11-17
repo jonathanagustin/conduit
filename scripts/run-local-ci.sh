@@ -58,10 +58,13 @@ const optionalCommand = (name, args) => {
   try { return execFileSync(name, args, {encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore']}).trim() || null; }
   catch { return null; }
 };
-const { localCiBrowserLaunchOptions } = await import(pathToFileURL(join(tooling, 'web/scripts/local-ci-browser-profile.mjs')));
-// The wrapper invoked act above. Validate the recorded choice through the same
-// closed profile selector the browser configs use inside that executor.
-localCiBrowserLaunchOptions({...process.env, ACT: 'true'});
+// An older candidate can use newer tooling with the default browser settings.
+// An opted-in profile must exist in the candidate that actually ran the tests;
+// tooling's selector cannot prove an older candidate applied that profile.
+if (process.env.CONDUIT_LOCAL_CI_BROWSER_PROFILE) {
+  const { localCiBrowserLaunchOptions } = await import(pathToFileURL(join(process.cwd(), 'web/scripts/local-ci-browser-profile.mjs')));
+  localCiBrowserLaunchOptions({...process.env, ACT: 'true'});
+}
 const receipt = {
   schemaVersion: 1, kind: 'CONDUIT_LOCAL_CI', result: 'PASS', commit,
   tree: command('git', ['rev-parse', 'HEAD^{tree}']),
