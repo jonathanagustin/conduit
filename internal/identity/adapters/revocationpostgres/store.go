@@ -123,6 +123,9 @@ func (store *Store) PutRevocation(ctx context.Context, revocation domain.AgentRe
 		FROM conduit_agent_revocations WHERE environment = $1 AND revocation_id = $2`, revocation.Environment, revocation.ID))
 	switch {
 	case err == nil:
+		if revocation.NotBefore.Before(existing.NotBefore) {
+			return nil, domain.ErrRevocationWeakening
+		}
 		previous = &existing
 	case errors.Is(err, sql.ErrNoRows):
 		var held int

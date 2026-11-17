@@ -150,6 +150,11 @@ conduit agent-credential unrevoke prod-use2 arv_0123456789abcdef0123456789abcdef
 ```
 
 Revoking the same thing twice replaces the one record; it does not add a second.
+For `AGENT` and `ENVIRONMENT`, a replacement may keep or advance `notBefore`,
+but moving it backward returns `409` without changing the deny-list. To
+readmit certificates covered by an existing cutoff, use the audited removal
+operation first. Each store checks the cutoff while serializing writes, so a
+concurrent replacement cannot silently weaken a stronger revocation.
 
 Removing a revocation commits its audit event and the removal in one PostgreSQL
 transaction. Until commit, other Hub replicas still read the revocation. An
@@ -222,7 +227,9 @@ record before and after.
 
 - An addition that cannot be audited stays in force and the request fails.
   Repeat it; it is the same record and the repeat files the audit event.
-- A removal that cannot be audited is put back and the request fails.
+- A removal that cannot be audited remains in force and the request fails.
+- A backward cutoff replacement is refused before either the record or audit
+  changes, including when the audit store is unavailable.
 
 ### Storage and replicas
 

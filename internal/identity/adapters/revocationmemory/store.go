@@ -47,6 +47,9 @@ func (store *Store) PutRevocation(_ context.Context, revocation domain.AgentRevo
 	defer store.mutex.Unlock()
 	existing := store.revocations[revocation.Environment]
 	if previous, found := existing[revocation.ID]; found {
+		if revocation.NotBefore.Before(previous.NotBefore) {
+			return nil, domain.ErrRevocationWeakening
+		}
 		existing[revocation.ID] = revocation
 		return &previous, nil
 	}

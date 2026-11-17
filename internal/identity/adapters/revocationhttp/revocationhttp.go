@@ -129,7 +129,7 @@ func Register(mux *http.ServeMux, config Config) error {
 		}
 		previous, err := store.PutRevocation(request.Context(), revocation)
 		switch {
-		case errors.Is(err, domain.ErrRevocationLimit):
+		case errors.Is(err, domain.ErrRevocationLimit), errors.Is(err, domain.ErrRevocationWeakening):
 			writeJSON(writer, http.StatusConflict, map[string]string{"error": err.Error()})
 			return
 		case err != nil:

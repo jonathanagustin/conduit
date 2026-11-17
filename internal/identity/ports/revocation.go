@@ -20,7 +20,9 @@ type AgentCredentialStore interface {
 	// Revocations returns every revocation recorded for one Environment.
 	Revocations(ctx context.Context, environment string) ([]domain.AgentRevocation, error)
 	// PutRevocation writes a revocation under its identifier, replacing one
-	// already there, and returns what it replaced.
+	// already there, and returns what it replaced. It atomically refuses an
+	// earlier cutoff with domain.ErrRevocationWeakening; readmission must use
+	// audited removal rather than an unaudited replacement.
 	PutRevocation(ctx context.Context, revocation domain.AgentRevocation) (*domain.AgentRevocation, error)
 	// DeleteRevocation removes one revocation and returns it, or
 	// domain.ErrRevocationNotFound.

@@ -88,6 +88,9 @@ var (
 	ErrRevocationNotFound = errors.New("agent revocation not found")
 	// ErrRevocationLimit is an Environment already at its bound.
 	ErrRevocationLimit = errors.New("agent revocation limit reached for this Environment")
+	// ErrRevocationWeakening requires lifting the old revocation through the
+	// atomic audited removal path before establishing an earlier cutoff.
+	ErrRevocationWeakening = errors.New("revocation cutoff cannot move backward; use audited removal first")
 )
 
 // CONDUIT-INVENTED: identity.AgentCredentialRevocation

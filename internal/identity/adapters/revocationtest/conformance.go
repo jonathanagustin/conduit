@@ -8,6 +8,7 @@ import (
 	"errors"
 	"reflect"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,6 +27,67 @@ func Run(t *testing.T, open func(*testing.T) ports.AgentCredentialStore) {
 			t.Fatal(err)
 		}
 		return created
+	}
+
+	for _, scope := range []string{domain.RevocationAgent, domain.RevocationEnvironment} {
+		t.Run(scope+" cutoff cannot move backward", func(t *testing.T) {
+			store := open(t)
+			draft := domain.AgentRevocation{Scope: scope, Environment: "prod", Reason: "incident", NotBefore: now}
+			if scope == domain.RevocationAgent {
+				draft.AgentID = "primary"
+			}
+			held := revocation(t, draft, now)
+			if _, err := store.PutRevocation(ctx, held); err != nil {
+				t.Fatal(err)
+			}
+			draft.NotBefore = now.Add(-2 * time.Hour)
+			weaker := revocation(t, draft, now)
+			if _, err := store.PutRevocation(ctx, weaker); !errors.Is(err, domain.ErrRevocationWeakening) {
+				t.Fatalf("backward cutoff = %v", err)
+			}
+			listed, err := store.Revocations(ctx, "prod")
+			if err != nil || len(listed) != 1 || listed[0] != held {
+				t.Fatalf("rejected replacement changed record: %#v, %v", listed, err)
+			}
+			// An equal cutoff can restate metadata without changing admission.
+			held.Reason = "reviewed incident"
+			if _, err := store.PutRevocation(ctx, held); err != nil {
+				t.Fatalf("equal cutoff: %v", err)
+			}
+		})
+		t.Run(scope+" concurrent cutoffs preserve the strongest denial", func(t *testing.T) {
+			store := open(t)
+			draft := domain.AgentRevocation{Scope: scope, Environment: "prod", Reason: "incident", NotBefore: now}
+			if scope == domain.RevocationAgent {
+				draft.AgentID = "primary"
+			}
+			held := revocation(t, draft, now)
+			if _, err := store.PutRevocation(ctx, held); err != nil {
+				t.Fatal(err)
+			}
+			const writers = 16
+			start := make(chan struct{})
+			results := make(chan error, writers)
+			var waiting sync.WaitGroup
+			for i := 1; i <= writers; i++ {
+				next := held
+				next.NotBefore = now.Add(time.Duration(i) * time.Minute)
+				waiting.Add(1)
+				go func() { defer waiting.Done(); <-start; _, err := store.PutRevocation(ctx, next); results <- err }()
+			}
+			close(start)
+			waiting.Wait()
+			close(results)
+			for err := range results {
+				if err != nil && !errors.Is(err, domain.ErrRevocationWeakening) {
+					t.Fatal(err)
+				}
+			}
+			listed, err := store.Revocations(ctx, "prod")
+			if err != nil || len(listed) != 1 || !listed[0].NotBefore.Equal(now.Add(writers*time.Minute)) {
+				t.Fatalf("concurrent replacement weakened denial: %#v, %v", listed, err)
+			}
+		})
 	}
 
 	t.Run("a revocation is read back exactly, per Environment, and replaced under its identifier", func(t *testing.T) {
