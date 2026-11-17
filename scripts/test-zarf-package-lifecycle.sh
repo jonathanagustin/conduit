@@ -135,37 +135,24 @@ kubectl -n "${namespace}" create secret generic platform-agent-tls \
 kubectl -n "${namespace}" create secret generic platform-bundle-signing \
   --from-file=bundle-signing-key.pem="${work}/bundle-signing-key.pem"
 
-deploy() {
-  local source="$1" release="$2"
-  "${zarf}" package deploy "${source}" \
-    --verify=always \
-    --certificate-identity "$(identity "${release}")" \
-    --certificate-oidc-issuer "${issuer}" \
-    --architecture "${architecture}" \
-    --set-variables ENVIRONMENT_ID=lifecycle \
-    --set-variables AGENT_ID=spoke-lifecycle \
-    --confirm
-  kubectl -n "${namespace}" rollout status deploy/platform-delivery --timeout=300s
-  kubectl -n "${namespace}" rollout status deploy/platform-spoke-agent --timeout=300s
-}
+declare -A qualified_sources
+source "${root}/scripts/lib/zarf-lifecycle-deploy.sh"
+
 # What the cluster is actually running, read back two ways so a deploy that
 # reported success without changing anything is not a pass: the version Zarf
 # recorded for the deployed package, and the Hub image in the Deployment
 # against the HUB_IMAGE constant of the package that was just verified.
 definition_field() {
-  ruby -ryaml -e '
-    definition = YAML.safe_load(STDIN.read)
-    case ARGV.fetch(0)
-    when "version" then puts definition.dig("metadata", "version")
-    when "hub" then puts definition.fetch("constants").find { |item| item["name"] == "HUB_IMAGE" }.fetch("value")
-    end
-  ' "$1"
+  ruby "${root}/scripts/zarf-lifecycle-definition.rb" "$@"
 }
 assert_running() {
   local source="$1" release="$2" recorded expected actual
-  recorded="$("${zarf}" package inspect definition platform-runtime --no-color | definition_field version)"
+  source="${qualified_sources[${release}]}"
+  recorded="$("${zarf}" package inspect definition platform-runtime --log-level error --no-color | definition_field version)"
   [[ "${recorded}" == "${release}" ]] || fail "Zarf records platform-runtime ${recorded}, expected ${release}"
-  expected="$("${zarf}" package inspect definition "${source}" --architecture "${architecture}" --no-color | definition_field hub)"
+  expected="$("${zarf}" package inspect definition "${source}" --architecture "${architecture}" \
+    --verify=always --certificate-identity "$(identity "${release}")" --certificate-oidc-issuer "${issuer}" \
+    --log-level error --no-color | definition_field hub "${release}")"
   actual="$(kubectl -n "${namespace}" get deploy/platform-delivery -o jsonpath='{.spec.template.spec.containers[0].image}')"
   [[ "${expected}" =~ @sha256:[a-f0-9]{64}$ ]] || fail "package ${release} declares no digest-pinned Hub image: ${expected}"
   [[ "${actual}" == "${expected}" ]] || fail "the Hub runs ${actual}, but package ${release} declares ${expected}"

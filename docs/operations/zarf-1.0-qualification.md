@@ -46,8 +46,13 @@ fresh temporary directories and pass the generated definition explicitly to
 `package create`. Publication, signing and deployment were not executed.
 The Spoke now selects legacy variable flags or native typed values from an
 authenticated package definition before cluster I/O. Its private values file is
-removed on success, preflight refusal and deployment failure. Lifecycle commands
-and the pinned UDS bundle CLI still need deploy-value integration.
+removed on success, preflight refusal and deployment failure. The lifecycle
+lane now authenticates each release definition and selects alpha variable flags
+or beta values files. Registry sources are pulled once into a fresh local
+archive, used for inspection, deployment and image readback. Its definition
+reader and stubbed command tests each pass 14 positive/refusal cases; this is
+not a live cluster install/upgrade/removal receipt. The pinned UDS bundle route
+still needs deploy-value integration.
 
 UDS CLI v0.41.0 imports Zarf v0.89.0. Its
 [legacy YAML deployment path](https://github.com/defenseunicorns/uds-cli/blob/v0.41.0/pkg/legacy/bundle/deploy.go#L212)
