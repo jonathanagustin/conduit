@@ -26,9 +26,10 @@ Install Xcode Command Line Tools and confirm `xcode-select -p` succeeds before
 running the installer. Apple's Git, Python and compiler stubs can exist before
 their backing tools are installed. The installer checks that tools can run;
 it does not invoke an installation dialog or use administrator privileges.
-The pinned Go 1.27.4 toolchain can run focused native race tests with
-`CGO_ENABLED=0`; a blanket C-compiler requirement for those tests is incorrect.
-Native extensions such as Ruby JSON still need the compiler setup below.
+Record the exact toolchain, host and CGO setting with focused Go checks. A
+successful command accepting `-race` alone does not establish that its detector
+is active; validate the selected setup with an intentional-race control as well.
+Native extensions such as Ruby JSON need the compiler setup below.
 Prebuilt Go, Node and Conduit CLI binaries can execute without these tools;
 the requirement applies to native compilation in the full developer setup.
 

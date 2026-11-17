@@ -29,7 +29,7 @@ not configure a database, credentials or a cluster.
 On macOS, use the locked Ruby and the executable host-tool checks from
 [local verification](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/local-verification.md).
 The full aggregate verifier runs in the supported Linux environment. Focused
-native Go tests, including the pinned toolchain's race detector, are separate
+native Go tests are separate
 evidence and do not require a claim that every container-backed gate ran.
 
 ## Deployment inputs
