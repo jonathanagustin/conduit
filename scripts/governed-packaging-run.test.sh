@@ -33,3 +33,17 @@ bash "${root}/scripts/governed-packaging-run.sh" >"${stage}/output" 2>&1 || stat
 [[ "${status}" == 69 && -e "${MODEL_GUARD_MARKER}" ]]
 grep -qF 'Docker is required' "${stage}/output"
 echo 'PASS governed packaging: explicit HTTP admitted, legacy commands and implicit live fixture refused before tools'
+# Recorded generation must not silently erase a command or use a live endpoint.
+unset PACKAGING_REPO_URL CONDUIT_MODEL_BASE_URL
+rm -f "${MODEL_GUARD_MARKER}"
+cp "${stage}/bin/docker" "${stage}/bin/curl"
+for key in CONDUIT_MODEL_CMD CONDUIT_ASSISTANT_MODEL_CMD CONDUIT_PLANNING_MODEL_CMD CONDUIT_PACKAGING_MODEL_CMD CONDUIT_APPGEN_MODEL_CMD CONDUIT_MODEL_BASE_URL; do
+  export "${key}=private-command-value"
+  status=0
+  bash "${root}/scripts/demo-generate.sh" >"${stage}/output" 2>&1 || status=$?
+  [[ "${status}" == 64 && ! -e "${MODEL_GUARD_MARKER}" ]]
+  grep -qF "Recorded generation requires ${key} to be unset" "${stage}/output"
+  ! grep -qF 'private-command-value' "${stage}/output"
+  unset "${key}"
+done
+echo 'PASS recorded generation: explicit offline mode, no model configuration erased'

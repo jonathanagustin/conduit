@@ -24,8 +24,11 @@ func TestParseArgvDoesNotUseAShell(t *testing.T) {
 
 func TestExecuteNeverStartsAHostCommand(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "executed")
-	for _, argv := range [][]string{nil, {"missing-model"}, {"/bin/sh", "-c", "touch \"$1\"", "fixture", marker}} {
+	for _, argv := range [][]string{{"/bin/sh", "-c", "touch \"$1\"", "fixture", marker}, nil, {"missing-model"}} {
 		out, err := Execute(context.Background(), argv, time.Second, []byte("private prompt"))
+		if _, statErr := os.Stat(marker); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("host command executed before refusal: %v", statErr)
+		}
 		if !errors.Is(err, ErrLocalCommandUnsupported) || len(out) != 0 {
 			t.Fatalf("out=%q err=%v", out, err)
 		}
