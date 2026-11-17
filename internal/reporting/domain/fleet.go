@@ -85,14 +85,15 @@ type Observed struct {
 }
 
 type FleetQuery struct {
-	Environment string
-	Product     string
-	Health      string
-	Rollout     string
-	Config      string
-	Lifecycle   string
-	Search      string
-	MaxAge      time.Duration
+	Environment    string
+	InstallationID string
+	Product        string
+	Health         string
+	Rollout        string
+	Config         string
+	Lifecycle      string
+	Search         string
+	MaxAge         time.Duration
 	// SilenceExpected names the environments whose gap in reporting is expected
 	// rather than an outage -- Apollo's Intermittent agents setting, where health
 	// is read "as of the last time agents connected". An aged report from one of
@@ -441,6 +442,9 @@ func fleetMatches(item FleetInstallation, query FleetQuery) bool {
 }
 
 func fleetSearchMatches(item FleetInstallation, query FleetQuery) bool {
+	if query.InstallationID != "" && item.InstallationID != query.InstallationID {
+		return false
+	}
 	search := strings.ToLower(strings.TrimSpace(query.Search))
 	return search == "" || strings.Contains(strings.ToLower(item.InstallationID), search) ||
 		strings.Contains(strings.ToLower(item.Environment), search) ||

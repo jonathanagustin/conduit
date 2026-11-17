@@ -2648,7 +2648,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			return
 		}
 		fleetQuery := FleetQuery{
-			Environment: query.Get("environment"), Product: query.Get("product"), Health: query.Get("health"),
+			Environment: query.Get("environment"), InstallationID: query.Get("installationId"), Product: query.Get("product"), Health: query.Get("health"),
 			Rollout: query.Get("rolloutStatus"), Config: query.Get("configStatus"),
 			Lifecycle: query.Get("lifecycle"), Search: query.Get("search"), MaxAge: maxAge,
 		}
