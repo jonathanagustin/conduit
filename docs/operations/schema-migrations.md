@@ -119,7 +119,7 @@ accurate and does not have to be idempotent.
 | `gitless-resolution-log` | `internal/gitless/adapters/resolutionlogpostgres` | append-only source selector, digest, publisher, and failed-convergence history |
 | `assistant-threads` | `internal/assistant/adapters/threadpostgres` | assistant conversation threads and their messages, keyed by owner; bounded per owner, per thread and per message by `CHECK` constraints |
 | `appgen` | `internal/appgen/adapters/postgres` | app generation results, one row per generation, with the owning operator as a column |
-| `operator-sessions` | `internal/identity/adapters/sessionpostgres` | signed-in browser sessions keyed by the SHA-256 of the session cookie, and sign-in attempts in flight; applied only when interactive sign-in is configured. See [`operator-sign-in.md`](operator-sign-in.md) |
+| `operator-sessions` | `internal/identity/adapters/sessionpostgres` | signed-in browser sessions keyed by the SHA-256 of the session cookie, and sign-in attempts in flight; applied by every PostgreSQL Hub and used only when interactive sign-in is configured. See [`operator-sign-in.md`](operator-sign-in.md) |
 
 One ledger table with a `component` column rather than one table per component:
 several owners can be pointed at the same database, and a single place to look

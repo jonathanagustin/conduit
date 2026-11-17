@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/identity/adapters/sessionmemory"
-	"github.com/jonathanagustin/conduit/internal/identity/adapters/sessionpostgres"
 	identitycomposition "github.com/jonathanagustin/conduit/internal/identity/composition"
 	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
 	identityports "github.com/jonathanagustin/conduit/internal/identity/ports"
@@ -26,7 +25,7 @@ import (
 // A sign-in setting without the things it depends on stops the Hub, on the same
 // reasoning as every other half-configured identity mode here.
 func loadOperatorIdentity(
-	ctx context.Context, getenv func(string) string,
+	ctx context.Context, getenv func(string) string, durableSessions identityports.SessionStore,
 ) (identitycomposition.OperatorIdentity, func(), error) {
 	none := func() {}
 	configuration, err := loadOIDCOperatorIdentityConfig(getenv)
@@ -86,7 +85,7 @@ func loadOperatorIdentity(
 			return identitycomposition.OperatorIdentity{}, none, err
 		}
 	}
-	sessions, closeSessions, err := openOperatorSessions(ctx, getenv)
+	sessions, err := operatorSessionStore(getenv, durableSessions)
 	if err != nil {
 		return identitycomposition.OperatorIdentity{}, none, err
 	}
@@ -94,7 +93,6 @@ func loadOperatorIdentity(
 	composed.SignIn = signIn
 	resolved, err := identitycomposition.NewOperatorIdentity(ctx, composed)
 	if err != nil {
-		closeSessions()
 		return identitycomposition.OperatorIdentity{}, none, err
 	}
 	if profile := strings.TrimSpace(getenv("OPERATOR_OIDC_PROFILE")); profile == "cognito-access" {
@@ -105,28 +103,34 @@ func loadOperatorIdentity(
 	go pruneOperatorSessions(pruneContext, sessions, 5*time.Minute)
 	slog.Info("interactive operator sign-in enabled", "publicOrigin", resolved.PublicOrigin,
 		"redirectURI", resolved.SignIn.RedirectURI(), "confidentialClient", secretFile != "")
-	return resolved, func() { stopPruning(); closeSessions() }, nil
+	return resolved, stopPruning, nil
 }
 
-// openOperatorSessions picks the session store the repository kind implies.
-// PostgreSQL shares sessions between replicas; the file repository is a single
-// process and keeps them in memory, where a restart signs everybody out.
-func openOperatorSessions(ctx context.Context, getenv func(string) string) (identityports.SessionStore, func(), error) {
+// operatorSessionStore picks the session store the repository kind implies.
+//
+// The PostgreSQL store is opened, and closed, by configureReconciliation on the
+// DSN every other component shares; it arrives here as durableSessions. The
+// file repository is a single process and keeps sessions in memory, where a
+// restart signs everybody out.
+//
+// A PostgreSQL Hub that was handed no durable store is refused rather than
+// given memory: replicas that each remembered their own sessions would sign a
+// person in at one and refuse them at the next, and a sign-out would reach
+// only the replica that happened to serve it.
+func operatorSessionStore(getenv func(string) string, durableSessions identityports.SessionStore) (identityports.SessionStore, error) {
 	switch strings.TrimSpace(getenv("REPOSITORY_KIND")) {
 	case "", "file":
-		return sessionmemory.New(), func() {}, nil
+		if durableSessions != nil {
+			return nil, errors.New("the file repository keeps operator sessions in memory; a durable session store was supplied")
+		}
+		return sessionmemory.New(), nil
 	case "postgres":
-		dsn, err := readSingleLineSecretFile(getenv("POSTGRES_DSN_FILE"), "POSTGRES_DSN_FILE")
-		if err != nil {
-			return nil, func() {}, err
+		if durableSessions == nil {
+			return nil, errors.New("interactive sign-in with REPOSITORY_KIND=postgres requires the PostgreSQL operator session store")
 		}
-		store, err := sessionpostgres.New(ctx, dsn)
-		if err != nil {
-			return nil, func() {}, errors.New("initialize PostgreSQL operator session component failed")
-		}
-		return store, func() { _ = store.Close() }, nil
+		return durableSessions, nil
 	default:
-		return nil, func() {}, errors.New("REPOSITORY_KIND must be file or postgres")
+		return nil, errors.New("REPOSITORY_KIND must be file or postgres")
 	}
 }
 

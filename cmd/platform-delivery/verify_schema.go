@@ -57,8 +57,7 @@ func hubMigrationSets() []pgmigrate.Set {
 		{Component: appgenpostgres.Component, Migrations: appgenpostgres.Migrations()},
 		{Component: agentcredentials.Component, Migrations: agentcredentials.Migrations()},
 		{Component: resolutionlogpostgres.Component(), Migrations: resolutionlogpostgres.Migrations()},
-		// Applied only when interactive sign-in is configured; listed always,
-		// for the same reason as the resolution log above.
+		// Applied by every PostgreSQL Hub, whether or not sign-in is configured.
 		{Component: sessionpostgres.Component, Migrations: sessionpostgres.Migrations()},
 	}
 }

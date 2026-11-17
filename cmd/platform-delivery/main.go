@@ -33,8 +33,10 @@ import (
 	"github.com/jonathanagustin/conduit/internal/foundryinterop"
 	"github.com/jonathanagustin/conduit/internal/hub/composition"
 	agentcredentials "github.com/jonathanagustin/conduit/internal/identity/adapters/revocationpostgres"
+	"github.com/jonathanagustin/conduit/internal/identity/adapters/sessionpostgres"
 	"github.com/jonathanagustin/conduit/internal/identity/adapters/signinhttp"
 	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
+	identityports "github.com/jonathanagustin/conduit/internal/identity/ports"
 	notificationspostgres "github.com/jonathanagustin/conduit/internal/notifications/adapters/postgres"
 	notificationsapplication "github.com/jonathanagustin/conduit/internal/notifications/application"
 	notificationports "github.com/jonathanagustin/conduit/internal/notifications/ports"
@@ -186,7 +188,7 @@ func main() {
 		slog.Warn("ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY is set; Bundles are signed by a key this process generated "+
 			"and no other process, replica or restart holds", "bundleSigner", bundleSigningKeyIdentifier(bundlePrivateKey))
 	}
-	operatorIdentity, closeOperatorIdentity, err := loadOperatorIdentity(ctx, os.Getenv)
+	operatorIdentity, closeOperatorIdentity, err := loadOperatorIdentity(ctx, os.Getenv, operatorSessionsFor(notifications))
 	if err != nil {
 		slog.Error("configure operator OIDC identity", "error", err)
 		os.Exit(1)
@@ -441,6 +443,18 @@ type notificationComponent struct {
 	// AgentCredentials is the Agent deny-list, on the same DSN and closer for
 	// the same reason: two replicas must read one deny-list.
 	AgentCredentials *agentcredentials.Store
+	// OperatorSessions is the durable session store, opened and closed the
+	// same way. Nil for the file repository, which keeps sessions in memory.
+	OperatorSessions *sessionpostgres.Store
+}
+
+// operatorSessionsFor returns the durable session store when one was opened,
+// and an untyped nil otherwise for the reason assistantThreadsFor gives.
+func operatorSessionsFor(component notificationComponent) identityports.SessionStore {
+	if component.OperatorSessions == nil {
+		return nil
+	}
+	return component.OperatorSessions
 }
 
 func configureReconciliation(
@@ -546,6 +560,23 @@ func configureReconciliation(
 		_ = notificationStore.Close()
 		closeReconciliationStore()
 	}
+	// Operator sessions share the same database and ledger, so a person who
+	// signed in at one replica is signed in at all of them and a sign-out at
+	// one reaches the rest. Opened whether or not sign-in is configured, like
+	// the thread store above: the tables are then already there when it is.
+	operatorSessionStore, err := sessionpostgres.New(ctx, dataSourceName)
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, nil, notificationComponent{}, errors.New("initialize PostgreSQL operator session component failed")
+	}
+	closeStore = func() {
+		_ = operatorSessionStore.Close()
+		_ = agentCredentialStore.Close()
+		_ = appGenerationStore.Close()
+		_ = assistantThreadStore.Close()
+		_ = notificationStore.Close()
+		closeReconciliationStore()
+	}
 	emitter, err := notificationsapplication.NewEmitter(notificationStore)
 	if err != nil {
 		closeStore()
@@ -626,6 +657,7 @@ func configureReconciliation(
 		AppGenerations:   appGenerationStore,
 		Metrics:          notificationDeliveryMetrics(notificationStore, transport, deliveryRecorder),
 		AgentCredentials: agentCredentialStore,
+		OperatorSessions: operatorSessionStore,
 	}, nil
 }
 

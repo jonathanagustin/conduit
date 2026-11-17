@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	identitycomposition "github.com/jonathanagustin/conduit/internal/identity/composition"
 	"github.com/jonathanagustin/conduit/internal/identity/oidcfake"
 )
 
@@ -14,16 +15,22 @@ func signInEnvironment(values map[string]string) func(string) string {
 	return func(name string) string { return values[name] }
 }
 
+// loadWithMemorySessions is a Hub on the file repository: configureReconciliation
+// opened no durable session store, so none is handed over.
+func loadWithMemorySessions(ctx context.Context, getenv func(string) string) (identitycomposition.OperatorIdentity, func(), error) {
+	return loadOperatorIdentity(ctx, getenv, nil)
+}
+
 func TestSignInIsOffUnlessBothAnIssuerAndAPublicAddressAreConfigured(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	resolved, closer, err := loadOperatorIdentity(ctx, signInEnvironment(nil))
+	resolved, closer, err := loadWithMemorySessions(ctx, signInEnvironment(nil))
 	closer()
 	if err != nil || resolved.Resolver != nil || resolved.SignIn != nil {
 		t.Fatalf("an unconfigured Hub gave %#v %v", resolved, err)
 	}
 	// A deployment may state its address without running an issuer.
-	resolved, closer, err = loadOperatorIdentity(ctx, signInEnvironment(map[string]string{
+	resolved, closer, err = loadWithMemorySessions(ctx, signInEnvironment(map[string]string{
 		"CONSOLE_PUBLIC_URL": "https://conduit.example.test",
 	}))
 	closer()
@@ -31,7 +38,7 @@ func TestSignInIsOffUnlessBothAnIssuerAndAPublicAddressAreConfigured(t *testing.
 		t.Fatalf("a public address with no issuer gave %#v %v", resolved, err)
 	}
 	// An issuer with no public address verifies bearer tokens and nothing more.
-	resolved, closer, err = loadOperatorIdentity(ctx, signInEnvironment(map[string]string{
+	resolved, closer, err = loadWithMemorySessions(ctx, signInEnvironment(map[string]string{
 		"OPERATOR_OIDC_ISSUER": "https://identity.example.test", "OPERATOR_OIDC_CLIENT_ID": "conduit",
 		"OPERATOR_OIDC_JWKS_URL": "https://identity.example.test/jwks.json",
 	}))
@@ -102,9 +109,12 @@ func TestHalfConfiguredSignInStopsTheHub(t *testing.T) {
 			base(map[string]string{"OPERATOR_OIDC_CLIENT_SECRET_FILE": write("two", "a\nb\n")}), "OPERATOR_OIDC_CLIENT_SECRET_FILE"},
 		"an unknown repository kind": {
 			base(map[string]string{"REPOSITORY_KIND": "sqlite"}), "REPOSITORY_KIND"},
+		// Replicas must share sessions; memory is never substituted.
+		"PostgreSQL with no durable session store": {
+			base(map[string]string{"REPOSITORY_KIND": "postgres"}), "PostgreSQL operator session store"},
 	}
 	for name, test := range refused {
-		resolved, closer, err := loadOperatorIdentity(context.Background(), signInEnvironment(test.values))
+		resolved, closer, err := loadWithMemorySessions(context.Background(), signInEnvironment(test.values))
 		closer()
 		if err == nil || !strings.Contains(err.Error(), test.want) || resolved.Resolver != nil || resolved.SignIn != nil {
 			t.Errorf("%s gave %#v %v, want an error naming %s", name, resolved, err, test.want)
@@ -114,7 +124,7 @@ func TestHalfConfiguredSignInStopsTheHub(t *testing.T) {
 		}
 	}
 
-	resolved, closer, err := loadOperatorIdentity(context.Background(), signInEnvironment(base(map[string]string{
+	resolved, closer, err := loadWithMemorySessions(context.Background(), signInEnvironment(base(map[string]string{
 		"OPERATOR_OIDC_CLIENT_SECRET_FILE": secretFile, "OPERATOR_SESSION_MAX_LIFETIME": "30m",
 	})))
 	defer closer()
