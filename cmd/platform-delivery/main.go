@@ -19,6 +19,8 @@ import (
 	"time"
 
 	artifacts "github.com/jonathanagustin/conduit/internal/artifacts/domain"
+	assistantthreads "github.com/jonathanagustin/conduit/internal/assistant/adapters/threadpostgres"
+	assistantapp "github.com/jonathanagustin/conduit/internal/assistant/application"
 	"github.com/jonathanagustin/conduit/internal/buildinfo"
 	"github.com/jonathanagustin/conduit/internal/consoleui"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
@@ -278,6 +280,7 @@ func main() {
 			DebugSessionJournal:  debugJournal,
 			NotificationStore:    notifications.Store,
 			NotificationContacts: notifications.Contacts,
+			AssistantThreads:     assistantThreadsFor(notifications),
 			PackagingStatus:      packagingReader,
 			PackagingControls:    packagingReader,
 		}), handlerOptions, requestLimiter),
@@ -385,10 +388,23 @@ func main() {
 // Store and Contacts are the same object in this deployment and are still
 // declared apart, because the ports are apart: the composition root is handed
 // two capabilities rather than one thing it may use for both.
+// assistantThreadsFor returns the durable thread store when one was opened. A
+// typed nil pointer stored in the interface would read as configured, so the
+// file repository returns an untyped nil and keeps threads in memory.
+func assistantThreadsFor(component notificationComponent) assistantapp.Threads {
+	if component.AssistantThreads == nil {
+		return nil
+	}
+	return component.AssistantThreads
+}
+
 type notificationComponent struct {
 	Store      notificationports.Store
 	Contacts   notificationports.Contacts
 	Deliveries *notificationsapplication.Dispatcher
+	// AssistantThreads rides with the notification store because it is opened
+	// on the same DSN and closed by the same closer.
+	AssistantThreads *assistantthreads.Store
 }
 
 func configureReconciliation(
@@ -450,6 +466,18 @@ func configureReconciliation(
 	// and a later edit that forgets a store leaks a connection pool for the
 	// lifetime of the process.
 	closeStore = func() {
+		_ = notificationStore.Close()
+		closeReconciliationStore()
+	}
+	// Assistant conversations share the same database and ledger, so a thread
+	// survives a Hub restart and is visible from every replica.
+	assistantThreadStore, err := assistantthreads.New(ctx, dataSourceName)
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, nil, notificationComponent{}, err
+	}
+	closeStore = func() {
+		_ = assistantThreadStore.Close()
 		_ = notificationStore.Close()
 		closeReconciliationStore()
 	}
@@ -527,6 +555,7 @@ func configureReconciliation(
 	}
 	return bridge, closeStore, supervisor, readStats, notificationComponent{
 		Store: notificationStore, Contacts: notificationStore, Deliveries: deliveries,
+		AssistantThreads: assistantThreadStore,
 	}, nil
 }
 
