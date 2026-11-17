@@ -18,6 +18,7 @@ Read only the topic relevant to the current change:
 | Bundle data-selection strategies | [bundle-selection.md](bundle-selection.md) | Environment/Module/Product/Release/Team rules, initialization and incremental semantics |
 | November 2026 CLI additions | [cli-additions.md](cli-additions.md) | 18-page classification; local Grype implementation and scoped product gaps |
 | CLI setup and publication workflows | [cli-getting-started.md](cli-getting-started.md) | Distribution, profiles/auth, Environment output, Helm and Asset publication, byte-equivalence limit |
+| Environment label CLI targets | [environment-label-cli.md](environment-label-cli.md) | Full Environment IDs, reviewed public resource kinds, native file/proposal boundary |
 | Connected publisher admission | [connected-hubs.md](connected-hubs.md) | External OAuth/whitelist ownership, Artifact + Product + Release authorization, outbound-Spoke separation |
 | Emergency Entity commands | [commands.md](commands.md) | Priority, constraint bypass, single-flight execution, cancel/abort, uninstall and workload restart |
 | Entity ownership handoff | [entity-ownership-handoff.md](entity-ownership-handoff.md) | Uninstall versus unmanage-only, dependency gate, undo-before-lease, observe-only Spoke execution |
