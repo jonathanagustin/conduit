@@ -321,7 +321,11 @@ func (service *GovernanceService) PutGrant(ctx context.Context, grant ResourceGr
 func (service *GovernanceService) PutGrantAs(
 	ctx context.Context, grant ResourceGrant, subject string,
 ) (ResourceGrant, error) {
-	if needsNotificationTransaction(service.repository) {
+	// An attributed permission change and its audit are one operation even
+	// when notifications are disabled. Always take a private transaction (or
+	// nested savepoint), so a caller that catches our error cannot commit a
+	// partially applied grant in its enclosing transaction.
+	if subject != "" || needsNotificationTransaction(service.repository) {
 		var stored ResourceGrant
 		var before *ResourceGrant
 		err := service.withNotificationTransaction(ctx, func(working *GovernanceService) error {
@@ -338,17 +342,23 @@ func (service *GovernanceService) PutGrantAs(
 					break
 				}
 			}
-			stored, err = working.PutGrantAs(ctx, grant, subject)
+			stored, err = working.putGrantAs(ctx, grant, subject)
 			return err
 		})
 		if err != nil {
 			return ResourceGrant{}, err
 		}
-		if subject != "" {
+		if subject != "" && !service.repository.InTransaction() {
 			_ = service.announceGrantChanged(ctx, subject, before, stored)
 		}
 		return stored, nil
 	}
+	return service.putGrantAs(ctx, grant, subject)
+}
+
+func (service *GovernanceService) putGrantAs(
+	ctx context.Context, grant ResourceGrant, subject string,
+) (ResourceGrant, error) {
 	if strings.TrimSpace(grant.ResourceRID) == "" || !identifierPattern.MatchString(grant.Team) ||
 		(len(grant.Roles)+len(grant.Operations) == 0 && grant.Relationship == "") {
 		return ResourceGrant{}, ValidationErrors{{Path: "grant", Message: "resourceRid, team, and a relationship, role, or operation are required"}}
