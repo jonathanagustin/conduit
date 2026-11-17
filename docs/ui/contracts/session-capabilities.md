@@ -99,3 +99,9 @@ on disabled controls; the action rechecks before sending. The Hub enforces the
 same operation before reading drift details or opening a reviewed request.
 The retained fleet renderer is covered as a browser component; it is not a
 claim that the current navigation mounts that legacy view.
+
+Intelligence course staging uses `change:propose` on the exact selected
+`installation/<environment>/<installation-id>`, matching the course opener.
+Changing a target clears confirmation and recalculates the decision. A refusal
+is shown inline and on the disabled button; submission rechecks it. Passing a
+scored memory gate does not grant proposal permission or approval.
