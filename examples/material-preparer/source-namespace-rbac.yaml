@@ -1,8 +1,8 @@
 # The one grant the reference material preparer needs beyond what the Spoke
 # chart already binds: read, by name, on the source Secrets.
 #
-# Shape checked with `kubectl create --dry-run=client`. The rules themselves
-# are the ones the preparer is tested under -- internal/materialpreparer and
+# NOT applied to a cluster by this repository. The rules themselves are the
+# ones the preparer is tested under -- internal/materialpreparer and
 # cmd/platform-material-preparer run it against an API that enforces exactly
 # these and refuses everything else.
 #

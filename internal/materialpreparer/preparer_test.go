@@ -233,6 +233,15 @@ func TestASecretThePreparerDoesNotOwnIsNeverOverwrittenOrDeleted(t *testing.T) {
 	}
 	harness.api.Put(managed, "cache-credentials", another)
 	cacheNamed := access("database", 7, "kubernetes-secret://database-source", "cache-credentials", "password")
+	// The annotations alone are not ownership: a Secret somebody copied from a
+	// managed one, without the label, names the right assignment and is still
+	// not the preparer's.
+	copied := kubetest.Object{
+		Type: "Opaque", Data: map[string][]byte{"password": []byte("a-copy-somebody-made")},
+		Annotations: map[string]string{"platform.delivery/material-assignment": "database", "platform.delivery/material-kind": "secret"},
+	}
+	harness.api.Put(managed, "copied-credentials", copied)
+	copiedNamed := access("database", 7, "kubernetes-secret://database-source", "copied-credentials", "password")
 
 	for name, request := range map[string]string{
 		"CREATE over a tenant's Secret":          mutation("SecretMutation", "CREATE", managed, databaseV7, ""),
@@ -241,6 +250,8 @@ func TestASecretThePreparerDoesNotOwnIsNeverOverwrittenOrDeleted(t *testing.T) {
 		"rollback of a CREATE it did not make":   mutation("SecretMutationRollback", "CREATE", managed, databaseV7, ""),
 		"REPLACE over another assignment's":      mutation("SecretMutation", "REPLACE", managed, cacheNamed, cacheNamed),
 		"DELETE of another assignment's":         mutation("SecretMutation", "DELETE", managed, "", cacheNamed),
+		"CREATE over an unlabelled copy":         mutation("SecretMutation", "CREATE", managed, copiedNamed, ""),
+		"DELETE of an unlabelled copy":           mutation("SecretMutation", "DELETE", managed, "", copiedNamed),
 		"a pull Secret over a tenant's Secret":   registryRequest(managed, "kubernetes-secret://registry-source", "database-credentials"),
 		"a pull Secret over an app assignment's": registryRequest(managed, "kubernetes-secret://registry-source", "cache-credentials"),
 	} {
@@ -248,7 +259,9 @@ func TestASecretThePreparerDoesNotOwnIsNeverOverwrittenOrDeleted(t *testing.T) {
 			t.Errorf("%s: exit status %d (%s), want refused", name, code, reason)
 		}
 	}
-	for name, want := range map[string]kubetest.Object{"database-credentials": tenant, "cache-credentials": another} {
+	for name, want := range map[string]kubetest.Object{
+		"database-credentials": tenant, "cache-credentials": another, "copied-credentials": copied,
+	} {
 		got, found := harness.api.Get(managed, name)
 		if !found || !reflect.DeepEqual(got.Data, want.Data) || !reflect.DeepEqual(got.Labels, want.Labels) {
 			t.Errorf("%s was changed: %v", name, found)
