@@ -574,6 +574,102 @@ func TestFleetPaginationTraversesStableOrderWithoutChangingGlobalSummary(t *test
 	if _, err := paginateFleetProjection(projection, FleetQuery{Search: "different"}, first.NextCursor, 2); !errors.Is(err, errInvalidFleetCursor) {
 		t.Fatalf("cursor reused across filters: %v", err)
 	}
+	if _, err := paginateFleetProjection(projection, FleetQuery{InstallationID: "one"}, first.NextCursor, 2); !errors.Is(err, errInvalidFleetCursor) {
+		t.Fatalf("cursor reused across exact installation targets: %v", err)
+	}
+}
+
+func TestFleetHTTPExactInstallationLookupKeepsAuthorizationAndCounts(t *testing.T) {
+	t.Parallel()
+	repository := NewMemoryRepository()
+	for _, environment := range []string{"visible", "hidden"} {
+		entities := []ReportedEntity{
+			{InstallationID: "api", Product: "app.example:exact", Health: HealthHealthy},
+			{InstallationID: "api-extra", Product: "app.example:substring", Health: HealthUnhealthy},
+		}
+		for index := 0; index < 25; index++ {
+			entities = append(entities, ReportedEntity{InstallationID: fmt.Sprintf("aaa-%02d", index), Product: "app.example:unrelated", Health: HealthHealthy})
+		}
+		if _, err := repository.PutEnvironmentReport(t.Context(), EnvironmentReport{
+			Environment: environment, AgentID: "fixture-reporter", ObservedAt: time.Now(),
+			Entities: entities,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	governance := NewGovernanceService(repository)
+	if _, err := governance.PutTeam(t.Context(), Team{Name: "readers", DisplayName: "Readers", AdminUsers: []string{"admin"}, MemberUsers: []string{"reader"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := governance.PutGrant(t.Context(), ResourceGrant{ResourceRID: environmentRID("visible"), Team: "readers", Operations: []string{OperationReadResource}}); err != nil {
+		t.Fatal(err)
+	}
+	handler := NewHandler(repository, HandlerOptions{AllowInsecureOperatorIdentityHeaders: true})
+	for _, tc := range []struct {
+		environment, installation string
+		count                     int
+	}{
+		{"visible", "api", 1}, {"visible", "API", 0}, {"visible", "missing", 0}, {"hidden", "api", 0},
+	} {
+		response := governanceRequest(t, handler, http.MethodGet, "/v1/fleet/installations?environment="+tc.environment+"&installationId="+tc.installation+"&limit=1", "reader", "", nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("lookup: %d %s", response.Code, response.Body.String())
+		}
+		var page FleetProjection
+		if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Installations) != tc.count || page.Summary.Total != tc.count || page.PageSize != tc.count || page.NextCursor != "" {
+			t.Fatalf("%s/%s: %#v", tc.environment, tc.installation, page)
+		}
+		if tc.count == 1 && (page.Installations[0].Product != "app.example:exact" || len(page.Facets.Product) != 1) {
+			t.Fatalf("wrong exact target or facet disclosure: %#v", page)
+		}
+		if tc.count == 0 && (len(page.Facets.Product) != 0 || page.Facets.Environment["hidden"] != 0) {
+			t.Fatalf("unavailable target leaked facets: %#v", page.Facets)
+		}
+	}
+}
+
+func TestFleetCursorWithoutInstallationFilterRemainsCompatible(t *testing.T) {
+	// Pinned pre-installationId encoding: adding an optional exact lookup must
+	// not invalidate an already issued continuation of an ordinary index.
+	const previous = "7318e2e4efe357767a9d73b7d566e5ee2b8c188fc5c2753c5ac6ebd5bde73e15"
+	if got := fleetQueryFingerprint(FleetQuery{}); got != previous {
+		t.Fatalf("unfiltered cursor binding changed: %s", got)
+	}
+	if fleetQueryFingerprint(FleetQuery{InstallationID: "api"}) == previous || fleetQueryFingerprint(FleetQuery{InstallationID: "api"}) == fleetQueryFingerprint(FleetQuery{InstallationID: "api-extra"}) {
+		t.Fatal("exact targets must have distinct cursor bindings")
+	}
+}
+
+func TestFleetExactInstallationCursorBindsSpaceAndIdentity(t *testing.T) {
+	projection := FleetProjection{Installations: []FleetInstallation{
+		{Environment: "a", InstallationID: "api"},
+		{Environment: "b", InstallationID: "api"},
+	}}
+	query := FleetQuery{InstallationID: "api"}
+	space := "space_" + strings.Repeat("a", 32)
+	first, err := paginateFleetProjectionInSpace(projection, query, "", 1, space)
+	if err != nil || first.NextCursor == "" {
+		t.Fatalf("first exact page: %#v, %v", first, err)
+	}
+	if _, err := paginateFleetProjectionInSpace(projection, query, first.NextCursor, 1, space); err != nil {
+		t.Fatalf("same Space and exact identity rejected: %v", err)
+	}
+	for _, other := range []struct {
+		query FleetQuery
+		space string
+	}{
+		{query, ""},
+		{query, "space_" + strings.Repeat("b", 32)},
+		{FleetQuery{}, space},
+		{FleetQuery{InstallationID: "api-extra"}, space},
+	} {
+		if _, err := paginateFleetProjectionInSpace(projection, other.query, first.NextCursor, 1, other.space); !errors.Is(err, errInvalidFleetCursor) {
+			t.Fatalf("cursor crossed Space or exact identity: %#v, %v", other, err)
+		}
+	}
 }
 
 func TestFleetHTTPPaginatesOnlyAfterAuthorization(t *testing.T) {

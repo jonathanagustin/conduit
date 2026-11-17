@@ -149,15 +149,16 @@ func fleetQueryFingerprint(query FleetQuery) string {
 
 func fleetQueryFingerprintInSpace(query FleetQuery, spaceID string) string {
 	normalized := struct {
-		Environment string `json:"environment"`
-		Product     string `json:"product"`
-		Health      string `json:"health"`
-		Rollout     string `json:"rollout"`
-		Config      string `json:"config"`
-		Lifecycle   string `json:"lifecycle"`
-		Search      string `json:"search"`
-		MaxAge      int64  `json:"maxAgeSeconds"`
-	}{query.Environment, query.Product, query.Health, query.Rollout, query.Config, query.Lifecycle,
+		Environment    string `json:"environment"`
+		InstallationID string `json:"installationId,omitempty"`
+		Product        string `json:"product"`
+		Health         string `json:"health"`
+		Rollout        string `json:"rollout"`
+		Config         string `json:"config"`
+		Lifecycle      string `json:"lifecycle"`
+		Search         string `json:"search"`
+		MaxAge         int64  `json:"maxAgeSeconds"`
+	}{query.Environment, query.InstallationID, query.Product, query.Health, query.Rollout, query.Config, query.Lifecycle,
 		strings.ToLower(strings.TrimSpace(query.Search)), int64(query.MaxAge / time.Second)}
 	return fingerprintInSpace(normalized, spaceID)
 }

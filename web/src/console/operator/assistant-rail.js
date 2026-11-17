@@ -2,6 +2,7 @@
 // Tool results come from the Hub. This file does not invent them.
 import { postTool as postAssistantTool } from "./assistant-api.js";
 import { attachControl, attachmentList } from "./attachments.js";
+import { resolvePackagingActionContext } from "./packaging-action-context.js";
 
 const MODES = [
   { id: "explore", label: "Explore" },
@@ -143,20 +144,6 @@ function workspaceGuidance(mode) {
     <details class="kit-card"><summary class="cursor-pointer py-1 text-[#dce4ee]">Skills</summary><p>No skills inventory is available for this workspace.</p></details>
     <details class="kit-card"><summary class="cursor-pointer py-1 text-[#dce4ee]">Docs</summary><ul class="space-y-1"><li><a class="underline" href="https://github.com/jonathanagustin/conduit/blob/main/docs/architecture/engineer-conversation-focus.md" target="_blank" rel="noopener noreferrer">Engineer conversation guide</a></li><li><a class="underline" href="https://github.com/jonathanagustin/conduit/blob/main/docs/architecture/workspace-studio-scope.md" target="_blank" rel="noopener noreferrer">Workspace Studio scope</a></li><li><a class="underline" href="https://github.com/jonathanagustin/conduit/blob/main/docs/architecture/identity-and-governance.md" target="_blank" rel="noopener noreferrer">Identity and governed actions</a></li></ul></details>
   </section>`;
-}
-
-function governedFields(state, chip) {
-  const hub = state.hub || {};
-  const run = (hub.packaging || []).find((item) => item.runId === chip.id);
-  const target = String(run?.targetPlanRef || "");
-  const split = target.indexOf("/");
-  const environment = split > 0 ? target.slice(0, split) : "";
-  const installation = split > 0 ? target.slice(split + 1) : "";
-  const row = (hub.installations || []).find(
-    (item) =>
-      item.environment === environment && item.installationId === installation,
-  );
-  return { environment, installation, product: row?.product || "" };
 }
 
 export function assistantChrome(state) {
@@ -418,15 +405,28 @@ export async function runAssistantAction(state, kind, chipKey) {
   }
   const actionId =
     kind === "propose-cancel" ? "cancel_packaging_run" : "rerun_packaging_run";
-  const fields = governedFields(state, chip);
-  if (!fields.environment || !fields.installation || !fields.product) {
+  let fields;
+  try {
+    fields = await resolvePackagingActionContext(state, chip.id);
+    // The resolver's return is an async boundary too. A removal, new
+    // selection or newer action can happen before this continuation runs.
+    if (
+      !fields.isCurrent() ||
+      !contextChips(state).some((candidate) => keyOf(candidate) === chipKey)
+    )
+      throw new Error(
+        "The selected packaging context changed. Refresh the run before proposing an action.",
+      );
+  } catch (error) {
     return {
       label: "No model call",
       tool: "propose_governed_action",
       ok: false,
       allowed: false,
       reason:
-        "This screen did not record an environment, installation, and product, so the action was not sent.",
+        error instanceof Error
+          ? error.message
+          : "The selected packaging context is unavailable.",
       readOps: 0,
       writeOps: 0,
     };
