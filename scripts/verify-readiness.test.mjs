@@ -68,10 +68,27 @@ test('missing or divergent history fails explicitly rather than assuming freshne
 });
 
 test('live closure and unavailable API state cannot produce a current-state pass',async t => {
-  const {root}=await fixture(t);
-  await assert.rejects(verifyReadiness({root,today,online:true,fetchIssue:async number=>({number,state:'closed'})}),/GitHub reports active tracker/);
-  await assert.rejects(verifyReadiness({root,today,online:true,fetchIssue:async()=>{throw new Error('offline');}}),/live issue state unavailable/);
-  assert.match(await verifyReadiness({root,today,online:true,fetchIssue:async number=>({number,state:'open'})}),/live issue states verified/);
+  const {root,git}=await fixture(t);
+  const fetchMain=async()=>git('rev-parse','HEAD');
+  await assert.rejects(verifyReadiness({root,today,online:true,fetchMain,fetchIssue:async number=>({number,state:'closed'})}),/GitHub reports active tracker/);
+  await assert.rejects(verifyReadiness({root,today,online:true,fetchMain,fetchIssue:async()=>{throw new Error('offline');}}),/live issue state unavailable/);
+  assert.match(await verifyReadiness({root,today,online:true,fetchMain,fetchIssue:async number=>({number,state:'open'})}),/live issue states verified/);
+});
+
+test('online freshness measures live main even when the local checked HEAD is old',async t => {
+  const {root,record,save,git}=await fixture(t);
+  record.maximumCommitsBehind=1;save();
+  await verifyReadiness({root,today,write:true});
+  const old=git('rev-parse','HEAD');
+  git('commit','--allow-empty','-qm','docs: first remote commit');
+  git('commit','--allow-empty','-qm','docs: second remote commit');
+  const liveMain=git('rev-parse','HEAD');
+  git('reset','--hard',old);
+  assert.match(await verifyReadiness({root,today}),/committed issue snapshot only/);
+  const options={root,today,online:true,fetchIssue:async number=>({number,state:'open'})};
+  await assert.rejects(verifyReadiness({...options,fetchMain:async()=>liveMain}),/lags live main by 2 commits/);
+  await assert.rejects(verifyReadiness({...options,fetchMain:async()=>'f'.repeat(40)}),/history is unavailable, shallow, or not an ancestor of live main/);
+  await assert.rejects(verifyReadiness({...options,fetchMain:async()=>{throw new Error('offline');}}),/live main state unavailable/);
 });
 
 test('hand-edited status pages and absent evidence sources are rejected',async t => {

@@ -75,6 +75,6 @@ Provision and rotate deployment credentials and signing trust; select and exerci
 
 ## Freshness and issue-state boundary
 
-Issue states were read at `2026-11-17T05:28:21Z`. This committed snapshot is historical evidence, not a live GitHub response. Offline verification fails after 14 days, after more than 50 commits beyond the reviewed baseline, for missing/shallow baseline history, or when an active tracker is recorded closed. The scheduled online check additionally fails when GitHub now reports an active tracker closed or cannot supply authoritative state. It never silently refreshes the snapshot or rewrites evidence.
+Issue states were read at `2026-11-17T05:28:21Z`. This committed snapshot is historical evidence, not a live GitHub response. Offline verification measures the checked tree: it fails after 14 days, after more than 50 commits beyond the reviewed baseline, for missing/shallow baseline history, or when an active tracker is recorded closed. The scheduled online check additionally reads GitHub's current main SHA and active issue states. It fails when main exceeds the commit bound, its history is unavailable locally, an active tracker is closed, or GitHub cannot supply authoritative state. It never silently refreshes the snapshot or rewrites evidence.
 
 The [previous readiness record](PRODUCTION-READINESS-HISTORICAL.md) and [external audit](EXTERNAL-AUDIT-2026-08-18.md) preserve the original reasoning and correction history; their historical status claims are superseded by this baseline.

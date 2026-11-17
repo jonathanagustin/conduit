@@ -54,7 +54,7 @@ export function renderReadiness(record, coverage, site = false) {
   out += '- #833 is closed through PR #885: declared package artifact display and target-architecture admission shipped. Multiarchitecture declarations and OCI indexes are refused; no mixed-platform package execution is claimed.\n\n';
   out += '## Explicitly out of production scope\n\nNo private upstream Hub-to-Agent compatibility, universal application packaging, mixed-architecture package execution, unreviewed optimizer candidate admission, FIPS certification or independent accreditation is established here. Licensing/visibility decisions remain owner-deferred; this refresh changes none of those statements or distribution rights.\n\n';
   out += '## Residual items owned by a human operator\n\nProvision and rotate deployment credentials and signing trust; select and exercise database backups, retention, recovery and independent checkpoint custody; declare target namespaces and actual Agent grants; authorize tenant access; verify the target network and gateway; and explicitly authorize release/publication/deployment. Repository administration and billing are distinct responsibilities. A green gate supplies evidence only.\n\n';
-  out += `## Freshness and issue-state boundary\n\nIssue states were read at \`${record.issueSnapshotAt}\`. This committed snapshot is historical evidence, not a live GitHub response. Offline verification fails after ${record.maximumAgeDays} days, after more than ${record.maximumCommitsBehind} commits beyond the reviewed baseline, for missing/shallow baseline history, or when an active tracker is recorded closed. The scheduled online check additionally fails when GitHub now reports an active tracker closed or cannot supply authoritative state. It never silently refreshes the snapshot or rewrites evidence.\n`;
+  out += `## Freshness and issue-state boundary\n\nIssue states were read at \`${record.issueSnapshotAt}\`. This committed snapshot is historical evidence, not a live GitHub response. Offline verification measures the checked tree: it fails after ${record.maximumAgeDays} days, after more than ${record.maximumCommitsBehind} commits beyond the reviewed baseline, for missing/shallow baseline history, or when an active tracker is recorded closed. The scheduled online check additionally reads GitHub's current main SHA and active issue states. It fails when main exceeds the commit bound, its history is unavailable locally, an active tracker is closed, or GitHub cannot supply authoritative state. It never silently refreshes the snapshot or rewrites evidence.\n`;
   if (!site) out += '\nThe [previous readiness record](PRODUCTION-READINESS-HISTORICAL.md) and [external audit](EXTERNAL-AUDIT-2026-08-18.md) preserve the original reasoning and correction history; their historical status claims are superseded by this baseline.\n';
   return out;
 }
@@ -75,7 +75,7 @@ function realDate(value) {
   return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === value ? parsed : NaN;
 }
 
-export async function verifyReadiness({ root = ROOT, mainRef = 'HEAD', today = new Date().toISOString().slice(0, 10), online = false, write = false, fetchIssue = githubIssue } = {}) {
+export async function verifyReadiness({ root = ROOT, mainRef = 'HEAD', today = new Date().toISOString().slice(0, 10), online = false, write = false, fetchIssue = githubIssue, fetchMain = githubMain } = {}) {
   const record = JSON.parse(readFileSync(resolve(root, recordPath), 'utf8'));
   const coverage = JSON.parse(readFileSync(resolve(root, 'docs/operations/native-reference-coverage.json'), 'utf8'));
   const failures = [];
@@ -100,19 +100,25 @@ export async function verifyReadiness({ root = ROOT, mainRef = 'HEAD', today = n
   const tracked = new Set([record.hostedBlocker, record.contractPrerequisite, ...record.gaps.flatMap(gap => gap.issues), ...record.relatedGroups.flatMap(group => group.issues)]);
   for (const number of tracked) if (states.get(number)?.state !== 'open') failures.push(`active tracker #${number} is absent or closed in the committed snapshot`);
   for (const gap of record.gaps) for (const path of gap.sources) if (path.includes('..') || !existsSync(resolve(root, path))) failures.push(`gap ${gap.number} has missing evidence source ${path}`);
-  if (!/^[a-f0-9]{40}$/.test(record.baselineCommit)) failures.push('baselineCommit must be an exact commit SHA');
-  else {
-    const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore','pipe','pipe'] }).trim();
+  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore','pipe','pipe'] }).trim();
+  const checkDistance = (ref, label = ref) => {
     try {
       git('cat-file', '-e', `${record.baselineCommit}^{commit}`);
-      git('merge-base', '--is-ancestor', record.baselineCommit, mainRef);
-      const behind = Number(git('rev-list', '--count', `${record.baselineCommit}..${mainRef}`));
-      if (!Number.isSafeInteger(behind) || behind > record.maximumCommitsBehind) failures.push(`baseline lags ${mainRef} by ${behind} commits (maximum ${record.maximumCommitsBehind})`);
+      git('merge-base', '--is-ancestor', record.baselineCommit, ref);
+      const behind = Number(git('rev-list', '--count', `${record.baselineCommit}..${ref}`));
+      if (!Number.isSafeInteger(behind) || behind > record.maximumCommitsBehind) failures.push(`baseline lags ${label} by ${behind} commits (maximum ${record.maximumCommitsBehind})`);
     } catch {
-      failures.push(`baseline history is unavailable, shallow, or not an ancestor of ${mainRef}; fetch complete history before checking readiness`);
+      failures.push(`baseline history is unavailable, shallow, or not an ancestor of ${label}; fetch complete history before checking readiness`);
     }
-  }
+  };
+  if (!/^[a-f0-9]{40}$/.test(record.baselineCommit)) failures.push('baselineCommit must be an exact commit SHA');
+  else checkDistance(mainRef);
   if (online) {
+    try {
+      const liveMain = await fetchMain();
+      if (typeof liveMain !== 'string' || !/^[a-f0-9]{40}$/.test(liveMain)) failures.push('GitHub did not return an exact current-main SHA');
+      else checkDistance(liveMain, 'live main');
+    } catch { failures.push('live main state unavailable; no current-main freshness PASS is claimed'); }
     const numbers = [...tracked];
     for (let index = 0; index < numbers.length; index += 4) await Promise.all(numbers.slice(index,index + 4).map(async number => {
       try {
@@ -133,14 +139,17 @@ export async function verifyReadiness({ root = ROOT, mainRef = 'HEAD', today = n
   return `PASS readiness: baseline ${record.baselineCommit}, ${tracked.size} active trackers; ${online ? 'live issue states verified' : 'committed issue snapshot only (offline)'}`;
 }
 
-async function githubIssue(number) {
+async function githubResource(path) {
   const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
   const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'conduit-readiness-verification' };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const response = await fetch(`https://api.github.com/repos/jonathanagustin/conduit/issues/${number}`, { headers, signal: AbortSignal.timeout(15000) });
-  if (!response.ok) throw new Error(`GitHub issue lookup failed (${response.status})`);
+  const response = await fetch(`https://api.github.com/repos/jonathanagustin/conduit/${path}`, { headers, signal: AbortSignal.timeout(15000) });
+  if (!response.ok) throw new Error(`GitHub lookup failed (${response.status})`);
   return response.json();
 }
+
+async function githubIssue(number) { return githubResource(`issues/${number}`); }
+async function githubMain() { return (await githubResource('git/ref/heads/main')).object?.sha; }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
