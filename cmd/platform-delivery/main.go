@@ -292,6 +292,10 @@ func main() {
 		WriteTimeout:      httpWriteTimeout(),
 		IdleTimeout:       60 * time.Second,
 	}
+	// Outside the limiter, so a request it refuses is counted and logged too.
+	requestRecorder := composition.NewRequestRecorder()
+	server.Handler = composition.ObserveRequests(server.Handler, handlerOptions,
+		composition.RequestObservation{Recorder: requestRecorder})
 	if agentClientCAFile != "" {
 		server.TLSConfig, err = controlplane.AgentServerTLSConfig(agentClientCAFile)
 		if err != nil {
@@ -354,7 +358,8 @@ func main() {
 	// turn an authenticated surface into a partly public one. An empty
 	// METRICS_ADDRESS adds no reachable surface at all, which is what an
 	// existing deployment gets until somebody decides otherwise.
-	if stopMetrics := startMetricsListener(ctx, os.Getenv("METRICS_ADDRESS"), readStats, requestLimiterMetrics(requestLimiter)); stopMetrics != nil {
+	if stopMetrics := startMetricsListener(ctx, os.Getenv("METRICS_ADDRESS"), readStats, requestLimiterMetrics(requestLimiter),
+		requestMetrics(requestRecorder), notifications.Metrics); stopMetrics != nil {
 		defer stopMetrics()
 	}
 
@@ -421,6 +426,8 @@ type notificationComponent struct {
 	// AppGenerations is opened on the same DSN and closed by the same closer,
 	// so a generation result survives a Hub restart.
 	AppGenerations *appgenpostgres.Store
+	// Metrics publishes delivery counters and backlog; nil when delivery is off.
+	Metrics metricsExtension
 }
 
 func configureReconciliation(
@@ -576,8 +583,10 @@ func configureReconciliation(
 		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	deliveryConfig.Destinations = contacts
+	deliveryRecorder := metricsapplication.NewDeliveryRecorder()
 	deliveries, err := composition.NewNotificationDispatcher(
-		notificationStore, transport, notificationsapplication.SystemClock{}, deliveryConfig)
+		composition.ObserveNotificationDeliveries(notificationStore, transport, deliveryRecorder),
+		transport, notificationsapplication.SystemClock{}, deliveryConfig)
 	if err != nil {
 		closeStore()
 		return nil, func() {}, nil, nil, notificationComponent{}, err
@@ -586,6 +595,7 @@ func configureReconciliation(
 		Store: notificationStore, Contacts: notificationStore, Deliveries: deliveries,
 		AssistantThreads: assistantThreadStore,
 		AppGenerations:   appGenerationStore,
+		Metrics:          notificationDeliveryMetrics(notificationStore, transport, deliveryRecorder),
 	}, nil
 }
 
@@ -917,6 +927,7 @@ func loadTrustedBundleKeys(path string) (map[string]ed25519.PublicKey, error) {
 // endpoint is exactly the kind of thing somebody debugs for an hour.
 func startMetricsListener(
 	ctx context.Context, address string, readStats metricsapplication.ReadStats, rateLimits metricsapplication.ReadRateLimits,
+	extensions ...metricsExtension,
 ) func() {
 	address = strings.TrimSpace(address)
 	if address == "" {
@@ -927,11 +938,15 @@ func startMetricsListener(
 			"metrics are available only with REPOSITORY_KIND=postgres")
 		return nil
 	}
+	gather := metricsapplication.WithRateLimits(metricsapplication.Gather(buildinfo.Version, readStats), rateLimits)
+	for _, extend := range extensions {
+		if extend != nil {
+			gather = extend(gather)
+		}
+	}
 	server := &http.Server{
-		Addr: address,
-		Handler: httpmetrics.Handler(
-			metricsapplication.WithRateLimits(metricsapplication.Gather(buildinfo.Version, readStats), rateLimits), httpmetrics.Options{},
-		),
+		Addr:              address,
+		Handler:           httpmetrics.Handler(gather, httpmetrics.Options{}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {
