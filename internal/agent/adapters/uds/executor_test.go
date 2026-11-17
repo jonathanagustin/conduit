@@ -197,7 +197,7 @@ func installStep() controlplane.PlanStep {
 		ConfigDigest:   configDigest,
 		Chart: controlplane.Artifact{
 			Kind: controlplane.ArtifactKindZarfPackage, Repository: "ghcr.io/example/excalidraw",
-			Digest: desiredDigest, Architectures: []string{"amd64", "arm64"}, PackageName: "excalidraw",
+			Digest: desiredDigest, Architectures: []string{"amd64"}, PackageName: "excalidraw",
 		},
 	}
 }
@@ -295,6 +295,9 @@ func TestApplyRefusesBeforeRunningAnything(t *testing.T) {
 		"architecture not built": func(_ *uds.Executor, s *controlplane.PlanStep) {
 			s.Chart.Architectures = []string{"arm64"}
 		},
+		"multiarchitecture index": func(_ *uds.Executor, s *controlplane.PlanStep) {
+			s.Chart.Architectures = []string{"amd64", "arm64"}
+		},
 		"bundle with keyless policy only": func(_ *uds.Executor, s *controlplane.PlanStep) {
 			s.Chart.Kind = controlplane.ArtifactKindUDSBundle
 		},
@@ -329,7 +332,7 @@ func TestApplyRefusesAnArtifactBuiltForAnotherArchitecture(t *testing.T) {
 	}
 	assertCalls(t, runner)
 
-	step.Chart.Architectures = []string{"amd64", "arm64"}
+	step.Chart.Architectures = []string{"arm64"}
 	if _, err := exec.Apply(context.Background(), controlplane.Plan{}, step); err != nil {
 		t.Fatalf("Apply for a supported architecture: %v", err)
 	}

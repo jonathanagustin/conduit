@@ -39,8 +39,9 @@ stored or approved changes meaning.
 
 A `zarf-package` or `uds-bundle` also declares:
 
-- `architectures`: the cluster architectures it was built for, from `amd64` and
-  `arm64`. At least one is required.
+- `architectures`: exactly one target architecture, `amd64` or `arm64`.
+  Multiarchitecture declarations are refused before a Plan or executor command
+  can run; platform selection from an OCI index is not supported.
 - `packageName`: the Zarf package name (`metadata.name` in `zarf.yaml`). Zarf
   records a deployment under that name only, so this is how the Spoke finds
   what it deployed. For a bundle it names the bundled package the Spoke
@@ -63,24 +64,31 @@ tag names whatever the registry currently holds. Helm rollout settings
 `imagePrePullTimeoutSeconds`) are refused on such a Release, because nothing
 would apply them. `images[]` never carry a kind.
 
-The Plan step carries the whole artifact, and `conduit` shows it: the Plan table
-has an `artifacts` column (`helm-chart zarf-package[amd64]`), and the JSON and
-YAML bodies carry every field.
+The Plan step carries the whole artifact. The CLI Plan table has an `artifacts`
+column, and the JSON and YAML bodies carry every field. The console shows the
+kind, full repository and digest, architecture and package name in both the
+Plan inspector and the newest release in Products and versions. These are
+declared coordinates, not evidence that an artifact is deployed.
 
-Architecture is checked in the Spoke, not at planning. The Environment model
-records no architecture, and inventing one would let a document disagree with
-the cluster. The Spoke knows what it runs on, and refuses a step whose artifact
-was not built for it before any command runs. Two limits follow:
+When selecting a package, the desired state's Environment must declare
+`packageArchitecture: amd64` or `packageArchitecture: arm64`. This is a
+Conduit-native operator declaration, not discovered cluster inventory. A
+pinned incompatible Release is refused at proposal; channel selection excludes
+incompatible Releases and can select an older compatible one. A catalog may
+still contain packages for other targets. Helm-only deployments need no
+declaration. The Spoke independently checks its configured architecture before
+running a package command, so an incorrect operator declaration grants no
+execution authority.
 
-- A Plan for the wrong architecture is approved and then fails at execution,
-  with a diagnostic, rather than being refused at proposal.
-- `digest` must be the manifest Zarf resolves for the cluster's architecture.
-  Zarf records the per-platform manifest digest, so a multi-architecture OCI
-  index digest never matches what is read back and the step fails closed. One
-  Release therefore pins one platform manifest in practice.
+`digest` must name the platform manifest for that one architecture. An OCI index
+digest is unsupported. A false declaration of one architecture is not verified
+by a registry read during planning: if Zarf resolves a different digest, exact
+post-deployment readback still fails and invokes rollback. No platform digest
+is inferred from a tag, rewritten into a reviewed Release, or accepted merely
+because a deployment command succeeded.
 
 These fields are Conduit-native and registered as
-`catalog.PackageArtifactKind` in
+`catalog.PackageArtifactKind` and `environments.PackageTargetArchitecture` in
 [`conduit-inventions.json`](../evidence/conduit-inventions.json). The Apollo
 manifest publication routes still produce Helm Releases only.
 

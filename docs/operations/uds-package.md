@@ -338,6 +338,14 @@ exactly as before. A package step runs only when the Spoke was configured
 for it; otherwise the step fails with a `Blocked` diagnostic that names the
 switch, and the Plan fails. It is never handed to Helm.
 
+The desired state's Environment must declare `packageArchitecture: amd64` or
+`packageArchitecture: arm64` before a package can be planned. Each package
+artifact names that one architecture and its exact platform manifest digest;
+multiarchitecture declarations and OCI index resolution are unsupported.
+Channel selection skips incompatible packages. This declaration is checked
+again against the Spoke's configured target before execution; it does not
+replace the Spoke check or assert that cluster hardware was discovered.
+
 | Variable | Meaning |
 | --- | --- |
 | `PACKAGE_EXECUTOR_ENABLED` | `true` turns the executor on. Anything below without it stops the Spoke at start-up. |
