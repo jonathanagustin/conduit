@@ -68,9 +68,11 @@ type Attachment struct {
 // Provenance records who produced a spec and the digests of the exchange.
 // Adapter is a command name or "recorded". The digests are lowercase sha256 hex.
 type Provenance struct {
-	Adapter        string `json:"adapter,omitempty"`
-	PromptSHA256   string `json:"promptSha256,omitempty"`
-	ResponseSHA256 string `json:"responseSha256,omitempty"`
+	ConfiguredModel string `json:"configuredModel,omitempty"`
+	ProviderModel   string `json:"providerModel,omitempty"`
+	Adapter         string `json:"adapter,omitempty"`
+	PromptSHA256    string `json:"promptSha256,omitempty"`
+	ResponseSHA256  string `json:"responseSha256,omitempty"`
 }
 
 // AppGenerator is the outbound port. Implementations live in adapters.

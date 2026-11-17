@@ -162,6 +162,14 @@ end
 # paths are the ones mounted here, and no model command is configurable: the
 # Hub image carries no model CLI.
 {
+  "CONDUIT_ASSISTANT_MODEL_NAME" => ["ASSISTANT_MODEL_NAME", "", "^\\S*$"],
+  "CONDUIT_ASSISTANT_MODEL_TIMEOUT" => ["ASSISTANT_MODEL_TIMEOUT", "", "^$|^[1-9][0-9]*(ms|s|m)$"],
+  "CONDUIT_PLANNING_MODEL_NAME" => ["PLANNING_MODEL_NAME", "", "^\\S*$"],
+  "CONDUIT_PLANNING_MODEL_TIMEOUT" => ["PLANNING_MODEL_TIMEOUT", "", "^$|^[1-9][0-9]*(ms|s|m)$"],
+  "CONDUIT_PACKAGING_MODEL_NAME" => ["PACKAGING_MODEL_NAME", "", "^\\S*$"],
+  "CONDUIT_PACKAGING_MODEL_TIMEOUT" => ["PACKAGING_MODEL_TIMEOUT", "", "^$|^[1-9][0-9]*(ms|s|m)$"],
+  "CONDUIT_APPGEN_MODEL_NAME" => ["APPGEN_MODEL_NAME", "", "^\\S*$"],
+  "CONDUIT_APPGEN_MODEL_TIMEOUT" => ["APPGEN_MODEL_TIMEOUT", "", "^$|^[1-9][0-9]*(ms|s|m)$"],
   "CONDUIT_MODEL_BASE_URL" => ["MODEL_BASE_URL", "", "^$|^https?://[^\\s@?#]+$"],
   "CONDUIT_MODEL_NAME" => ["MODEL_NAME", "", "^\\S*$"],
   "CONDUIT_MODEL_TIMEOUT" => ["MODEL_TIMEOUT", "", "^$|^[1-9][0-9]*(ms|s|m)$"],

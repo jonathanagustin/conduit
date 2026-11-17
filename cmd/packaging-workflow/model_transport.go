@@ -23,7 +23,8 @@ type modelTransport struct {
 	client *modelhttp.Client
 	argv   []string
 	// name is CONDUIT_MODEL_NAME, the only source of a model CLI's name.
-	name string
+	name    string
+	timeout time.Duration
 }
 
 // refuseBothModelTransports is the Hub's precedence rule, applied by every
@@ -56,7 +57,15 @@ func resolveModelTransport(getenv func(string) string) (modelTransport, error) {
 		return modelTransport{}, fmt.Errorf("CONDUIT_MODEL_CMD: %w", err)
 	}
 	warnUnverifiedPreset(argv, getenv("CONDUIT_AGENT_PROVIDER"))
-	return modelTransport{argv: argv, name: strings.TrimSpace(getenv("CONDUIT_MODEL_NAME"))}, nil
+	timeout := workerModelTimeout
+	if raw := strings.TrimSpace(getenv("CONDUIT_MODEL_TIMEOUT")); raw != "" {
+		parsed, err := time.ParseDuration(raw)
+		if err != nil || parsed <= 0 {
+			return modelTransport{}, fmt.Errorf("CONDUIT_MODEL_TIMEOUT must be a positive duration")
+		}
+		timeout = parsed
+	}
+	return modelTransport{argv: argv, name: strings.TrimSpace(getenv("CONDUIT_MODEL_NAME")), timeout: timeout}, nil
 }
 
 func (transport modelTransport) configured() bool {
@@ -68,7 +77,7 @@ func (transport modelTransport) planner(clone planner.CloneFunc) planner.Planner
 	if transport.client != nil {
 		return planner.Planner{Model: planner.HTTPModel{Client: transport.client}, Clone: clone}
 	}
-	return planner.Planner{Argv: transport.argv, Timeout: workerModelTimeout, ModelName: transport.name, Clone: clone}
+	return planner.Planner{Argv: transport.argv, Timeout: transport.timeout, ModelName: transport.name, Clone: clone}
 }
 
 // packageWriter builds the post-Accept package writer for this transport.
@@ -76,7 +85,7 @@ func (transport modelTransport) packageWriter() packagingapp.PackageWriter {
 	if transport.client != nil {
 		return packagingmodelhttp.Adapter{Client: transport.client}
 	}
-	return modelcli.Runner{Argv: transport.argv, Timeout: workerModelTimeout, ModelName: transport.name}
+	return modelcli.Runner{Argv: transport.argv, Timeout: transport.timeout, ModelName: transport.name}
 }
 
 // warnUnverifiedPreset logs to stderr when the model command selects an

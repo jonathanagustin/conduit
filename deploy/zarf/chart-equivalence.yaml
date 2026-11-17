@@ -75,6 +75,14 @@ profiles:
       MODEL_BASE_URL: https://models.example.test/v1
       MODEL_NAME: example-model
       MODEL_TIMEOUT: 90s
+      ASSISTANT_MODEL_NAME: assistant-model
+      ASSISTANT_MODEL_TIMEOUT: 2m
+      PLANNING_MODEL_NAME: planning-model
+      PLANNING_MODEL_TIMEOUT: 2m
+      PACKAGING_MODEL_NAME: packaging-model
+      PACKAGING_MODEL_TIMEOUT: 2m
+      APPGEN_MODEL_NAME: appgen-model
+      APPGEN_MODEL_TIMEOUT: 2m
       MODEL_API_KEY_FILE: /run/conduit-model/api-key
       MODEL_CA_FILE: /run/conduit-model-ca/ca.pem
     hubValues:
@@ -90,6 +98,11 @@ profiles:
         baseURL: https://models.example.test/v1
         name: example-model
         timeout: 90s
+        capabilities:
+          assistant: { name: assistant-model, timeout: 2m }
+          planning: { name: planning-model, timeout: 2m }
+          packaging: { name: packaging-model, timeout: 2m }
+          appgen: { name: appgen-model, timeout: 2m }
         apiKeySecret:
           name: platform-model-api-key
         caConfigMap:
@@ -135,6 +148,46 @@ chartObjectNames:
     zarf: Deployment/platform-packaging-worker
     reason: The package named its worker before the chart had one; the UDS Package CR selects Pods by the package's name.
 allow:
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[CONDUIT_ASSISTANT_MODEL_NAME]"
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "An empty capability model setting inherits the global value; raw Zarf variables render an empty value, while Helm omits it. The postgres profile sets and compares every override."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[CONDUIT_ASSISTANT_MODEL_TIMEOUT]"
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "An empty capability model setting inherits the global value; raw Zarf variables render an empty value, while Helm omits it. The postgres profile sets and compares every override."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[CONDUIT_PLANNING_MODEL_NAME]"
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "An empty capability model setting inherits the global value; raw Zarf variables render an empty value, while Helm omits it. The postgres profile sets and compares every override."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[CONDUIT_PLANNING_MODEL_TIMEOUT]"
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "An empty capability model setting inherits the global value; raw Zarf variables render an empty value, while Helm omits it. The postgres profile sets and compares every override."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[CONDUIT_PACKAGING_MODEL_NAME]"
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "An empty capability model setting inherits the global value; raw Zarf variables render an empty value, while Helm omits it. The postgres profile sets and compares every override."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[CONDUIT_PACKAGING_MODEL_TIMEOUT]"
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "An empty capability model setting inherits the global value; raw Zarf variables render an empty value, while Helm omits it. The postgres profile sets and compares every override."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[CONDUIT_APPGEN_MODEL_NAME]"
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "An empty capability model setting inherits the global value; raw Zarf variables render an empty value, while Helm omits it. The postgres profile sets and compares every override."
+  - object: Deployment/platform-delivery
+    path: "spec.template.spec.containers[delivery-control-plane].env[CONDUIT_APPGEN_MODEL_TIMEOUT]"
+    side: zarf-only
+    profiles: [file, postgres-single]
+    reason: "An empty capability model setting inherits the global value; raw Zarf variables render an empty value, while Helm omits it. The postgres profile sets and compares every override."
   - object: ConfigMap/platform-delivery-console-bootstrap
     path: ""
     side: chart-only

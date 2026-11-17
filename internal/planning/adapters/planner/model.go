@@ -80,13 +80,13 @@ func (model HTTPModel) Complete(ctx context.Context, prompt string) (Reply, erro
 type turnModel struct {
 	Model
 	provider string
+	called   bool
 }
 
 func (model *turnModel) Complete(ctx context.Context, prompt string) (Reply, error) {
 	reply, err := model.Model.Complete(ctx, prompt)
-	if id := cleanModelID(reply.ProviderModel); id != "" {
-		model.provider = id
-	}
+	model.called = true
+	model.provider = cleanModelID(reply.ProviderModel)
 	return reply, err
 }
 

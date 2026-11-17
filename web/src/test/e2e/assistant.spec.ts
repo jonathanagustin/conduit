@@ -3427,6 +3427,10 @@ test("engineer focus preserves one live conversation, draft and pending request"
         json: {
           label: "Fixture response",
           text: "Recorded conversation response.",
+          model: {
+            configuredModel: "requested-alias",
+            providerModel: "served-version",
+          },
           results: [],
         },
       });
@@ -3524,6 +3528,9 @@ test("engineer focus preserves one live conversation, draft and pending request"
       .locator('[data-slot="aui_assistant-message-content"]')
       .getByText("Recorded conversation response.", { exact: false }),
   ).toBeVisible();
+  await expect(
+    rail.locator('[data-slot="aui_assistant-message-content"]'),
+  ).toContainText("Model: served-version (configured: requested-alias)");
   await expect(rail.locator("[data-engineer-outline] summary")).toContainText(
     "1 user turn",
   );

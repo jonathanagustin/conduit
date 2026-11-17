@@ -131,6 +131,38 @@ variables:
     description: Model id sent in each request and recorded as the configured model. Required when MODEL_BASE_URL is set; the Hub refuses to start without it.
     default: ""
     pattern: "^\\S*$"
+  - name: ASSISTANT_MODEL_NAME
+    description: assistant model id on MODEL_BASE_URL. Empty inherits MODEL_NAME.
+    default: ""
+    pattern: "^\\S*$"
+  - name: ASSISTANT_MODEL_TIMEOUT
+    description: assistant model request deadline. Empty inherits MODEL_TIMEOUT.
+    default: ""
+    pattern: "^$|^[1-9][0-9]*(ms|s|m)$"
+  - name: PLANNING_MODEL_NAME
+    description: planning model id on MODEL_BASE_URL. Empty inherits MODEL_NAME.
+    default: ""
+    pattern: "^\\S*$"
+  - name: PLANNING_MODEL_TIMEOUT
+    description: planning model request deadline. Empty inherits MODEL_TIMEOUT.
+    default: ""
+    pattern: "^$|^[1-9][0-9]*(ms|s|m)$"
+  - name: PACKAGING_MODEL_NAME
+    description: packaging model id on MODEL_BASE_URL. Empty inherits MODEL_NAME.
+    default: ""
+    pattern: "^\\S*$"
+  - name: PACKAGING_MODEL_TIMEOUT
+    description: packaging model request deadline. Empty inherits MODEL_TIMEOUT.
+    default: ""
+    pattern: "^$|^[1-9][0-9]*(ms|s|m)$"
+  - name: APPGEN_MODEL_NAME
+    description: appgen model id on MODEL_BASE_URL. Empty inherits MODEL_NAME.
+    default: ""
+    pattern: "^\\S*$"
+  - name: APPGEN_MODEL_TIMEOUT
+    description: appgen model request deadline. Empty inherits MODEL_TIMEOUT.
+    default: ""
+    pattern: "^$|^[1-9][0-9]*(ms|s|m)$"
   - name: MODEL_TIMEOUT
     description: Bound on one whole model request, for example 90s. Leave empty for the Hub default of 45s.
     default: ""

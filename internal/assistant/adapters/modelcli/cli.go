@@ -16,8 +16,9 @@ import (
 // Runner starts one local command. The prompt is written to stdin.
 // The process working directory is temporary and is removed afterwards.
 type Runner struct {
-	Argv    []string
-	Timeout time.Duration
+	ModelName string
+	Argv      []string
+	Timeout   time.Duration
 }
 
 func (runner Runner) Complete(ctx context.Context, prompt string) (string, domain.Provenance, error) {
@@ -25,7 +26,7 @@ func (runner Runner) Complete(ctx context.Context, prompt string) (string, domai
 		return "", domain.Provenance{}, domain.ErrModelUnavailable
 	}
 	body := []byte(prompt)
-	provenance := domain.Provenance{Adapter: localcmd.CommandName(runner.Argv[0]), PromptSHA256: domain.Digest(body)}
+	provenance := domain.Provenance{Adapter: localcmd.CommandName(runner.Argv[0]), ConfiguredModel: strings.TrimSpace(runner.ModelName), PromptSHA256: domain.Digest(body)}
 	stdout, err := localcmd.Execute(ctx, runner.Argv, runner.Timeout, body)
 	provenance.ResponseSHA256 = domain.Digest(stdout)
 	if err != nil {

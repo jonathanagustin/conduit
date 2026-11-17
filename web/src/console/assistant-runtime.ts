@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { appendAssistantDraft } from "./assistant-draft";
+import { servedModelLabel, type ServedModel } from "./model-identity";
 
 import {
   useLocalRuntime,
@@ -58,6 +59,7 @@ const workbenchModel: ChatModelAdapter = {
     });
     const body = (await response.json()) as ToolResult & {
       results?: ToolResult[];
+      model?: ServedModel;
     };
     if (response.status === 422) {
       return {
@@ -82,7 +84,7 @@ const workbenchModel: ChatModelAdapter = {
     const content: ThreadAssistantMessagePart[] = [
       {
         type: "text",
-        text: `${body.label || "Live model call"}. ${body.text || ""}`.trim(),
+        text: `${body.label || "Live model call"}. ${servedModelLabel(body.model)}. ${body.text || ""}`.trim(),
       },
     ];
     for (const result of body.results || []) {

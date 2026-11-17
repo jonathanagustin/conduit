@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "scope": "initialize-only; no authentication, session, prompt, file, terminal or model call",
+  "recordedAt": "2026-11-17T05:12:25.026Z",
+  "command": "node scripts/verify-codex-acp-initialize.mjs",
+  "platform": "darwin",
+  "arch": "arm64",
+  "nodeVersion": "v26.13.1",
+  "adapter": {
+    "name": "@agentclientprotocol/codex-acp",
+    "version": "2.6.0",
+    "entrySha256": "733b7521c2a437a34ed016d45a6f46bebff2bac123a172467574ee827db98b99"
+  },
+  "codexVersion": "0.166.0",
+  "lockSha256": "32b18f68551324b6370687b364cd3b15872e92035f7b382670cc94d27d779090",
+  "environment": "fresh temporary HOME/CODEX_HOME/XDG directories; no inherited credentials or configuration",
+  "request": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": 1,
+      "clientCapabilities": {
+        "fs": {
+          "readTextFile": true,
+          "writeTextFile": true
+        },
+        "terminal": true
+      },
+      "clientInfo": {
+        "name": "conduit-acp-initialize-smoke",
+        "version": "1"
+      }
+    }
+  },
+  "response": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "protocolVersion": 1,
+      "agentInfo": {
+        "name": "@agentclientprotocol/codex-acp",
+        "title": "Codex",
+        "version": "2.6.0"
+      },
+      "agentCapabilities": {
+        "auth": {
+          "logout": {}
+        },
+        "providers": {},
+        "loadSession": true,
+        "promptCapabilities": {
+          "embeddedContext": true,
+          "image": true
+        },
+        "sessionCapabilities": {
+          "resume": {},
+          "list": {},
+          "close": {},
+          "delete": {},
+          "fork": {},
+          "title": {},
+          "additionalDirectories": {},
+          "subagents": {},
+          "systemPrompt": {}
+        },
+        "mcpCapabilities": {
+          "acp": false,
+          "http": true,
+          "sse": false
+        },
+        "_meta": {
+          "authStatus": {}
+        }
+      },
+      "authMethods": [
+        {
+          "id": "api-key",
+          "name": "API Key",
+          "description": "Use an API key to authenticate",
+          "_meta": {
+            "api-key": {
+              "provider": "openai"
+            }
+          }
+        },
+        {
+          "id": "chat-gpt",
+          "name": "ChatGPT",
+          "description": "Use ChatGPT to authenticate"
+        }
+      ],
+      "_meta": {
+        "steering": {
+          "supported": true
+        }
+      }
+    }
+  },
+  "elapsedMs": 439,
+  "exit": {
+    "code": null,
+    "signal": "SIGTERM"
+  },
+  "stderr": ""
+}
