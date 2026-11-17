@@ -1,9 +1,13 @@
 // Package repoclone checks out a remote git ref into an isolated directory.
-// Network access during the clone is limited to the repository URL's host.
+// Network access during the clone is limited to the repository URL's host,
+// and to addresses the operator's source-host policy permits.
 package repoclone
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -12,7 +16,10 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
+	"sync/atomic"
+	"syscall"
 	"time"
 )
 
@@ -21,12 +28,45 @@ type Checkout struct {
 	Dir  string
 	SHA  string
 	Host string
+	// ConnectionID names the operator's source connection whose credential
+	// was offered to the host. It is empty for an anonymous fetch. It is an
+	// identifier and never the secret.
+	ConnectionID string
+	// Cached reports that the files came from an earlier fetch of the same
+	// commit and nothing was downloaded for this call.
+	Cached bool
 }
 
-// Clone copies repoURL at ref into a temporary directory and resolves the
-// commit SHA. Only the URL host is reachable during the fetch. The caller
-// must call the returned cleanup function, even when err is not nil.
+// Clone checks out repoURL at ref under the default policy with loopback
+// permitted and no checkout cache. Link-local, metadata and private addresses
+// are refused. It exists for callers and fixtures that predate Cloner. The Hub
+// builds a Cloner from operator configuration instead.
 func Clone(ctx context.Context, repoURL, ref string) (Checkout, func(), error) {
+	return legacy.Clone(ctx, repoURL, ref)
+}
+
+var legacy = &Cloner{policy: Policy{Timeout: DefaultTimeout, MaxBytes: DefaultMaxBytes}, loopback: true}
+
+// Clone copies repoURL at ref into a temporary directory and resolves the
+// commit SHA. Only the URL host is reachable during the fetch, and only when
+// the source-host policy permits the name and every address it connects to.
+// The caller must call the returned cleanup function, even when err is not nil.
+func (cloner *Cloner) Clone(ctx context.Context, repoURL, ref string) (Checkout, func(), error) {
+	checkout, cleanup, err := cloner.clone(ctx, repoURL, ref)
+	if cloner.policy.OnCheckout != nil {
+		event := Event{Host: checkout.Host, Commit: checkout.SHA, ConnectionID: checkout.ConnectionID, Cached: checkout.Cached}
+		if err != nil {
+			event.Error = err.Error()
+			if parsed, parseErr := url.Parse(strings.TrimSpace(repoURL)); parseErr == nil {
+				event.Host = parsed.Host
+			}
+		}
+		cloner.policy.OnCheckout(event)
+	}
+	return checkout, cleanup, err
+}
+
+func (cloner *Cloner) clone(parent context.Context, repoURL, ref string) (Checkout, func(), error) {
 	var zero Checkout
 	cleanup := func() {}
 	repoURL = strings.TrimSpace(repoURL)
@@ -50,53 +90,161 @@ func Clone(ctx context.Context, repoURL, ref string) (Checkout, func(), error) {
 	if strings.HasPrefix(ref, "-") || strings.Contains(ref, ":") || strings.Contains(ref, "..") || strings.ContainsAny(ref, " \t\r\n") {
 		return zero, cleanup, fmt.Errorf("ref is not a valid git revision")
 	}
+	if err := cloner.checkName(parsed); err != nil {
+		return zero, cleanup, err
+	}
+	credential, err := cloner.credentialFor(parsed)
+	if err != nil {
+		return zero, cleanup, err
+	}
+	timeout := cloner.policy.Timeout
+	if timeout <= 0 {
+		timeout = DefaultTimeout
+	}
+	ctx, cancel := context.WithCancelCause(parent)
+	timer := time.AfterFunc(timeout, func() { cancel(ErrTimeLimit) })
 	dir, err := os.MkdirTemp("", "conduit-planning-")
 	if err != nil {
+		timer.Stop()
+		cancel(nil)
 		return zero, cleanup, err
 	}
-	proxy, err := newHostProxy(parsed)
+	proxy, err := cloner.newHostProxy(parsed)
 	if err != nil {
+		timer.Stop()
+		cancel(nil)
 		os.RemoveAll(dir)
 		return zero, cleanup, err
+	}
+	git := gitRunner{proxyURL: proxy.URL, credential: credential, observe: cloner.observe}
+	stopWatch := watchSize(ctx, dir, cloner.policy.MaxBytes, cancel)
+	// release ends the network and limit machinery. The checkout directory
+	// outlives it and is removed by the returned cleanup.
+	release := func() {
+		stopWatch()
+		timer.Stop()
+		cancel(nil)
+		proxy.Close()
 	}
 	cleanup = func() {
-		proxy.Close()
+		release()
 		os.RemoveAll(dir)
 	}
-	if err := runGit(ctx, dir, proxy.URL, "init", "--quiet"); err != nil {
-		return zero, cleanup, err
+	// limited replaces a git failure with the limit or policy refusal that
+	// caused it, so the caller sees the reason and not git's exit status.
+	limited := func(err error) error {
+		if cause := context.Cause(ctx); errors.Is(cause, ErrTooLarge) || errors.Is(cause, ErrTimeLimit) {
+			return fmt.Errorf("clone %s at %s: %w", parsed.Host, ref, cause)
+		}
+		if denied := proxy.refusal(); denied != nil {
+			return fmt.Errorf("clone %s at %s: %w", parsed.Host, ref, denied)
+		}
+		return err
 	}
-	if err := runGit(ctx, dir, proxy.URL, "remote", "add", "origin", repoURL); err != nil {
-		return zero, cleanup, err
+	if err := git.run(ctx, dir, "init", "--quiet"); err != nil {
+		return zero, cleanup, limited(err)
 	}
-	if err := fetchRef(ctx, dir, proxy.URL, ref); err != nil {
-		expanded, expandErr := expandCommit(ctx, parsed, ref, proxy.URL)
+	if err := git.run(ctx, dir, "remote", "add", "origin", repoURL); err != nil {
+		return zero, cleanup, limited(err)
+	}
+	key := cacheKey{url: repoURL, connection: credential.id}
+	if cloner.cache != nil {
+		if key.sha = cloner.remoteCommit(ctx, git, dir, key, ref); key.sha != "" {
+			if entry := cloner.cache.acquire(key); entry != nil {
+				copied, copyErr := copyOut(entry.dir)
+				cloner.cache.release(entry)
+				if copyErr == nil {
+					cleanup()
+					return Checkout{Dir: copied, SHA: entry.key.sha, Host: parsed.Host, ConnectionID: credential.id, Cached: true},
+						func() { os.RemoveAll(copied) }, nil
+				}
+			}
+		}
+	}
+	if err := fetchRef(ctx, git, dir, ref); err != nil {
+		if limitErr := limited(nil); limitErr != nil {
+			return zero, cleanup, limitErr
+		}
+		expanded, expandErr := expandCommit(ctx, parsed, ref, proxy.URL, credential.caFile)
 		if expandErr != nil || expanded == "" || expanded == ref {
-			return zero, cleanup, fmt.Errorf("clone %s at %s: %w", parsed.Host, ref, err)
+			return zero, cleanup, limited(fmt.Errorf("clone %s at %s: %w", parsed.Host, ref, err))
 		}
-		if err := fetchRef(ctx, dir, proxy.URL, expanded); err != nil {
-			return zero, cleanup, fmt.Errorf("clone %s at %s: %w", parsed.Host, ref, err)
-		}
-	}
-	if err := runGit(ctx, dir, proxy.URL, "checkout", "--quiet", "--detach", "FETCH_HEAD"); err != nil {
-		if err := runGit(ctx, dir, proxy.URL, "checkout", "--quiet", "--detach", ref, "--"); err != nil {
-			return zero, cleanup, fmt.Errorf("checkout %s: %w", ref, err)
+		if err := fetchRef(ctx, git, dir, expanded); err != nil {
+			return zero, cleanup, limited(fmt.Errorf("clone %s at %s: %w", parsed.Host, ref, err))
 		}
 	}
-	sha, err := gitOut(ctx, dir, proxy.URL, "rev-parse", "--verify", "HEAD^{commit}")
+	if err := git.run(ctx, dir, "checkout", "--quiet", "--detach", "FETCH_HEAD"); err != nil {
+		if err := git.run(ctx, dir, "checkout", "--quiet", "--detach", ref, "--"); err != nil {
+			return zero, cleanup, limited(fmt.Errorf("checkout %s: %w", ref, err))
+		}
+	}
+	sha, err := git.out(ctx, dir, "rev-parse", "--verify", "HEAD^{commit}")
 	if err != nil {
-		return zero, cleanup, err
+		return zero, cleanup, limited(err)
 	}
 	sha = strings.TrimSpace(sha)
 	if len(sha) != 40 {
 		return zero, cleanup, fmt.Errorf("resolved commit is invalid")
 	}
-	return Checkout{Dir: dir, SHA: sha, Host: parsed.Host}, cleanup, nil
+	// The watcher samples. This check always runs, and it covers the working
+	// tree the checkout just expanded.
+	if overLimit(dir, cloner.policy.MaxBytes) {
+		return zero, cleanup, fmt.Errorf("clone %s at %s: %w", parsed.Host, ref, ErrTooLarge)
+	}
+	checkout := Checkout{Dir: dir, SHA: sha, Host: parsed.Host, ConnectionID: credential.id}
+	if cloner.cache == nil {
+		return checkout, cleanup, nil
+	}
+	// The cache keeps a private copy. The caller gets its own directory, so a
+	// write there cannot change what the next turn reads.
+	key.sha = sha
+	if stored, copyErr := copyOut(dir); copyErr == nil {
+		cloner.cache.add(key, stored)
+	}
+	release()
+	return checkout, func() { os.RemoveAll(dir) }, nil
 }
 
-func fetchRef(ctx context.Context, dir, proxyURL, ref string) error {
-	if err := runGit(ctx, dir, proxyURL, "fetch", "--depth", "1", "--no-recurse-submodules", "--", "origin", ref); err != nil {
-		return runGit(ctx, dir, proxyURL, "fetch", "--no-recurse-submodules", "--", "origin", ref)
+var fullSHA = regexp.MustCompile(`(?i)^[0-9a-f]{40}$`)
+
+// remoteCommit names the commit ref points at without fetching it. It returns
+// "" when that is not known, and the caller clones.
+func (cloner *Cloner) remoteCommit(ctx context.Context, git gitRunner, dir string, key cacheKey, ref string) string {
+	if fullSHA.MatchString(ref) {
+		return strings.ToLower(ref)
+	}
+	if shortSHA.MatchString(ref) {
+		if sha := cloner.cache.expand(key, strings.ToLower(ref)); sha != "" {
+			return sha
+		}
+	}
+	// A peeled tag is listed with its tag, so it needs no pattern of its own.
+	listed, err := git.out(ctx, dir, "ls-remote", "--", "origin", ref, "refs/"+ref, "refs/tags/"+ref, "refs/heads/"+ref)
+	if err != nil {
+		return ""
+	}
+	found := map[string]string{}
+	for _, line := range strings.Split(listed, "\n") {
+		sha, name, ok := strings.Cut(strings.TrimSpace(line), "\t")
+		if ok && fullSHA.MatchString(sha) {
+			found[name] = strings.ToLower(sha)
+		}
+	}
+	// This is the order git fetch uses to resolve a short ref name.
+	for _, name := range []string{ref, "refs/" + ref, "refs/tags/" + ref + "^{}", "refs/tags/" + ref, "refs/heads/" + ref} {
+		if sha := found[name]; sha != "" {
+			return sha
+		}
+	}
+	return ""
+}
+
+func fetchRef(ctx context.Context, git gitRunner, dir, ref string) error {
+	if err := git.run(ctx, dir, "fetch", "--depth", "1", "--no-recurse-submodules", "--", "origin", ref); err != nil {
+		if ctx.Err() != nil {
+			return err
+		}
+		return git.run(ctx, dir, "fetch", "--no-recurse-submodules", "--", "origin", ref)
 	}
 	return nil
 }
@@ -104,7 +252,9 @@ func fetchRef(ctx context.Context, dir, proxyURL, ref string) error {
 var shortSHA = regexp.MustCompile(`(?i)^[0-9a-f]{4,39}$`)
 var fromCommit = regexp.MustCompile(`(?i)^From\s+([0-9a-f]{40})\b`)
 
-func expandCommit(ctx context.Context, repo *url.URL, ref, proxyURL string) (string, error) {
+// expandCommit asks the host's web endpoint for the full form of an
+// abbreviated commit. The request carries no source-connection credential.
+func expandCommit(ctx context.Context, repo *url.URL, ref, proxyURL, caFile string) (string, error) {
 	if !shortSHA.MatchString(ref) {
 		return "", fmt.Errorf("ref is not an abbreviated commit")
 	}
@@ -121,9 +271,22 @@ func expandCommit(ctx context.Context, repo *url.URL, ref, proxyURL string) (str
 		return "", err
 	}
 	request.Header.Set("User-Agent", "conduit-planning")
+	transport := &http.Transport{Proxy: http.ProxyURL(mustURL(proxyURL))}
+	if caFile != "" {
+		pem, err := os.ReadFile(caFile)
+		if err != nil {
+			return "", fmt.Errorf("source connection CA file is not readable")
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return "", fmt.Errorf("source connection CA file holds no certificate")
+		}
+		transport.TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+	}
+	defer transport.CloseIdleConnections()
 	client := &http.Client{
 		Timeout:   20 * time.Second,
-		Transport: &http.Transport{Proxy: http.ProxyURL(mustURL(proxyURL))},
+		Transport: transport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if !hostAllowed(req.URL.Host, req.URL.Scheme, canonicalHost(repo.Host, repo.Scheme)) {
 				return fmt.Errorf("git host is not allowed")
@@ -182,39 +345,50 @@ func mustURL(raw string) *url.URL {
 	return parsed
 }
 
-func runGit(ctx context.Context, dir, proxyURL string, args ...string) error {
-	_, err := gitOut(ctx, dir, proxyURL, args...)
+// gitRunner starts git for one clone with the proxy and, when a source
+// connection applies, its credential.
+type gitRunner struct {
+	proxyURL   string
+	credential credential
+	// observe sees the argv and environment of each git process. Tests use it
+	// to prove where the credential is and is not.
+	observe func(argv, env []string)
+}
+
+func (git gitRunner) run(ctx context.Context, dir string, args ...string) error {
+	_, err := git.out(ctx, dir, args...)
 	return err
 }
 
-func gitOut(ctx context.Context, dir, proxyURL string, args ...string) (string, error) {
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, 2*time.Minute)
-		defer cancel()
-	}
+func (git gitRunner) out(ctx context.Context, dir string, args ...string) (string, error) {
 	config := []string{
 		"-c", "protocol.file.allow=never",
 		"-c", "protocol.ssh.allow=never",
 		"-c", "protocol.git.allow=never",
 		"-c", "http.followRedirects=false",
-		"-c", "http.proxy=" + proxyURL,
-		"-c", "https.proxy=" + proxyURL,
+		"-c", "http.proxy=" + git.proxyURL,
+		"-c", "https.proxy=" + git.proxyURL,
 		"-c", "credential.helper=",
 	}
 	cmd := exec.CommandContext(ctx, "git", append(config, args...)...)
 	cmd.Dir = dir
-	cmd.Env = gitEnv(proxyURL)
+	cmd.Env = gitEnv(git.proxyURL, git.credential)
+	// A killed git can leave a transport helper holding the output pipe.
+	cmd.WaitDelay = 2 * time.Second
+	if git.observe != nil {
+		git.observe(cmd.Args, cmd.Env)
+	}
 	var out strings.Builder
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("git %s: %w\n%s", strings.Join(args, " "), err, strings.TrimSpace(out.String()))
+		output := git.credential.redact(strings.TrimSpace(out.String()))
+		return "", fmt.Errorf("git %s: %w\n%s", strings.Join(args, " "), err, output)
 	}
 	return out.String(), nil
 }
 
-func gitEnv(proxyURL string) []string {
+func gitEnv(proxyURL string, credential credential) []string {
 	var env []string
 	for _, item := range os.Environ() {
 		key, _, _ := strings.Cut(item, "=")
@@ -231,7 +405,7 @@ func gitEnv(proxyURL string) []string {
 			env = append(env, item)
 		}
 	}
-	return append(env,
+	env = append(env,
 		"GIT_CONFIG_NOSYSTEM=1",
 		"GIT_CONFIG_GLOBAL="+os.DevNull,
 		"GIT_TERMINAL_PROMPT=0",
@@ -245,12 +419,29 @@ func gitEnv(proxyURL string) []string {
 		"NO_PROXY=",
 		"no_proxy=",
 	)
+	// The credential is git configuration delivered in the environment. It is
+	// not on the command line, so a process listing does not show it, and the
+	// key carries the connection's own origin, so git offers it to no other.
+	pairs := credential.config()
+	if len(pairs) == 0 {
+		return env
+	}
+	env = append(env, "GIT_CONFIG_COUNT="+strconv.Itoa(len(pairs)))
+	for index, pair := range pairs {
+		env = append(env,
+			"GIT_CONFIG_KEY_"+strconv.Itoa(index)+"="+pair[0],
+			"GIT_CONFIG_VALUE_"+strconv.Itoa(index)+"="+pair[1],
+		)
+	}
+	return env
 }
 
 type hostProxy struct {
 	*http.Server
-	URL      string
-	listener net.Listener
+	URL       string
+	listener  net.Listener
+	transport *http.Transport
+	denied    atomic.Pointer[error]
 }
 
 func (proxy *hostProxy) Close() {
@@ -263,27 +454,70 @@ func (proxy *hostProxy) Close() {
 	if proxy.listener != nil {
 		_ = proxy.listener.Close()
 	}
+	if proxy.transport != nil {
+		proxy.transport.CloseIdleConnections()
+	}
 }
 
-func newHostProxy(repo *url.URL) (*hostProxy, error) {
+// refusal is the policy error that stopped a connection, if one did.
+func (proxy *hostProxy) refusal() error {
+	if denied := proxy.denied.Load(); denied != nil {
+		return *denied
+	}
+	return nil
+}
+
+func (proxy *hostProxy) refuse(err error) bool {
+	if !errors.Is(err, ErrAddressRefused) {
+		return false
+	}
+	refusal := error(ErrAddressRefused)
+	proxy.denied.Store(&refusal)
+	return true
+}
+
+func (cloner *Cloner) newHostProxy(repo *url.URL) (*hostProxy, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, err
 	}
 	allowed := canonicalHost(repo.Host, repo.Scheme)
-	server := &http.Server{Handler: restrictHost(allowed), ReadHeaderTimeout: 10 * time.Second}
-	go func() { _ = server.Serve(listener) }()
-	return &hostProxy{Server: server, URL: "http://" + listener.Addr().String(), listener: listener}, nil
+	// The transport dials the host itself. It does not use an outbound proxy
+	// from the environment, because the address rule can only be enforced on
+	// a connection this process makes.
+	transport := &http.Transport{
+		DialContext:           cloner.dial,
+		ResponseHeaderTimeout: 2 * time.Minute,
+		MaxIdleConns:          4,
+		IdleConnTimeout:       30 * time.Second,
+	}
+	proxy := &hostProxy{URL: "http://" + listener.Addr().String(), listener: listener, transport: transport}
+	proxy.Server = &http.Server{Handler: proxy.restrictHost(allowed, cloner.dial), ReadHeaderTimeout: 10 * time.Second}
+	go func() { _ = proxy.Server.Serve(listener) }()
+	return proxy, nil
 }
 
-func restrictHost(allowed string) http.Handler {
+type dialFunc func(ctx context.Context, network, address string) (net.Conn, error)
+
+// dial connects to address and refuses, at connect time, any resolved address
+// the policy does not permit for that name. Checking here and not at lookup
+// means a name that changes its answer between the two cannot pass.
+func (cloner *Cloner) dial(ctx context.Context, network, address string) (net.Conn, error) {
+	exact := cloner.named(address)
+	dialer := net.Dialer{Timeout: 15 * time.Second, Control: func(_, resolved string, _ syscall.RawConn) error {
+		return cloner.checkResolved(resolved, exact)
+	}}
+	return dialer.DialContext(ctx, network, address)
+}
+
+func (proxy *hostProxy) restrictHost(allowed string, dial dialFunc) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method == http.MethodConnect {
 			if !hostAllowed(request.Host, "https", allowed) {
 				http.Error(writer, "git host is not allowed", http.StatusForbidden)
 				return
 			}
-			tunnel(writer, request)
+			proxy.tunnel(writer, request, dial)
 			return
 		}
 		target := request.URL
@@ -301,9 +535,13 @@ func restrictHost(allowed string) http.Handler {
 			return
 		}
 		outbound.Header = request.Header.Clone()
-		response, err := http.DefaultTransport.RoundTrip(outbound)
+		response, err := proxy.transport.RoundTrip(outbound)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadGateway)
+			if proxy.refuse(err) {
+				http.Error(writer, ErrAddressRefused.Error(), http.StatusForbidden)
+				return
+			}
+			http.Error(writer, "git host is not reachable", http.StatusBadGateway)
 			return
 		}
 		defer response.Body.Close()
@@ -325,10 +563,14 @@ func restrictHost(allowed string) http.Handler {
 	})
 }
 
-func tunnel(writer http.ResponseWriter, request *http.Request) {
-	destination, err := net.DialTimeout("tcp", request.Host, 15*time.Second)
+func (proxy *hostProxy) tunnel(writer http.ResponseWriter, request *http.Request, dial dialFunc) {
+	destination, err := dial(request.Context(), "tcp", request.Host)
 	if err != nil {
-		http.Error(writer, err.Error(), http.StatusBadGateway)
+		if proxy.refuse(err) {
+			http.Error(writer, ErrAddressRefused.Error(), http.StatusForbidden)
+			return
+		}
+		http.Error(writer, "git host is not reachable", http.StatusBadGateway)
 		return
 	}
 	hijacker, ok := writer.(http.Hijacker)

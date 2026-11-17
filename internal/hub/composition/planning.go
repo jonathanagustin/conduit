@@ -301,6 +301,12 @@ func planningPlanner(getenv func(string) string, repository controlplane.Reposit
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
+	// The source-host policy applies to every transport, so a value that does
+	// not parse stops startup before a model is chosen.
+	clone, err := hubPlanningClone(getenv)
+	if err != nil {
+		return nil, err
+	}
 	// One transport drives planning turns. Both set is a startup error and
 	// neither leaves planning unconfigured; the rule is modelHTTPClient's.
 	if client, err := modelHTTPClient(getenv); err != nil {
@@ -309,7 +315,7 @@ func planningPlanner(getenv func(string) string, repository controlplane.Reposit
 		return planner.Planner{
 			Model: planner.HTTPModel{Client: client},
 			Audit: planningAudit{repository: repository},
-			Clone: hubPlanningClone(getenv("DEVWORKSPACE_GIT_ROOT")),
+			Clone: clone,
 		}, nil
 	}
 	raw := strings.TrimSpace(getenv("CONDUIT_MODEL_CMD"))
@@ -334,7 +340,7 @@ func planningPlanner(getenv func(string) string, repository controlplane.Reposit
 		Timeout:   timeout,
 		ModelName: configuredModelName(getenv),
 		Audit:     planningAudit{repository: repository},
-		Clone:     hubPlanningClone(getenv("DEVWORKSPACE_GIT_ROOT")),
+		Clone:     clone,
 	}, nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,8 @@ import (
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/gitstore"
 	devdomain "github.com/jonathanagustin/conduit/internal/devworkspace/domain"
+	"github.com/jonathanagustin/conduit/internal/planning/adapters/planner"
+	"github.com/jonathanagustin/conduit/internal/planning/adapters/repoclone"
 	planningdomain "github.com/jonathanagustin/conduit/internal/planning/domain"
 )
 
@@ -239,7 +242,7 @@ func TestPlanningCloneResolvesRequestedRefInIsolatedCheckoutAndIgnoresWorkspaces
 	t.Setenv("CONDUIT_DEMO_SOURCE_DIR", demoDir)
 	t.Setenv("DEVWORKSPACE_GIT_ROOT", gitRoot)
 
-	cloneFn := hubPlanningClone(gitRoot)
+	cloneFn := loopbackPlanningClone(t)
 	checkout, cleanup, err := cloneFn(t.Context(), remote.repoURL, "release")
 	if err != nil {
 		t.Fatalf("hubPlanningClone(release): %v", err)
@@ -341,7 +344,7 @@ func TestPlanningCloneFollowsMovedHeadAndRejectsInvalidRefs(t *testing.T) {
 	t.Setenv("CONDUIT_DEMO_SOURCE_DIR", demoDir)
 	t.Setenv("DEVWORKSPACE_GIT_ROOT", gitRoot)
 
-	cloneFn := hubPlanningClone(gitRoot)
+	cloneFn := loopbackPlanningClone(t)
 
 	// 1. Initial clone resolves v1SHA.
 	c1, clean1, err := cloneFn(t.Context(), remote.repoURL, "main")
@@ -448,6 +451,8 @@ func TestPlanningSessionEndToEndHonorsRequestedBranchAndRejectsMovedOrInvalidRef
 	t.Setenv("CONDUIT_DEMO_SOURCE_DIR", plainDemo)
 	t.Setenv("DEVWORKSPACE_GIT_ROOT", gitRoot)
 	t.Setenv("CONDUIT_MODEL_CMD", binPath+" agent-exec")
+	// The fixture source is a loopback server, which the default policy refuses.
+	t.Setenv("CONDUIT_SOURCE_ALLOWED_HOSTS", "127.0.0.1")
 
 	repository := controlplane.NewMemoryRepository()
 	opts := controlplane.HandlerOptions{
@@ -514,5 +519,43 @@ func TestPlanningSessionEndToEndHonorsRequestedBranchAndRejectsMovedOrInvalidRef
 	turn2Moved := planningRequest(t, handler, "alice", "POST", "/v1/planning-sessions/"+created.ID+"/turns", `{"message":"Write plan"}`)
 	if turn2Moved.Code == http.StatusOK {
 		t.Fatalf("expected turn 2 after branch movement to fail, got 200: %s", turn2Moved.Body.String())
+	}
+}
+
+// loopbackPlanningClone builds the Hub clone function with the fixture host
+// on the operator allowlist. Without that entry the default policy refuses a
+// loopback server.
+func loopbackPlanningClone(t *testing.T) planner.CloneFunc {
+	t.Helper()
+	cloneFn, err := hubPlanningClone(func(name string) string {
+		if name == repoclone.EnvAllowedHosts {
+			return "127.0.0.1"
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cloneFn
+}
+
+func TestHubPlanningCloneRefusesLoopbackUnlessAllowlistedAndRejectsBadPolicy(t *testing.T) {
+	remote := newTestGitRemote(t, "app", map[string]string{"README.md": "v1\n"})
+	cloneFn, err := hubPlanningClone(func(string) string { return "" })
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, cleanup, err := cloneFn(t.Context(), remote.repoURL, "main")
+	cleanup()
+	if !errors.Is(err, repoclone.ErrAddressRefused) {
+		t.Fatalf("default policy clone of a loopback host: err = %v, want ErrAddressRefused", err)
+	}
+	if _, err := hubPlanningClone(func(name string) string {
+		if name == repoclone.EnvConnections {
+			return `[{"id":"corp","host":"example.test","token":"inline-secret"}]`
+		}
+		return ""
+	}); err == nil || strings.Contains(err.Error(), "inline-secret") {
+		t.Fatalf("inline secret in the connection list: err = %v, want a refusal that does not repeat it", err)
 	}
 }
