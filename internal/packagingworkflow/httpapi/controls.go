@@ -20,7 +20,7 @@ const (
 	verdictDeny  = "DENY"
 )
 
-// Retain the HTTP reader surface for existing composition callers while the
+// Controls retains the HTTP reader surface for existing composition callers while the
 // shared command service needs only a single-run read.
 type Controls interface {
 	app.Controls
