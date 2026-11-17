@@ -202,6 +202,12 @@ review_ledger() {
     ./scripts/verify-review-ledger.test.sh
 }
 
+native_documentation() {
+  go run ./tools/native-reference &&
+    node --test scripts/verify-readiness.test.mjs scripts/verify-documentation-manifest.test.mjs &&
+    node scripts/verify-readiness.mjs
+}
+
 gate 'Check formatting' check_formatting
 # The runnable half of CI's head-authentication step. The authenticator itself
 # reads the run's own GitHub event and asks the API about a pull request, so it
@@ -244,6 +250,7 @@ self_product_preparation() {
 }
 gate 'Validate self Product preparation' self_product_preparation
 gate 'Validate developer host tools' ./scripts/test-development-host.sh
+gate 'Validate native documentation' native_documentation
 gate 'Validate version and tag agreement' ./scripts/verify-version-matches-tag.sh
 gate 'Validate domain boundaries' bash -c 'node scripts/verify-domain-boundaries.mjs && node scripts/test-domain-boundaries.mjs'
 gate 'Validate route authorization' bash -c 'node scripts/verify-route-authorization.test.mjs && node scripts/verify-route-authorization.mjs'

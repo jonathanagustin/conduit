@@ -11,11 +11,9 @@ const (
 	Appgen    = "APPGEN"
 )
 
-// ForCapability overlays CONDUIT_<CAPABILITY>_MODEL_NAME, _CMD and _TIMEOUT
-// on their global counterparts. An explicit command selects CLI execution for
-// this capability, so it shadows a globally configured HTTP endpoint. Names
-// alone select a model on the existing HTTP endpoint; a CLI's model is selected
-// by its argv, and its configured name remains the operator's assertion.
+// ForCapability overlays capability NAME and TIMEOUT on the shared HTTP model
+// configuration. Legacy CMD values are retained only so transport validation
+// can refuse them explicitly; they never select execution or hide an endpoint.
 //
 // Endpoint and credential overrides are deliberately absent: inheriting a key
 // while replacing its endpoint would send that key to a different service.
@@ -26,13 +24,8 @@ func ForCapability(getenv func(string) string, capability string) func(string) s
 		getenv = func(string) string { return "" }
 	}
 	prefix := "CONDUIT_" + capability + "_MODEL_"
-	command := strings.TrimSpace(getenv(prefix + "CMD"))
 	return func(name string) string {
 		switch name {
-		case "CONDUIT_MODEL_BASE_URL":
-			if command != "" {
-				return ""
-			}
 		case "CONDUIT_MODEL_NAME", "CONDUIT_MODEL_CMD", "CONDUIT_MODEL_TIMEOUT":
 			if value := strings.TrimSpace(getenv(prefix + strings.TrimPrefix(name, "CONDUIT_MODEL_"))); value != "" {
 				return value

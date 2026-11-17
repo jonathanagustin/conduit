@@ -210,7 +210,7 @@ export function createSettings(ctx) {
   const state = ctx.state;
 
   function note(live, label, native = false) {
-    return `<span class="bp6-compound-tag"><span class="bp6-compound-left">${esc(label)}</span><span class="bp6-compound-right" style="background:#1a2430;color:#7cb4ff">${live ? "Hub" : native ? "Unavailable" : "Example data"}</span></span>`;
+    return `<span class="bp6-compound-tag"><span class="bp6-compound-left">${esc(label)}</span><span class="bp6-compound-right" style="background:var(--bg-2);color:var(--info-text)">${live ? "Hub" : native ? "Unavailable" : "Example data"}</span></span>`;
   }
 
   const identityKey = () =>
@@ -498,16 +498,16 @@ export function createSettings(ctx) {
       <div class="so-view-enter space-y-3">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div class="text-[15px] font-bold text-white">Preferences</div>
-            <div class="text-[11.5px] text-[#8b96a5]">Theme, density, clock, shortcuts, and personal tokens.</div>
+            <div class="text-[15px] font-bold text-[var(--text-1)]">Preferences</div>
+            <div class="text-[11.5px] text-[var(--text-2)]">Theme, density, clock, shortcuts, and personal tokens.</div>
           </div>
           ${note(false, "Tokens", !state.prefTokenExamples)}
         </div>
         <div class="grid gap-3 lg:grid-cols-2">
           <div class="so-panel p-3.5 space-y-3">
-            <div class="text-[13px] font-semibold text-white">Appearance</div>
+            <div class="text-[13px] font-semibold text-[var(--text-1)]">Appearance</div>
             <div class="flex flex-wrap items-center justify-between gap-2">
-              <span class="text-[12px] text-[#dce4ee]">Theme</span>
+              <span class="text-[12px] text-[var(--text-1)]">Theme</span>
               ${segmented(
                 [
                   ["dark", "Dark"],
@@ -518,7 +518,7 @@ export function createSettings(ctx) {
               )}
             </div>
             <div class="flex flex-wrap items-center justify-between gap-2">
-              <span class="text-[12px] text-[#dce4ee]">Density</span>
+              <span class="text-[12px] text-[var(--text-1)]">Density</span>
               ${segmented(
                 [
                   ["compact", "Compact"],
@@ -529,7 +529,7 @@ export function createSettings(ctx) {
               )}
             </div>
             <div class="flex flex-wrap items-center justify-between gap-2">
-              <span class="text-[12px] text-[#dce4ee]">Time zone</span>
+              <span class="text-[12px] text-[var(--text-1)]">Time zone</span>
               ${segmented(
                 [
                   ["UTC", "UTC"],
@@ -541,13 +541,13 @@ export function createSettings(ctx) {
             </div>
           </div>
           <div class="so-panel p-3.5 space-y-2">
-            <div class="text-[13px] font-semibold text-white">Keyboard shortcuts</div>
+            <div class="text-[13px] font-semibold text-[var(--text-1)]">Keyboard shortcuts</div>
             ${SHORTCUTS.map(
               ([
                 action,
                 keys,
               ]) => `<div class="flex items-center justify-between gap-3 text-[12px]">
-                <span class="text-[#dce4ee]">${esc(action)}</span>
+                <span class="text-[var(--text-1)]">${esc(action)}</span>
                 <kbd class="bp6-key-combo">${esc(keys)}</kbd>
               </div>`,
             ).join("")}
@@ -556,26 +556,26 @@ export function createSettings(ctx) {
         <div class="so-panel p-3.5 space-y-3">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <div class="text-[13px] font-semibold text-white">Personal API tokens</div>
-              <div class="text-[11px] text-[#8b96a5]">This Hub does not issue personal tokens.</div>
+              <div class="text-[13px] font-semibold text-[var(--text-1)]">Personal API tokens</div>
+              <div class="text-[11px] text-[var(--text-2)]">This Hub does not issue personal tokens.</div>
             </div>
           </div>
           ${
             state.prefTokenExamples
               ? `
-          <div role="status" class="so-warn-card p-2 text-[12px] text-[#eab854]">Example data. Changes here stay in this browser view and do not issue or revoke credentials.</div>
+          <div role="status" class="so-warn-card p-2 text-[12px] text-[var(--warn-text)]">Example data. Changes here stay in this browser view and do not issue or revoke credentials.</div>
           <button type="button" class="so-btn" data-onclick="setTokenExampleMode(false)">Exit token example mode</button>
           <div class="flex flex-wrap gap-2 items-end">
-            <label class="text-[11px] text-[#8b96a5]">Name
+            <label class="text-[11px] text-[var(--text-2)]">Name
               <input id="pref-token-name" class="so-input mt-1" value="${esc(state.prefTokenDraft.name)}" data-oninput="state.prefTokenDraft.name=this.value" />
             </label>
-            <label class="text-[11px] text-[#8b96a5]">Scope
+            <label class="text-[11px] text-[var(--text-2)]">Scope
               <select class="so-select mt-1" data-onchange="state.prefTokenDraft.scope=this.value">
                 <option value="read" ${state.prefTokenDraft.scope === "read" ? "selected" : ""}>read</option>
                 <option value="propose" ${state.prefTokenDraft.scope === "propose" ? "selected" : ""}>propose</option>
               </select>
             </label>
-            <label class="text-[11px] text-[#8b96a5]">Expiry
+            <label class="text-[11px] text-[var(--text-2)]">Expiry
               <select class="so-select mt-1" data-onchange="state.prefTokenDraft.expires=this.value">
                 ${["8h", "24h", "7d", "30d"].map((value) => `<option value="${value}" ${state.prefTokenDraft.expires === value ? "selected" : ""}>${value}</option>`).join("")}
               </select>
@@ -588,7 +588,7 @@ export function createSettings(ctx) {
               ${tokens
                 .map(
                   (token) => `<tr>
-                    <td class="font-semibold text-[#5c9ce6]">${esc(token.name)}</td>
+                    <td class="font-semibold text-[var(--info-text)]">${esc(token.name)}</td>
                     <td>${esc(token.scope)}</td>
                     <td>${esc(token.expires)}</td>
                     <td>${esc(token.status)}</td>
@@ -635,9 +635,9 @@ export function createSettings(ctx) {
         <p data-org-directory-status>${state.orgTeamsLive ? `${teams.length} stored teams returned.` : "Team directory unavailable for this session."}</p>
         <table class="so-table">
           <thead><tr><th>Team</th><th>User memberships</th><th>Group memberships</th></tr></thead>
-          <tbody>${teams.map((team) => `<tr><td class="font-semibold text-[#5c9ce6]">${esc(team.displayName || team.name)}</td><td>${esc(team.users)}</td><td>${esc(team.groups)}</td></tr>`).join("")}</tbody>
+          <tbody>${teams.map((team) => `<tr><td class="font-semibold text-[var(--info-text)]">${esc(team.displayName || team.name)}</td><td>${esc(team.users)}</td><td>${esc(team.groups)}</td></tr>`).join("")}</tbody>
         </table>
-        <div class="text-[13px] font-semibold text-white mt-3">Stored roles and explicit operations</div><p>${state.orgGrantsLive ? `${grants.length} stored grants returned.` : "Resource grants unavailable for this session."}</p>
+        <div class="text-[13px] font-semibold text-[var(--text-1)] mt-3">Stored roles and explicit operations</div><p>${state.orgGrantsLive ? `${grants.length} stored grants returned.` : "Resource grants unavailable for this session."}</p>
         <table class="so-table">
           <thead><tr><th>Team</th><th>Resource</th><th>Roles</th><th>Operations</th></tr></thead>
           <tbody>${grants.map((grant) => `<tr><td>${esc(grant.team)}</td><td class="code-id">${esc(grant.resourceRid)}</td><td>${esc(grant.roles)}</td><td>${esc(grant.operations)}</td></tr>`).join("")}</tbody>
@@ -661,7 +661,7 @@ export function createSettings(ctx) {
               .join("")}</tbody>
           </table>
           `
-        : `<div class="text-[12px] text-[#8b96a5]">${state.approvalPoliciesLive ? "No stored approval policies were returned; other review requirements can still apply." : "Hub did not return approval policies."}</div>`;
+        : `<div class="text-[12px] text-[var(--text-2)]">${state.approvalPoliciesLive ? "No stored approval policies were returned; other review requirements can still apply." : "Hub did not return approval policies."}</div>`;
       body += governanceEditor.markup(
         "policy",
         policies,
@@ -672,14 +672,14 @@ export function createSettings(ctx) {
       body = `
         <div class="grid gap-3 lg:grid-cols-2">
           <div class="so-card p-3 space-y-1">
-            <div class="text-[11px] uppercase tracking-[0.08em] text-[#8b96a5]">Hub readiness</div>
+            <div class="text-[11px] uppercase tracking-[0.08em] text-[var(--text-2)]">Hub readiness</div>
             <div><span class="kit-badge kit-badge-${ready === "ok" ? "ok" : "warn"}">${esc(ready)}</span></div>
-            <div class="text-[11px] text-[#8b96a5]">From <span class="code-id">/health/ready</span> when this page loaded.</div>
+            <div class="text-[11px] text-[var(--text-2)]">From <span class="code-id">/health/ready</span> when this page loaded.</div>
           </div>
           <div class="so-card p-3 space-y-1">
-            <div class="text-[11px] uppercase tracking-[0.08em] text-[#8b96a5]">Your session</div>
+            <div class="text-[11px] uppercase tracking-[0.08em] text-[var(--text-2)]">Your session</div>
             <div class="text-[12px]">Signed in as <span class="code-id">${esc(state.sessionName || "unavailable")}</span>${state.sessionDelegated ? " (delegated)" : ""}</div>
-            <div class="text-[11px] text-[#8b96a5]">Teams: ${esc((state.sessionTeams || []).join(", ") || (state.sessionAvailable ? "none recorded" : "unavailable"))}</div>
+            <div class="text-[11px] text-[var(--text-2)]">Teams: ${esc((state.sessionTeams || []).join(", ") || (state.sessionAvailable ? "none recorded" : "unavailable"))}</div>
           </div>
         </div>
         ${capabilityTableMarkup(state.capabilities, esc)}`;
@@ -691,14 +691,14 @@ export function createSettings(ctx) {
           ? providers
               .map(
                 (provider) => `<div class="so-card p-3">
-                <div class="text-[12.5px] font-semibold text-white">${esc(provider.name || "Operator identity")}</div>
-                <div class="text-[11px] text-[#8b96a5] mt-1">Issuer ${esc(provider.issuer || "not published")}</div>
-                <div class="text-[11px] text-[#8b96a5]">Client ${esc(provider.clientId || "not published")}</div>
-                <div class="text-[11px] text-[#6d7885] mt-2">Read only. This screen does not change the provider.</div>
+                <div class="text-[12.5px] font-semibold text-[var(--text-1)]">${esc(provider.name || "Operator identity")}</div>
+                <div class="text-[11px] text-[var(--text-2)] mt-1">Issuer ${esc(provider.issuer || "not published")}</div>
+                <div class="text-[11px] text-[var(--text-2)]">Client ${esc(provider.clientId || "not published")}</div>
+                <div class="text-[11px] text-[var(--text-2)] mt-2">Read only. This screen does not change the provider.</div>
               </div>`,
               )
               .join("")
-          : `<div class="text-[12px] text-[#8b96a5]">No identity provider is published by this Hub.</div>`;
+          : `<div class="text-[12px] text-[var(--text-2)]">No identity provider is published by this Hub.</div>`;
     } else {
       const keys = state.signingKeys || [];
       body = `
@@ -708,22 +708,22 @@ export function createSettings(ctx) {
             ? keys
                 .map(
                   (key) => `<div class="so-card p-3">
-                    <div class="text-[12.5px] font-semibold text-white">${esc(key.id)}</div>
-                    <div class="text-[11px] text-[#8b96a5]">${esc(key.algorithm)}</div>
-                    <div class="code-id text-[10.5px] text-[#dce4ee] break-all mt-2">${esc(key.publicKey)}</div>
+                    <div class="text-[12.5px] font-semibold text-[var(--text-1)]">${esc(key.id)}</div>
+                    <div class="text-[11px] text-[var(--text-2)]">${esc(key.algorithm)}</div>
+                    <div class="code-id text-[10.5px] text-[var(--text-1)] break-all mt-2">${esc(key.publicKey)}</div>
                   </div>`,
                 )
                 .join("")
-            : `<div class="text-[12px] text-[#8b96a5]">Signing-key metadata is unavailable.</div>`
+            : `<div class="text-[12px] text-[var(--text-2)]">Signing-key metadata is unavailable.</div>`
         }
-        <div class="text-[11px] text-[#6d7885] mt-2">This is the published signing key, not the full trusted-key store.</div>`;
+        <div class="text-[11px] text-[var(--text-2)] mt-2">This is the published signing key, not the full trusted-key store.</div>`;
     }
     root.innerHTML = `
       <div class="so-view-enter space-y-3">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div class="text-[15px] font-bold text-white">Organization</div>
-            <div class="text-[11.5px] text-[#8b96a5]">Directory, roles, approval policies, control-plane health, the identity provider, and signing keys.</div>
+            <div class="text-[15px] font-bold text-[var(--text-1)]">Organization</div>
+            <div class="text-[11.5px] text-[var(--text-2)]">Directory, roles, approval policies, control-plane health, the identity provider, and signing keys.</div>
           </div>
           ${segmented(tabs, tab, "setOrganizationTab")}<button type="button" class="so-btn" data-onclick="refreshOrganization()">Refresh snapshot</button>
         </div>
@@ -742,8 +742,8 @@ export function createSettings(ctx) {
     if (!state.authEnabled) {
       root.innerHTML = `
         <div class="so-view-enter so-panel p-4 max-w-[520px] mx-auto mt-6">
-          <div class="text-[15px] font-bold text-white">Sign-in</div>
-          <div class="text-[12px] text-[#8b96a5] mt-2">Sign-in is not enabled on this Hub.</div>
+          <div class="text-[15px] font-bold text-[var(--text-1)]">Sign-in</div>
+          <div class="text-[12px] text-[var(--text-2)] mt-2">Sign-in is not enabled on this Hub.</div>
         </div>`;
       return;
     }
@@ -754,10 +754,10 @@ export function createSettings(ctx) {
     root.innerHTML = `
       <div class="so-view-enter so-panel p-4 max-w-[520px] mx-auto mt-6 space-y-3">
         <div>
-          <div class="text-[15px] font-bold text-white">Sign-in</div>
-          <div class="text-[12px] text-[#8b96a5] mt-1">Choose a configured provider. This screen does not collect a password.</div>
+          <div class="text-[15px] font-bold text-[var(--text-1)]">Sign-in</div>
+          <div class="text-[12px] text-[var(--text-2)] mt-1">Choose a configured provider. This screen does not collect a password.</div>
         </div>
-        <label class="block text-[11px] text-[#8b96a5]">Identity provider
+        <label class="block text-[11px] text-[var(--text-2)]">Identity provider
           <select class="so-select mt-1 w-full" data-onchange="state.signInIssuer=this.value">
             ${providers.map((provider) => `<option value="${esc(provider.issuer)}" ${selected && selected.issuer === provider.issuer ? "selected" : ""}>${esc(provider.name || provider.issuer)}</option>`).join("")}
           </select>
@@ -768,8 +768,8 @@ export function createSettings(ctx) {
                 <button type="button" class="so-btn so-btn-blue" data-sign-in data-onclick="beginOperatorSignIn()">Continue to the identity provider</button>
                 ${state.sessionName ? `<button type="button" class="so-btn" data-sign-out data-onclick="endOperatorSession()">Sign out ${esc(state.sessionName)}</button>` : ""}
               </div>
-              ${state.signOutFailed ? `<div class="text-[12px] text-[#f0a3a3]" role="alert">Sign-out did not complete. You are still signed in; try again.</div>` : ""}`
-            : `<div class="text-[12px] text-[#8b96a5]" data-sign-in-unavailable>This Hub verifies operator tokens but does not run a browser sign-in. Reach it through your organization's access proxy, or ask the Conduit operator to configure the console's public address.</div>`
+              ${state.signOutFailed ? `<div class="text-[12px] text-[var(--err-text)]" role="alert">Sign-out did not complete. You are still signed in; try again.</div>` : ""}`
+            : `<div class="text-[12px] text-[var(--text-2)]" data-sign-in-unavailable>This Hub verifies operator tokens but does not run a browser sign-in. Reach it through your organization's access proxy, or ask the Conduit operator to configure the console's public address.</div>`
         }
       </div>`;
   }
@@ -786,10 +786,10 @@ export function createSettings(ctx) {
         Boolean(seen) &&
         !/Hub did not|No reported|No import|No packaging/.test(String(seen));
       return `<tr data-onclick="selectDataSource('${esc(source.id)}')" class="cursor-pointer${on ? " is-selected" : ""}">
-        <td data-col="Source"><span class="font-semibold text-white">${esc(source.name)}</span></td>
-        <td data-col="Endpoint" data-long="1" class="code-id text-[11px] text-[#dce4ee]">${esc(source.endpoint)}</td>
-        <td data-col="Cadence" data-long="1" class="text-[11px] text-[#8b96a5]">${esc(source.cadence)}</td>
-        <td data-col="Updates" data-long="1" class="text-[11px] text-[#dce4ee]">${esc(source.updates)}</td>
+        <td data-col="Source"><span class="font-semibold text-[var(--text-1)]">${esc(source.name)}</span></td>
+        <td data-col="Endpoint" data-long="1" class="code-id text-[11px] text-[var(--text-1)]">${esc(source.endpoint)}</td>
+        <td data-col="Cadence" data-long="1" class="text-[11px] text-[var(--text-2)]">${esc(source.cadence)}</td>
+        <td data-col="Updates" data-long="1" class="text-[11px] text-[var(--text-1)]">${esc(source.updates)}</td>
         <td data-col="Last seen" data-long="1">${live ? "" : `<span class="so-pill so-pill-amber">Example data</span> `}<span class="so-pill ${live ? "so-pill-green" : ""}">${esc(seen || "Not reported")}</span></td>
       </tr>`;
     }).join("");
@@ -797,8 +797,8 @@ export function createSettings(ctx) {
       <div class="so-view-enter space-y-3">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div class="text-[15px] font-bold text-white">Data sources</div>
-            <div class="text-[11.5px] text-[#8b96a5]">How this Hub receives data. Request shapes below are examples. Last seen is a Hub observation only when that read succeeds.</div>
+            <div class="text-[15px] font-bold text-[var(--text-1)]">Data sources</div>
+            <div class="text-[11.5px] text-[var(--text-2)]">How this Hub receives data. Request shapes below are examples. Last seen is a Hub observation only when that read succeeds.</div>
           </div>
           ${note(false, "Request shape")}
         </div>
@@ -811,12 +811,12 @@ export function createSettings(ctx) {
           </div>
         </div>
         <div class="so-panel p-3.5 space-y-2">
-          <div class="text-[13px] font-semibold text-white">${esc(selected.name)}</div>
-          <div class="text-[12px] text-[#8b96a5]">${esc(selected.endpoint)}. ${esc(selected.cadence)}. Updates ${esc(selected.updates).charAt(0).toLowerCase()}${esc(selected.updates).slice(1)}.</div>
-          <div class="text-[11px] text-[#eab854]">Example data. This screen does not accept a pasted document.</div>
-          <pre class="code-id text-[11px] text-[#dce4ee] whitespace-pre-wrap break-words">${esc(JSON.stringify(selected.payload, null, 2))}</pre>
+          <div class="text-[13px] font-semibold text-[var(--text-1)]">${esc(selected.name)}</div>
+          <div class="text-[12px] text-[var(--text-2)]">${esc(selected.endpoint)}. ${esc(selected.cadence)}. Updates ${esc(selected.updates).charAt(0).toLowerCase()}${esc(selected.updates).slice(1)}.</div>
+          <div class="text-[11px] text-[var(--warn-text)]">Example data. This screen does not accept a pasted document.</div>
+          <pre class="code-id text-[11px] text-[var(--text-1)] whitespace-pre-wrap break-words">${esc(JSON.stringify(selected.payload, null, 2))}</pre>
         </div>
-        <div class="text-[11.5px] text-[#8b96a5]">Bundle import is an ordinary submission of a bundle envelope. The Hub records a receipt and opens a change request for each target environment.</div>
+        <div class="text-[11.5px] text-[var(--text-2)]">Bundle import is an ordinary submission of a bundle envelope. The Hub records a receipt and opens a change request for each target environment.</div>
       </div>`;
   }
 

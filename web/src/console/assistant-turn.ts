@@ -374,25 +374,23 @@ function failureText(error: TurnError): string {
   return detailed && said ? `${stable} The Hub said: ${said}` : stable;
 }
 
-/**
- * The model that served a turn. A name the Hub marks "unverified" was not
- * read from the provider, so it is shown as a caution, never as a fact.
- */
+/** Display typed identity metadata; model-name spelling carries no provenance. */
 export function modelLabel(
   model: ServedModel | null | undefined,
 ): { text: string; caution: boolean } | null {
-  if (!model) return null;
-  if (model.configuredModel?.trim() || model.providerModel?.trim()) {
-    return {
-      text: servedModelLabel(model),
-      caution: !model.providerModel?.trim(),
-    };
-  }
-  const name = (model.model ?? "").trim();
-  const kind = model.kind.trim();
-  if (!name && !kind) return null;
-  const caution = name.toLowerCase().startsWith("unverified");
-  return { text: [kind, name].filter(Boolean).join(" · "), caution };
+  if (
+    !model ||
+    ![model.kind, model.model, model.configuredModel, model.providerModel].some(
+      (value) => value?.trim(),
+    )
+  )
+    return null;
+  return {
+    text: servedModelLabel(model),
+    caution: Boolean(
+      model.configuredModel?.trim() && !model.providerModel?.trim(),
+    ),
+  };
 }
 
 /** The newest answer for a call: the last follow-up, else the first result. */

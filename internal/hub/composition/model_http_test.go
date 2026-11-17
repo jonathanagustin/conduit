@@ -11,12 +11,11 @@ import (
 	"strings"
 	"testing"
 
-	appcli "github.com/jonathanagustin/conduit/internal/appgen/adapters/modelcli"
 	appmodelhttp "github.com/jonathanagustin/conduit/internal/appgen/adapters/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/appgen/adapters/recorded"
-	assistantcli "github.com/jonathanagustin/conduit/internal/assistant/adapters/modelcli"
 	assistantmodelhttp "github.com/jonathanagustin/conduit/internal/assistant/adapters/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
+	"github.com/jonathanagustin/conduit/internal/localcmd"
 	"github.com/jonathanagustin/conduit/internal/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/deterministic"
 	packagingcli "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelcli"
@@ -33,13 +32,13 @@ func TestModelTransportsCannotBothBeConfigured(t *testing.T) {
 	getenv := envOf(map[string]string{
 		"CONDUIT_MODEL_CMD": "codex exec -", "CONDUIT_MODEL_BASE_URL": "https://model.example/v1", "CONDUIT_MODEL_NAME": "m",
 	})
-	if model, err := assistantModel(getenv); !errors.Is(err, errModelBothConfigured) || model != nil {
+	if model, err := assistantModel(getenv); !errors.Is(err, localcmd.ErrLocalCommandUnsupported) || model != nil {
 		t.Fatalf("assistant: %v %v", model, err)
 	}
-	if generator, err := appGenerator(getenv); !errors.Is(err, errModelBothConfigured) || generator != nil {
+	if generator, err := appGenerator(getenv); !errors.Is(err, localcmd.ErrLocalCommandUnsupported) || generator != nil {
 		t.Fatalf("appgen: %v %v", generator, err)
 	}
-	if runner, err := planningPlanner(getenv, nil); !errors.Is(err, errModelBothConfigured) || runner != nil {
+	if runner, err := planningPlanner(getenv, nil); !errors.Is(err, localcmd.ErrLocalCommandUnsupported) || runner != nil {
 		t.Fatalf("planning: %v %v", runner, err)
 	}
 	for _, name := range []string{"CONDUIT_MODEL_CMD", "CONDUIT_MODEL_BASE_URL"} {
@@ -67,19 +66,21 @@ func TestNoModelConfigurationIsUnchanged(t *testing.T) {
 	}
 }
 
-func TestModelCommandAloneStillSelectsTheCommand(t *testing.T) {
-	getenv := envOf(map[string]string{"CONDUIT_MODEL_CMD": "codex exec -"})
-	model, err := assistantModel(getenv)
-	if _, ok := model.(assistantcli.Runner); err != nil || !ok {
-		t.Fatalf("assistant: %T %v", model, err)
-	}
-	generator, err := appGenerator(getenv)
-	if _, ok := generator.(appcli.Runner); err != nil || !ok {
-		t.Fatalf("appgen: %T %v", generator, err)
-	}
-	runner, err := planningPlanner(getenv, nil)
-	if _, ok := runner.(planner.Planner); err != nil || !ok {
-		t.Fatalf("planning: %T %v", runner, err)
+func TestEveryCommandSettingRefusesHTTPAndOfflineFallback(t *testing.T) {
+	for _, key := range []string{"CONDUIT_MODEL_CMD", "CONDUIT_ASSISTANT_MODEL_CMD", "CONDUIT_PLANNING_MODEL_CMD", "CONDUIT_PACKAGING_MODEL_CMD", "CONDUIT_APPGEN_MODEL_CMD"} {
+		for _, base := range []string{"", "https://models.example/v1"} {
+			get := envOf(map[string]string{key: "private-command --secret do-not-echo", "CONDUIT_MODEL_BASE_URL": base, "CONDUIT_MODEL_NAME": "m"})
+			_, assistantErr := assistantModel(get)
+			_, appgenErr := appGenerator(get)
+			_, planningErr := planningPlanner(get, nil)
+			_, proposalErr := modelProposer(get)
+			_, writerErr := packagingWriter(get)
+			for _, err := range []error{assistantErr, appgenErr, planningErr, proposalErr, writerErr} {
+				if !errors.Is(err, localcmd.ErrLocalCommandUnsupported) || strings.Contains(err.Error(), "do-not-echo") {
+					t.Fatalf("%s base=%q: %v", key, base, err)
+				}
+			}
+		}
 	}
 }
 
@@ -148,10 +149,10 @@ func TestPackagingWiringFollowsTheTransportRule(t *testing.T) {
 	both := envOf(map[string]string{
 		"CONDUIT_MODEL_CMD": "codex exec -", "CONDUIT_MODEL_BASE_URL": "https://model.example/v1", "CONDUIT_MODEL_NAME": "m",
 	})
-	if proposer, err := modelProposer(both); !errors.Is(err, errModelBothConfigured) || proposer != nil {
+	if proposer, err := modelProposer(both); !errors.Is(err, localcmd.ErrLocalCommandUnsupported) || proposer != nil {
 		t.Fatalf("proposer: %v %v", proposer, err)
 	}
-	if writer, err := packagingWriter(both); !errors.Is(err, errModelBothConfigured) || writer != nil {
+	if writer, err := packagingWriter(both); !errors.Is(err, localcmd.ErrLocalCommandUnsupported) || writer != nil {
 		t.Fatalf("writer: %v %v", writer, err)
 	}
 	// Neither set is unchanged: the recorded proposer and the deterministic writer.
@@ -166,20 +167,7 @@ func TestPackagingWiringFollowsTheTransportRule(t *testing.T) {
 	if _, ok := writer.(deterministic.Writer); err != nil || !ok {
 		t.Fatalf("writer with no model: %T %v", writer, err)
 	}
-	// A command carries the operator-configured name, and only that.
-	named := envOf(map[string]string{"CONDUIT_MODEL_CMD": "codex exec -", "CONDUIT_MODEL_NAME": " operator-chosen "})
-	proposer, err = modelProposer(named)
-	if runner, ok := proposer.(packagingcli.Runner); err != nil || !ok || runner.ModelName != "operator-chosen" {
-		t.Fatalf("proposer: %+v %v", proposer, err)
-	}
-	writer, err = packagingWriter(named)
-	if runner, ok := writer.(packagingcli.Runner); err != nil || !ok || runner.ModelName != "operator-chosen" {
-		t.Fatalf("writer: %+v %v", writer, err)
-	}
-	runner, err := planningPlanner(named, nil)
-	if planningRunner, ok := runner.(planner.Planner); err != nil || !ok || planningRunner.ModelName != "operator-chosen" || planningRunner.Model != nil {
-		t.Fatalf("planner: %+v %v", runner, err)
-	}
+
 }
 
 func TestPlanningAuditRecordsConfiguredAndProviderModel(t *testing.T) {
@@ -286,7 +274,7 @@ func TestIntelligenceUsesTheHTTPModelForLiveEvals(t *testing.T) {
 		t.Fatalf("value %q err %v", value, err)
 	}
 	t.Setenv("CONDUIT_MODEL_CMD", "codex exec -")
-	if liveEvalProposer() != nil || intelligenceAdapter() != "recorded" {
+	if liveEvalProposer() != nil || intelligenceAdapter() != "unavailable" {
 		t.Fatal("both transports set must not pick one")
 	}
 }

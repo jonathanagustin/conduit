@@ -3,13 +3,13 @@ package composition
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"github.com/jonathanagustin/conduit/internal/localcmd"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	appcli "github.com/jonathanagustin/conduit/internal/appgen/adapters/modelcli"
 	apphttp "github.com/jonathanagustin/conduit/internal/appgen/adapters/modelhttp"
-	assistantcli "github.com/jonathanagustin/conduit/internal/assistant/adapters/modelcli"
 	packaginghttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/planning/adapters/planner"
 )
@@ -70,31 +70,9 @@ func TestFactoriesSelectTheirCapabilityModel(t *testing.T) {
 	}
 }
 
-func TestCapabilityCommandOverridesHTTPOnlyForThatCapability(t *testing.T) {
-	get := envOf(map[string]string{
-		"CONDUIT_MODEL_BASE_URL": "https://models.example/v1", "CONDUIT_MODEL_NAME": "global",
-		"CONDUIT_ASSISTANT_MODEL_CMD": "operator-cli --model selected", "CONDUIT_ASSISTANT_MODEL_NAME": "selected",
-		"CONDUIT_APPGEN_MODEL_CMD": "operator-appgen --model build", "CONDUIT_APPGEN_MODEL_NAME": "build",
-	})
-	assistant, err := assistantModel(get)
-	if err != nil {
+func TestCapabilityCommandCannotOverrideHTTPWithHostExecution(t *testing.T) {
+	get := envOf(map[string]string{"CONDUIT_MODEL_BASE_URL": "https://models.example/v1", "CONDUIT_MODEL_NAME": "shared", "CONDUIT_ASSISTANT_MODEL_CMD": "operator-cli"})
+	if _, err := assistantModel(get); !errors.Is(err, localcmd.ErrLocalCommandUnsupported) {
 		t.Fatal(err)
-	}
-	if got, ok := assistant.(assistantcli.Runner); !ok || got.ModelName != "selected" || got.Argv[0] != "operator-cli" {
-		t.Fatalf("assistant command=%+v", assistant)
-	}
-	appgen, err := appGenerator(get)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, ok := appgen.(appcli.Runner); !ok || got.ModelName != "build" || got.Argv[0] != "operator-appgen" {
-		t.Fatalf("appgen command=%+v", appgen)
-	}
-	proposer, err := modelProposer(get)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, ok := proposer.(packaginghttp.Adapter); !ok || got.Client.RequestedModel() != "global" {
-		t.Fatalf("another capability lost global HTTP: %+v", proposer)
 	}
 }

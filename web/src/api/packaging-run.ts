@@ -48,6 +48,8 @@ export type PackagingRunDetail = {
   handoffReconciled: boolean;
   lastReview: string;
   duplicateReviews: number;
+  templateVersion: string;
+  toolVersions: string;
 };
 
 export type PackagingRunState =
@@ -130,6 +132,8 @@ function toDetail(response: GetPackagingRunResponse): PackagingRunDetail {
     handoffReconciled: response.handoffReconciled,
     lastReview: response.lastReview,
     duplicateReviews: response.duplicateReviews,
+    templateVersion: response.templateVersion,
+    toolVersions: response.toolVersions,
   };
 }
 

@@ -9,6 +9,16 @@ const requiredPages = [
   'architecture',
   'packaging',
   'roadmap',
+  'install',
+  'operate',
+  'tenant',
+  'cli',
+  'api',
+  'readiness',
+  'reference/native-api',
+  'reference/route-coverage',
+  'reference/rpc',
+  'reference/cli-commands',
 ];
 
 const demoFiles = [

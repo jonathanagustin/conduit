@@ -106,15 +106,13 @@ conduit-eval live   [--corpus DIR] [--out FILE]
 - **live** calls the provider and prints scores. It writes nothing unless
   `--out` is given.
 
-`record` and `live` read the Hub's variables with the Hub's rule:
-`CONDUIT_MODEL_BASE_URL` (with `CONDUIT_MODEL_NAME`,
-`CONDUIT_MODEL_API_KEY_FILE`) selects the HTTP transport, `CONDUIT_MODEL_CMD`
-a local command, and setting both is an error. See
-[model-http.md](model-http.md) and [local-model-cli.md](local-model-cli.md).
+`record` and `live` use the Hub's HTTP model configuration:
+`CONDUIT_MODEL_BASE_URL`, `CONDUIT_MODEL_NAME` and optional
+`CONDUIT_MODEL_API_KEY_FILE`. Every host model-command setting is refused,
+including when an HTTP endpoint is also configured. See
+[model-http.md](model-http.md) and [model transport migration](local-model-cli.md).
 
-The model id is `openai-http/<CONDUIT_MODEL_NAME>` for HTTP,
-`agent-exec/<provider>` for `packaging-workflow agent-exec`, and
-`<command>/<CONDUIT_MODEL_NAME>` for any other command.
+The model id is `openai-http/<CONDUIT_MODEL_NAME>`.
 
 ## Scores
 
@@ -158,14 +156,10 @@ be good. A green gate authorizes nothing.
 4. Commit the prompt change, `transcripts/<model>/` and
    `baselines/<model>.json` together.
 
-Until a real-provider baseline is committed, step 2 can only be done against
-the `deterministic` agent, which tells you the prompt digests changed and
-nothing about quality:
-
-```
-go build -o /tmp/packaging-workflow ./cmd/packaging-workflow
-CONDUIT_MODEL_CMD="/tmp/packaging-workflow agent-exec" go run ./cmd/conduit-eval record
-```
+Recording requires an explicitly configured HTTP endpoint. The historical
+`agent-exec` recording command is retired; existing deterministic transcripts
+remain replayable without a provider. A labelled test-only HTTP fixture can
+exercise recording and digest plumbing, but establishes no model quality.
 
 To gate on a real model, record with it, commit its transcripts and baseline,
 and set `gateModel` in `corpus.json` to its id.
@@ -178,7 +172,8 @@ and set `gateModel` in `corpus.json` to its id.
 `CONDUIT_MODEL_CMD="packaging-workflow agent-exec"`: the built-in offline
 agent in `cmd/packaging-workflow/agent_exec.go`.
 
-That agent is a canned responder. It picks a reply by matching fixed phrases
+That historical command is no longer accepted by `conduit-eval`; the committed
+record remains offline replay evidence. That agent is a canned responder. It picks a reply by matching fixed phrases
 in the prompt, echoes the `inspect_repo` result back as its summary, always
 asks one question about the Node.js version, always plans port 8080 on a Node
 base image, and returns one fixed package. It does read the prompt, so the

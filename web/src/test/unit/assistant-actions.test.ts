@@ -38,13 +38,30 @@ describe("assistant supported actions", () => {
     expect(html).not.toContain("Propose memory");
   });
   it("binds a proposal to the selected run and matching installation", async () => {
-    const fetch = vi.fn(async (_url: string, _options: { body: string }) => ({
+    const fetch = vi.fn(async (url: string, _options: { body?: string }) => ({
       ok: true,
-      json: async () => ({ ok: true }),
+      json: async () =>
+        url.startsWith("/v1/packaging-runs/")
+          ? { ...fixture().hub.packaging[0], configured: true }
+          : url.startsWith("/v1/fleet/installations?")
+            ? {
+                installations: [
+                  {
+                    environment: "env-a",
+                    installationId: "api",
+                    product: "acme:api",
+                    desiredVersion: "1",
+                  },
+                ],
+                summary: { total: 1 },
+                pageSize: 1,
+                limit: 1,
+              }
+            : { ok: true },
     }));
     vi.stubGlobal("fetch", fetch);
     await runAssistantAction(fixture(), "propose-cancel", "PackagingRun:run-a");
-    expect(JSON.parse(fetch.mock.calls[0][1].body).arguments).toEqual({
+    expect(JSON.parse(fetch.mock.calls[2][1].body!).arguments).toEqual({
       actionId: "cancel_packaging_run",
       targetEntityId: "run-a",
       targetObjectType: "PackagingRun",
@@ -54,7 +71,9 @@ describe("assistant supported actions", () => {
     });
   });
   it("refuses missing coordinates and stale unsupported actions without sending a request", async () => {
-    const fetch = vi.fn();
+    const fetch = vi.fn(
+      async (_url: string, _options?: { method?: string }) => ({ ok: false }),
+    );
     vi.stubGlobal("fetch", fetch);
     const state = fixture();
     state.hub.installations = [];
@@ -71,7 +90,10 @@ describe("assistant supported actions", () => {
         )
       ).ok,
     ).toBe(false);
-    expect(fetch).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls.every((call) => call[1]?.method !== "POST")).toBe(
+      true,
+    );
   });
   it("distinguishes a cancel acknowledgement from observed cancellation", () => {
     const accepted = resultCard({

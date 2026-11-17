@@ -1,3 +1,14 @@
+function canvasPaint(value) {
+  if (typeof value !== "string") return value;
+  const style = getComputedStyle(
+    document.querySelector(".operator-root") || document.documentElement,
+  );
+  return value.replace(/var\((--[a-z0-9-]+)\)/g, (_, name) =>
+    style.getPropertyValue(name).trim(),
+  );
+}
+
+import { AREAS } from "./navigation.js";
 import {
   createOperationalExamples,
   isOperationalExample,
@@ -54,7 +65,11 @@ import {
   planningMarkup,
 } from "./planning-flow.js";
 import { createConduitClient } from "@conduit/ontology-client";
-import { createSettingsDialog, THEME_KEY } from "./settings-dialog.js";
+import {
+  createSettingsDialog,
+  applyTheme,
+  THEME_KEY,
+} from "./settings-dialog.js";
 import {
   inspectorMarkup,
   loadInspector,
@@ -124,9 +139,9 @@ export function mountOperator(host, options) {
     options.onAssistantMount(state.chatCollapsed ? null : mount);
   };
   host.innerHTML =
-    '<!-- ===================================================================== -->\n  <!-- Conduit 44px top bar (kit v6.1 rhythm)                                -->\n  <!-- ===================================================================== -->\n  <header class="cnd-topbar shrink-0 bg-[#0d1317] border-b border-[#1e252b] px-4 flex items-center justify-between gap-4 z-40">\n    <!-- Left: Bold Product Wordmark + Divider + Wide-Tracked Operational Context -->\n    <div class="flex items-center gap-3 min-w-0 shrink-0">\n      <button id="btn-mobile-menu" data-onclick="toggleMobileNav()" class="so-btn so-btn-sm lg:hidden" aria-label="Toggle navigation">\n        <span data-ic="menu"></span>\n      </button>\n      <span data-onclick="switchScreen(\'s13-fleet-overview\')" class="cnd-brand font-bold text-[17px] tracking-[-0.02em] text-[#ffffff] cursor-pointer select-none">' +
+    '<!-- ===================================================================== -->\n  <!-- Conduit 44px top bar (kit v6.1 rhythm)                                -->\n  <!-- ===================================================================== -->\n  <header class="cnd-topbar shrink-0 bg-[var(--bg-1)] border-b border-[var(--border-subtle)] px-4 flex items-center justify-between gap-4 z-40">\n    <!-- Left: Bold Product Wordmark + Divider + Wide-Tracked Operational Context -->\n    <div class="flex items-center gap-3 min-w-0 shrink-0">\n      <button id="btn-mobile-menu" data-onclick="toggleMobileNav()" class="so-btn so-btn-sm lg:hidden" aria-label="Toggle navigation">\n        <span data-ic="menu"></span>\n      </button>\n      <span data-onclick="switchScreen(\'s13-fleet-overview\')" class="cnd-brand font-bold text-[17px] tracking-[-0.02em] text-[var(--text-1)] cursor-pointer select-none">' +
     brandMarkMarkup(20) +
-    '<span>Conduit</span></span>\n      <span class="h-4 w-[1px] bg-[#242e38]"></span>\n      <span id="topbar-subtitle" class="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#7c8794] hidden sm:inline truncate">FLEET COMMAND CENTER</span>\n    </div>\n\n    <!-- Center: Iconic Conduit Icon + 20px Bold Numeral + Two-Line Label KPI Strip -->\n    <div id="header-kpi-strip" class="topbar-kpi-strip hidden lg:flex items-center gap-4 shrink-0">\n    </div>\n\n    <!-- Right: Search (Cmd+K) + LIVE Badge + Ontology Button + Avatar -->\n    <div class="flex items-center gap-2 shrink-0">\n      <div class="omnibar-trigger hidden md:flex items-center relative">\n        <span class="omnibar-icon" data-ic="search" aria-hidden="true"></span>\n        <input id="global-search-input" type="text" data-onfocus="openCmdOmnibar()" data-oninput="handleGlobalSearch(this.value)"\n          placeholder="Jump to view..."\n          class="so-input w-full pl-7 pr-9 text-[11px]" />\n        <kbd class="code-id absolute right-1.5 px-1.5 py-0.5 text-[9px] text-[#8b96a5] bg-[#151b1f] border border-[#242e38] rounded-[3px]">&#8984;K</kbd>\n      </div>\n\n      <span class="hidden xl:inline-flex items-center h-[26px] px-2 rounded-[4px] bg-[#2a2012] border border-[#4f391b] text-[9.5px] font-semibold code-id text-[#eab854]" id="example-data-badge" title="Example data">EXAMPLE DATA</span>\n\n      <button type="button" id="theme-toggle" data-onclick="toggleTheme()" class="so-btn !h-[26px]">Light</button>\n\n      <button type="button" id="settings-toggle" data-onclick="toggleSettingsDialog()" class="so-btn !h-[26px] !px-2" title="Settings (Ctrl/Cmd + ,)" aria-label="Settings">&#9881;</button>\n\n      <button data-onclick="switchScreen(\'s19-ontology\')" class="so-btn !h-[26px]">\n        <span data-ic="globe"></span>\n        <span class="hidden sm:inline">Ontology</span>\n      </button>\n\n      <button data-onclick="toggleChatRail()" class="so-btn !h-[26px] !px-2" title="Toggle right chat panel">\n        <span data-ic="panelRight"></span>\n      </button>\n\n      <div class="h-[26px] px-2.5 rounded-[4px] bg-[#151b1f] border border-[#242e38] flex items-center gap-1.5 text-[11px] font-medium text-[#f0f5fa]" id="operator-chip" role="img" title="Operator identity unavailable" aria-label="Operator identity unavailable">\n        <span id="operator-initials" class="w-4 h-4 rounded-full bg-[#1f3452] text-[#7cb4ff] text-[9.5px] font-semibold flex items-center justify-center">?</span>\n        <span id="operator-name" class="hidden sm:inline max-w-[180px] truncate">Identity unavailable</span>\n      </div>\n    </div>\n  </header>\n\n  <!-- ===================================================================== -->\n  <!-- THREE-PANE BODY: Conduit LEFT SIDEBAR + TABBED WORKSPACE + PLAIN CHAT  -->\n  <!-- ===================================================================== -->\n  <div class="flex-1 min-h-0 min-w-0 flex relative overflow-hidden">\n\n    <div id="mobile-nav-backdrop" data-onclick="closeMobileNav()"></div>\n\n    <!-- PANE 1 (LEFT SIDEBAR, 206px — ONLY on Hub screens, calm & spacious like Conduit f_01_18_cc!) -->\n    <aside id="left-nav" class="w-[var(--w-rail)] shrink-0 bg-[#101519] border-r border-[#1e252b] flex flex-col justify-between min-h-0 select-none">\n      <div id="left-nav-sections" class="px-2.5 pt-3.5 space-y-5 overflow-y-auto"></div>\n      <!-- Minimal Conduit Bottom-Left Two-Dot Collapse Indicator (No text, no box!) -->\n      <div class="px-4 py-3 shrink-0 flex flex-col items-start gap-1.5">\n        <button data-onclick="toggleLeftRailCollapse()" role="switch" aria-checked="true" class="kit-rail-switch inline-flex items-center gap-1.5 py-1 opacity-85 hover:opacity-100" title="Expand / collapse sidebar" aria-label="Expand or collapse sidebar">\n          <span class="w-[6px] h-[6px] rounded-full bg-[#34d399] shadow-[0_0_5px_#34d399]"></span>\n          <span class="w-[6px] h-[6px] rounded-full bg-[#1f5c42]"></span>\n        </button>\n        <div id="left-nav-sites" class="text-[10px] text-[#596573]"></div>\n      </div>\n    </aside>\n\n    <!-- PANE 2 (WORKSPACE — Flush below <header> on Hub screens; clean breadcrumb sub-bar on Dedicated App screens!) -->\n    <section class="flex-1 min-w-0 min-h-0 flex flex-col bg-[#0b1113] overflow-hidden">\n      <div id="app-breadcrumb-bar" class="hidden h-[34px] shrink-0 bg-[#0d1317] border-b border-[#1a2229] px-4 items-center justify-between gap-3 z-30"></div>\n      <main id="main-workspace" class="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden cnd-workspace"></main>\n    </section>\n\n    <!-- PANE 3 (PLAIN NEUTRAL CHAT DRAWER — Closed by default like Conduit, toggleable from top bar!) -->\n    <aside id="right-chat-rail" class="hidden w-[248px] shrink-0 bg-[#0f1418] border-l border-[#1e252b] flex-col min-h-0"></aside>\n  </div>\n\n  <div id="so-portal-tooltip" class="so-tooltip-bubble hidden"></div>\n  <div id="conduit-modal-root"></div>';
+    '<span>Conduit</span></span>\n      <span class="h-4 w-[1px] bg-[var(--bg-2)]"></span>\n      <span id="topbar-subtitle" class="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[var(--text-2)] hidden sm:inline truncate">FLEET COMMAND CENTER</span>\n    </div>\n\n    <!-- Center: Iconic Conduit Icon + 20px Bold Numeral + Two-Line Label KPI Strip -->\n    <div id="header-kpi-strip" class="topbar-kpi-strip hidden lg:flex items-center gap-4 shrink-0">\n    </div>\n\n    <!-- Right: Search (Cmd+K) + LIVE Badge + Ontology Button + Avatar -->\n    <div class="flex items-center gap-2 shrink-0">\n      <div class="omnibar-trigger hidden md:flex items-center relative">\n        <span class="omnibar-icon" data-ic="search" aria-hidden="true"></span>\n        <input id="global-search-input" type="text" data-onfocus="openCmdOmnibar()" data-oninput="handleGlobalSearch(this.value)"\n          placeholder="Jump to view..."\n          class="so-input w-full pl-7 pr-9 text-[11px]" />\n        <kbd class="code-id absolute right-1.5 px-1.5 py-0.5 text-[9px] text-[var(--text-2)] bg-[var(--bg-1)] border border-[var(--border-subtle)] rounded-[3px]">&#8984;K</kbd>\n      </div>\n\n      <span class="hidden xl:inline-flex items-center h-[26px] px-2 rounded-[4px] bg-[var(--bg-2)] border border-[var(--warn-border)] text-[9.5px] font-semibold code-id text-[var(--warn-text)]" id="example-data-badge" title="Example data">EXAMPLE DATA</span>\n\n      <button type="button" id="theme-toggle" data-onclick="toggleTheme()" class="so-btn !h-[26px]">Light</button>\n\n      <button type="button" id="settings-toggle" data-onclick="toggleSettingsDialog()" class="so-btn !h-[26px] !px-2" title="Settings (Ctrl/Cmd + ,)" aria-label="Settings">&#9881;</button>\n\n      <button data-onclick="switchScreen(\'s19-ontology\')" class="so-btn !h-[26px]">\n        <span data-ic="globe"></span>\n        <span class="hidden sm:inline">Ontology</span>\n      </button>\n\n      <button data-onclick="toggleChatRail()" class="so-btn !h-[26px] !px-2" title="Toggle right chat panel">\n        <span data-ic="panelRight"></span>\n      </button>\n\n      <div class="h-[26px] px-2.5 rounded-[4px] bg-[var(--bg-1)] border border-[var(--border-subtle)] flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-1)]" id="operator-chip" role="img" title="Operator identity unavailable" aria-label="Operator identity unavailable">\n        <span id="operator-initials" class="w-4 h-4 rounded-full bg-[var(--info-fill)] text-[var(--info-text)] text-[9.5px] font-semibold flex items-center justify-center">?</span>\n        <span id="operator-name" class="hidden sm:inline max-w-[180px] truncate">Identity unavailable</span>\n      </div>\n    </div>\n  </header>\n\n  <!-- ===================================================================== -->\n  <!-- THREE-PANE BODY: Conduit LEFT SIDEBAR + TABBED WORKSPACE + PLAIN CHAT  -->\n  <!-- ===================================================================== -->\n  <div class="flex-1 min-h-0 min-w-0 flex relative overflow-hidden">\n\n    <div id="mobile-nav-backdrop" data-onclick="closeMobileNav()"></div>\n\n    <!-- PANE 1 (LEFT SIDEBAR, 206px — ONLY on Hub screens, calm & spacious like Conduit f_01_18_cc!) -->\n    <aside id="left-nav" class="w-[var(--w-rail)] shrink-0 bg-[var(--bg-1)] border-r border-[var(--border-subtle)] flex flex-col justify-between min-h-0 select-none">\n      <div id="left-nav-sections" class="px-2.5 pt-3.5 space-y-5 overflow-y-auto"></div>\n      <!-- Minimal Conduit Bottom-Left Two-Dot Collapse Indicator (No text, no box!) -->\n      <div class="px-4 py-3 shrink-0 flex flex-col items-start gap-1.5">\n        <button data-onclick="toggleLeftRailCollapse()" role="switch" aria-checked="true" class="kit-rail-switch inline-flex items-center gap-1.5 py-1 opacity-85 hover:opacity-100" title="Expand / collapse sidebar" aria-label="Expand or collapse sidebar">\n          <span class="w-[6px] h-[6px] rounded-full bg-[var(--ok-border)] shadow-[0_0_5px_var(--ok-border)]"></span>\n          <span class="w-[6px] h-[6px] rounded-full bg-[var(--ok-fill)]"></span>\n        </button>\n        <div id="left-nav-sites" class="text-[10px] text-[var(--text-2)]"></div>\n      </div>\n    </aside>\n\n    <!-- PANE 2 (WORKSPACE — Flush below <header> on Hub screens; clean breadcrumb sub-bar on Dedicated App screens!) -->\n    <section class="flex-1 min-w-0 min-h-0 flex flex-col bg-[var(--bg-1)] overflow-hidden">\n      <div id="app-breadcrumb-bar" class="hidden h-[34px] shrink-0 bg-[var(--bg-1)] border-b border-[var(--border-subtle)] px-4 items-center justify-between gap-3 z-30"></div>\n      <main id="main-workspace" class="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden cnd-workspace"></main>\n    </section>\n\n    <!-- PANE 3 (PLAIN NEUTRAL CHAT DRAWER — Closed by default like Conduit, toggleable from top bar!) -->\n    <aside id="right-chat-rail" class="hidden w-[248px] shrink-0 bg-[var(--bg-1)] border-l border-[var(--border-subtle)] flex-col min-h-0"></aside>\n  </div>\n\n  <div id="so-portal-tooltip" class="so-tooltip-bubble hidden"></div>\n  <div id="conduit-modal-root"></div>';
 
   const ICONS = {
     extLink:
@@ -157,11 +172,11 @@ export function mountOperator(host, options) {
     globe:
       '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><ellipse cx="8" cy="8" rx="2.8" ry="6"/><path d="M2.2 8h11.6"/></svg>',
     bulb: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 12h4M6.5 14h3M8 2a4.5 4.5 0 0 0-2.6 8.2c.4.3.6.8.6 1.3h4c0-.5.2-1 .6-1.3A4.5 4.5 0 0 0 8 2z"/></svg>',
-    bolt: '<svg width="10" height="10" viewBox="0 0 16 16" fill="#60a5fa"><path d="M9 1.5L3.5 9h4l-.8 5.5L12.5 7h-4L9 1.5z"/></svg>',
+    bolt: '<svg width="10" height="10" viewBox="0 0 16 16" fill="var(--info-text)"><path d="M9 1.5L3.5 9h4l-.8 5.5L12.5 7h-4L9 1.5z"/></svg>',
     wrench:
-      '<svg width="10" height="10" viewBox="0 0 16 16" fill="#fbbf24"><path d="M13.2 4.8a3.5 3.5 0 0 1-4.6 4.1L4.2 13.3a1.2 1.2 0 0 1-1.7-1.7l4.4-4.4a3.5 3.5 0 0 1 4.1-4.6L9.2 4.4l1.2 1.2 2.8-1.8z"/></svg>',
+      '<svg width="10" height="10" viewBox="0 0 16 16" fill="var(--warn-text)"><path d="M13.2 4.8a3.5 3.5 0 0 1-4.6 4.1L4.2 13.3a1.2 1.2 0 0 1-1.7-1.7l4.4-4.4a3.5 3.5 0 0 1 4.1-4.6L9.2 4.4l1.2 1.2 2.8-1.8z"/></svg>',
     ontShield:
-      '<svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#34d399" stroke-width="1.8"><circle cx="8" cy="8" r="5.8"/><path d="M5.4 8.2l1.7 1.7 3.5-3.6"/></svg>',
+      '<svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="var(--ok-text)" stroke-width="1.8"><circle cx="8" cy="8" r="5.8"/><path d="M5.4 8.2l1.7 1.7 3.5-3.6"/></svg>',
     search:
       '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.6"/><path d="M10.5 10.5L14 14"/></svg>',
     menu: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12M2 8h12M2 12h12"/></svg>',
@@ -245,11 +260,11 @@ export function mountOperator(host, options) {
     };
     return `<span class="so-pill ${m[tone] || "so-pill-muted"}">${label}</span>`;
   }
-  function kpiBox(val, lbl, colHex = "#f0f5fa") {
+  function kpiBox(val, lbl, colHex = "var(--text-1)") {
     return `
-        <div class="px-3 py-1.5 rounded-[6px] bg-[#12181d] border border-[#222c36] text-center min-w-[78px]">
+        <div class="px-3 py-1.5 rounded-[6px] bg-[var(--bg-1)] border border-[var(--border-subtle)] text-center min-w-[78px]">
           <div class="text-[16px] font-bold tnum leading-tight" style="color:${colHex}">${val}</div>
-          <div class="text-[8.5px] uppercase tracking-[0.09em] text-[#6d7885] mt-0.5">${lbl}</div>
+          <div class="text-[8.5px] uppercase tracking-[0.09em] text-[var(--text-2)] mt-0.5">${lbl}</div>
         </div>
       `;
   }
@@ -710,25 +725,25 @@ export function mountOperator(host, options) {
       items: [
         {
           id: "wp-edge-telemetry",
-          dot: "#ec9a3c",
+          dot: "var(--warn-text)",
           badge: "0.31.2",
           target: "s12-lifecycle",
         },
         {
           id: "wp-uds-core-base",
-          dot: "#34d399",
+          dot: "var(--ok-text)",
           badge: "Synced",
           target: "s04-scope-plan",
         },
         {
           id: "wp-offline-sync",
-          dot: "#34d399",
+          dot: "var(--ok-text)",
           badge: "Active",
           target: "s07-pipeline",
         },
         {
           id: "wp-policy-guard",
-          dot: "#596573",
+          dot: "var(--text-2)",
           badge: "Archived",
           target: "s09-source",
         },
@@ -741,25 +756,25 @@ export function mountOperator(host, options) {
       items: [
         {
           id: "edge-west-02",
-          dot: "#ec9a3c",
+          dot: "var(--warn-text)",
           badge: "3 Drifts",
           target: "s14-env-detail",
         },
         {
           id: "edge-east-01",
-          dot: "#34d399",
+          dot: "var(--ok-text)",
           badge: "Online",
           target: "s14-env-detail",
         },
         {
           id: "offline-vault-04",
-          dot: "#4c90f0",
+          dot: "var(--info-text)",
           badge: "Diode",
           target: "s08-staged-run",
         },
         {
           id: "remote-rig-09",
-          dot: "#e76a6e",
+          dot: "var(--err-text)",
           badge: "Degraded",
           target: "s14-env-detail",
         },
@@ -772,19 +787,19 @@ export function mountOperator(host, options) {
       items: [
         {
           id: "spoke-west-relay",
-          dot: "#4c90f0",
+          dot: "var(--info-text)",
           badge: "18 Envs",
           target: "s17-spokes-audit",
         },
         {
           id: "spoke-diode-hall-b",
-          dot: "#34d399",
+          dot: "var(--ok-text)",
           badge: "6 Envs",
           target: "s17-spokes-audit",
         },
         {
           id: "spoke-courier-north",
-          dot: "#ec9a3c",
+          dot: "var(--warn-text)",
           badge: "4 Envs",
           target: "s17-spokes-audit",
         },
@@ -1187,109 +1202,6 @@ export function mountOperator(host, options) {
     if (tip) tip.classList.add("hidden");
   }
 
-  const AREAS = {
-    "area-command": {
-      label: "Command Center",
-      tabs: [
-        { id: "command", label: "Overview", screen: "cc-overview" },
-        {
-          id: "example",
-          label: "Example fleet",
-          screen: "s13-fleet-overview",
-        },
-        {
-          id: "tower",
-          label: "Release Control Tower",
-          screen: "s15-plan-detail",
-        },
-      ],
-    },
-    "area-packaging": {
-      label: "Packaging",
-      tabs: [
-        { id: "runs", label: "Runs", screen: "pkg-runs" },
-        { id: "timeline", label: "Timeline", screen: "s08-staged-run" },
-        { id: "pipeline", label: "Pipeline", screen: "s07-pipeline" },
-        { id: "workspace", label: "Workspace", screen: "s02-workspaces" },
-        { id: "workspace-source", label: "Source", screen: "s09-source" },
-        { id: "workspace-preview", label: "Preview", screen: "s11-preview" },
-        {
-          id: "workspace-lifecycle",
-          label: "Lifecycle",
-          screen: "s12-lifecycle",
-        },
-        { id: "bundle", label: "Bundle", screen: "rm08-bundle-preview" },
-        { id: "proposals", label: "Proposals", screen: "pt01-proposal-trace" },
-      ],
-    },
-    "area-releases": {
-      label: "Releases",
-      tabs: [
-        { id: "environments", label: "Environments", screen: "s14-env-detail" },
-        { id: "products", label: "Products", screen: "rel-products" },
-        {
-          id: "dependencies",
-          label: "Dependencies",
-          screen: "rel-dependencies",
-        },
-        { id: "plans", label: "Plans", screen: "rm03-plan-detail" },
-        { id: "channels", label: "Channels", screen: "rm-channels" },
-        { id: "waves", label: "Waves", screen: "rm-waves" },
-        { id: "windows", label: "Windows", screen: "rm09-fleet-scheduler" },
-        { id: "planning", label: "Planning", screen: "s15-plan-detail" },
-        { id: "ramp", label: "Ramp", screen: "rm10-ramped-rollout" },
-        {
-          id: "convergence",
-          label: "Convergence",
-          screen: "rm05-release-rollout",
-        },
-        { id: "activity", label: "Activity", screen: "rm02-env-activity" },
-        { id: "promotion", label: "Promotion", screen: "rm06-promotion-pipe" },
-        { id: "recall", label: "Recall", screen: "rm09-recalls" },
-      ],
-    },
-    "area-changes": {
-      label: "Change requests",
-      tabs: [
-        { id: "list", label: "Requests", screen: "rm07-change-requests" },
-        { id: "approvals", label: "Approvals", screen: "s16-approvals-board" },
-        { id: "diff", label: "Diff", screen: "s10-diff" },
-        { id: "gate", label: "Constraint gate", screen: "rm04-constraints" },
-      ],
-    },
-    "area-intelligence": {
-      label: "Intelligence",
-      tabs: [
-        { id: "logic", label: "Logic", screen: "ai01-logic" },
-        { id: "evals", label: "Evals", screen: "ai02-evals" },
-        { id: "courses", label: "Courses", screen: "ai04-courses" },
-        { id: "events", label: "Automations", screen: "ai03-events" },
-      ],
-    },
-    "area-fleet": {
-      label: "Fleet",
-      tabs: [
-        {
-          id: "environments",
-          label: "Environments",
-          screen: "flt-environments",
-        },
-        { id: "drift", label: "Drift", screen: "s14-env-detail" },
-        { id: "spokes", label: "Spoke operations", screen: "s17-spokes-audit" },
-      ],
-    },
-    "area-audit": {
-      label: "Audit",
-      tabs: [
-        { id: "chain", label: "Hash chain", screen: "au01-audit" },
-        {
-          id: "status",
-          label: "Platform status",
-          screen: "adm-platform-status",
-        },
-      ],
-    },
-  };
   const REDIRECT = {};
   Object.entries(AREAS).forEach(([area, spec]) => {
     spec.tabs.forEach((tab) => {
@@ -1573,10 +1485,10 @@ export function mountOperator(host, options) {
       changes: "warnTri",
     };
     const tones = {
-      ok: "#34d399",
-      info: "#4c90f0",
-      warn: "#eab854",
-      bad: "#e76a6e",
+      ok: "var(--ok-text)",
+      info: "var(--info-text)",
+      warn: "var(--warn-text)",
+      bad: "var(--err-text)",
     };
     const esc = (v) =>
       String(v).replace(
@@ -1603,7 +1515,7 @@ export function mountOperator(host, options) {
     strip.innerHTML =
       (allLive(kpis)
         ? ""
-        : `<span class="text-[10px] uppercase tracking-[0.08em] text-[#eab854]">${state.hub?.pagedIndexes && !state.hub.loading ? "View snapshot" : "Read unavailable"}</span>`) +
+        : `<span class="text-[10px] uppercase tracking-[0.08em] text-[var(--warn-text)]">${state.hub?.pagedIndexes && !state.hub.loading ? "View snapshot" : "Read unavailable"}</span>`) +
       cells;
   }
 
@@ -1617,8 +1529,8 @@ export function mountOperator(host, options) {
     if (subEl) {
       subEl.textContent = activeMeta.subtitle;
       subEl.className = activeMeta.hasSidebar
-        ? "text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#7c8794] hidden sm:inline truncate"
-        : "text-[10.5px] font-semibold uppercase tracking-[0.14em] text-[#eab854] hidden sm:inline truncate";
+        ? "text-[10.5px] font-medium uppercase tracking-[0.14em] text-[var(--text-2)] hidden sm:inline truncate"
+        : "text-[10.5px] font-semibold uppercase tracking-[0.14em] text-[var(--warn-text)] hidden sm:inline truncate";
     }
 
     const kpiEl = document.getElementById("header-kpi-strip");
@@ -1702,7 +1614,7 @@ export function mountOperator(host, options) {
 
     if (iconRail) {
       aside.className =
-        "is-rail-collapsed w-[var(--w-rail-collapsed)] shrink-0 bg-[#101519] border-r border-[#1e252b] flex flex-col justify-between items-center py-2.5 select-none" +
+        "is-rail-collapsed w-[var(--w-rail-collapsed)] shrink-0 bg-[var(--bg-1)] border-r border-[var(--border-subtle)] flex flex-col justify-between items-center py-2.5 select-none" +
         hubHiddenCls;
       sectionsEl.className = "flex flex-col items-center gap-1.5 pt-1";
       sectionsEl.innerHTML = sections
@@ -1718,29 +1630,29 @@ export function mountOperator(host, options) {
             .join(""),
         )
         .join(
-          '<div class="w-[24px] h-px bg-[#1e252b] my-1" role="separator"></div>',
+          '<div class="w-[24px] h-px bg-[var(--bg-2)] my-1" role="separator"></div>',
         );
       return;
     }
 
     aside.className =
-      "w-[var(--w-rail)] shrink-0 bg-[#101519] border-r border-[#1e252b] flex flex-col justify-between min-h-0 select-none" +
+      "w-[var(--w-rail)] shrink-0 bg-[var(--bg-1)] border-r border-[var(--border-subtle)] flex flex-col justify-between min-h-0 select-none" +
       hubHiddenCls;
     sectionsEl.className = "px-2.5 pt-3.5 space-y-5 overflow-y-auto";
 
     const renderAppGroup = (title, apps) => `
         <div>
-          <div class="px-2.5 mb-1.5 text-[9.5px] font-semibold uppercase tracking-[0.11em] text-[#596573]">${title}</div>
+          <div class="px-2.5 mb-1.5 text-[9.5px] font-semibold uppercase tracking-[0.11em] text-[var(--text-2)]">${title}</div>
           <div class="space-y-0.5">
             ${apps
               .map(
                 (a) => `
               <button data-onclick="switchScreen('${a.id}')" class="so-nav-row ${state.screen === a.id ? "is-active" : ""}">
                 <span class="flex items-center gap-2 min-w-0 flex-1">
-                  <span class="flex shrink-0 text-[#7c8794]">${ic(a.icon)}</span>
+                  <span class="flex shrink-0 text-[var(--text-2)]">${ic(a.icon)}</span>
                   <span class="truncate">${a.label}</span>
                 </span>
-                <span class="text-[#4a5562] flex shrink-0">${ic("extLink")}</span>
+                <span class="text-[var(--text-2)] flex shrink-0">${ic("extLink")}</span>
               </button>
             `,
               )
@@ -1751,7 +1663,7 @@ export function mountOperator(host, options) {
 
     const renderNavGroup = (title, items) => `
         <div>
-          <div class="px-2.5 mb-1.5 text-[9.5px] font-semibold uppercase tracking-[0.11em] text-[#596573]">${title}</div>
+          <div class="px-2.5 mb-1.5 text-[9.5px] font-semibold uppercase tracking-[0.11em] text-[var(--text-2)]">${title}</div>
           <div class="space-y-0.5">
             ${items
               .map((m) => {
@@ -1776,7 +1688,7 @@ export function mountOperator(host, options) {
                     <span class="flex shrink-0">${ic(m.icon)}</span>
                     <span class="truncate">${m.label}</span>
                   </span>
-                  ${isAct ? '<span class="text-[13px] text-[#5c9ce6] shrink-0">&rsaquo;</span>' : ""}
+                  ${isAct ? '<span class="text-[13px] text-[var(--info-text)] shrink-0">&rsaquo;</span>' : ""}
                 </button>
               `;
               })
@@ -1788,7 +1700,7 @@ export function mountOperator(host, options) {
     sectionsEl.innerHTML = sections
       .map(
         (section, i) => `
-        <div class="${i ? "border-t border-[#1e252b] pt-4" : ""} space-y-5">
+        <div class="${i ? "border-t border-[var(--border-subtle)] pt-4" : ""} space-y-5">
           ${section.groups
             .map((g) =>
               g.nav
@@ -1862,14 +1774,14 @@ export function mountOperator(host, options) {
       }[activeMeta.appGroup] || [];
 
     bar.className =
-      "h-[34px] shrink-0 bg-[#0d1317] border-b border-[#1a2229] px-4 flex items-center justify-between gap-3 z-30";
+      "h-[34px] shrink-0 bg-[var(--bg-1)] border-b border-[var(--border-subtle)] px-4 flex items-center justify-between gap-3 z-30";
     bar.innerHTML = `
         <div class="flex items-center gap-2 text-[11.5px] min-w-0">
-          <button data-onclick="switchScreen('${activeMeta.parentId || "s13-fleet-overview"}')" class="inline-flex items-center gap-1.5 text-[#eab854] hover:underline font-medium shrink-0">
+          <button data-onclick="switchScreen('${activeMeta.parentId || "s13-fleet-overview"}')" class="inline-flex items-center gap-1.5 text-[var(--warn-text)] hover:underline font-medium shrink-0">
             ${ic("arrowLeft")} <span>${activeMeta.parentLabel || "Command Center"}</span>
           </button>
-          <span class="text-[#4a5562]">&rsaquo;</span>
-          <span class="text-[#f0f5fa] font-medium truncate">${activeMeta.tabTitle}</span>
+          <span class="text-[var(--text-2)]">&rsaquo;</span>
+          <span class="text-[var(--text-1)] font-medium truncate">${activeMeta.tabTitle}</span>
         </div>
 
         <div class="so-peer-scroll flex items-center gap-1 max-w-full overflow-x-auto no-scrollbar">
@@ -1878,8 +1790,8 @@ export function mountOperator(host, options) {
               (p) => `
             <button type="button" data-peer-active="${state.screen === p.id ? "1" : "0"}" data-onclick="switchScreen('${p.id}')" class="h-[24px] px-2.5 rounded-[4px] text-[11px] font-medium shrink-0 whitespace-nowrap transition-colors ${
               state.screen === p.id
-                ? "bg-[#17253a] text-[#7cb4ff] border border-[#2a4263]"
-                : "text-[#8b96a5] hover:text-[#f0f5fa] hover:bg-[#141c24]"
+                ? "bg-[var(--bg-2)] text-[var(--info-text)] border border-[var(--border-subtle)]"
+                : "text-[var(--text-2)] hover:text-[var(--text-1)] hover:bg-[var(--bg-1)]"
             }">${p.label}</button>
           `,
             )
@@ -1907,7 +1819,7 @@ export function mountOperator(host, options) {
       return;
     }
     const openClass =
-      "shrink-0 bg-[#0e1418] border-l border-[#1e252b] flex flex-row min-h-0";
+      "shrink-0 bg-[var(--bg-1)] border-l border-[var(--border-subtle)] flex flex-row min-h-0";
     if (rail.className !== openClass) rail.className = openClass;
     rail.style.width = `${clampDockWidth(Number(readPref("conduit.console.dockWidth", DOCK_DEFAULT)))}px`;
     if (!rail.querySelector("#assistant-thread-mount")) {
@@ -2303,27 +2215,27 @@ export function mountOperator(host, options) {
 
     root.innerHTML = `
         <div class="flex flex-col gap-3 h-full min-h-0">
-          <div class="so-warn-card p-2 text-[12px] text-[#eab854]">Example data</div>
+          <div class="so-warn-card p-2 text-[12px] text-[var(--warn-text)]">Example data</div>
           <div class="so-compact-kpi-strip shrink-0">
             <button type="button" data-onclick="switchScreen('rm05-release-rollout')" class="so-card so-card-interactive p-2.5 text-left">
-              <div class="text-[9.5px] uppercase tracking-[0.07em] text-[#6d7885]">Convergence</div>
-              <div class="text-[16px] font-bold text-[#34d399] tnum mt-0.5">87.5%</div>
+              <div class="text-[9.5px] uppercase tracking-[0.07em] text-[var(--text-2)]">Convergence</div>
+              <div class="text-[16px] font-bold text-[var(--ok-text)] tnum mt-0.5">87.5%</div>
             </button>
             <button type="button" data-onclick="switchScreen('rm01-env-page')" class="so-card so-card-interactive p-2.5 text-left">
-              <div class="text-[9.5px] uppercase tracking-[0.07em] text-[#6d7885]">Environments</div>
-              <div class="text-[16px] font-bold text-[#f0f5fa] tnum mt-0.5">42 <span class="text-[10.5px] font-normal text-[#8b96a5]">/ 48</span></div>
+              <div class="text-[9.5px] uppercase tracking-[0.07em] text-[var(--text-2)]">Environments</div>
+              <div class="text-[16px] font-bold text-[var(--text-1)] tnum mt-0.5">42 <span class="text-[10.5px] font-normal text-[var(--text-2)]">/ 48</span></div>
             </button>
             <button type="button" data-onclick="switchScreen('s07-pipeline')" class="so-card so-card-interactive p-2.5 text-left">
-              <div class="text-[9.5px] uppercase tracking-[0.07em] text-[#6d7885]">Packaging</div>
-              <div class="text-[16px] font-bold text-[#f0f5fa] tnum mt-0.5">3 <span class="text-[10.5px] font-normal text-[#34d399]">Active</span></div>
+              <div class="text-[9.5px] uppercase tracking-[0.07em] text-[var(--text-2)]">Packaging</div>
+              <div class="text-[16px] font-bold text-[var(--text-1)] tnum mt-0.5">3 <span class="text-[10.5px] font-normal text-[var(--ok-text)]">Active</span></div>
             </button>
             <button type="button" data-onclick="switchScreen('s15-plan-detail')" class="so-card so-card-interactive p-2.5 text-left">
-              <div class="text-[9.5px] uppercase tracking-[0.07em] text-[#6d7885]">Release plans</div>
-              <div class="text-[16px] font-bold text-[#f0f5fa] tnum mt-0.5">4 <span class="text-[10.5px] font-normal text-[#9881f3]">Gated</span></div>
+              <div class="text-[9.5px] uppercase tracking-[0.07em] text-[var(--text-2)]">Release plans</div>
+              <div class="text-[16px] font-bold text-[var(--text-1)] tnum mt-0.5">4 <span class="text-[10.5px] font-normal text-[var(--info-text)]">Gated</span></div>
             </button>
             <button type="button" data-onclick="switchScreen('s14-env-detail')" class="so-card so-card-interactive p-2.5 text-left">
-              <div class="text-[9.5px] uppercase tracking-[0.07em] text-[#6d7885]">Open drifts</div>
-              <div class="text-[16px] font-bold text-[#e76a6e] tnum mt-0.5">5 <span class="text-[10.5px] font-normal text-[#e76a6e]">2 critical</span></div>
+              <div class="text-[9.5px] uppercase tracking-[0.07em] text-[var(--text-2)]">Open drifts</div>
+              <div class="text-[16px] font-bold text-[var(--err-text)] tnum mt-0.5">5 <span class="text-[10.5px] font-normal text-[var(--err-text)]">2 critical</span></div>
             </button>
           </div>
           <div class="so-tri-layout so-resp-stack flex gap-3 flex-1 min-h-0 items-stretch">
@@ -2331,8 +2243,8 @@ export function mountOperator(host, options) {
           <div class="so-resp-full w-[216px] xl:w-[248px] shrink-0 flex flex-col gap-3 min-h-0 overflow-y-auto">
             <div class="so-panel p-3 space-y-2.5 flex-1">
               <div class="flex items-center justify-between">
-                <span class="flex items-center gap-2 text-[13px] font-semibold text-[#ffffff]">${ic("cube")} <span>Active Work Profiles</span></span>
-                <span class="tnum text-[11px] text-[#6d7885]">4 Total</span>
+                <span class="flex items-center gap-2 text-[13px] font-semibold text-[var(--text-1)]">${ic("cube")} <span>Active Work Profiles</span></span>
+                <span class="tnum text-[11px] text-[var(--text-2)]">4 Total</span>
               </div>
               <div class="space-y-2.5">
                 ${profiles
@@ -2340,18 +2252,18 @@ export function mountOperator(host, options) {
                     (p) => `
                   <div data-onclick="switchScreen('s12-lifecycle')" class="so-card so-card-interactive p-3 cursor-pointer space-y-1.5">
                     <div class="flex items-center justify-between">
-                      <span class="code-id text-[12.5px] font-semibold text-[#5c9ce6]">${p.code}</span>
+                      <span class="code-id text-[12.5px] font-semibold text-[var(--info-text)]">${p.code}</span>
                       ${pill(p.badge, p.tone)}
                     </div>
-                    <div class="text-[12.5px] font-semibold text-[#f0f5fa]">${p.name}</div>
-                    <div class="text-[11px] text-[#6d7885]">${p.sub}</div>
+                    <div class="text-[12.5px] font-semibold text-[var(--text-1)]">${p.name}</div>
+                    <div class="text-[11px] text-[var(--text-2)]">${p.sub}</div>
                     <div class="pt-1">
-                      <div class="flex justify-between text-[11px] mb-1"><span class="text-[#8b96a5]">Convergence</span><span class="tnum font-semibold text-[#f0f5fa]">${p.pct}%</span></div>
-                      <div class="h-1.5 w-full bg-[#0b1014] rounded-full overflow-hidden">
-                        <div class="h-full bg-[#32a467]" style="width:${p.pct}%"></div>
+                      <div class="flex justify-between text-[11px] mb-1"><span class="text-[var(--text-2)]">Convergence</span><span class="tnum font-semibold text-[var(--text-1)]">${p.pct}%</span></div>
+                      <div class="h-1.5 w-full bg-[var(--bg-1)] rounded-full overflow-hidden">
+                        <div class="h-full bg-[var(--ok-border)]" style="width:${p.pct}%"></div>
                       </div>
                     </div>
-                    <div class="text-[10.5px] text-[#34d399] pt-0.5">&uarr; ${p.note}</div>
+                    <div class="text-[10.5px] text-[var(--ok-text)] pt-0.5">&uarr; ${p.note}</div>
                   </div>
                 `,
                   )
@@ -2363,40 +2275,40 @@ export function mountOperator(host, options) {
           <!-- Center Column: Atmospheric Fleet Globe/Topology + Emerald Optimization Opportunities -->
           <div class="flex-1 min-w-0 flex flex-col gap-3 min-h-0">
             <!-- Top: Dark Spatial Fleet Topology Canvas (Matched to f_01_18_cc Globe Panel) -->
-            <div class="so-panel flex-1 min-h-[300px] flex flex-col overflow-hidden relative" style="background: radial-gradient(circle at 50% 54%, #10233b 0%, #0b131c 48%, #090e12 100%);">
+            <div class="so-panel flex-1 min-h-[300px] flex flex-col overflow-hidden relative" style="background: radial-gradient(circle at 50% 54%, var(--globe-panel-core) 0%, var(--globe-panel-mid) 48%, var(--bg-0) 100%);">
               <div class="px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 z-10">
                 <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span class="flex items-center gap-2 text-[13.5px] font-semibold text-[#ffffff]">${ic("globe")} <span>Fleet Operations</span></span>
-                  <span class="flex items-center gap-1.5 text-[11px] text-[#8b96a5]"><i class="w-2 h-2 rounded-full bg-[#4c90f0] inline-block"></i> Online</span>
-                  <span class="flex items-center gap-1.5 text-[11px] text-[#8b96a5]"><i class="w-2 h-2 rounded-full bg-[#9881f3] inline-block"></i> Store-and-Forward</span>
-                  <span class="flex items-center gap-1.5 text-[11px] text-[#8b96a5]"><i class="w-2 h-2 rounded-full bg-[#34d399] inline-block"></i> Optical Diode</span>
+                  <span class="flex items-center gap-2 text-[13.5px] font-semibold text-[var(--text-1)]">${ic("globe")} <span>Fleet Operations</span></span>
+                  <span class="flex items-center gap-1.5 text-[11px] text-[var(--text-2)]"><i class="w-2 h-2 rounded-full bg-[var(--info-border)] inline-block"></i> Online</span>
+                  <span class="flex items-center gap-1.5 text-[11px] text-[var(--text-2)]"><i class="w-2 h-2 rounded-full bg-[var(--info-border)] inline-block"></i> Store-and-Forward</span>
+                  <span class="flex items-center gap-1.5 text-[11px] text-[var(--text-2)]"><i class="w-2 h-2 rounded-full bg-[var(--ok-border)] inline-block"></i> Optical Diode</span>
                 </div>
-                <span class="text-[11.5px] font-medium text-[#5c9ce6] border-b-2 border-[#5c9ce6] pb-0.5">Topology</span>
+                <span class="text-[11.5px] font-medium text-[var(--info-text)] border-b-2 border-[var(--info-border)] pb-0.5">Topology</span>
               </div>
 
               <!-- Orthographic fleet globe: night globe in dark theme, daytime Blue Marble in light -->
               <div id="conduit-globe-wrap" class="relative flex-1 min-h-[260px] w-full flex items-center justify-center overflow-hidden cursor-grab active:cursor-grabbing">
                 <canvas id="conduit-globe-canvas" class="max-w-full"></canvas>
-                <div data-onclick="switchScreen('s14-env-detail')" class="absolute left-3.5 bottom-3 px-2.5 py-1 rounded-[5px] bg-[#11171d]/90 border border-[#242f3b] text-[11px] text-[#dce4ee] flex items-center gap-1.5 cursor-pointer hover:border-[#3b82f6] tnum">
-                  <span class="font-bold text-[#34d399]">48</span>
-                  <span class="text-[#abb3bf]">Environments &amp; 6 Spokes</span>
+                <div data-onclick="switchScreen('s14-env-detail')" class="absolute left-3.5 bottom-3 px-2.5 py-1 rounded-[5px] bg-[var(--bg-1)]/90 border border-[var(--border-subtle)] text-[11px] text-[var(--text-1)] flex items-center gap-1.5 cursor-pointer hover:border-[var(--info-border)] tnum">
+                  <span class="font-bold text-[var(--ok-text)]">48</span>
+                  <span class="text-[var(--text-2)]">Environments &amp; 6 Spokes</span>
                 </div>
               </div>
             </div>
 
             <!-- Bottom: Conduit Optimization / Governance Opportunities (Matched 1:1 to f_01_18_cc) -->
             <div class="so-panel overflow-hidden shrink-0">
-              <div class="flex items-center justify-between px-3.5 py-2 border-b border-[#1c242c]">
+              <div class="flex items-center justify-between px-3.5 py-2 border-b border-[var(--border-subtle)]">
                 <div class="flex items-center gap-2">
-                  <span class="text-[#34d399] flex">${ic("bulb")}</span>
-                  <span class="text-[13px] font-semibold text-[#ffffff]">Governance Opportunities</span>
+                  <span class="text-[var(--ok-text)] flex">${ic("bulb")}</span>
+                  <span class="text-[13px] font-semibold text-[var(--text-1)]">Governance Opportunities</span>
                   ${pill("3 Active", "green")}
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
-                  <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-[#191d32] text-[#9881f3] border border-[#2c3359] inline-flex items-center gap-1 whitespace-nowrap">
+                  <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-[var(--bg-2)] text-[var(--info-text)] border border-[var(--border-subtle)] inline-flex items-center gap-1 whitespace-nowrap">
                     ${ic("pulse")} <span>Diagnostics</span>
                   </span>
-                  <button data-onclick="switchScreen('s15-plan-detail')" class="text-[11px] text-[#8b96a5] hover:text-white whitespace-nowrap shrink-0">View All &rarr;</button>
+                  <button data-onclick="switchScreen('s15-plan-detail')" class="text-[11px] text-[var(--text-2)] hover:text-[var(--text-1)] whitespace-nowrap shrink-0">View All &rarr;</button>
                 </div>
               </div>
 
@@ -2404,15 +2316,15 @@ export function mountOperator(host, options) {
                 <div class="so-opt-card p-2.5 flex flex-col justify-between gap-2 min-w-0">
                   <div class="min-w-0">
                     <div class="flex items-center justify-between text-[10.5px] gap-1">
-                      <span class="truncate"><span class="text-[#60a5fa] font-medium">Drift Remediation</span> <span class="text-[#34d399] ml-1 tnum">96%</span></span>
-                      <span class="text-[#6d7885] tnum shrink-0">02:00Z</span>
+                      <span class="truncate"><span class="text-[var(--info-text)] font-medium">Drift Remediation</span> <span class="text-[var(--ok-text)] ml-1 tnum">96%</span></span>
+                      <span class="text-[var(--text-2)] tnum shrink-0">02:00Z</span>
                     </div>
-                    <div class="text-[12px] font-semibold text-[#ffffff] mt-1 leading-snug">
+                    <div class="text-[12px] font-semibold text-[var(--text-1)] mt-1 leading-snug">
                       edge-west-02 ingress memory drift — promote CR-308 &amp; uds-core 0.31.2
                     </div>
-                    <div class="text-[10.5px] text-[#34d399] mt-1">↗ Clears 3 drifted resources across West cohort</div>
+                    <div class="text-[10.5px] text-[var(--ok-text)] mt-1">↗ Clears 3 drifted resources across West cohort</div>
                   </div>
-                  <div class="flex items-center justify-between gap-1.5 pt-1 border-t border-[#1a2520]">
+                  <div class="flex items-center justify-between gap-1.5 pt-1 border-t border-[var(--border-subtle)]">
                     <span data-onclick="switchScreen('s15-plan-detail')" class="so-chip chip-ontology cursor-pointer whitespace-nowrap" title="ConduitPlan">${ic("checkCircle")} <span>Plan</span> <span class="rw-r">R:14</span> <span class="rw-w">W:1</span></span>
                     <button data-onclick="switchScreen('s15-plan-detail')" class="so-btn so-btn-sm so-btn-emerald shrink-0">&rarr; Review</button>
                   </div>
@@ -2421,15 +2333,15 @@ export function mountOperator(host, options) {
                 <div class="so-opt-card p-2.5 flex flex-col justify-between gap-2 min-w-0">
                   <div class="min-w-0">
                     <div class="flex items-center justify-between text-[10.5px] gap-1">
-                      <span class="truncate"><span class="text-[#60a5fa] font-medium">Offline bundle spool</span> <span class="text-[#34d399] ml-1 tnum">91%</span></span>
-                      <span class="text-[#6d7885] tnum shrink-0">63.8 MB</span>
+                      <span class="truncate"><span class="text-[var(--info-text)] font-medium">Offline bundle spool</span> <span class="text-[var(--ok-text)] ml-1 tnum">91%</span></span>
+                      <span class="text-[var(--text-2)] tnum shrink-0">63.8 MB</span>
                     </div>
-                    <div class="text-[12px] font-semibold text-[#ffffff] mt-1 leading-snug">
+                    <div class="text-[12px] font-semibold text-[var(--text-1)] mt-1 leading-snug">
                       Differential zstd bundle staged for spoke-diode-hall-b — export receipt
                     </div>
-                    <div class="text-[10.5px] text-[#34d399] mt-1">↗ -71% diode transfer time vs full archive</div>
+                    <div class="text-[10.5px] text-[var(--ok-text)] mt-1">↗ -71% diode transfer time vs full archive</div>
                   </div>
-                  <div class="flex items-center justify-between gap-1.5 pt-1 border-t border-[#1a2520]">
+                  <div class="flex items-center justify-between gap-1.5 pt-1 border-t border-[var(--border-subtle)]">
                     <span data-onclick="switchScreen('s08-staged-run')" class="so-chip chip-ontology cursor-pointer whitespace-nowrap" title="ConduitPackagingRun">${ic("checkCircle")} <span>Run</span> <span class="rw-r">R:4</span></span>
                     <button data-onclick="switchScreen('s08-staged-run')" class="so-btn so-btn-sm so-btn-emerald shrink-0">&rarr; Review</button>
                   </div>
@@ -2440,28 +2352,28 @@ export function mountOperator(host, options) {
 
           <!-- Right Column (286px): Conduit Live Operations Stream (Matched 1:1 to f_01_18_cc Right Column!) -->
           <div class="so-resp-full so-panel w-[286px] shrink-0 flex flex-col min-h-0 overflow-hidden">
-            <div class="px-3.5 py-2.5 border-b border-[#1c242c] flex items-center justify-between">
-              <span class="flex items-center gap-2 text-[13.5px] font-semibold text-[#ffffff]">${ic("delivery")} <span>Operations</span></span>
+            <div class="px-3.5 py-2.5 border-b border-[var(--border-subtle)] flex items-center justify-between">
+              <span class="flex items-center gap-2 text-[13.5px] font-semibold text-[var(--text-1)]">${ic("delivery")} <span>Operations</span></span>
             </div>
 
             <!-- 4-Count Sub-Header Strip (HUMAN / AGENT / RUNNERS / CONVERGED) -->
-            <div class="grid grid-cols-4 py-2 border-b border-[#1c242c] text-center bg-[#0e1418]">
-              <div><div class="text-[13px] font-bold text-[#eab854] tnum">4</div><div class="text-[8.5px] uppercase tracking-[0.08em] text-[#6d7885]">OPERATOR</div></div>
-              <div><div class="text-[13px] font-bold text-[#60a5fa] tnum">3</div><div class="text-[8.5px] uppercase tracking-[0.08em] text-[#6d7885]">AGENTS</div></div>
-              <div><div class="text-[13px] font-bold text-[#9881f3] tnum">6</div><div class="text-[8.5px] uppercase tracking-[0.08em] text-[#6d7885]">SPOKES</div></div>
-              <div><div class="text-[13px] font-bold text-[#34d399] tnum">42</div><div class="text-[8.5px] uppercase tracking-[0.08em] text-[#6d7885]">SYNCED</div></div>
+            <div class="grid grid-cols-4 py-2 border-b border-[var(--border-subtle)] text-center bg-[var(--bg-1)]">
+              <div><div class="text-[13px] font-bold text-[var(--warn-text)] tnum">4</div><div class="text-[8.5px] uppercase tracking-[0.08em] text-[var(--text-2)]">OPERATOR</div></div>
+              <div><div class="text-[13px] font-bold text-[var(--info-text)] tnum">3</div><div class="text-[8.5px] uppercase tracking-[0.08em] text-[var(--text-2)]">AGENTS</div></div>
+              <div><div class="text-[13px] font-bold text-[var(--info-text)] tnum">6</div><div class="text-[8.5px] uppercase tracking-[0.08em] text-[var(--text-2)]">SPOKES</div></div>
+              <div><div class="text-[13px] font-bold text-[var(--ok-text)] tnum">42</div><div class="text-[8.5px] uppercase tracking-[0.08em] text-[var(--text-2)]">SYNCED</div></div>
             </div>
 
             <div class="p-3 space-y-3 overflow-y-auto flex-1">
               ${liveOps
                 .map(
                   (ev) => `
-                <div class="so-stream-item so-stream-${ev.tone} space-y-1.5 pb-2.5 border-b border-[#171f26]">
+                <div class="so-stream-item so-stream-${ev.tone} space-y-1.5 pb-2.5 border-b border-[var(--border-subtle)]">
                   <div class="flex items-center justify-between">
-                    <span class="flex items-center gap-1.5"><span class="font-semibold text-[12px] text-[#f0f5fa]">${ev.actor}</span>${pill(ev.role, ev.tone === "emerald" ? "green" : ev.tone)}</span>
-                    <span class="tnum text-[10px] text-[#596573]">${ev.ts}</span>
+                    <span class="flex items-center gap-1.5"><span class="font-semibold text-[12px] text-[var(--text-1)]">${ev.actor}</span>${pill(ev.role, ev.tone === "emerald" ? "green" : ev.tone)}</span>
+                    <span class="tnum text-[10px] text-[var(--text-2)]">${ev.ts}</span>
                   </div>
-                  <div class="text-[11.5px] text-[#b6c2cf] leading-snug">${ev.text}</div>
+                  <div class="text-[11.5px] text-[var(--text-1)] leading-snug">${ev.text}</div>
                   <div class="flex flex-wrap gap-1 pt-0.5">
                     ${ev.a ? agentChip(ev.a[0], ev.a[1], ev.a[2]) : ""}
                     ${ev.t ? toolChip(ev.t[0], ev.t[1], ev.t[2]) : ""}
@@ -2694,7 +2606,7 @@ export function mountOperator(host, options) {
       {
         lng: -77.4,
         lat: 38.9,
-        color: "#60a5fa",
+        color: "var(--info-text)",
         r: 4.5,
         label: "edge-east-01 (Hub)",
         screen: "s14-env-detail",
@@ -2704,7 +2616,7 @@ export function mountOperator(host, options) {
       {
         lng: -122.3,
         lat: 47.6,
-        color: "#ec9a3c",
+        color: "var(--warn-text)",
         r: 4.5,
         label: "edge-west-02 · 3 drifts",
         screen: "s14-env-detail",
@@ -2715,7 +2627,7 @@ export function mountOperator(host, options) {
       {
         lng: -104.8,
         lat: 38.8,
-        color: "#34d399",
+        color: "var(--ok-text)",
         r: 4.2,
         label: "offline-vault-04 (Diode)",
         screen: "s08-staged-run",
@@ -2726,7 +2638,7 @@ export function mountOperator(host, options) {
       {
         lng: -90.5,
         lat: 28.2,
-        color: "#e76a6e",
+        color: "var(--err-text)",
         r: 4.0,
         label: "remote-rig-09",
         screen: "s17-spokes-audit",
@@ -2736,7 +2648,7 @@ export function mountOperator(host, options) {
       {
         lng: -87.6,
         lat: 41.8,
-        color: "#9881f3",
+        color: "var(--info-text)",
         r: 4.0,
         label: "metro-core-03",
         screen: "s17-spokes-audit",
@@ -2747,7 +2659,7 @@ export function mountOperator(host, options) {
       {
         lng: -147.7,
         lat: 64.8,
-        color: "#60a5fa",
+        color: "var(--info-text)",
         r: 3.8,
         label: "forward-arctic-01",
         screen: "s05-backlog",
@@ -2757,7 +2669,7 @@ export function mountOperator(host, options) {
       {
         lng: -117.2,
         lat: 32.7,
-        color: "#4c90f0",
+        color: "var(--info-text)",
         r: 3.4,
         label: "",
         screen: "s14-env-detail",
@@ -2765,7 +2677,7 @@ export function mountOperator(host, options) {
       {
         lng: -95.4,
         lat: 29.7,
-        color: "#9881f3",
+        color: "var(--info-text)",
         r: 3.4,
         label: "",
         screen: "s17-spokes-audit",
@@ -2773,7 +2685,7 @@ export function mountOperator(host, options) {
       {
         lng: -71.1,
         lat: 42.3,
-        color: "#4c90f0",
+        color: "var(--info-text)",
         r: 3.4,
         label: "",
         screen: "s14-env-detail",
@@ -2781,7 +2693,7 @@ export function mountOperator(host, options) {
       {
         lng: -80.2,
         lat: 25.8,
-        color: "#34d399",
+        color: "var(--ok-text)",
         r: 3.4,
         label: "",
         screen: "s08-staged-run",
@@ -2789,11 +2701,11 @@ export function mountOperator(host, options) {
     ];
 
     const corridors = [
-      [-77.4, 38.9, -122.3, 47.6, "#ec9a3c"],
-      [-77.4, 38.9, -104.8, 38.8, "#34d399"],
-      [-77.4, 38.9, -90.5, 28.2, "#e76a6e"],
-      [-77.4, 38.9, -87.6, 41.8, "#9881f3"],
-      [-122.3, 47.6, -147.7, 64.8, "#60a5fa"],
+      [-77.4, 38.9, -122.3, 47.6, "var(--warn-text)"],
+      [-77.4, 38.9, -104.8, 38.8, "var(--ok-text)"],
+      [-77.4, 38.9, -90.5, 28.2, "var(--err-text)"],
+      [-77.4, 38.9, -87.6, 41.8, "var(--info-text)"],
+      [-122.3, 47.6, -147.7, 64.8, "var(--info-text)"],
     ];
 
     function draw() {
@@ -2810,10 +2722,16 @@ export function mountOperator(host, options) {
         cy,
         baseR * 1.28,
       );
-      halo.addColorStop(0, "rgba(45, 114, 210, 0.36)");
-      halo.addColorStop(0.45, "rgba(30, 64, 135, 0.15)");
-      halo.addColorStop(1, "rgba(9, 14, 19, 0)");
-      ctx.fillStyle = halo;
+      halo.addColorStop(
+        0,
+        canvasPaint("color-mix(in srgb, var(--info-text) 36%, transparent)"),
+      );
+      halo.addColorStop(
+        0.45,
+        canvasPaint("color-mix(in srgb, var(--info-text) 15%, transparent)"),
+      );
+      halo.addColorStop(1, canvasPaint("transparent"));
+      ctx.fillStyle = canvasPaint(halo);
       ctx.beginPath();
       ctx.ellipse(cx, cy, baseR * 1.28, baseR * 1.28, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -2849,12 +2767,14 @@ export function mountOperator(host, options) {
       ctx.beginPath();
       ctx.ellipse(cx, cy, baseR, baseR, 0, 0, Math.PI * 2);
       ctx.clip();
-      drawGraticules("rgba(255, 255, 255, 0.14)");
+      drawGraticules(
+        "color-mix(in srgb, var(--text-1) 14.000000000000002%, transparent)",
+      );
       ctx.restore();
     }
 
     function drawGraticules(color) {
-      ctx.strokeStyle = color;
+      ctx.strokeStyle = canvasPaint(color);
       ctx.lineWidth = 0.6;
       for (let lat = -45; lat <= 75; lat += 20) {
         ctx.beginPath();
@@ -2896,10 +2816,10 @@ export function mountOperator(host, options) {
         cy,
         baseR,
       );
-      ocean.addColorStop(0, "#0e2b4a");
-      ocean.addColorStop(0.62, "#07182c");
-      ocean.addColorStop(1, "#040c18");
-      ctx.fillStyle = ocean;
+      ocean.addColorStop(0, canvasPaint("var(--globe-ocean-core)"));
+      ocean.addColorStop(0.62, canvasPaint("var(--globe-ocean-mid)"));
+      ocean.addColorStop(1, canvasPaint("var(--globe-ocean-edge)"));
+      ctx.fillStyle = canvasPaint(ocean);
       ctx.beginPath();
       ctx.ellipse(cx, cy, baseR, baseR, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -2910,11 +2830,13 @@ export function mountOperator(host, options) {
       ctx.ellipse(cx, cy, baseR, baseR, 0, 0, Math.PI * 2);
       ctx.clip();
 
-      drawGraticules("rgba(76, 144, 240, 0.08)");
+      drawGraticules("color-mix(in srgb, var(--info-text) 8%, transparent)");
 
       // 3. Dark satellite continents
-      ctx.fillStyle = "#08111c";
-      ctx.strokeStyle = "rgba(92, 156, 230, 0.28)";
+      ctx.fillStyle = canvasPaint("var(--globe-land-mask)");
+      ctx.strokeStyle = canvasPaint(
+        "color-mix(in srgb, var(--info-text) 28.000000000000004%, transparent)",
+      );
       ctx.lineWidth = 0.85;
       landPolys.forEach((ring) => {
         ctx.beginPath();
@@ -2949,13 +2871,22 @@ export function mountOperator(host, options) {
                 pt[1],
                 c[2] * 3.2,
               );
-              g.addColorStop(0, "rgba(255, 238, 190, " + c[3].toFixed(2) + ")");
+              g.addColorStop(
+                0,
+                canvasPaint(
+                  "rgba(var(--globe-city-core-rgb), " + c[3].toFixed(2) + ")",
+                ),
+              );
               g.addColorStop(
                 0.4,
-                "rgba(245, 180, 75, " + (c[3] * 0.38).toFixed(2) + ")",
+                canvasPaint(
+                  "rgba(var(--globe-city-edge-rgb), " +
+                    (c[3] * 0.38).toFixed(2) +
+                    ")",
+                ),
               );
-              g.addColorStop(1, "rgba(245, 180, 75, 0)");
-              ctx.fillStyle = g;
+              g.addColorStop(1, canvasPaint("transparent"));
+              ctx.fillStyle = canvasPaint(g);
               ctx.beginPath();
               ctx.ellipse(
                 pt[0],
@@ -2968,7 +2899,9 @@ export function mountOperator(host, options) {
               );
               ctx.fill();
             } else {
-              ctx.fillStyle = "rgba(252, 211, 125, " + c[3].toFixed(2) + ")";
+              ctx.fillStyle = canvasPaint(
+                "rgba(var(--globe-city-point-rgb), " + c[3].toFixed(2) + ")",
+              );
               ctx.beginPath();
               ctx.ellipse(pt[0], pt[1], c[2], c[2], 0, 0, Math.PI * 2);
               ctx.fill();
@@ -2990,7 +2923,7 @@ export function mountOperator(host, options) {
             (pA[1] + pB[1]) * 0.5 -
             Math.hypot(pB[0] - pA[0], pB[1] - pA[1]) * 0.22;
           ctx.save();
-          ctx.strokeStyle = cor[4];
+          ctx.strokeStyle = canvasPaint(cor[4]);
           ctx.globalAlpha = 0.55;
           ctx.lineWidth = 1.35;
           ctx.setLineDash([3, 3]);
@@ -3007,7 +2940,9 @@ export function mountOperator(host, options) {
       const cx = width / 2,
         cy = height / 2 + 4;
       // Crisp atmospheric rim outline
-      ctx.strokeStyle = "rgba(96, 165, 250, 0.35)";
+      ctx.strokeStyle = canvasPaint(
+        "color-mix(in srgb, var(--info-text) 35%, transparent)",
+      );
       ctx.lineWidth = 1.1;
       ctx.beginPath();
       ctx.ellipse(cx, cy, baseR, baseR, 0, 0, Math.PI * 2);
@@ -3031,18 +2966,18 @@ export function mountOperator(host, options) {
           pt[1],
           n.r * 3.2,
         );
-        glow.addColorStop(0, n.color);
-        glow.addColorStop(1, "rgba(0,0,0,0)");
-        ctx.fillStyle = glow;
+        glow.addColorStop(0, canvasPaint(n.color));
+        glow.addColorStop(1, canvasPaint("transparent"));
+        ctx.fillStyle = canvasPaint(glow);
         ctx.beginPath();
         ctx.ellipse(pt[0], pt[1], n.r * 3.2, n.r * 3.2, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.fillStyle = n.color;
+        ctx.fillStyle = canvasPaint(n.color);
         ctx.beginPath();
         ctx.ellipse(pt[0], pt[1], n.r, n.r, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = "#090e12";
+        ctx.strokeStyle = canvasPaint("var(--bg-1)");
         ctx.lineWidth = 1.2;
         ctx.stroke();
 
@@ -3051,14 +2986,18 @@ export function mountOperator(host, options) {
           const rawLx = n.rightAlign ? pt[0] + n.dx - tw - 10 : pt[0] + n.dx;
           const lx = Math.max(6, Math.min(width - tw - 16, rawLx));
           const ly = Math.max(6, Math.min(height - 22, pt[1] + n.dy - 10));
-          ctx.fillStyle = "rgba(13, 19, 24, 0.86)";
-          ctx.strokeStyle = "rgba(42, 56, 72, 0.85)";
+          ctx.fillStyle = canvasPaint(
+            "color-mix(in srgb, var(--bg-1) 86%, transparent)",
+          );
+          ctx.strokeStyle = canvasPaint(
+            "color-mix(in srgb, var(--border-subtle) 85%, transparent)",
+          );
           ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.roundRect(lx, ly, tw + 10, 16, 4);
           ctx.fill();
           ctx.stroke();
-          ctx.fillStyle = "#e6edf3";
+          ctx.fillStyle = canvasPaint("var(--text-1)");
           ctx.fillText(n.label, lx + 5, ly + 11.5);
         }
       });
@@ -3169,10 +3108,10 @@ export function mountOperator(host, options) {
           <div class="so-panel p-3.5 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
             <div>
               <div class="flex items-center gap-2.5">
-                <span class="text-[15px] font-bold text-[#ffffff]">Saved Views</span>
+                <span class="text-[15px] font-bold text-[var(--text-1)]">Saved Views</span>
                 ${ontChip("ConduitSavedView", 5, 1)}
               </div>
-              <div class="text-[11.5px] text-[#6d7885] mt-0.5">Manage pinned sidebar filters, shared team queries, and alert presets</div>
+              <div class="text-[11.5px] text-[var(--text-2)] mt-0.5">Manage pinned sidebar filters, shared team queries, and alert presets</div>
             </div>
             <div class="flex items-center gap-2">
               <button data-onclick="state.savedViewsForceEmpty=!state.savedViewsForceEmpty; renderMainWorkspace()" class="so-btn so-btn-sm">
@@ -3197,8 +3136,8 @@ export function mountOperator(host, options) {
                         <button data-onclick="toggleSavedViewPin('${v.id}')" class="so-btn so-btn-sm ${v.pinned ? "so-btn-blue" : ""}">${ic("pin")} <span>${v.pinned ? "Pinned" : "Pin"}</span></button>
                       </td>
                       <td>
-                        <div class="font-semibold text-[#f0f5fa]">${v.name}</div>
-                        <div class="code-id text-[10.5px] text-[#60a5fa] mt-0.5">${v.query}</div>
+                        <div class="font-semibold text-[var(--text-1)]">${v.name}</div>
+                        <div class="code-id text-[10.5px] text-[var(--info-text)] mt-0.5">${v.query}</div>
                       </td>
                       <td>${ontChip(v.targetType, v.hits, 0)}</td>
                       <td>${pill(v.status, v.tone)}</td>
@@ -3222,9 +3161,9 @@ export function mountOperator(host, options) {
           }
 
           <div class="so-panel p-5 flex-1 flex flex-col items-center justify-center text-center space-y-2">
-            <div class="w-10 h-10 rounded-[6px] bg-[#151d24] border border-[#24303c] flex items-center justify-center text-[#60a5fa]">${ic("inbox")}</div>
-            <div class="text-[13.5px] font-semibold text-[#ffffff]">${list.length === 0 ? "No Saved Views Configured" : "No Personal Spoke Watchlists Yet"}</div>
-            <div class="text-[11.5px] text-[#8b96a5] max-w-[440px]">Save any filtered query from Workspace Inventory or Environment Health to pin live object counts in your left navigation rail.</div>
+            <div class="w-10 h-10 rounded-[6px] bg-[var(--bg-2)] border border-[var(--border-subtle)] flex items-center justify-center text-[var(--info-text)]">${ic("inbox")}</div>
+            <div class="text-[13.5px] font-semibold text-[var(--text-1)]">${list.length === 0 ? "No Saved Views Configured" : "No Personal Spoke Watchlists Yet"}</div>
+            <div class="text-[11.5px] text-[var(--text-2)] max-w-[440px]">Save any filtered query from Workspace Inventory or Environment Health to pin live object counts in your left navigation rail.</div>
             <button data-onclick="switchScreen('s02-workspaces')" class="so-btn so-btn-sm so-btn-emerald mt-1">Create View from Workspace Inventory</button>
           </div>
         </div>
@@ -3245,7 +3184,7 @@ export function mountOperator(host, options) {
         tone: "green",
         left: 2,
         w: 16,
-        bar: "#32a467",
+        bar: "var(--ok-text)",
       },
       {
         num: "02",
@@ -3256,7 +3195,7 @@ export function mountOperator(host, options) {
         tone: "green",
         left: 18,
         w: 18,
-        bar: "#32a467",
+        bar: "var(--ok-text)",
       },
       {
         num: "03",
@@ -3267,7 +3206,7 @@ export function mountOperator(host, options) {
         tone: "blue",
         left: 36,
         w: 20,
-        bar: "#2d72d2",
+        bar: "var(--info-text)",
       },
       {
         num: "04",
@@ -3278,7 +3217,7 @@ export function mountOperator(host, options) {
         tone: "amber",
         left: 56,
         w: 18,
-        bar: "#b78128",
+        bar: "var(--warn-text)",
       },
       {
         num: "05",
@@ -3289,7 +3228,7 @@ export function mountOperator(host, options) {
         tone: "amber",
         left: 56,
         w: 14,
-        bar: "#b78128",
+        bar: "var(--warn-text)",
       },
       {
         num: "06",
@@ -3300,7 +3239,7 @@ export function mountOperator(host, options) {
         tone: "red",
         left: 74,
         w: 24,
-        bar: "#8f3438",
+        bar: "var(--err-text)",
       },
     ];
 
@@ -3311,24 +3250,24 @@ export function mountOperator(host, options) {
             <div class="so-panel p-3.5 flex flex-wrap items-center justify-between gap-3">
               <div class="space-y-1 max-w-[650px]">
                 <div class="flex flex-wrap items-center gap-2">
-                  <span class="code-id text-[13px] font-semibold text-[#5c9ce6]">STR-214</span>
+                  <span class="code-id text-[13px] font-semibold text-[var(--info-text)]">STR-214</span>
                   ${pill("Scoping", "blue")}
                   ${ontChip("ConduitChangeRequest", 3, 1, "s10-diff")}
                   ${ontChip("ConduitPlan", 14, 1, "s15-plan-detail")}
                 </div>
-                <div class="text-[14.5px] font-bold text-[#ffffff]">Eliminate burst-replay OOM restarts &amp; promote signed uds-core 0.31.2 across 14 clusters</div>
+                <div class="text-[14.5px] font-bold text-[var(--text-1)]">Eliminate burst-replay OOM restarts &amp; promote signed uds-core 0.31.2 across 14 clusters</div>
               </div>
               <div class="flex items-center gap-2">
-                ${kpiBox("2h 35m", "TOTAL EST", "#eab854")}
-                ${kpiBox("6", "TASKS", "#60a5fa")}
-                ${kpiBox("14", "CLUSTERS", "#34d399")}
+                ${kpiBox("2h 35m", "TOTAL EST", "var(--warn-text)")}
+                ${kpiBox("6", "TASKS", "var(--info-text)")}
+                ${kpiBox("14", "CLUSTERS", "var(--ok-text)")}
               </div>
             </div>
 
             <div class="so-grid-2 gap-2.5">
               <div class="so-opt-card p-3 space-y-1.5">
-                <div class="text-[12px] font-semibold text-[#34d399]">In Scope (4)</div>
-                <div class="space-y-1 text-[11.5px] text-[#dce4ee]">
+                <div class="text-[12px] font-semibold text-[var(--ok-text)]">In Scope (4)</div>
+                <div class="space-y-1 text-[11.5px] text-[var(--text-1)]">
                   <div>✓ Raise <span class="code-id">ingress-gateway</span> memory limit to <span class="code-id">1Gi</span> in CR-308</div>
                   <div>✓ Reconcile <span class="code-id">egress-relay-lock</span> /24 CIDR drift on edge-west-02</div>
                   <div>✓ Build &amp; sign 4 release Artifacts in Packaging run RUN-8844</div>
@@ -3336,8 +3275,8 @@ export function mountOperator(host, options) {
                 </div>
               </div>
               <div class="so-danger-card p-3 space-y-1.5">
-                <div class="text-[12px] font-semibold text-[#f87171]">Out of Scope (3)</div>
-                <div class="space-y-1 text-[11.5px] text-[#9aa5b4]">
+                <div class="text-[12px] font-semibold text-[var(--err-text)]">Out of Scope (3)</div>
+                <div class="space-y-1 text-[11.5px] text-[var(--text-2)]">
                   <div>✕ Underlying Kubernetes control-plane minor upgrade (v1.31)</div>
                   <div>✕ Spoke mTLS root certificate rotation (tracked in STR-219)</div>
                   <div>✕ Modifying local ZFS mirror storage quotas on relays</div>
@@ -3347,9 +3286,9 @@ export function mountOperator(host, options) {
 
             <!-- Conduit Gantt + Dependency Task Breakdown -->
             <div class="so-panel overflow-hidden">
-              <div class="px-3.5 py-2 border-b border-[#1c242c] flex items-center justify-between">
-                <span class="text-[13px] font-semibold text-[#ffffff]">Numbered Task Breakdown &amp; Critical Path</span>
-                <span class="text-[11px] text-[#6d7885]">Dependencies verified acyclic</span>
+              <div class="px-3.5 py-2 border-b border-[var(--border-subtle)] flex items-center justify-between">
+                <span class="text-[13px] font-semibold text-[var(--text-1)]">Numbered Task Breakdown &amp; Critical Path</span>
+                <span class="text-[11px] text-[var(--text-2)]">Dependencies verified acyclic</span>
               </div>
               <div class="so-table-scroll"><table class="so-table">
                 <thead><tr><th>#</th><th>Task</th><th>Est.</th><th>Dependency</th><th>Schedule Span</th><th>Status</th></tr></thead>
@@ -3358,12 +3297,12 @@ export function mountOperator(host, options) {
                     .map(
                       (t) => `
                     <tr>
-                      <td class="code-id font-semibold text-[#5c9ce6]">${t.num}</td>
-                      <td class="font-medium text-[#f0f5fa]">${t.name}</td>
+                      <td class="code-id font-semibold text-[var(--info-text)]">${t.num}</td>
+                      <td class="font-medium text-[var(--text-1)]">${t.name}</td>
                       <td class="tnum">${t.est}</td>
-                      <td class="text-[11px] text-[#8b96a5]">${t.dep}</td>
+                      <td class="text-[11px] text-[var(--text-2)]">${t.dep}</td>
                       <td class="w-[180px]">
-                        <div class="h-3.5 w-full bg-[#090e12] rounded-[3px] relative overflow-hidden border border-[#19222b]">
+                        <div class="h-3.5 w-full bg-[var(--bg-0)] rounded-[3px] relative overflow-hidden border border-[var(--border-subtle)]">
                           <div class="h-full rounded-[2px]" style="margin-left:${t.left}%;width:${t.w}%;background:${t.bar}"></div>
                         </div>
                       </td>
@@ -3377,13 +3316,13 @@ export function mountOperator(host, options) {
             </div>
 
             <div class="so-panel px-3.5 py-2 flex items-center justify-between gap-3 text-[11.5px]">
-              <div class="flex items-center gap-2">${pill("High Risk", "red")} <span class="font-medium text-[#f0f5fa]">2-worker cluster remote-rig-09 RAM headroom</span></div>
-              <span class="text-[#8b96a5]">Mitigation: Requirement pre-flight enforces &ge; 2.4 GiB allocatable before wave execution</span>
+              <div class="flex items-center gap-2">${pill("High Risk", "red")} <span class="font-medium text-[var(--text-1)]">2-worker cluster remote-rig-09 RAM headroom</span></div>
+              <span class="text-[var(--text-2)]">Mitigation: Requirement pre-flight enforces &ge; 2.4 GiB allocatable before wave execution</span>
             </div>
           </div>
 
           <div class="so-panel px-3.5 py-2.5 flex items-center justify-between shrink-0">
-            <span class="text-[11.5px] text-[#8b96a5]">Approving transitions Story <span class="code-id text-[#f0f5fa]">STR-214</span> to Ready and queues execution</span>
+            <span class="text-[11.5px] text-[var(--text-2)]">Approving transitions Story <span class="code-id text-[var(--text-1)]">STR-214</span> to Ready and queues execution</span>
             <div class="flex items-center gap-2">
               ${governedBtn({ label: "Request changes", role: "Profile Owner", auditEvent: "story.changes_requested", onClickJs: "switchScreen('s01-intake')", cls: "so-btn so-btn-outline-warn" })}
               ${governedBtn({ label: "Approve Scope", role: "Profile Owner", auditEvent: "story.scope_approved", onClickJs: "switchScreen('s05-backlog')", cls: "so-btn so-btn-emerald", iconName: "check" })}
@@ -3478,7 +3417,7 @@ export function mountOperator(host, options) {
         <div class="so-resp-stack flex gap-3 h-full min-h-0 items-stretch">
           <div class="flex-1 min-w-0 flex flex-col gap-2.5 overflow-y-auto">
             <div class="flex items-center justify-between">
-              <span class="text-[15px] font-bold text-[#ffffff]">Delivery Backlog · wp-edge-telemetry</span>
+              <span class="text-[15px] font-bold text-[var(--text-1)]">Delivery Backlog · wp-edge-telemetry</span>
               <button data-onclick="switchScreen('s06-active-work')" class="so-btn so-btn-sm so-btn-blue">Open Active Work (STR-214) &rarr;</button>
             </div>
             ${[
@@ -3491,23 +3430,23 @@ export function mountOperator(host, options) {
                 const items = stories.filter((s) => s.grp === gName);
                 return `
                 <div class="so-panel overflow-hidden shrink-0">
-                  <div class="px-3 py-1.5 bg-[#0e1418] border-b border-[#1c242c] flex items-center justify-between">
-                    <div class="flex items-center gap-2">${pill(gName, gTone)} <span class="tnum text-[11px] text-[#6d7885]">${items.length}</span></div>
+                  <div class="px-3 py-1.5 bg-[var(--bg-1)] border-b border-[var(--border-subtle)] flex items-center justify-between">
+                    <div class="flex items-center gap-2">${pill(gName, gTone)} <span class="tnum text-[11px] text-[var(--text-2)]">${items.length}</span></div>
                   </div>
-                  <div class="divide-y divide-[#161e25]">
+                  <div class="divide-y divide-[var(--bg-1)]">
                     ${items
                       .map(
                         (st) => `
                       <div data-onclick="state.selectedStoryId='${st.id}'; renderMainWorkspace()"
-                           class="px-3 py-2 flex items-center justify-between gap-2 cursor-pointer ${st.id === sel.id ? "bg-[#152232] border-l-2 border-[#5c9ce6]" : "hover:bg-[#141c24]"}">
+                           class="px-3 py-2 flex items-center justify-between gap-2 cursor-pointer ${st.id === sel.id ? "bg-[var(--bg-2)] border-l-2 border-[var(--info-border)]" : "hover:bg-[var(--bg-1)]"}">
                         <div class="flex items-center gap-2.5 min-w-0">
-                          <span class="text-[#596573] cursor-grab">${ic("grip")}</span>
-                          <span class="code-id text-[11.5px] font-semibold text-[#5c9ce6]">${st.id}</span>
+                          <span class="text-[var(--text-2)] cursor-grab">${ic("grip")}</span>
+                          <span class="code-id text-[11.5px] font-semibold text-[var(--info-text)]">${st.id}</span>
                           ${pill(st.prio, st.pTone)}
-                          <span class="text-[12px] font-medium text-[#f0f5fa] truncate">${st.title}</span>
+                          <span class="text-[12px] font-medium text-[var(--text-1)] truncate">${st.title}</span>
                         </div>
                         <div class="flex items-center gap-2 shrink-0">
-                          <span class="tnum text-[11px] px-2 py-0.5 rounded bg-[#0c1116] border border-[#202a34] text-[#8b96a5]">${st.size}</span>
+                          <span class="tnum text-[11px] px-2 py-0.5 rounded bg-[var(--bg-1)] border border-[var(--border-subtle)] text-[var(--text-2)]">${st.size}</span>
                           ${ontChip(st.plan, 14, 0, "s15-plan-detail")}
                         </div>
                       </div>
@@ -3523,26 +3462,26 @@ export function mountOperator(host, options) {
 
           <div class="so-resp-full so-panel w-[294px] shrink-0 p-3.5 flex flex-col justify-between">
             <div class="space-y-3">
-              <div class="flex items-center justify-between border-b border-[#1c242c] pb-2.5">
-                <span class="code-id text-[14px] font-bold text-[#5c9ce6]">${sel.id}</span>
+              <div class="flex items-center justify-between border-b border-[var(--border-subtle)] pb-2.5">
+                <span class="code-id text-[14px] font-bold text-[var(--info-text)]">${sel.id}</span>
                 ${pill(sel.grp, sel.grp === "Blocked" ? "red" : "green")}
               </div>
-              <div class="text-[13px] font-semibold text-[#ffffff] leading-snug">${sel.title}</div>
-              <div class="text-[11.5px] text-[#8b96a5] leading-relaxed">${sel.desc}</div>
+              <div class="text-[13px] font-semibold text-[var(--text-1)] leading-snug">${sel.title}</div>
+              <div class="text-[11.5px] text-[var(--text-2)] leading-relaxed">${sel.desc}</div>
 
               <div>
-                <div class="flex justify-between text-[11px] mb-1"><span class="text-[#8b96a5]">Story Progress</span><span class="tnum font-semibold text-[#34d399]">${sel.pct}%</span></div>
-                <div class="h-1.5 w-full bg-[#090e12] rounded-full overflow-hidden"><div class="h-full so-striped-bar" style="width:${sel.pct}%"></div></div>
+                <div class="flex justify-between text-[11px] mb-1"><span class="text-[var(--text-2)]">Story Progress</span><span class="tnum font-semibold text-[var(--ok-text)]">${sel.pct}%</span></div>
+                <div class="h-1.5 w-full bg-[var(--bg-0)] rounded-full overflow-hidden"><div class="h-full so-striped-bar" style="width:${sel.pct}%"></div></div>
               </div>
 
-              <div class="space-y-2 pt-2 border-t border-[#1c242c] text-[11.5px]">
-                <div class="flex justify-between items-center"><span class="text-[#6d7885]">Size</span><span class="tnum font-medium">${sel.size}</span></div>
-                <div class="flex justify-between items-center"><span class="text-[#6d7885]">Packaging run</span>${ontChip(sel.run, 6, 0, "s07-pipeline")}</div>
-                <div class="flex justify-between items-center"><span class="text-[#6d7885]">Linked Plan</span>${ontChip(sel.plan, 14, 0, "s15-plan-detail")}</div>
+              <div class="space-y-2 pt-2 border-t border-[var(--border-subtle)] text-[11.5px]">
+                <div class="flex justify-between items-center"><span class="text-[var(--text-2)]">Size</span><span class="tnum font-medium">${sel.size}</span></div>
+                <div class="flex justify-between items-center"><span class="text-[var(--text-2)]">Packaging run</span>${ontChip(sel.run, 6, 0, "s07-pipeline")}</div>
+                <div class="flex justify-between items-center"><span class="text-[var(--text-2)]">Linked Plan</span>${ontChip(sel.plan, 14, 0, "s15-plan-detail")}</div>
               </div>
             </div>
 
-            <div class="pt-3 border-t border-[#1c242c] flex gap-2">
+            <div class="pt-3 border-t border-[var(--border-subtle)] flex gap-2">
               ${governedBtn({
                 label:
                   sel.grp === "In progress"
@@ -3644,14 +3583,14 @@ export function mountOperator(host, options) {
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div class="flex items-center gap-2">
-                  <span class="code-id text-[13px] font-semibold text-[#34d399]">STR-214</span>
+                  <span class="code-id text-[13px] font-semibold text-[var(--ok-text)]">STR-214</span>
                   ${pill(state.agentPaused ? "Paused" : "Working Story", state.agentPaused ? "amber" : "blue")}
                 </div>
-                <div class="text-[15px] font-bold text-[#ffffff] mt-0.5">Validating Kubernetes schemas across 14 bound Environments (Step 4 of 6)</div>
+                <div class="text-[15px] font-bold text-[var(--text-1)] mt-0.5">Validating Kubernetes schemas across 14 bound Environments (Step 4 of 6)</div>
               </div>
               <div class="flex items-center gap-2">
-                ${kpiBox("00:14:28", "ELAPSED", "#eab854")}
-                ${kpiBox("11 / 14", "VERIFIED", "#34d399")}
+                ${kpiBox("00:14:28", "ELAPSED", "var(--warn-text)")}
+                ${kpiBox("11 / 14", "VERIFIED", "var(--ok-text)")}
                 ${governedBtn({
                   label: state.agentPaused ? "Resume" : "Pause",
                   role: "Operator",
@@ -3675,18 +3614,18 @@ export function mountOperator(host, options) {
             </div>
 
             <div class="flex items-center gap-3">
-              <div class="flex-1 h-2 bg-[#080c10] rounded-full overflow-hidden border border-[#1b242e]">
-                <div class="h-full ${state.agentPaused ? "bg-[#eab854]" : "so-striped-bar"}" style="width:64%"></div>
+              <div class="flex-1 h-2 bg-[var(--bg-0)] rounded-full overflow-hidden border border-[var(--border-subtle)]">
+                <div class="h-full ${state.agentPaused ? "bg-[var(--warn-border)]" : "so-striped-bar"}" style="width:64%"></div>
               </div>
-              <span class="tnum text-[14px] font-bold text-[#34d399]">64%</span>
+              <span class="tnum text-[14px] font-bold text-[var(--ok-text)]">64%</span>
             </div>
           </div>
 
           <div class="so-resp-stack flex-1 min-h-0 flex gap-3 items-stretch">
             <div class="so-resp-full so-panel w-[44%] flex flex-col overflow-hidden">
-              <div class="px-3.5 py-2.5 border-b border-[#1c242c] flex items-center justify-between">
-                <span class="text-[13px] font-semibold text-[#ffffff]">Task Checklist</span>
-                <span class="tnum text-[11px] text-[#34d399]">3 Done · 1 Active · 2 Pending</span>
+              <div class="px-3.5 py-2.5 border-b border-[var(--border-subtle)] flex items-center justify-between">
+                <span class="text-[13px] font-semibold text-[var(--text-1)]">Task Checklist</span>
+                <span class="tnum text-[11px] text-[var(--ok-text)]">3 Done · 1 Active · 2 Pending</span>
               </div>
               <div class="p-3 space-y-2 overflow-y-auto flex-1">
                 ${checks
@@ -3694,8 +3633,8 @@ export function mountOperator(host, options) {
                     (c) => `
                   <div class="${c.st === "In Progress" ? "so-opt-card" : "so-card"} p-2.5 flex items-center justify-between gap-2">
                     <div>
-                      <div class="font-medium text-[12px] text-[#f0f5fa]">${c.title}</div>
-                      <div class="text-[10.5px] text-[#6d7885] mt-0.5">${c.sub}</div>
+                      <div class="font-medium text-[12px] text-[var(--text-1)]">${c.title}</div>
+                      <div class="text-[10.5px] text-[var(--text-2)] mt-0.5">${c.sub}</div>
                     </div>
                     ${pill(c.st, c.tone)}
                   </div>
@@ -3706,8 +3645,8 @@ export function mountOperator(host, options) {
             </div>
 
             <div class="so-panel flex-1 min-w-0 flex flex-col overflow-hidden">
-              <div class="px-3.5 py-2.5 border-b border-[#1c242c] flex items-center justify-between">
-                <span class="text-[13px] font-semibold text-[#ffffff]">Live Activity Feed</span>
+              <div class="px-3.5 py-2.5 border-b border-[var(--border-subtle)] flex items-center justify-between">
+                <span class="text-[13px] font-semibold text-[var(--text-1)]">Live Activity Feed</span>
                 <button data-onclick="switchScreen('s10-diff')" class="so-btn so-btn-sm">Inspect CR-308 Diff &rarr;</button>
               </div>
               <div class="p-3 space-y-3 overflow-y-auto flex-1">
@@ -3716,10 +3655,10 @@ export function mountOperator(host, options) {
                     (s) => `
                   <div class="so-card p-3 so-stream-item so-stream-${s.tone} space-y-1.5">
                     <div class="flex items-center justify-between">
-                      <span class="font-semibold text-[12px] text-[#ffffff]">${s.title}</span>
-                      <span class="tnum text-[10.5px] text-[#596573]">${s.ts}</span>
+                      <span class="font-semibold text-[12px] text-[var(--text-1)]">${s.title}</span>
+                      <span class="tnum text-[10.5px] text-[var(--text-2)]">${s.ts}</span>
                     </div>
-                    <div class="text-[11.5px] text-[#9aa5b4]">${s.desc}</div>
+                    <div class="text-[11.5px] text-[var(--text-2)]">${s.desc}</div>
                     <div class="flex flex-wrap gap-1.5 pt-0.5">
                       ${agentChip(s.a[0], s.a[1], s.a[2])}
                       ${toolChip(s.t[0], s.t[1], s.t[2])}
@@ -3837,17 +3776,17 @@ export function mountOperator(host, options) {
     root.innerHTML = `
         <div class="space-y-3 h-full flex flex-col">
           <div class="so-panel p-3.5 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
-            <span class="text-[15px] font-bold text-[#ffffff]">Conduit Component System (Tactical Dark Theme)</span>
+            <span class="text-[15px] font-bold text-[var(--text-1)]">Conduit Component System (Tactical Dark Theme)</span>
             <div class="flex gap-1.5 code-id text-[10.5px]">
-              <span class="px-2 py-0.5 rounded bg-[#0b1113] border border-[#24303c]">#0b1113</span>
-              <span class="px-2 py-0.5 rounded bg-[#151b1f] border border-[#24303c]">#151b1f</span>
-              <span class="px-2 py-0.5 rounded bg-[#268e5b] text-white">#268e5b</span>
-              <span class="px-2 py-0.5 rounded bg-[#2d72d2] text-white">#2d72d2</span>
+              <span class="px-2 py-0.5 rounded bg-[var(--bg-1)] border border-[var(--border-subtle)]">var(--bg-1)</span>
+              <span class="px-2 py-0.5 rounded bg-[var(--bg-1)] border border-[var(--border-subtle)]">var(--bg-1)</span>
+              <span class="px-2 py-0.5 rounded bg-[var(--ok-border)] text-[var(--text-1)]">var(--ok-text)</span>
+              <span class="px-2 py-0.5 rounded bg-[var(--accent-fill)] text-[var(--text-1)]">var(--info-text)</span>
             </div>
           </div>
           <div class="so-grid-2 gap-3 flex-1">
             <div class="so-panel p-3.5 space-y-3">
-              <div class="text-[13px] font-semibold text-[#ffffff]">Buttons &amp; Disabled-with-Reason Tooltips</div>
+              <div class="text-[13px] font-semibold text-[var(--text-1)]">Buttons &amp; Disabled-with-Reason Tooltips</div>
               <div class="flex flex-wrap gap-2">
                 <button class="so-btn so-btn-emerald">&rarr; Review</button>
                 <button class="so-btn so-btn-blue">Approve</button>
@@ -3855,19 +3794,19 @@ export function mountOperator(host, options) {
                 <button class="so-btn so-btn-outline-warn">Pause</button>
                 <button class="so-btn so-btn-outline-danger">Reject</button>
               </div>
-              <div class="pt-2 border-t border-[#1c242c] flex gap-2">
+              <div class="pt-2 border-t border-[var(--border-subtle)] flex gap-2">
                 ${governedBtn({ label: "Approve Plan", role: "Approver", auditEvent: "plan.approved", onClickJs: "", cls: "so-btn so-btn-emerald", iconName: "lock", blockedReason: "2 Requirements Blocked" })}
                 ${governedBtn({ label: "Delete Profile", role: "Owner", auditEvent: "work_profile.deleted", onClickJs: "", cls: "so-btn so-btn-danger", iconName: "lock", blockedReason: "Confirmation name required" })}
               </div>
             </div>
             <div class="so-panel p-3.5 space-y-3">
-              <div class="text-[13px] font-semibold text-[#ffffff]">Telemetry Capsules &amp; Status Pills</div>
+              <div class="text-[13px] font-semibold text-[var(--text-1)]">Telemetry Capsules &amp; Status Pills</div>
               <div class="flex flex-wrap gap-1.5">
                 ${agentChip("Pipeline Agent", 6, 2)}
                 ${toolChip("SPDX Scanner", 418, 0)}
                 ${ontChip("ConduitPlan", 14, 1)}
               </div>
-              <div class="flex flex-wrap gap-1.5 pt-2 border-t border-[#1c242c]">
+              <div class="flex flex-wrap gap-1.5 pt-2 border-t border-[var(--border-subtle)]">
                 ${pill("Synced", "green")} ${pill("In Progress", "blue")} ${pill("Drift Detected", "amber")} ${pill("Blocked", "red")} ${pill("GO", "green")} ${pill("NO-GO", "red")}
               </div>
             </div>
@@ -4171,7 +4110,7 @@ export function mountOperator(host, options) {
         <div class="so-card px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 shrink-0">
           <div class="flex flex-wrap items-center gap-2">
             ${pill(statusBadge, tone)}
-            <span class="code-id text-[11px] text-[#dce4ee]">${sig}</span>
+            <span class="code-id text-[11px] text-[var(--text-1)]">${sig}</span>
           </div>
           ${ontChip(ontType, 14, 1)}
         </div>
@@ -4192,14 +4131,14 @@ export function mountOperator(host, options) {
           <div class="flex flex-wrap items-start justify-between gap-3 pb-2.5">
             <div>
               <div class="flex flex-wrap items-center gap-2">
-                <span class="code-id text-[16px] font-bold text-[#ffffff]">edge-west-02</span>
+                <span class="code-id text-[16px] font-bold text-[var(--text-1)]">edge-west-02</span>
                 ${pill("Drift Detected", "amber")}
                 ${pill("Store-and-Forward", "blue")}
                 <span class="so-pill code-id">channel: edge-cohorts</span>
                 ${agentChip("Drift Monitor", 16, 1)}
               </div>
-              <div class="text-[11.5px] text-[#8b96a5] mt-1">
-                Spoke <span class="code-id text-[#ffffff]">spoke-west-relay</span> &middot; Kubernetes <span class="code-id text-[#ffffff]">v1.30.6</span> &middot; Last check-in <span class="code-id text-[#34d399]">42s ago</span> &middot; Spool lag <span class="code-id">14.2 MB</span>
+              <div class="text-[11.5px] text-[var(--text-2)] mt-1">
+                Spoke <span class="code-id text-[var(--text-1)]">spoke-west-relay</span> &middot; Kubernetes <span class="code-id text-[var(--text-1)]">v1.30.6</span> &middot; Last check-in <span class="code-id text-[var(--ok-text)]">42s ago</span> &middot; Spool lag <span class="code-id">14.2 MB</span>
               </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
@@ -4208,7 +4147,7 @@ export function mountOperator(host, options) {
             </div>
           </div>
 
-          <div role="tablist" aria-label="Environment resource tabs" class="flex items-center gap-1 border-t border-[#1c242c] overflow-x-auto no-scrollbar">
+          <div role="tablist" aria-label="Environment resource tabs" class="flex items-center gap-1 border-t border-[var(--border-subtle)] overflow-x-auto no-scrollbar">
             ${tabs
               .map(
                 ([tid, lbl]) => `
@@ -4216,8 +4155,8 @@ export function mountOperator(host, options) {
                 data-onclick="if('${tid}'==='activity'){switchScreen('rm02-env-activity');}else if('${tid}'==='config'){switchScreen('s14-env-detail');}else if('${tid}'==='changes'){switchScreen('rm07-change-requests');}else{state.rmEnvResourceTab='${tid}';switchScreen('rm01-env-page');}"
                 class="h-[32px] px-3 text-[12px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                   activeTab === tid
-                    ? "border-[#5c9ce6] text-[#5c9ce6] font-semibold"
-                    : "border-transparent text-[#8b96a5] hover:text-white"
+                    ? "border-[var(--info-border)] text-[var(--info-text)] font-semibold"
+                    : "border-transparent text-[var(--text-2)] hover:text-[var(--text-1)]"
                 }">${lbl}</button>
             `,
               )
@@ -4244,44 +4183,44 @@ export function mountOperator(host, options) {
 
           <div class="so-panel p-3.5 space-y-2">
             <div class="flex flex-wrap justify-between items-center gap-2">
-              <span class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Proportional Installation Health &middot; 16 Managed Entities</span>
-              <span class="code-id text-[11px] text-[#34d399]">68.8% Synced &middot; 3 Drifted &middot; 1 Degraded</span>
+              <span class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[var(--text-2)]">Proportional Installation Health &middot; 16 Managed Entities</span>
+              <span class="code-id text-[11px] text-[var(--ok-text)]">68.8% Synced &middot; 3 Drifted &middot; 1 Degraded</span>
             </div>
-            <div class="flex h-[9px] rounded-[4px] overflow-hidden gap-[2px] bg-[#090e12]">
-              <div style="width:68.75%;background:#2e9a62"></div>
-              <div style="width:18.75%;background:#d99b26"></div>
-              <div style="width:6.25%;background:#e05257"></div>
-              <div style="width:6.25%;background:#4c90f0"></div>
+            <div class="flex h-[9px] rounded-[4px] overflow-hidden gap-[2px] bg-[var(--bg-0)]">
+              <div style="width:68.75%;background:var(--ok-border)"></div>
+              <div style="width:18.75%;background:var(--warn-border)"></div>
+              <div style="width:6.25%;background:var(--err-border)"></div>
+              <div style="width:6.25%;background:var(--info-border)"></div>
             </div>
-            <div class="flex flex-wrap gap-4 text-[11.5px] text-[#8b96a5] pt-0.5">
-              <span><i class="inline-block w-2 h-2 rounded-[2px] bg-[#2e9a62] mr-1.5"></i>Synced <strong class="code-id text-white">11</strong></span>
-              <span><i class="inline-block w-2 h-2 rounded-[2px] bg-[#d99b26] mr-1.5"></i>Drifted <strong class="code-id text-white">3</strong></span>
-              <span><i class="inline-block w-2 h-2 rounded-[2px] bg-[#e05257] mr-1.5"></i>Degraded (OOM) <strong class="code-id text-white">1</strong></span>
-              <span><i class="inline-block w-2 h-2 rounded-[2px] bg-[#4c90f0] mr-1.5"></i>Pending Window <strong class="code-id text-white">1</strong></span>
+            <div class="flex flex-wrap gap-4 text-[11.5px] text-[var(--text-2)] pt-0.5">
+              <span><i class="inline-block w-2 h-2 rounded-[2px] bg-[var(--ok-border)] mr-1.5"></i>Synced <strong class="code-id text-[var(--text-1)]">11</strong></span>
+              <span><i class="inline-block w-2 h-2 rounded-[2px] bg-[var(--warn-border)] mr-1.5"></i>Drifted <strong class="code-id text-[var(--text-1)]">3</strong></span>
+              <span><i class="inline-block w-2 h-2 rounded-[2px] bg-[var(--err-border)] mr-1.5"></i>Degraded (OOM) <strong class="code-id text-[var(--text-1)]">1</strong></span>
+              <span><i class="inline-block w-2 h-2 rounded-[2px] bg-[var(--info-border)] mr-1.5"></i>Pending Window <strong class="code-id text-[var(--text-1)]">1</strong></span>
             </div>
           </div>
 
           <div class="so-grid-2 gap-2.5">
             <div class="so-opt-card p-3.5 space-y-2">
               <div class="flex items-center justify-between">
-                <span class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#34d399]">Release Channel Subscription</span>
+                <span class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[var(--ok-text)]">Release Channel Subscription</span>
                 <button type="button" data-onclick="switchScreen('rm06-promotion-pipe')" class="so-btn so-btn-sm so-btn-emerald">&rarr; Promotion Graph</button>
                 <button type="button" data-onclick="switchScreen('rm11-debug-terminal')" class="so-btn so-btn-sm">Debug Terminal</button>
               </div>
               <div class="flex flex-wrap items-center gap-2">
-                <span class="code-id text-[15px] font-bold text-white">edge-cohorts</span>
+                <span class="code-id text-[15px] font-bold text-[var(--text-1)]">edge-cohorts</span>
                 ${pill("Active", "green")}
                 ${pill("target: uds-core 0.31.2", "blue")}
               </div>
-              <div class="text-[11.5px] text-[#8b96a5]">Subscribes cluster entities to approved Wave 2 releases after 6.0h soak on <code class="code-id text-white">staging</code>.</div>
-              <div class="pt-2 border-t border-[#1a2e26] flex items-center justify-between text-[11px]">
-                <span class="text-[#eab854]">1 entity pinned: <strong class="code-id">ingress-gateway</strong> (OVR-119)</span>
+              <div class="text-[11.5px] text-[var(--text-2)]">Subscribes cluster entities to approved Wave 2 releases after 6.0h soak on <code class="code-id text-[var(--text-1)]">staging</code>.</div>
+              <div class="pt-2 border-t border-[var(--border-subtle)] flex items-center justify-between text-[11px]">
+                <span class="text-[var(--warn-text)]">1 entity pinned: <strong class="code-id">ingress-gateway</strong> (OVR-119)</span>
                 ${ontChip("ConduitReleaseChannel", 4, 0)}
               </div>
             </div>
 
             <div class="so-panel p-3.5 space-y-2">
-              <div class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Environment Labels &amp; Selector Facts</div>
+              <div class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[var(--text-2)]">Environment Labels &amp; Selector Facts</div>
               <div class="flex flex-wrap gap-1.5 pt-1">
                 <span class="so-pill code-id">region=us-west-2</span>
                 <span class="so-pill code-id">cohort=wave-2-regional</span>
@@ -4290,33 +4229,33 @@ export function mountOperator(host, options) {
                 <span class="so-pill code-id">k8s=1.30</span>
                 ${pill("sbom=spdx-2.3", "green")}
               </div>
-              <div class="text-[11px] text-[#596573] pt-1">Evaluated against <code class="code-id">ReleaseChannel.requiredLabels</code> prior to Plan creation.</div>
+              <div class="text-[11px] text-[var(--text-2)] pt-1">Evaluated against <code class="code-id">ReleaseChannel.requiredLabels</code> prior to Plan creation.</div>
             </div>
 
             <div class="so-panel p-3.5 space-y-2">
-              <div class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Owners &amp; Escalation Contacts</div>
+              <div class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[var(--text-2)]">Owners &amp; Escalation Contacts</div>
               <div class="so-card p-2 flex items-center justify-between">
-                <span class="text-[12px]"><strong class="code-id text-white">@platform-west-ops</strong> <span class="text-[#8b96a5]">(Owning RBAC Group)</span></span>
+                <span class="text-[12px]"><strong class="code-id text-[var(--text-1)]">@platform-west-ops</strong> <span class="text-[var(--text-2)]">(Owning RBAC Group)</span></span>
                 ${pill("Environment Editor", "blue")}
               </div>
               <div class="so-card p-2 flex items-center justify-between text-[12px]">
-                <span class="text-[#dce4ee]">J. Alvarez &middot; S. Kline</span>
-                <span class="code-id text-[11px] text-[#8b96a5]">pager-west-k8s</span>
+                <span class="text-[var(--text-1)]">J. Alvarez &middot; S. Kline</span>
+                <span class="code-id text-[11px] text-[var(--text-2)]">pager-west-k8s</span>
               </div>
             </div>
 
             <div class="so-panel p-3.5 space-y-2">
               <div class="flex items-center justify-between">
-                <span class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Maintenance Window Calendar (UTC)</span>
+                <span class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[var(--text-2)]">Maintenance Window Calendar (UTC)</span>
                 ${pill("Closed · Opens 02:00Z", "amber")}
               </div>
               <div class="grid grid-cols-7 gap-1 pt-1">
                 ${days
                   .map(
                     ([d, w, on]) => `
-                  <div class="so-card p-1.5 text-center" style="border-color:${on ? "#28426b" : "#1e262d"}">
-                    <div class="text-[10px] font-semibold ${on ? "text-white" : "text-[#596573]"}">${d}</div>
-                    <div class="code-id text-[9px] mt-0.5 ${on ? "text-[#60a5fa]" : "text-[#596573]"}">${w}</div>
+                  <div class="so-card p-1.5 text-center" style="border-color:${on ? "var(--info-text)" : "var(--bg-1)"}">
+                    <div class="text-[10px] font-semibold ${on ? "text-[var(--text-1)]" : "text-[var(--text-2)]"}">${d}</div>
+                    <div class="code-id text-[9px] mt-0.5 ${on ? "text-[var(--info-text)]" : "text-[var(--text-2)]"}">${w}</div>
                   </div>
                 `,
                   )
@@ -4326,16 +4265,16 @@ export function mountOperator(host, options) {
           </div>
 
           <div class="so-panel overflow-hidden">
-            <div class="px-3.5 py-2 bg-[#0e1418] border-b border-[#1c242c] flex flex-wrap items-center justify-between gap-2">
-              <span class="text-[11.5px] font-semibold text-white">Managed Installations Snapshot</span>
+            <div class="px-3.5 py-2 bg-[var(--bg-1)] border-b border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2">
+              <span class="text-[11.5px] font-semibold text-[var(--text-1)]">Managed Installations Snapshot</span>
               <button type="button" data-onclick="switchScreen('rm07-change-requests')" class="so-btn so-btn-sm">Inspect Config Changes (CR-308) &rarr;</button>
             </div>
             <div class="so-table-scroll"><table class="so-table">
               <thead><tr><th>Entity</th><th>Channel</th><th>Desired</th><th>Reported</th><th>Status</th><th>Last / Active Plan</th></tr></thead>
               <tbody>
-                <tr data-onclick="switchScreen('rm03-plan-detail')" class="cursor-pointer"><td class="code-id font-semibold text-white">ingress-gateway</td><td class="code-id">edge-cohorts-hotfix</td><td class="code-id">1.23.4</td><td class="code-id text-[#eab854]">1.23.3</td><td>${pill("Degraded", "red")}</td><td class="code-id text-[#f87171]">PLN-2026-0416 (Failed)</td></tr>
-                <tr data-onclick="switchScreen('rm04-constraints')" class="cursor-pointer"><td class="code-id font-semibold text-white">uds-core</td><td class="code-id">edge-cohorts</td><td class="code-id">0.31.2</td><td class="code-id text-[#eab854]">0.31.1</td><td>${pill("Drift Detected", "amber")}</td><td class="code-id text-[#60a5fa]">PLN-2026-0418 (4 Constraints)</td></tr>
-                <tr><td class="code-id font-semibold text-white">cert-manager-crds</td><td class="code-id">edge-cohorts</td><td class="code-id">1.15.2</td><td class="code-id text-[#34d399]">1.15.2</td><td>${pill("Synced", "green")}</td><td class="code-id">PLN-2026-0409</td></tr>
+                <tr data-onclick="switchScreen('rm03-plan-detail')" class="cursor-pointer"><td class="code-id font-semibold text-[var(--text-1)]">ingress-gateway</td><td class="code-id">edge-cohorts-hotfix</td><td class="code-id">1.23.4</td><td class="code-id text-[var(--warn-text)]">1.23.3</td><td>${pill("Degraded", "red")}</td><td class="code-id text-[var(--err-text)]">PLN-2026-0416 (Failed)</td></tr>
+                <tr data-onclick="switchScreen('rm04-constraints')" class="cursor-pointer"><td class="code-id font-semibold text-[var(--text-1)]">uds-core</td><td class="code-id">edge-cohorts</td><td class="code-id">0.31.2</td><td class="code-id text-[var(--warn-text)]">0.31.1</td><td>${pill("Drift Detected", "amber")}</td><td class="code-id text-[var(--info-text)]">PLN-2026-0418 (4 Constraints)</td></tr>
+                <tr><td class="code-id font-semibold text-[var(--text-1)]">cert-manager-crds</td><td class="code-id">edge-cohorts</td><td class="code-id">1.15.2</td><td class="code-id text-[var(--ok-text)]">1.15.2</td><td>${pill("Synced", "green")}</td><td class="code-id">PLN-2026-0409</td></tr>
               </tbody>
             </table></div>
           </div>
@@ -4358,7 +4297,7 @@ export function mountOperator(host, options) {
 
           <div class="so-resp-stack flex gap-3 items-start">
             <aside class="so-resp-full so-panel w-[192px] shrink-0 p-2 space-y-1" aria-label="Activity subnav">
-              <div class="px-2 py-1 text-[9.5px] font-semibold uppercase tracking-[0.09em] text-[#596573]">Activity Streams</div>
+              <div class="px-2 py-1 text-[9.5px] font-semibold uppercase tracking-[0.09em] text-[var(--text-2)]">Activity Streams</div>
               ${[
                 ["plans", "Plans", RM_EXAMPLE_PLANS.length],
                 ["commands", "Commands", RM_EXAMPLE_COMMANDS.length],
@@ -4369,7 +4308,7 @@ export function mountOperator(host, options) {
                 <button type="button" data-onclick="state.rmActivitySubnav='${k}'; renderMainWorkspace()"
                   class="so-nav-row ${state.rmActivitySubnav === k ? "is-active" : ""}">
                   <span>${lbl}</span>
-                  <span class="tnum text-[10.5px] px-1.5 rounded bg-[#161e26]">${c}</span>
+                  <span class="tnum text-[10.5px] px-1.5 rounded bg-[var(--bg-2)]">${c}</span>
                 </button>
               `,
                 )
@@ -4399,7 +4338,7 @@ export function mountOperator(host, options) {
                       )
                       .join("")}
                   </div>
-                  <span class="text-[11px] text-[#596573]">Select any Plan row to inspect ordered tasks &amp; dispatch timeline &rarr;</span>
+                  <span class="text-[11px] text-[var(--text-2)]">Select any Plan row to inspect ordered tasks &amp; dispatch timeline &rarr;</span>
                 </div>
                 <div class="so-table-scroll"><table class="so-table" aria-label="Environment Plans table">
                   <thead><tr><th>Entity</th><th>Type</th><th>Status</th><th style="text-align:right">Duration</th><th>Started</th></tr></thead>
@@ -4408,11 +4347,11 @@ export function mountOperator(host, options) {
                       .map(
                         (p) => `
                       <tr data-onclick="switchScreen('rm03-plan-detail')" class="cursor-pointer">
-                        <td><div class="font-semibold text-white">${p.entity}</div><div class="code-id text-[10.5px] text-[#60a5fa]">${p.planId}</div></td>
+                        <td><div class="font-semibold text-[var(--text-1)]">${p.entity}</div><div class="code-id text-[10.5px] text-[var(--info-text)]">${p.planId}</div></td>
                         <td><span class="so-pill">${p.type}</span></td>
                         <td>${pill(p.status, p.tone)}</td>
                         <td class="code-id" style="text-align:right">${p.duration}</td>
-                        <td class="code-id text-[#8b96a5]">${p.started}</td>
+                        <td class="code-id text-[var(--text-2)]">${p.started}</td>
                       </tr>
                     `,
                       )
@@ -4422,20 +4361,20 @@ export function mountOperator(host, options) {
               `
                   : state.rmActivitySubnav === "commands"
                     ? `
-                <div class="flex justify-between items-center"><span class="text-[12px] font-semibold text-white">Imperative Agent Commands</span>${ontChip("ConduitCommand", 3, 0)}</div>
+                <div class="flex justify-between items-center"><span class="text-[12px] font-semibold text-[var(--text-1)]">Imperative Agent Commands</span>${ontChip("ConduitCommand", 3, 0)}</div>
                 <div class="so-table-scroll"><table class="so-table">
                   <thead><tr><th>Command ID</th><th>Target Entity</th><th>Kind</th><th>Status</th><th style="text-align:right">Duration</th><th>Issued By</th><th>Started</th></tr></thead>
                   <tbody>
-                    ${RM_EXAMPLE_COMMANDS.map((c) => `<tr><td class="code-id text-[#60a5fa]">${c.id}</td><td class="code-id">${c.entity}</td><td><span class="so-pill">${c.kind}</span></td><td>${pill(c.status, c.tone)}</td><td class="code-id" style="text-align:right">${c.duration}</td><td>${c.by}</td><td class="code-id">${c.started}</td></tr>`).join("")}
+                    ${RM_EXAMPLE_COMMANDS.map((c) => `<tr><td class="code-id text-[var(--info-text)]">${c.id}</td><td class="code-id">${c.entity}</td><td><span class="so-pill">${c.kind}</span></td><td>${pill(c.status, c.tone)}</td><td class="code-id" style="text-align:right">${c.duration}</td><td>${c.by}</td><td class="code-id">${c.started}</td></tr>`).join("")}
                   </tbody>
                 </table></div>
               `
                     : `
-                <div class="flex justify-between items-center"><span class="text-[12px] font-semibold text-white">Maintenance &amp; Suppression Overrides</span>${ontChip("ConduitOverride", 3, 1)}</div>
+                <div class="flex justify-between items-center"><span class="text-[12px] font-semibold text-[var(--text-1)]">Maintenance &amp; Suppression Overrides</span>${ontChip("ConduitOverride", 3, 1)}</div>
                 <div class="so-table-scroll"><table class="so-table">
                   <thead><tr><th>Override ID</th><th>Scope</th><th>Kind</th><th>Status</th><th>Reason</th><th>Expires</th></tr></thead>
                   <tbody>
-                    ${RM_EXAMPLE_OVERRIDES.map((o) => `<tr><td class="code-id text-[#eab854]">${o.id}</td><td class="code-id">${o.scope}</td><td>${pill(o.kind, "violet")}</td><td>${pill(o.status, o.tone)}</td><td class="text-[#8b96a5]">${o.reason}</td><td class="code-id">${o.expires}</td></tr>`).join("")}
+                    ${RM_EXAMPLE_OVERRIDES.map((o) => `<tr><td class="code-id text-[var(--warn-text)]">${o.id}</td><td class="code-id">${o.scope}</td><td>${pill(o.kind, "violet")}</td><td>${pill(o.status, o.tone)}</td><td class="text-[var(--text-2)]">${o.reason}</td><td class="code-id">${o.expires}</td></tr>`).join("")}
                   </tbody>
                 </table></div>
               `
@@ -4507,70 +4446,6 @@ export function mountOperator(host, options) {
     const [view, actions] = deliverySlots(root);
     liveHub.renderPromotion(view);
     mountPromotion(actions, state);
-    return;
-    const sel =
-      RM_CHANNELS.find((c) => c.id === state.rmSelectedChannel) ||
-      RM_CHANNELS[3];
-    root.innerHTML = `
-        <div class="space-y-2.5 flex flex-col">
-          ${rmApiStrip("PROPOSED", "POST /v1/release-channels/{channelId}/promote", "ConduitReleaseChannel")}
-          <div class="so-panel p-3.5 space-y-3">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <div class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Channel-to-Channel Promotion Pipeline &middot; wp-edge-telemetry</div>
-                <div class="text-[12px] text-[#8b96a5] mt-0.5">Select any channel stage to inspect soak criteria, label gates, and manual promotion quorum.</div>
-              </div>
-              <button type="button" data-onclick="state.rmPromoDialogOpen=true; renderConduitModals()" class="so-btn so-btn-emerald">&rarr; Manual Promote to ${sel.name}</button>
-            </div>
-
-            ${state.rmPromotedNotice ? `<div class="so-opt-card p-2.5 code-id text-[11.5px] text-[#34d399]">&#10003; ${state.rmPromotedNotice}</div>` : ""}
-
-            <div class="so-grid-4 gap-2.5">
-              ${RM_CHANNELS.map(
-                (ch, idx) => `
-                <button type="button" data-onclick="state.rmSelectedChannel='${ch.id}'; renderMainWorkspace()"
-                  class="${ch.state === "Upgrade Ready" ? "so-opt-card" : "so-card"} p-3 text-left cursor-pointer space-y-1.5"
-                  style="box-shadow:${ch.id === sel.id ? "0 0 0 1.5px #5c9ce6" : "none"}">
-                  <div class="flex justify-between items-center gap-1"><strong class="text-[13px] text-white">${idx + 1}. ${ch.name}</strong>${pill(ch.state, ch.tone)}</div>
-                  <div class="code-id text-[12px] text-white pt-1">current: <strong>${ch.current}</strong></div>
-                  <div class="code-id text-[11px] ${ch.candidate ? "text-[#eab854]" : "text-[#596573]"}">${ch.candidate ? "candidate: " + ch.candidate : "converged"}</div>
-                  <div class="pt-1.5 border-t border-[#1c242c] flex justify-between text-[11px] text-[#8b96a5]"><span>${ch.envs} Envs</span><span class="code-id text-[#34d399]">${ch.health}</span></div>
-                </button>
-              `,
-              ).join("")}
-            </div>
-          </div>
-
-          <div class="so-grid-2 gap-3">
-            <div class="so-panel p-3.5 space-y-2">
-              <div class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Selected Stage Transition &middot; ${sel.upstream ? sel.upstream + " &rarr; " + sel.name : sel.name}</div>
-              <div class="so-table-scroll"><table class="so-table" style="min-width:360px">
-                <thead><tr><th>Criterion</th><th>Required</th><th>Observed</th><th>Verdict</th></tr></thead>
-                <tbody>
-                  <tr><td>Upstream Soak Duration</td><td class="code-id">&ge; ${sel.soakReq.toFixed(1)}h</td><td class="code-id">${sel.soakDone.toFixed(1)}h</td><td>${pill("Pass", "green")}</td></tr>
-                  <tr><td>Healthy Convergence Ratio</td><td class="code-id">&ge; ${sel.healthReq}</td><td class="code-id">${sel.health}</td><td>${pill("Pass", "green")}</td></tr>
-                  <tr><td>Required Release Labels</td><td class="code-id" colspan="2">${sel.labels.join(", ")}</td><td>${pill("Pass", "green")}</td></tr>
-                </tbody>
-              </table></div>
-            </div>
-
-            <div class="so-panel p-3.5 flex flex-col justify-between gap-3">
-              <div class="space-y-2">
-                <div class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Channel Governance &amp; Approvers</div>
-                <div class="so-card p-2.5 text-[12px] text-[#8b96a5] space-y-1">
-                  <div>Subscribed Environments: <strong class="code-id text-white">${sel.envs}</strong></div>
-                  <div>Automated Promotion Window: <strong class="code-id text-white">Daily 02:00–05:00 UTC</strong></div>
-                  <div>Manual Promotion Quorum: <strong class="code-id text-[#60a5fa]">2 @fleet-approvers</strong></div>
-                </div>
-              </div>
-              <div class="flex justify-end gap-2">
-                <button type="button" data-onclick="switchScreen('rm05-release-rollout')" class="so-btn">Inspect 0.31.2 Rollout</button>
-                <button type="button" data-onclick="state.rmPromoDialogOpen=true; renderConduitModals()" class="so-btn so-btn-emerald">&rarr; Review Manual Promotion</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
   }
 
   // Change request review: queue, detail, and a governed approve/reject.
@@ -4690,91 +4565,6 @@ export function mountOperator(host, options) {
 
   function renderRM07ChangeRequests(root) {
     renderChangeReview(root);
-    return;
-    const sel = RM_CRS.find((c) => c.id === state.rmSelectedCrId) || RM_CRS[0];
-    const inc = state.rmIncludedCrs.includes(sel.id);
-    const canInc = sel.status === "Approved" && !inc;
-    const maxL = Math.max(sel.base.length, sel.next.length);
-
-    root.innerHTML = `
-        <div class="space-y-2.5 flex flex-col">
-          ${rmApiStrip("PROPOSED", "POST /v1/change-requests/{id}/include-in-plan", "ConduitChangeRequest")}
-          <div class="so-resp-stack flex gap-3 items-start">
-            <aside class="so-resp-full so-panel w-[292px] shrink-0 p-2.5 space-y-2">
-              <div class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5] px-1">Change Requests (${RM_CRS.length})</div>
-              ${RM_CRS.map((cr) => {
-                const isInc = state.rmIncludedCrs.includes(cr.id);
-                return `
-                  <button type="button" data-onclick="state.rmSelectedCrId='${cr.id}'; renderMainWorkspace()"
-                    class="w-full text-left so-card so-stream-item ${isInc ? "" : cr.tone === "green" ? "so-stream-emerald" : "so-stream-amber"} p-2.5 space-y-1 cursor-pointer"
-                    style="box-shadow:${cr.id === sel.id ? "0 0 0 1.5px #5c9ce6" : "none"}">
-                    <div class="flex justify-between items-center"><strong class="code-id text-[12px] text-white">${cr.id}</strong>${pill(isInc ? "Included in Plan" : cr.status, isInc ? "blue" : cr.tone)}</div>
-                    <div class="text-[11.5px] text-[#dce4ee] leading-snug">${cr.title}</div>
-                    <div class="code-id flex justify-between text-[10.5px] text-[#596573]"><span>${cr.env}</span><span><span class="text-[#34d399]">+${cr.add}</span> / <span class="text-[#f87171]">-${cr.rem}</span></span></div>
-                  </button>
-                `;
-              }).join("")}
-            </aside>
-
-            <section class="so-panel flex-1 min-w-0 p-3.5 space-y-3">
-              <div class="flex flex-wrap items-start justify-between gap-2 pb-2.5 border-b border-[#1c242c]">
-                <div>
-                  <div class="flex flex-wrap items-center gap-2">
-                    <span class="code-id text-[15px] font-bold text-white">${sel.id}</span>
-                    ${pill(inc ? "Included in Plan" : sel.status, inc ? "blue" : sel.tone)}
-                    <span class="so-pill code-id">env: ${sel.env}</span>
-                    <span class="so-pill code-id">author: ${sel.author}</span>
-                  </div>
-                  <div class="text-[13px] font-semibold text-white mt-1">${sel.title}</div>
-                </div>
-                ${governedBtn({
-                  label: inc
-                    ? "Included in PLN-2026-0418"
-                    : "Include in plan (PLN-2026-0418)",
-                  role: "Operator",
-                  auditEvent: "change_request.included_in_plan",
-                  onClickJs: `state.rmIncludedCrs.push('${sel.id}'); renderMainWorkspace()`,
-                  cls: "so-btn so-btn-emerald",
-                  blockedReason: inc
-                    ? "Already included in PLN-2026-0418"
-                    : !canInc
-                      ? "Change request must be Approved before plan inclusion"
-                      : "",
-                })}
-              </div>
-
-              <div class="so-grid-2 border border-[#1c242c] rounded-[5px] overflow-hidden">
-                <div class="bg-[#080c0f] overflow-x-auto">
-                  <div class="px-3 py-1.5 bg-[#0e1418] border-b border-[#1c242c] text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Base Configuration (rev r41)</div>
-                  <div class="py-2 code-id text-[11px] leading-relaxed">
-                    ${Array.from({ length: maxL })
-                      .map((_, i) => {
-                        const b = sel.base[i] ?? "",
-                          n = sel.next[i] ?? "",
-                          ch = b !== n && b !== "";
-                        return `<div style="padding:0 10px;white-space:pre;background:${ch ? "rgba(201,64,68,0.22)" : "transparent"};color:${ch ? "#fca5a5" : "#dce4ee"}"><span style="color:#596573;display:inline-block;width:24px">${String(i + 1).padStart(2, "0")}</span>${ch ? "- " : "  "}${b}</div>`;
-                      })
-                      .join("")}
-                  </div>
-                </div>
-                <div class="bg-[#080c0f] border-l border-[#1c242c] overflow-x-auto">
-                  <div class="px-3 py-1.5 bg-[#0e1418] border-b border-[#1c242c] text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Proposed Override (${sel.id})</div>
-                  <div class="py-2 code-id text-[11px] leading-relaxed">
-                    ${Array.from({ length: maxL })
-                      .map((_, i) => {
-                        const b = sel.base[i] ?? "",
-                          n = sel.next[i] ?? "",
-                          ch = b !== n && n !== "";
-                        return `<div style="padding:0 10px;white-space:pre;background:${ch ? "rgba(38,142,91,0.24)" : "transparent"};color:${ch ? "#6ee7b7" : "#dce4ee"}"><span style="color:#596573;display:inline-block;width:24px">${String(i + 1).padStart(2, "0")}</span>${ch ? "+ " : "  "}${n}</div>`;
-                      })
-                      .join("")}
-                  </div>
-                </div>
-              </div>
-            </section>
-          </div>
-        </div>
-      `;
   }
 
   function renderRM08BundlePreview(root) {
@@ -4914,20 +4704,20 @@ export function mountOperator(host, options) {
       out += `
           <div data-onclick="if(event.target===this){state.rmPromoDialogOpen=false;renderConduitModals();}"
                class="so-modal-backdrop"
-               style="position:fixed;inset:0;background:rgba(6,10,13,0.62);z-index:85;display:flex;align-items:flex-end;justify-content:center;padding:24px 16px 32px;">
+               style="position:fixed;inset:0;background:color-mix(in srgb, var(--bg-0) 62%, transparent);z-index:85;display:flex;align-items:flex-end;justify-content:center;padding:24px 16px 32px;">
             <div role="dialog" aria-modal="true" aria-label="Manual Promotion Review"
-                 class="so-panel so-modal-card w-full max-w-[556px] overflow-hidden shadow-2xl" style="border-color:#283644;">
-              <div class="px-4 py-2.5 bg-[#0d1317] border-b border-[#1e262d] flex justify-between items-center">
-                <strong class="text-[13.5px] text-white">Manual Promotion Review &middot; ${selCh.name}</strong>
+                 class="so-panel so-modal-card w-full max-w-[556px] overflow-hidden shadow-2xl" style="border-color:var(--border-subtle);">
+              <div class="px-4 py-2.5 bg-[var(--bg-1)] border-b border-[var(--border-subtle)] flex justify-between items-center">
+                <strong class="text-[13.5px] text-[var(--text-1)]">Manual Promotion Review &middot; ${selCh.name}</strong>
                 <button type="button" data-onclick="state.rmPromoDialogOpen=false;renderConduitModals()" class="so-btn so-btn-sm" aria-label="Close dialog">&times;</button>
               </div>
               <div class="p-4 space-y-3">
                 <div class="so-opt-card p-2.5 flex justify-between items-center">
-                  <span>Promoting <strong class="code-id text-white">uds-core 0.31.2</strong> &rarr; <strong class="code-id text-[#34d399]">${selCh.name}</strong></span>
+                  <span>Promoting <strong class="code-id text-[var(--text-1)]">uds-core 0.31.2</strong> &rarr; <strong class="code-id text-[var(--ok-text)]">${selCh.name}</strong></span>
                   ${pill("PROPOSED POST", "blue")}
                 </div>
                 <div class="space-y-1">
-                  <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Promotion Strategy</div>
+                  <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-2)]">Promotion Strategy</div>
                   <select data-onchange="state.rmPromoStrategy=this.value" class="so-select w-full">
                     <option value="FAST_TRACK_TO_CHANNEL">Fast track to channel (${selCh.name})</option>
                     <option value="COPY_EXISTING">Copy release across lagging channels</option>
@@ -4935,17 +4725,17 @@ export function mountOperator(host, options) {
                   </select>
                 </div>
                 <div class="space-y-1.5">
-                  <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Requirements &amp; Approvers</div>
+                  <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-2)]">Requirements &amp; Approvers</div>
                   <div class="so-card p-2 flex justify-between items-center text-[11.5px]"><span>Upstream soak (${selCh.soakDone}h &ge; ${selCh.soakReq}h) &amp; health (${selCh.health})</span>${pill("Pass", "green")}</div>
                   <div class="so-card p-2 flex justify-between items-center text-[11.5px]"><span>Label selector (${selCh.labels.join(", ")})</span>${pill("Pass", "green")}</div>
                   <div class="so-card p-2 flex justify-between items-center text-[11.5px]"><span>Required approvers (@fleet-approvers: M. Chen 1/2 + J. Alvarez)</span>${pill("Approved", "green")}</div>
                 </div>
                 <div class="space-y-1">
-                  <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Audit Justification</div>
-                  <textarea rows="2" data-oninput="state.rmPromoNote=this.value" class="w-full p-2 rounded bg-[#090e12] border border-[#1f2933] text-[11.5px] text-white">${state.rmPromoNote}</textarea>
+                  <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-2)]">Audit Justification</div>
+                  <textarea rows="2" data-oninput="state.rmPromoNote=this.value" class="w-full p-2 rounded bg-[var(--bg-0)] border border-[var(--border-subtle)] text-[11.5px] text-[var(--text-1)]">${state.rmPromoNote}</textarea>
                 </div>
               </div>
-              <div class="px-4 py-2.5 bg-[#0d1317] border-t border-[#1e262d] flex justify-end gap-2">
+              <div class="px-4 py-2.5 bg-[var(--bg-1)] border-t border-[var(--border-subtle)] flex justify-end gap-2">
                 <button type="button" data-onclick="state.rmPromoDialogOpen=false;renderConduitModals()" class="so-btn">Cancel</button>
                 <button type="button" data-onclick="state.rmPromoDialogOpen=false; state.rmPromotedNotice='Promoted uds-core 0.31.2 to ${selCh.name} (Audit event recorded).'; renderConduitModals(); renderMainWorkspace();" class="so-btn so-btn-emerald">Approve &amp; Promote Release</button>
               </div>
@@ -4958,9 +4748,9 @@ export function mountOperator(host, options) {
       out += `
           <div data-onclick="if(event.target===this){state.cmdOmnibarOpen=false;renderConduitModals();}"
                class="so-modal-backdrop"
-               style="position:fixed;inset:0;background:rgba(6,10,13,0.62);z-index:90;display:flex;align-items:flex-start;justify-content:center;padding:68px 16px 24px;">
+               style="position:fixed;inset:0;background:color-mix(in srgb, var(--bg-0) 62%, transparent);z-index:90;display:flex;align-items:flex-start;justify-content:center;padding:68px 16px 24px;">
             <div role="dialog" aria-modal="true" aria-label="Command palette" class="so-panel so-modal-card kit-palette w-full max-w-[600px] overflow-hidden shadow-2xl">
-              <div class="p-2.5 border-b border-[#1e262d]">
+              <div class="p-2.5 border-b border-[var(--border-subtle)]">
                 <input id="conduit-omnibar-inp" type="search" value="${escAttr(state.cmdOmnibarQuery)}"
                   placeholder="Search views, environments, products, runs, change requests, actions"
                   aria-label="Search" aria-controls="conduit-palette-results"
@@ -5420,7 +5210,7 @@ export function mountOperator(host, options) {
     const root = document.querySelector(".operator-root");
     if (!root) return;
     const next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
-    root.setAttribute("data-theme", next);
+    applyTheme(root, next);
     writePref(THEME_KEY, next);
     const button = document.getElementById("theme-toggle");
     if (button) button.textContent = next === "light" ? "Dark" : "Light";

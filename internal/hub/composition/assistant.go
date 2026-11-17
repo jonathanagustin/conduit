@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jonathanagustin/conduit/internal/assistant/adapters/modelcli"
 	assistantmodelhttp "github.com/jonathanagustin/conduit/internal/assistant/adapters/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/assistant/adapters/threadmemory"
 	"github.com/jonathanagustin/conduit/internal/assistant/application"
@@ -70,23 +69,7 @@ func assistantModel(getenv func(string) string) (assistantdomain.Model, error) {
 	} else if client != nil {
 		return assistantmodelhttp.Adapter{Client: client}, nil
 	}
-	raw := strings.TrimSpace(getenv("CONDUIT_MODEL_CMD"))
-	if raw == "" {
-		return nil, nil
-	}
-	argv, err := modelcli.ParseArgv(raw)
-	if err != nil {
-		return nil, fmt.Errorf("CONDUIT_MODEL_CMD: %w", err)
-	}
-	timeout := 45 * time.Second
-	if text := strings.TrimSpace(getenv("CONDUIT_MODEL_TIMEOUT")); text != "" {
-		parsed, err := time.ParseDuration(text)
-		if err != nil || parsed <= 0 {
-			return nil, fmt.Errorf("CONDUIT_MODEL_TIMEOUT must be a positive duration")
-		}
-		timeout = parsed
-	}
-	return modelcli.Runner{Argv: argv, Timeout: timeout, ModelName: configuredModelName(getenv), Exec: governedExec(getenv, modelgovernor.CapabilityAssistant)}, nil
+	return nil, nil
 }
 
 type assistantAPI struct {

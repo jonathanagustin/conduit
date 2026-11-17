@@ -622,6 +622,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.scope.outputs.checks == 'true'
         with:
+          # Readiness measures ancestry and commit distance, not just file age.
+          fetch-depth: 0
           # Every lane verifies the authenticated head, not the merge commit the
           # pull_request event checks out by default. A lane on a different tree
           # than the one the Trunk status names would be a verdict about code
@@ -848,6 +850,12 @@ jobs:
       - name: Validate planning API contract
         if: needs.scope.outputs.checks == 'true'
         run: ./scripts/verify-planning-api.sh
+      - name: Validate native documentation
+        if: needs.scope.outputs.checks == 'true'
+        run: |
+          go run ./tools/native-reference
+          node --test scripts/verify-readiness.test.mjs scripts/verify-documentation-manifest.test.mjs
+          node scripts/verify-readiness.mjs
       - name: Validate Apollo public contract
         if: needs.scope.outputs.checks == 'true'
         run: |
@@ -862,9 +870,8 @@ jobs:
           ./scripts/verify-conduit-cli-contract.test.sh
           node scripts/verify-foundry-audit3-capture.mjs
           node scripts/verify-audit3-contract.mjs
-          # Offline. It cannot detect drift -- that needs a crawl, and A4 keeps
-          # crawls to a person -- but it fails once the corpus is old enough
-          # that "no drift reported" has stopped meaning anything.
+          # Offline age guard. The separate weekly report-only crawl detects
+          # content drift under ADR 0006; this checks that its evidence is recent.
           node scripts/verify-documentation-freshness.mjs
           ./scripts/verify-documentation-freshness.test.sh
           # These fourteen ran in scripts/verify-local.sh and in NO workflow

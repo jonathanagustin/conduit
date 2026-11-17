@@ -14,9 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/jonathanagustin/conduit/internal/localcmd"
+	"github.com/jonathanagustin/conduit/internal/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/planning/adapters/repoclone"
 	"github.com/jonathanagustin/conduit/internal/planning/application"
 	"github.com/jonathanagustin/conduit/internal/planning/domain"
@@ -30,7 +29,7 @@ func TestTurnInspectsALocalFixtureAndRecordsAudit(t *testing.T) {
 	server := serveGit(t, fixture)
 	script := writeModelScript(t, inspectReplies(askOne)...)
 	audit := &memoryAudit{}
-	planner := Planner{Argv: []string{script}, Timeout: 0, Audit: audit}
+	planner := Planner{Model: script, Timeout: 0, Audit: audit}
 	service := application.NewService(planner)
 	session, err := service.Create(context.Background(), server.URL+"/src.git", "main")
 	if err != nil {
@@ -73,24 +72,16 @@ func TestTurnInspectsALocalFixtureAndRecordsAudit(t *testing.T) {
 }
 
 func TestLiveExcalidrawInspect(t *testing.T) {
-	if strings.TrimSpace(os.Getenv("CONDUIT_PLANNING_LIVE")) == "" || strings.TrimSpace(os.Getenv("CONDUIT_MODEL_CMD")) == "" {
-		t.Skip("set CONDUIT_PLANNING_LIVE and CONDUIT_MODEL_CMD to run the live inspection")
+	if strings.TrimSpace(os.Getenv("CONDUIT_PLANNING_LIVE")) == "" || strings.TrimSpace(os.Getenv("CONDUIT_MODEL_BASE_URL")) == "" {
+		t.Skip("set CONDUIT_PLANNING_LIVE and CONDUIT_MODEL_BASE_URL to run the live inspection")
 	}
-	argv, err := localcmd.ParseArgv(os.Getenv("CONDUIT_MODEL_CMD"))
+	client, err := modelhttp.FromEnv(os.Getenv)
 	if err != nil {
 		t.Fatal(err)
 	}
-	timeout := 5 * time.Minute
-	if text := strings.TrimSpace(os.Getenv("CONDUIT_MODEL_TIMEOUT")); text != "" {
-		parsed, err := time.ParseDuration(text)
-		if err != nil || parsed <= 0 {
-			t.Fatalf("CONDUIT_MODEL_TIMEOUT: %v", err)
-		}
-		timeout = parsed
-	}
 	audit := &memoryAudit{}
 	var reads []string
-	runner := Planner{Argv: argv, Timeout: timeout, Audit: audit, OnTool: func(name, path string) {
+	runner := Planner{Model: HTTPModel{Client: client}, Audit: audit, OnTool: func(name, path string) {
 		if name == "read_file" && strings.TrimSpace(path) != "" {
 			reads = append(reads, path)
 		}
@@ -141,30 +132,33 @@ func (audit *memoryAudit) Record(_ context.Context, record Record) error {
 
 // writeModelScript is a scripted fake model. Call n prints reply-n, and the
 // last reply repeats. Each prompt is kept as prompt-n.txt beside the script.
-func writeModelScript(t *testing.T, replies ...string) string {
+func writeModelScript(t *testing.T, replies ...string) *scriptedTextModel {
 	t.Helper()
-	dir := t.TempDir()
-	for i, reply := range replies {
-		if err := os.WriteFile(filepath.Join(dir, "reply-"+strconv.Itoa(i+1)), []byte(reply+"\n"), 0o644); err != nil {
-			t.Fatal(err)
-		}
+	return &scriptedTextModel{dir: t.TempDir(), replies: replies}
+}
+
+type scriptedTextModel struct {
+	dir, name string
+	replies   []string
+	calls     int
+}
+
+func (model *scriptedTextModel) Identity() Identity {
+	return Identity{Adapter: "scripted-test-fixture", ConfiguredModel: model.name}
+}
+func (model *scriptedTextModel) Complete(_ context.Context, prompt string) (Reply, error) {
+	model.calls++
+	if err := os.WriteFile(filepath.Join(model.dir, "n"), []byte(strconv.Itoa(model.calls)+"\n"), 0600); err != nil {
+		return Reply{}, err
 	}
-	path := filepath.Join(dir, "model")
-	body := `#!/bin/sh
-dir=$(dirname "$0")
-n=0
-if [ -f "$dir/n" ]; then n=$(cat "$dir/n"); fi
-n=$((n+1))
-echo "$n" > "$dir/n"
-cat > "$dir/prompt-$n.txt"
-total=` + strconv.Itoa(len(replies)) + `
-if [ "$n" -gt "$total" ]; then n=$total; fi
-cat "$dir/reply-$n"
-`
-	if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
-		t.Fatal(err)
+	if err := os.WriteFile(filepath.Join(model.dir, "prompt-"+strconv.Itoa(model.calls)+".txt"), []byte(prompt), 0600); err != nil {
+		return Reply{}, err
 	}
-	return path
+	index := model.calls - 1
+	if index >= len(model.replies) {
+		index = len(model.replies) - 1
+	}
+	return Reply{Text: []byte(model.replies[index])}, nil
 }
 
 const (
@@ -332,7 +326,7 @@ func TestReadFileBeforeInspectRepoDoesNotCreateInspection(t *testing.T) {
 	fixture, _ := makeFixture(t)
 	server := serveGit(t, fixture)
 	script := writeModelScript(t, toolRead, "done")
-	planner := Planner{Argv: []string{script}}
+	planner := Planner{Model: script}
 	session := &domain.Session{ID: "s1", Intake: domain.Intake{RepoURL: server.URL + "/src.git", Ref: "main"}}
 	_, err := planner.Turn(context.Background(), session, "go")
 	if err == nil || !strings.Contains(err.Error(), "did not call inspect_repo") {

@@ -31,6 +31,8 @@ const detailBody = {
   handoffReconciled: true,
   lastReview: "accepted",
   duplicateReviews: 2,
+  templateVersion: "reviewed-template-v2",
+  toolVersions: "reviewed-tools-v3",
 };
 
 describe("packaging-run detail view", () => {

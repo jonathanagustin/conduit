@@ -164,7 +164,7 @@ export function timelineSummary(hubState, environmentId) {
 
 function panel(title, body) {
   return `<section class="so-panel p-3 space-y-2">
-    <h2 class="text-[13px] font-semibold text-white">${esc(title)}</h2>
+    <h2 class="text-[13px] font-semibold text-[var(--text-1)]">${esc(title)}</h2>
     ${body}
   </section>`;
 }
@@ -296,23 +296,23 @@ export function recordedProposal(state) {
 }
 
 function outcomeDot(outcome) {
-  if (outcome === "PASS") return "bg-[#34d399]";
+  if (outcome === "PASS") return "bg-[var(--ok-border)]";
   if (/FAIL|REJECT|BLOCK|TIMED_OUT|CANCEL/.test(outcome || ""))
-    return "bg-[#e76a6e]";
-  return "bg-[#4c90f0]";
+    return "bg-[var(--err-border)]";
+  return "bg-[var(--info-border)]";
 }
 
 function stepTimeline(events) {
   if (!events.length) {
-    return `<p class="text-[12px] text-[#8b96a5]">No step events recorded.</p>`;
+    return `<p class="text-[12px] text-[var(--text-2)]">No step events recorded.</p>`;
   }
   return `<ol class="space-y-2">${events
     .map(
       (event) => `<li class="flex gap-2">
           <span class="mt-1.5 w-2 h-2 rounded-full shrink-0 ${outcomeDot(event.outcome)}"></span>
           <div class="min-w-0">
-            <div class="text-[12px] text-white">${esc(event.step || "")} · ${esc(event.outcome || "")}</div>
-            <div class="text-[11.5px] text-[#8b96a5]">${esc(event.reason || "No reason recorded.")}</div>
+            <div class="text-[12px] text-[var(--text-1)]">${esc(event.step || "")} · ${esc(event.outcome || "")}</div>
+            <div class="text-[11.5px] text-[var(--text-2)]">${esc(event.reason || "No reason recorded.")}</div>
           </div>
         </li>`,
     )
@@ -321,7 +321,7 @@ function stepTimeline(events) {
 
 function constraintRows(events) {
   if (!events.length) {
-    return `<p class="text-[12px] text-[#8b96a5]">No gate events recorded.</p>`;
+    return `<p class="text-[12px] text-[var(--text-2)]">No gate events recorded.</p>`;
   }
   return `<div class="space-y-2">${events
     .map((event) => {
@@ -330,22 +330,22 @@ function constraintRows(events) {
       );
       const tone =
         event.outcome === "PASS"
-          ? "border-[#1f4737] bg-[#10241d]"
+          ? "border-[var(--ok-border)] bg-[var(--bg-1)]"
           : blocked
-            ? "border-[#52252c] bg-[#241417]"
-            : "border-[#1f2a35] bg-[#10161c]";
+            ? "border-[var(--err-border)] bg-[var(--bg-1)]"
+            : "border-[var(--border-subtle)] bg-[var(--bg-1)]";
       const ink =
         event.outcome === "PASS"
-          ? "text-[#34d399]"
+          ? "text-[var(--ok-text)]"
           : blocked
-            ? "text-[#f5a3a6]"
-            : "text-[#dce4ee]";
+            ? "text-[var(--err-text)]"
+            : "text-[var(--text-1)]";
       return `<div class="rounded-[6px] border ${tone} px-2.5 py-2">
           <div class="flex items-center justify-between gap-2 text-[12px]">
-            <span class="text-white">${esc(event.step || "")}</span>
+            <span class="text-[var(--text-1)]">${esc(event.step || "")}</span>
             <span class="${ink}">${esc(event.outcome || "")}</span>
           </div>
-          <div class="text-[11.5px] text-[#b6c2cf] mt-1">${esc(event.reason || "No reason recorded.")}</div>
+          <div class="text-[11.5px] text-[var(--text-1)] mt-1">${esc(event.reason || "No reason recorded.")}</div>
         </div>`;
     })
     .join("")}</div>`;
@@ -612,23 +612,25 @@ export function createLiveHub({
     if (!entries.length) {
       return panel(
         "Audit chain",
-        `<p class="text-[12px] text-[#8b96a5]">${esc(hub(state).auditNote || "No audit entries are recorded.")}</p>`,
+        `<p class="text-[12px] text-[var(--text-2)]">${esc(hub(state).auditNote || "No audit entries are recorded.")}</p>`,
       );
     }
     const shown = limit ? entries.slice(0, limit) : entries;
     const items = shown
       .map(
-        (entry) => `<li class="space-y-1 border-b border-[#1c242c] pb-2">
-          <div class="text-[12px] text-white">${esc(entry.sequence)}. <span class="code-id">${esc(entry.id)}</span></div>
-          <div class="text-[12px] text-[#dce4ee]">${esc(entry.actor || "")} · ${esc(entry.action || "")}</div>
-          <div class="text-[11px] text-[#8b96a5]">Previous <span class="code-id break-all text-[#dce4ee]">${esc(entry.previousDigest || "")}</span></div>
-          <div class="text-[11px] text-[#8b96a5]">Hash <span class="code-id break-all text-[#dce4ee]">${esc(entry.digest || "")}</span></div>
+        (
+          entry,
+        ) => `<li class="space-y-1 border-b border-[var(--border-subtle)] pb-2">
+          <div class="text-[12px] text-[var(--text-1)]">${esc(entry.sequence)}. <span class="code-id">${esc(entry.id)}</span></div>
+          <div class="text-[12px] text-[var(--text-1)]">${esc(entry.actor || "")} · ${esc(entry.action || "")}</div>
+          <div class="text-[11px] text-[var(--text-2)]">Previous <span class="code-id break-all text-[var(--text-1)]">${esc(entry.previousDigest || "")}</span></div>
+          <div class="text-[11px] text-[var(--text-2)]">Hash <span class="code-id break-all text-[var(--text-1)]">${esc(entry.digest || "")}</span></div>
         </li>`,
       )
       .join("");
     return panel(
       "Audit chain",
-      `<p class="text-[12px] text-[#8b96a5]">${shown.length} of ${entries.length} recorded entries. Each hash includes the previous hash.</p><ol class="space-y-2 mt-2">${items}</ol>`,
+      `<p class="text-[12px] text-[var(--text-2)]">${shown.length} of ${entries.length} recorded entries. Each hash includes the previous hash.</p><ol class="space-y-2 mt-2">${items}</ol>`,
     );
   }
 
@@ -1093,33 +1095,33 @@ export function createLiveHub({
     const notes = (hub(state).feedbackByRun || {})[runID] || [];
     const rows = notes
       .map(
-        (note) => `<li class="text-[12px] text-[#dce4ee]">
-          <span class="text-[#8b96a5]">${esc(note.target)} ${esc(note.selector)}</span>
+        (note) => `<li class="text-[12px] text-[var(--text-1)]">
+          <span class="text-[var(--text-2)]">${esc(note.target)} ${esc(note.selector)}</span>
           — ${esc(note.note)}
-          <span class="text-[#6d7885]">(${esc(note.author || "operator")}, not an approval)</span>
+          <span class="text-[var(--text-2)]">(${esc(note.author || "operator")}, not an approval)</span>
         </li>`,
       )
       .join("");
     return panel(
       "Review notes",
-      `<p class="text-[12px] text-[#8b96a5]">A note on a file, manifest field, or step is review input. It does not approve the run.</p>
-       <ul class="space-y-1 mb-2">${rows || `<li class="text-[12px] text-[#8b96a5]">No review note is recorded.</li>`}</ul>
+      `<p class="text-[12px] text-[var(--text-2)]">A note on a file, manifest field, or step is review input. It does not approve the run.</p>
+       <ul class="space-y-1 mb-2">${rows || `<li class="text-[12px] text-[var(--text-2)]">No review note is recorded.</li>`}</ul>
        <form data-run="${esc(runID)}" class="grid gap-2">
-         <label class="text-[12px] text-[#8b96a5]">Element
-           <select name="target" class="mt-1 w-full bg-[#0d1317] border border-[#1e252b] text-white text-[12px] p-1">
+         <label class="text-[12px] text-[var(--text-2)]">Element
+           <select name="target" class="mt-1 w-full bg-[var(--bg-1)] border border-[var(--border-subtle)] text-[var(--text-1)] text-[12px] p-1">
              <option value="step">step</option>
              <option value="file">file</option>
              <option value="manifest">manifest</option>
            </select>
          </label>
-         <label class="text-[12px] text-[#8b96a5]">Selector
-           <input name="selector" class="mt-1 w-full bg-[#0d1317] border border-[#1e252b] text-white text-[12px] p-1" placeholder="gate or field" />
+         <label class="text-[12px] text-[var(--text-2)]">Selector
+           <input name="selector" class="mt-1 w-full bg-[var(--bg-1)] border border-[var(--border-subtle)] text-[var(--text-1)] text-[12px] p-1" placeholder="gate or field" />
          </label>
-         <label class="text-[12px] text-[#8b96a5]">Note
-           <textarea name="note" class="mt-1 w-full bg-[#0d1317] border border-[#1e252b] text-white text-[12px] p-1" rows="2"></textarea>
+         <label class="text-[12px] text-[var(--text-2)]">Note
+           <textarea name="note" class="mt-1 w-full bg-[var(--bg-1)] border border-[var(--border-subtle)] text-[var(--text-1)] text-[12px] p-1" rows="2"></textarea>
          </label>
          <button type="submit" class="so-btn so-btn-sm justify-self-start">Record review note</button>
-         <p data-error class="text-[12px] text-[#dce4ee]"></p>
+         <p data-error class="text-[12px] text-[var(--text-1)]"></p>
        </form>`,
     );
   }
@@ -1279,7 +1281,7 @@ export function createLiveHub({
         .map(
           (item) => `<tr>
             <td>${esc(item.kind)}</td>
-            <td class="text-white">${esc(item.name)}</td>
+            <td class="text-[var(--text-1)]">${esc(item.name)}</td>
             <td>${esc(item.version || "")}</td>
             <td class="code-id break-all">${esc(item.digest)}</td>
           </tr>`,
@@ -1304,20 +1306,20 @@ export function createLiveHub({
               "SBOM",
               components
                 ? `<table class="so-table"><thead><tr><th>Kind</th><th>Name</th><th>Version</th><th>Digest</th></tr></thead><tbody>${components}</tbody></table>`
-                : `<p class="text-[12px] text-[#8b96a5]">No chart or image components in this bundle.</p>`,
+                : `<p class="text-[12px] text-[var(--text-2)]">No chart or image components in this bundle.</p>`,
             )
           : panel(
               "SBOM",
-              `<p class="text-[12px] text-[#8b96a5]">Contents stay hidden until signature verification succeeds.</p>`,
+              `<p class="text-[12px] text-[var(--text-2)]">Contents stay hidden until signature verification succeeds.</p>`,
             );
       root.innerHTML = split(`${panel(
         "Bundle preview",
         `<dl class="space-y-2 text-[12px]">
-            <div><dt class="text-[#6d7885]">Bundle</dt><dd class="code-id text-white">${esc(preview.bundleId)}</dd></div>
-            <div><dt class="text-[#6d7885]">Manifest digest</dt><dd class="code-id text-white break-all">${esc(preview.manifestDigest)}</dd></div>
-            <div><dt class="text-[#6d7885]">Signature key</dt><dd class="code-id text-white break-all">${esc(signature.keyId || "")}</dd></div>
-            <div><dt class="text-[#6d7885]">Signature status</dt><dd class="text-white">${esc(status)}</dd></div>
-            <div><dt class="text-[#6d7885]">Scan outcome</dt><dd class="text-white">${esc(preview.securityOutcome || "not recorded")}</dd></div>
+            <div><dt class="text-[var(--text-2)]">Bundle</dt><dd class="code-id text-[var(--text-1)]">${esc(preview.bundleId)}</dd></div>
+            <div><dt class="text-[var(--text-2)]">Manifest digest</dt><dd class="code-id text-[var(--text-1)] break-all">${esc(preview.manifestDigest)}</dd></div>
+            <div><dt class="text-[var(--text-2)]">Signature key</dt><dd class="code-id text-[var(--text-1)] break-all">${esc(signature.keyId || "")}</dd></div>
+            <div><dt class="text-[var(--text-2)]">Signature status</dt><dd class="text-[var(--text-1)]">${esc(status)}</dd></div>
+            <div><dt class="text-[var(--text-2)]">Scan outcome</dt><dd class="text-[var(--text-1)]">${esc(preview.securityOutcome || "not recorded")}</dd></div>
           </dl>`,
       )}
         ${contents}
@@ -1325,7 +1327,7 @@ export function createLiveHub({
           "Scan results",
           scans
             ? `<table class="so-table"><thead><tr><th>Release</th><th>Digest</th><th>Vulnerabilities</th><th>Malware</th></tr></thead><tbody>${scans}</tbody></table>`
-            : `<p class="text-[12px] text-[#8b96a5]">No scan result is recorded on this bundle.</p>`,
+            : `<p class="text-[12px] text-[var(--text-2)]">No scan result is recorded on this bundle.</p>`,
         )}`);
     },
     renderChanges(root) {
@@ -1342,19 +1344,19 @@ export function createLiveHub({
           const reviews = (request.reviews || [])
             .map(
               (review) =>
-                `<li class="text-[12px] text-[#dce4ee]">${esc(review.decision)} by ${esc(review.subject)} — ${esc(review.rationale || "")}</li>`,
+                `<li class="text-[12px] text-[var(--text-1)]">${esc(review.decision)} by ${esc(review.subject)} — ${esc(review.rationale || "")}</li>`,
             )
             .join("");
           return panel(
             request.title || request.id,
-            `<p class="text-[12.5px] text-[#dce4ee]">${esc(request.description || "")}</p>
+            `<p class="text-[12.5px] text-[var(--text-1)]">${esc(request.description || "")}</p>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px] mt-2">
-              <div><dt class="text-[#6d7885]">Change request</dt><dd class="code-id text-white">${esc(request.id)}</dd></div>
-              <div><dt class="text-[#6d7885]">Status</dt><dd class="text-white">${esc(request.status)}</dd></div>
-              <div><dt class="text-[#6d7885]">Author</dt><dd class="text-white">${esc(request.author?.username || "")}</dd></div>
-              <div><dt class="text-[#6d7885]">Environment</dt><dd class="text-white">${esc(request.environment || "")}</dd></div>
+              <div><dt class="text-[var(--text-2)]">Change request</dt><dd class="code-id text-[var(--text-1)]">${esc(request.id)}</dd></div>
+              <div><dt class="text-[var(--text-2)]">Status</dt><dd class="text-[var(--text-1)]">${esc(request.status)}</dd></div>
+              <div><dt class="text-[var(--text-2)]">Author</dt><dd class="text-[var(--text-1)]">${esc(request.author?.username || "")}</dd></div>
+              <div><dt class="text-[var(--text-2)]">Environment</dt><dd class="text-[var(--text-1)]">${esc(request.environment || "")}</dd></div>
             </dl>
-            <ul class="mt-2 space-y-1">${reviews || `<li class="text-[12px] text-[#8b96a5]">No approval recorded.</li>`}</ul>`,
+            <ul class="mt-2 space-y-1">${reviews || `<li class="text-[12px] text-[var(--text-2)]">No approval recorded.</li>`}</ul>`,
           );
         })
         .join("");
@@ -1373,23 +1375,23 @@ export function createLiveHub({
       const pipe = edges
         .map(
           (edge) => `<div class="flex flex-wrap items-center gap-2">
-            <div class="rounded-[6px] border border-[#253b54] bg-[#13202e] px-3 py-2 min-w-[88px]">
-              <div class="text-[10px] uppercase tracking-[0.07em] text-[#6d7885]">From</div>
-              <div class="text-[13px] text-white">${esc(edge.fromChannel || "")}</div>
+            <div class="rounded-[6px] border border-[var(--border-subtle)] bg-[var(--bg-2)] px-3 py-2 min-w-[88px]">
+              <div class="text-[10px] uppercase tracking-[0.07em] text-[var(--text-2)]">From</div>
+              <div class="text-[13px] text-[var(--text-1)]">${esc(edge.fromChannel || "")}</div>
             </div>
-            <span class="text-[#7cb4ff]">→</span>
-            <div class="rounded-[6px] border border-[#1f4737] bg-[#10241d] px-3 py-2 min-w-[88px]">
-              <div class="text-[10px] uppercase tracking-[0.07em] text-[#6d7885]">To</div>
-              <div class="text-[13px] text-white">${esc(edge.toChannel || "")}</div>
+            <span class="text-[var(--info-text)]">→</span>
+            <div class="rounded-[6px] border border-[var(--ok-border)] bg-[var(--bg-1)] px-3 py-2 min-w-[88px]">
+              <div class="text-[10px] uppercase tracking-[0.07em] text-[var(--text-2)]">To</div>
+              <div class="text-[13px] text-[var(--text-1)]">${esc(edge.toChannel || "")}</div>
             </div>
-            <div class="text-[12px] text-[#8b96a5]">${esc(edge.product || "")} ${esc(edge.version || "")} · ${esc(edge.status || "")}</div>
+            <div class="text-[12px] text-[var(--text-2)]">${esc(edge.product || "")} ${esc(edge.version || "")} · ${esc(edge.status || "")}</div>
           </div>`,
         )
         .join("");
       root.innerHTML = split(
         panel(
           "Promotion pipeline",
-          `<p class="text-[12px] text-[#8b96a5] mb-2">Recorded promotion edges.</p><div class="space-y-2">${pipe}</div>`,
+          `<p class="text-[12px] text-[var(--text-2)] mb-2">Recorded promotion edges.</p><div class="space-y-2">${pipe}</div>`,
         ),
       );
     },
@@ -1411,7 +1413,7 @@ export function createLiveHub({
       }
       root.innerHTML = `<div class="so-view-enter">${panel(
         "Channel subscriptions",
-        `<p class="text-[12px] text-[#8b96a5]">The version on dev, candidate, and stable, and the channel this environment subscribes to. Running is the version the environment last reported.</p>${table}`,
+        `<p class="text-[12px] text-[var(--text-2)]">The version on dev, candidate, and stable, and the channel this environment subscribes to. Running is the version the environment last reported.</p>${table}`,
       )}</div>`;
     },
     proposeFix(environment, installationId) {
@@ -1435,7 +1437,7 @@ export function createLiveHub({
             spoke.observedAt,
           );
           return `<tr>
-            <td class="text-white">${esc(row.environment?.id || "")}</td>
+            <td class="text-[var(--text-1)]">${esc(row.environment?.id || "")}</td>
             <td class="code-id">${esc(spoke.agentId || row.reported?.agentId || "")}</td>
             <td>${esc(spoke.state || "")}</td>
             <td>${freshnessPill(reportedAt, { esc })}</td>
@@ -1445,7 +1447,7 @@ export function createLiveHub({
       const installs = installations
         .map(
           (row) => `<tr>
-            <td class="text-white">${esc(row.product || "")}</td>
+            <td class="text-[var(--text-1)]">${esc(row.product || "")}</td>
             <td>${esc(row.environment || "")}</td>
             <td>${esc(row.desiredVersion || "")}</td>
             <td>${esc(row.observedVersion || "")}</td>
@@ -1463,16 +1465,16 @@ export function createLiveHub({
             row.reported?.observedAt,
             spoke.observedAt,
           );
-          return `<div class="rounded-[6px] border border-[#1f2a35] bg-[#10161c] p-3">
+          return `<div class="rounded-[6px] border border-[var(--border-subtle)] bg-[var(--bg-1)] p-3">
             <div class="flex items-center justify-between gap-2">
-              <div class="text-[16px] font-semibold text-white">${esc(id)}</div>
-              <span class="px-1.5 py-0.5 rounded border border-[#253b54] text-[10px] text-[#7cb4ff]">${esc(spoke.state || "unknown")}</span>
+              <div class="text-[16px] font-semibold text-[var(--text-1)]">${esc(id)}</div>
+              <span class="px-1.5 py-0.5 rounded border border-[var(--border-subtle)] text-[10px] text-[var(--info-text)]">${esc(spoke.state || "unknown")}</span>
             </div>
-            <div class="mt-2 text-[12px] text-[#8b96a5]">Spoke <span class="text-white">${esc(spoke.agentId || row.reported?.agentId || "not recorded")}</span></div>
-            <div class="text-[12px] text-[#8b96a5]">Latest report ${freshnessPill(reportedAt, { esc })}</div>
-            <div class="text-[12px] text-[#8b96a5]">Offline bundle <span class="text-white">${esc(hub(state).offlineBundle || "none handed off")}</span></div>
-            <div class="text-[12px] text-[#8b96a5]">Behind <span class="text-white">${esc(hub(state).behind || "none")}</span></div>
-            <div class="text-[12px] text-[#8b96a5]">Timeline <span class="text-white">${esc(timelineSummary(hub(state), id))}</span></div>
+            <div class="mt-2 text-[12px] text-[var(--text-2)]">Spoke <span class="text-[var(--text-1)]">${esc(spoke.agentId || row.reported?.agentId || "not recorded")}</span></div>
+            <div class="text-[12px] text-[var(--text-2)]">Latest report ${freshnessPill(reportedAt, { esc })}</div>
+            <div class="text-[12px] text-[var(--text-2)]">Offline bundle <span class="text-[var(--text-1)]">${esc(hub(state).offlineBundle || "none handed off")}</span></div>
+            <div class="text-[12px] text-[var(--text-2)]">Behind <span class="text-[var(--text-1)]">${esc(hub(state).behind || "none")}</span></div>
+            <div class="text-[12px] text-[var(--text-2)]">Timeline <span class="text-[var(--text-1)]">${esc(timelineSummary(hub(state), id))}</span></div>
           </div>`;
         })
         .join("");
@@ -1491,8 +1493,8 @@ export function createLiveHub({
            ${panel(
              "Activity",
              ledger
-               ? `<p class="text-[12px] text-[#8b96a5] mb-2">Recorded authorization decisions.</p><table class="so-table"><thead><tr><th>#</th><th>Actor</th><th>Action</th></tr></thead><tbody>${ledger}</tbody></table>`
-               : `<p class="text-[12px] text-[#8b96a5]">No activity is recorded.</p>`,
+               ? `<p class="text-[12px] text-[var(--text-2)] mb-2">Recorded authorization decisions.</p><table class="so-table"><thead><tr><th>#</th><th>Actor</th><th>Action</th></tr></thead><tbody>${ledger}</tbody></table>`
+               : `<p class="text-[12px] text-[var(--text-2)]">No activity is recorded.</p>`,
            )}
            ${panel(
              "Spokes",
@@ -1505,12 +1507,12 @@ export function createLiveHub({
       const installTable = installations.length
         ? panel(
             "Reported installations",
-            `<p class="text-[12px] text-[#8b96a5]">Desired and observed versions. Drift is shown only when a spoke reported a differing digest, version, or config status. A missing report stays unknown.</p>
+            `<p class="text-[12px] text-[var(--text-2)]">Desired and observed versions. Drift is shown only when a spoke reported a differing digest, version, or config status. A missing report stays unknown.</p>
              <table class="so-table"><thead><tr><th>Product</th><th>Environment</th><th>Desired</th><th>Observed</th><th>Drift</th><th>Report</th><th></th></tr></thead><tbody>${installs}</tbody></table>`,
           )
         : panel(
             "Reported installations",
-            `<p class="text-[12px] text-[#8b96a5]">${esc(hub(state).installationNote || "No installation report is recorded.")}</p>`,
+            `<p class="text-[12px] text-[var(--text-2)]">${esc(hub(state).installationNote || "No installation report is recorded.")}</p>`,
           );
       root.innerHTML = split(`${spokeTable}${installTable}`);
       root.querySelectorAll("[data-propose-fix]").forEach((button) => {
@@ -1553,11 +1555,11 @@ export function createLiveHub({
                   </tr>`,
                 )
                 .join("")}</tbody></table>`
-            : `<p class="text-[12px] text-[#8b96a5]">No spoke report for this recall.</p>`;
+            : `<p class="text-[12px] text-[var(--text-2)]">No spoke report for this recall.</p>`;
           return panel(
             recall.id || "Recall",
-            `<p class="text-[12px] text-white">Terminal reason: ${esc(recall.reason || "")}</p>
-             <p class="text-[12px] text-[#8b96a5]">${esc(recall.product || "")} ${esc(recall.startingVersion || "")}${recall.endingVersionExclusive ? ` until ${esc(recall.endingVersionExclusive)}` : ""}</p>
+            `<p class="text-[12px] text-[var(--text-1)]">Terminal reason: ${esc(recall.reason || "")}</p>
+             <p class="text-[12px] text-[var(--text-2)]">${esc(recall.product || "")} ${esc(recall.startingVersion || "")}${recall.endingVersionExclusive ? ` until ${esc(recall.endingVersionExclusive)}` : ""}</p>
              ${table}`,
           );
         })
@@ -1580,7 +1582,7 @@ export function createLiveHub({
       }
       root.innerHTML = `<div class="so-view-enter">${operations.markup(stream.getSnapshot())}${panel(
         "Authorization audit",
-        `<p class="text-[12px] text-[#8b96a5]">Hash chain of the recorded decisions. The previous hash of each entry is the hash of the entry before it.</p>${auditTable(entries)}`,
+        `<p class="text-[12px] text-[var(--text-2)]">Hash chain of the recorded decisions. The previous hash of each entry is the hash of the entry before it.</p>${auditTable(entries)}`,
       )}</div>`;
     },
   };
@@ -1615,16 +1617,16 @@ export function renderLiveProposal(root, state) {
     ? panel(
         "Live model call",
         live.error
-          ? `<p class="text-[12.5px] text-white">${esc(live.error)}</p>`
-          : `<p class="text-[12.5px] text-white">${esc(live.outcome || "")} ${esc(live.reason || "")}</p>
-             <p class="text-[12px] text-[#8b96a5] mt-1">Live model call</p>
-             <p class="text-[12px] text-white mt-1">${esc(live.proposal?.value || "")} — ${esc(live.proposal?.rationale || "")}</p>
-             <p class="text-[12px] text-[#8b96a5]">${esc(live.changeRequestId || "No change request.")}</p>`,
+          ? `<p class="text-[12.5px] text-[var(--text-1)]">${esc(live.error)}</p>`
+          : `<p class="text-[12.5px] text-[var(--text-1)]">${esc(live.outcome || "")} ${esc(live.reason || "")}</p>
+             <p class="text-[12px] text-[var(--text-2)] mt-1">Live model call</p>
+             <p class="text-[12px] text-[var(--text-1)] mt-1">${esc(live.proposal?.value || "")} — ${esc(live.proposal?.rationale || "")}</p>
+             <p class="text-[12px] text-[var(--text-2)]">${esc(live.changeRequestId || "No change request.")}</p>`,
       )
     : "";
   const ask = `<form data-model-run="${esc(first.runId)}" class="mb-3">
       <button type="submit" class="so-btn so-btn-sm">Propose with model</button>
-      <p data-model-error class="text-[12px] text-[#dce4ee] mt-1"></p>
+      <p data-model-error class="text-[12px] text-[var(--text-1)] mt-1"></p>
     </form>`;
   const cards = proposals
     .map((run) => {
@@ -1641,12 +1643,12 @@ export function renderLiveProposal(root, state) {
           : "The proposal is recorded. Checks have not finished.";
       return `${panel(
         `Recorded proposal · ${run.runId}`,
-        `<p class="text-[12.5px] text-white">${esc(verdict)}</p>
-         <p class="text-[12px] text-[#8b96a5] mt-1">Recorded by the packaging assessment. No model call.</p>
+        `<p class="text-[12.5px] text-[var(--text-1)]">${esc(verdict)}</p>
+         <p class="text-[12px] text-[var(--text-2)] mt-1">Recorded by the packaging assessment. No model call.</p>
          <dl class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px] mt-2">
-           <div><dt class="text-[#6d7885]">Phase</dt><dd class="text-white">${esc(run.phase || "")}</dd></div>
-           <div><dt class="text-[#6d7885]">Outcome</dt><dd class="text-white">${esc(run.outcome || "")}</dd></div>
-           <div class="sm:col-span-2"><dt class="text-[#6d7885]">Source digest</dt><dd class="code-id text-white break-all">${esc(run.sourceDigest || "")}</dd></div>
+           <div><dt class="text-[var(--text-2)]">Phase</dt><dd class="text-[var(--text-1)]">${esc(run.phase || "")}</dd></div>
+           <div><dt class="text-[var(--text-2)]">Outcome</dt><dd class="text-[var(--text-1)]">${esc(run.outcome || "")}</dd></div>
+           <div class="sm:col-span-2"><dt class="text-[var(--text-2)]">Source digest</dt><dd class="code-id text-[var(--text-1)] break-all">${esc(run.sourceDigest || "")}</dd></div>
          </dl>`,
       )}
       ${panel("Constraints", constraintRows(events))}`;

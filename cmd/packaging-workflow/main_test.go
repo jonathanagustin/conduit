@@ -19,6 +19,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/devserver"
 	planningdomain "github.com/jonathanagustin/conduit/internal/planning/domain"
 	planningworkflow "github.com/jonathanagustin/conduit/internal/planning/workflow"
+	"github.com/jonathanagustin/conduit/internal/testsupport/modelhttpfixture"
 )
 
 func TestCLIRefusesNonLoopbackAddress(t *testing.T) {
@@ -388,7 +389,7 @@ func TestCLIMCPServeToolbox(t *testing.T) {
 	}
 }
 
-func TestCLIPlanningAndComputeWithRealAgentExecSubprocess(t *testing.T) {
+func TestCLIPlanningAndComputeOverDeterministicHTTPFixture(t *testing.T) {
 	cliPath := strings.TrimSpace(os.Getenv("CONDUIT_TEMPORAL_CLI"))
 	if cliPath == "" {
 		candidate := filepath.Join("..", "..", ".cache", "temporal", "temporal")
@@ -403,12 +404,7 @@ func TestCLIPlanningAndComputeWithRealAgentExecSubprocess(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	binPath := filepath.Join(tmpDir, "packaging-workflow")
-	buildCmd := exec.Command("go", "build", "-o", binPath, "github.com/jonathanagustin/conduit/cmd/packaging-workflow")
-	if out, err := buildCmd.CombinedOutput(); err != nil {
-		t.Fatalf("go build packaging-workflow: %v\n%s", err, string(out))
-	}
-	t.Setenv("CONDUIT_MODEL_CMD", binPath+" agent-exec")
+	modelhttpfixture.Configure(t, runAgentExecPrompt)
 
 	dbPath := filepath.Join(tmpDir, "temporal.db")
 	stateDir := filepath.Join(tmpDir, "state")
@@ -443,7 +439,7 @@ func TestCLIPlanningAndComputeWithRealAgentExecSubprocess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("activitiesWithRepository: %v", err)
 	}
-	// Passing false for fixturePlanner ensures CONDUIT_MODEL_CMD is invoked for every turn!
+	// The explicit HTTP fixture, not plan-fixture, serves every model turn.
 	planActs, err := planningActivities(stateDir, repository, false)
 	if err != nil {
 		t.Fatalf("planningActivities: %v", err)
@@ -478,21 +474,23 @@ func TestCLIPlanningAndComputeWithRealAgentExecSubprocess(t *testing.T) {
 		return &session, nil
 	}
 
-	s, err := execCLI("plan-create", repoURL, "main", "--session-id", "ps_real_agent", "--actor", "alice")
+	s, err := execCLI("plan-create", repoURL, "main", "--session-id", "ps_http_fixture", "--actor", "alice")
 	if err != nil || s.Status != planningdomain.StatusStarted {
 		t.Fatalf("plan-create: %+v, err=%v", s, err)
 	}
 
-	s, err = execCLI("plan-turn", "ps_real_agent", "Inspect Excalidraw and identify runtime dependencies", "--actor", "alice")
+	s, err = execCLI("plan-turn", "ps_http_fixture", "Inspect Excalidraw and identify runtime dependencies", "--actor", "alice")
 	if err != nil {
-		t.Fatalf("plan-turn 1 (real agent): %v", err)
+		t.Fatalf("plan-turn 1 (deterministic HTTP fixture): %v", err)
 	}
 	if s.Status != planningdomain.StatusNeedsInput || len(s.NeedsInput) != 1 || s.NeedsInput[0].ID != "node_version" {
-		t.Fatalf("expected NeedsInput(node_version) from real agent, got %+v", s)
+		t.Fatalf("expected NeedsInput(node_version) from deterministic HTTP fixture, got %+v", s)
 	}
-	// The agent's reply claims agentExecModelName; that text is ignored.
-	if s.Model != planningdomain.UnverifiedModelLabel {
-		t.Fatalf("expected the unverified marker %q, got %q", planningdomain.UnverifiedModelLabel, s.Model)
+	// Reply text claims agentExecModelName, but only HTTP configuration and
+	// response metadata supply the retained identity.
+	if s.Model != "fixture-requested (provider reported fixture-served)" ||
+		s.ConfiguredModel != "fixture-requested" || s.ProviderModel != "fixture-served" {
+		t.Fatalf("wrong HTTP fixture identity: %q / %q / %q", s.Model, s.ConfiguredModel, s.ProviderModel)
 	}
 	if s.Inspection == nil || s.Inspection.Language != "typescript" || s.Inspection.PackageManager != "yarn" {
 		t.Fatalf("expected real typescript/yarn inspection, got %+v", s.Inspection)
@@ -501,40 +499,44 @@ func TestCLIPlanningAndComputeWithRealAgentExecSubprocess(t *testing.T) {
 		t.Fatalf("ResolvedCommit = %q, want %q", s.ResolvedCommit, expectedSHA)
 	}
 
-	if _, err := execCLI("plan-answer", "ps_real_agent", "node_version=20", "--actor", "alice"); err != nil {
+	if _, err := execCLI("plan-answer", "ps_http_fixture", "node_version=20", "--actor", "alice"); err != nil {
 		t.Fatalf("plan-answer: %v", err)
 	}
 
-	s, err = execCLI("plan-turn", "ps_real_agent", "Produce the Excalidraw Zarf and UDS packaging plan", "--actor", "alice")
+	s, err = execCLI("plan-turn", "ps_http_fixture", "Produce the Excalidraw Zarf and UDS packaging plan", "--actor", "alice")
 	if err != nil {
-		t.Fatalf("plan-turn 2 (real agent): %v", err)
+		t.Fatalf("plan-turn 2 (deterministic HTTP fixture): %v", err)
 	}
 	if s.Status != planningdomain.StatusReady || s.Plan == nil || !strings.Contains(s.Plan.Text, "Excalidraw") {
-		t.Fatalf("expected Ready plan from real agent, got %+v", s)
+		t.Fatalf("expected Ready plan from deterministic HTTP fixture, got %+v", s)
 	}
 
-	s, err = execCLI("plan-accept", "ps_real_agent", "--actor", "alice")
+	s, err = execCLI("plan-accept", "ps_http_fixture", "--actor", "alice")
 	if err != nil || s.Status != planningdomain.StatusAccepted || s.Binding == nil {
 		t.Fatalf("plan-accept: %+v, err=%v", s, err)
 	}
 	if s.Binding.ResolvedCommit != expectedSHA {
 		t.Fatalf("bound ResolvedCommit = %q, want %q", s.Binding.ResolvedCommit, expectedSHA)
 	}
+	if s.Binding.ConfiguredModel != "fixture-requested" || s.Binding.ProviderModel != "fixture-served" {
+		t.Fatalf("Accept lost HTTP model identity: %+v", s.Binding)
+	}
 
 	var out, errBuf bytes.Buffer
 	cmd := newRoot()
 	cmd.SetOut(&out)
 	cmd.SetErr(&errBuf)
-	cmd.SetArgs([]string{"--address", running.Frontend, "--state-dir", stateDir, "plan-compute", "ps_real_agent", "--actor", "alice"})
+	cmd.SetArgs([]string{"--address", running.Frontend, "--state-dir", stateDir, "plan-compute", "ps_http_fixture", "--actor", "alice"})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("plan-compute with real agent: %v\n%s", err, errBuf.String())
+		t.Fatalf("plan-compute with deterministic HTTP fixture: %v\n%s", err, errBuf.String())
 	}
 	var computeOut planComputeOutput
 	if err := json.Unmarshal(out.Bytes(), &computeOut); err != nil {
 		t.Fatalf("decode plan-compute JSON (%v):\n%s", err, out.String())
 	}
-	if computeOut.Result.Outcome != "PASS" || computeOut.Result.Provenance.Adapter != "packaging-workflow" {
-		t.Fatalf("expected PASS with packaging-workflow provenance adapter, got %+v", computeOut.Result)
+	if computeOut.Result.Outcome != "PASS" || computeOut.Result.Provenance.Adapter != "openai-http" ||
+		computeOut.Result.Provenance.ConfiguredModel != "fixture-requested" || computeOut.Result.Provenance.ProviderModel != "fixture-served" {
+		t.Fatalf("expected PASS with HTTP fixture provenance, got %+v", computeOut.Result)
 	}
 }
 

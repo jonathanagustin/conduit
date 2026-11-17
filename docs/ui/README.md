@@ -1,25 +1,12 @@
 # Console documentation
 
-The operator UI served from `/console/` is one workbench
-(`web/src/console/Workbench.tsx`), which mounts the operator engine in
-`web/src/console/operator/engine.js`. The engine renders the fleet, plans,
-products, promotions, change requests, notifications and audit screens from
-the Hub's read model, with the assistant in a rail beside them.
-`console-navigation.md` lists the areas and tabs as coded, and `web/README.md`
-lists what the console writes to the Hub.
+The operator UI served from `/console/` is the workbench mounted by
+`web/src/embed/main.tsx`. It includes packaging, releases, change requests,
+intelligence, fleet, audit and the Command Center, with the assistant in its
+rail. [Console composition](console-composition-trees.md) records the current
+mounts and component boundaries.
 
-*Corrected 2026-11-17.* This paragraph said until then that the console was
-"the local packaging assistant" and that the fleet, plans, products,
-promotions, change requests and notifications screens "are no longer
-rendered". That described an intermediate state. The engine renders them; see
-the `AREAS` table in `engine.js`.
-
-Not everything in this directory describes that engine.
-`console-composition-trees.md` was written against an earlier React console
-and is kept as its evidence record; it is marked historical at its top. The
-tenant bootstrap contract is still in force.
-
-The living UI contract is intentionally small:
+The living UI contracts include:
 
 - `contracts/pagination.md` defines the shared index behavior.
 - `contracts/overview.md` defines the Hub overview projection and its failure states.
@@ -30,7 +17,7 @@ The living UI contract is intentionally small:
 - `contracts/fleet-facets.md` defines the fleet's faceted filter rail, and in
   particular what each of its counts is over -- the one thing about a facet that
   cannot be inferred from looking at it.
-- `console-navigation.md` names the seven workbench areas, the rest of the left rail, and the screen hashes that open a tab.
+- `console-navigation.md` is generated from the seven workbench areas and names their tabs and the older hashes that open the same tabs.
 - `third-party-assets.md` credits the bundled globe imagery.
 
 The files under `evidence/` and the dated inventories in this directory are

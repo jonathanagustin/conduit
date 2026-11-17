@@ -21,6 +21,7 @@ func TestFleetQueryFiltersEachAxisIndependently(t *testing.T) {
 		mismatched FleetQuery
 	}{
 		{"environment", FleetQuery{Environment: "prod"}, FleetQuery{Environment: "dev"}},
+		{"installation", FleetQuery{InstallationID: "api"}, FleetQuery{InstallationID: "API"}},
 		{"product", FleetQuery{Product: "app.example:api"}, FleetQuery{Product: "app.example:worker"}},
 		{"health", FleetQuery{Health: HealthHealthy}, FleetQuery{Health: HealthUnhealthy}},
 		{"rollout", FleetQuery{Rollout: RolloutUpToDate}, FleetQuery{Rollout: RolloutOutOfDate}},

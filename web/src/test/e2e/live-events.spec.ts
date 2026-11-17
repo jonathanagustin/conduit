@@ -338,6 +338,22 @@ test("Audit session feed and native KPI counts update from authorized invalidati
   await expect(kpi("spokes")).toHaveText("—");
   current.completeMetrics();
   await page.evaluate(() => {
+    const view = window as unknown as {
+      state: {
+        liveHub: {
+          onLiveEvents(
+            callback: (events: { sequence: number }[]) => void,
+          ): () => void;
+        };
+      };
+      __acceptedOperations: number[];
+    };
+    view.__acceptedOperations = [];
+    view.state.liveHub.onLiveEvents((events) =>
+      view.__acceptedOperations.push(...events.map((event) => event.sequence)),
+    );
+  });
+  await page.evaluate(() => {
     const source = (
       window as unknown as { __conduitLiveFixture: BrowserStream }
     ).__conduitLiveFixture;
@@ -363,6 +379,20 @@ test("Audit session feed and native KPI counts update from authorized invalidati
   await expect(kpi("packaging")).toHaveText("0");
   await expect(kpi("changes")).toHaveText("—");
   await expect(kpi("spokes")).toHaveText("—");
+  // The read publishes its KPI before the invalidation is acknowledged.
+  // Wait for the authorized event delivery before changing the read scope.
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        [
+          ...new Set(
+            (window as unknown as { __acceptedOperations: number[] })
+              .__acceptedOperations,
+          ),
+        ].sort(),
+      ),
+    )
+    .toEqual([1, 2]);
   await page.evaluate(() =>
     (window as unknown as { switchScreen: (id: string) => void }).switchScreen(
       "au01-audit",

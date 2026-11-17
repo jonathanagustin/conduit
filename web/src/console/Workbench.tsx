@@ -32,8 +32,7 @@ const RAIL_THREAD = {
   AssistantMessageFooter: AssistantTurnFooter,
 };
 
-export function Workbench({ dark }: { dark: boolean }) {
-  void dark;
+export function Workbench() {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const onAssistantMount = useCallback((element: HTMLElement | null) => {
     setSlot((current) => (current === element ? current : element));
@@ -48,7 +47,7 @@ export function Workbench({ dark }: { dark: boolean }) {
   return (
     <div
       id="operator-root"
-      className="operator-root bp6-dark flex h-full w-full flex-col overflow-hidden"
+      className="operator-root dark bp6-dark flex h-full w-full flex-col overflow-hidden"
       data-theme="dark"
     >
       {slot

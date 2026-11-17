@@ -25,12 +25,12 @@ export function Sparkline({
     .join(" ");
   const color =
     tone === "ok"
-      ? "#34d399"
+      ? "var(--ok-text)"
       : tone === "warn"
-        ? "#eab854"
+        ? "var(--warn-text)"
         : tone === "bad"
-          ? "#e76a6e"
-          : "#4c90f0";
+          ? "var(--err-text)"
+          : "var(--info-text)";
   return (
     <svg
       className="cd-spark"

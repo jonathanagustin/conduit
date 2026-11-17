@@ -7,9 +7,9 @@ export function brandMarkMarkup(size = 20) {
   const n = Number(size) || 20;
   return (
     `<svg class="cnd-brand-mark" width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" aria-hidden="true">` +
-    `<path class="cnd-mark-c1" d="M3.6 6.6L9 12L3.6 17.4" stroke="#215db0" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"/>` +
-    `<path class="cnd-mark-c2" d="M9.3 6.6L14.7 12L9.3 17.4" stroke="#4c90f0" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"/>` +
-    `<path class="cnd-mark-c3" d="M15 6.6L20.4 12L15 17.4" stroke="#8abbff" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"/>` +
+    `<path class="cnd-mark-c1" d="M3.6 6.6L9 12L3.6 17.4" stroke="var(--cnd-mark-1)" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"/>` +
+    `<path class="cnd-mark-c2" d="M9.3 6.6L14.7 12L9.3 17.4" stroke="var(--cnd-mark-2)" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"/>` +
+    `<path class="cnd-mark-c3" d="M15 6.6L20.4 12L15 17.4" stroke="var(--cnd-mark-3)" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"/>` +
     `</svg>`
   );
 }

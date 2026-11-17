@@ -17,6 +17,7 @@ const sidebarTemplate = [
     items: [
       { label: 'Home', slug: 'index' },
       { label: 'Quick start', slug: 'getting-started' },
+      { label: 'Install Conduit', slug: 'install' },
     ],
   },
   {
@@ -30,6 +31,14 @@ const sidebarTemplate = [
   {
     label: 'Reference',
     items: [
+      { label: 'Operate a Hub', slug: 'operate' },
+      { label: 'Tenant delivery', slug: 'tenant' },
+      { label: 'Using the CLI', slug: 'cli' },
+      { label: 'API guide', slug: 'api' },
+      { label: 'CLI commands', slug: 'reference/cli-commands' },
+      { label: 'Native API contracts', slug: 'reference/native-api' },
+      { label: 'Typed RPC contracts', slug: 'reference/rpc' },
+      { label: 'Hub route coverage', slug: 'reference/route-coverage' },
       { label: 'Packaging profiles', slug: 'packaging' },
     ],
   },
@@ -37,6 +46,7 @@ const sidebarTemplate = [
     label: 'Project',
     items: [
       { label: 'Roadmap', slug: 'roadmap' },
+      { label: 'Readiness and limitations', slug: 'readiness' },
     ],
   },
 ];

@@ -11,12 +11,31 @@ back, retry, and shared links address the same result window.
 | Products | `GET /v1/products` | `search` | `summary`: default 100, maximum 200; `full` or omitted: maximum 20 |
 | Environments | `GET /v1/environments` | `search` | `summary`: default 100, maximum 200; `full` or omitted: maximum 20 |
 | Plans | `GET /v1/plans` | `environment`, `status`, `installationId`, `search` | `summary`: default 100, maximum 200; `full`: maximum 20; omitted view resolves to `full` |
-| Fleet | `GET /v1/fleet/installations` | `environment`, `product`, `health`, `rolloutStatus`, `configStatus`, `lifecycle`, `search`, `maxAgeSeconds` | default 100, maximum 200 |
+| Fleet | `GET /v1/fleet/installations` | `environment`, `installationId`, `product`, `health`, `rolloutStatus`, `configStatus`, `lifecycle`, `search`, `maxAgeSeconds` | default 100, maximum 200 |
 | Change Requests | `GET /v1/change-requests` | `environment`, `status`, `search` | default 100, maximum 200 |
 | Promotions | `GET /v1/promotions` | `product`, `status`, `search` | default 100, maximum 200 |
 | Packaging runs | `GET /v1/packaging-runs` | `phase`, `outcome`, `planId`, `search` | `summary`: default 100, maximum 200; `full` or omitted: maximum 20. Rows are ordered by run id. |
 | Packaging-run events | `GET /v1/packaging-runs/{runID}/events` | the run id; `view` and `limit` only | same view and limit rules. Events are ordered by sequence. A step that has not been reached is absent, not a pass. |
 | Authorization audit | `GET /v1/authorization-audit` | `resourceRid`, `since`, `until`, `view` (`events` or omitted, or `chain`), `order` (`asc` or omitted, or `desc`) | default 100, maximum 200. Ascending recorded order by default. Forward-only: `previousCursor` is never issued. |
+
+The Fleet `installationId` filter is an additive Conduit-native exact,
+case-sensitive identity filter, distinct from substring `search`. Combined
+with `environment` and `limit=1`, it resolves one PackagingRun action target
+without depending on the visible index page. Authorization still precedes
+pagination and counts; an unreadable or missing target returns an empty page.
+The identity filter also narrows facets. Nonempty identities bind cursors to
+that target; omitting the filter preserves the prior cursor encoding. No
+Palantir protocol claim or generated public API change is introduced.
+
+Before a packaging assistant proposal, the console re-reads the selected run
+and its exact target. A changed run binding, missing Product, observed-only
+installation, refused read or selection change prevents the tool POST. These
+checks include removed/added context chips, and recheck current membership at
+the final POST boundary after the target resolver returns. Removing a chip
+while its target read is pending cancels that proposal intent. These
+context reads do not replace displayed index rows, add off-page rows to a
+count, or approve or execute the proposal. The Hub remains the authority for
+action rules and independent change review.
 
 The authorization audit is the one index bounded in the repository query
 rather than after a full read, because the log is retained indefinitely.

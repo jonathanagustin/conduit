@@ -26,7 +26,7 @@ export function channelTable(view) {
         )
         .join("");
       const subscribed = row.subscribed || "not subscribed";
-      return `<tr><td class="text-white">${esc(row.environment)}</td><td>${esc(row.product)}</td><td>${esc(subscribed)}</td>${cells}<td class="code-id">${esc(row.running || "")}</td></tr>`;
+      return `<tr><td class="text-[var(--text-1)]">${esc(row.environment)}</td><td>${esc(row.product)}</td><td>${esc(subscribed)}</td>${cells}<td class="code-id">${esc(row.running || "")}</td></tr>`;
     })
     .join("");
   return `<table class="so-table"><thead><tr><th>Environment</th><th>Product</th><th>Subscribed</th>${head}<th>Running</th></tr></thead><tbody>${body}</tbody></table>`;

@@ -310,7 +310,7 @@ export function dockSurfacesMarkup(state, helpers) {
     })
     .map(
       (row) =>
-        `<li class="text-[12px]"><span class="code-id text-white">${esc(row.environment.id)}</span> <span class="kit-muted">${esc(JSON.stringify(row.environment.maintenance))}</span></li>`,
+        `<li class="text-[12px]"><span class="code-id text-[var(--text-1)]">${esc(row.environment.id)}</span> <span class="kit-muted">${esc(JSON.stringify(row.environment.maintenance))}</span></li>`,
     );
   const windows = windowRows.length
     ? `<ul class="space-y-1">${windowRows.join("")}</ul>`
@@ -325,7 +325,7 @@ export function dockSurfacesMarkup(state, helpers) {
       ? `<ul class="space-y-1">${entries
           .map(
             (e) =>
-              `<li class="text-[12px]"><span class="code-id text-white">${esc(e?.sequence)}</span> <span class="kit-muted">${esc(who(e?.actor))} · ${esc(e?.action)}</span></li>`,
+              `<li class="text-[12px]"><span class="code-id text-[var(--text-1)]">${esc(e?.sequence)}</span> <span class="kit-muted">${esc(who(e?.actor))} · ${esc(e?.action)}</span></li>`,
           )
           .join("")}</ul>`
       : empty("No audit entry is recorded.");

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"unicode"
@@ -200,8 +201,8 @@ func ParseProposal(raw []byte) (Proposal, error) {
 	if err := decoder.Decode(&proposal); err != nil {
 		return Proposal{}, fmt.Errorf("%w: %v", ErrProposalInvalid, err)
 	}
-	if decoder.More() {
-		return Proposal{}, fmt.Errorf("%w: extra data after the object", ErrProposalInvalid)
+	if err := requireProposalEOF(decoder); err != nil {
+		return Proposal{}, err
 	}
 	proposal.Field = strings.TrimSpace(proposal.Field)
 	proposal.Value = strings.TrimSpace(proposal.Value)
@@ -297,8 +298,8 @@ func ParseDockerfileProposal(raw []byte, ignoreExisting bool) (DockerfileProposa
 	if err := decoder.Decode(&proposal); err != nil {
 		return DockerfileProposal{}, fmt.Errorf("%w: %v", ErrProposalInvalid, err)
 	}
-	if decoder.More() {
-		return DockerfileProposal{}, fmt.Errorf("%w: extra data after the object", ErrProposalInvalid)
+	if err := requireProposalEOF(decoder); err != nil {
+		return DockerfileProposal{}, err
 	}
 	proposal.Dockerfile = strings.TrimSpace(proposal.Dockerfile)
 	proposal.Dockerignore = strings.TrimSpace(proposal.Dockerignore)
@@ -327,8 +328,8 @@ func ParsePackageProposal(raw []byte) (PackageProposal, error) {
 	if err := decoder.Decode(&proposal); err != nil {
 		return PackageProposal{}, fmt.Errorf("%w: %v", ErrProposalInvalid, err)
 	}
-	if decoder.More() {
-		return PackageProposal{}, fmt.Errorf("%w: extra data after the object", ErrProposalInvalid)
+	if err := requireProposalEOF(decoder); err != nil {
+		return PackageProposal{}, err
 	}
 	proposal.Source = strings.TrimSpace(proposal.Source)
 	proposal.Zarf = strings.TrimSpace(proposal.Zarf)
@@ -361,7 +362,10 @@ func ParseToolRequests(raw []byte) ([]ToolRequest, bool, error) {
 	if err := decoder.Decode(&body); err != nil {
 		return nil, false, err
 	}
-	if decoder.More() || len(body.ToolCalls) == 0 {
+	if err := requireProposalEOF(decoder); err != nil {
+		return nil, false, err
+	}
+	if len(body.ToolCalls) == 0 {
 		return nil, false, nil
 	}
 	for i := range body.ToolCalls {
@@ -374,6 +378,16 @@ func ParseToolRequests(raw []byte) ([]ToolRequest, bool, error) {
 		return nil, false, fmt.Errorf("%w: at most 4 tool calls", ErrProposalInvalid)
 	}
 	return body.ToolCalls, true, nil
+}
+
+// More checks array/object iteration, so an unmatched closing delimiter can
+// make it report false. Only EOF after another decode ends a model response.
+func requireProposalEOF(decoder *json.Decoder) error {
+	var extra json.RawMessage
+	if err := decoder.Decode(&extra); err != io.EOF {
+		return fmt.Errorf("%w: extra data after the object", ErrProposalInvalid)
+	}
+	return nil
 }
 
 // DigestText is sha256 hex of the exact bytes.
