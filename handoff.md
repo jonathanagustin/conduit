@@ -1,191 +1,185 @@
 # Handoff
 
-**Updated:** 2026-11-17 05:55 UTC
+**Updated:** 2026-11-17 (America/New_York)
+**Reviewed merged source baseline:** `c8a6eb83697877aee0773502c451573cb906ea06` (#881, merged 2026-11-17T05:49:12Z).
+**Issue snapshot:** `2026-11-17T05:56:56Z`; later issue closures are distinguished from that source baseline below.
+
+The current readiness record is [PRODUCTION-READINESS.md](docs/operations/PRODUCTION-READINESS.md), generated from [reviewed evidence](docs/operations/readiness-evidence.json). No complete hosted or local act receipt for this merged baseline is asserted here. Gate definitions, focused tests and open candidate PRs do not establish that result.
+
+Hosted jobs currently cannot allocate runners because of the account billing/spending refusal confirmed in [#858](https://github.com/jonathanagustin/conduit/issues/858). The maintainer selected the complete exact-head [local act verifier](docs/operations/local-act.md); retain its success receipt with the log, compare the candidate head, and preserve server-required checks. Do not repeatedly dispatch hosted runs while that external condition is unchanged. The August outage below is historical evidence, not the explanation for this current incident.
+
+The reviewed source contains the second completeness wave, #864 native development/Podman repairs, #861's checksum-pinned UDS toolchain entry, #777 typed console Plan approval, #882 rollback ownership refusal, #885 package-target admission and artifact display, #876 audit adoption pagination, #873 verified audit export/checkpoint checks, #886 chart-label regression coverage and #875 model evidence framing/environment filtering. It also contains #867's pinned-CLI generated-bundle fixtures (closing #835), #868's Plan-completion retry fencing, #881's immutable notification replay audience, #899's ready-for-review Trunk trigger and #902's serialized audited ACP publication. These merges do not establish a complete gate receipt for their combined tree. Model subprocess filesystem confinement remains unresolved at this baseline.
+
+After the source baseline, notification coverage PR #874 merged at 2026-11-17T05:51:34Z as `dc88350e085dcbcd5b146fa1db11707022e9ff5e` and closed #840; preference-save PR #891 merged at 2026-11-17T05:52:39Z as `a924eb0ea35aa9b4ea9daa38cb8b58fdde454fcf` and closed #880. Their behavior is not attributed to the earlier `c8a6eb8` source snapshot. Notification source-emission durability #869 and recipient-authority #884 remain active; candidate PR #896 is not a shipped guarantee here. Operator sign-in/model governance (#856), release verification (#857), index work (#911) and other open branches remain candidates, not capabilities of this reviewed source. Re-read current issue/PR state when resuming; this is one dated checkpoint, not continuous tracking.
+
+Next work: finish and review those candidate gates, retain the exact-head evidence, resolve only ready issues, and record any required owner decisions. The typed API-reference gap depends on #391 and is measured by the generated native reference rather than filled with guessed schemas. The owner deferred #845; this documentation refresh changes no licensing/visibility statements or distribution permission. Release, publication and tenant deployment still require their separate explicit authority. Shared container verification must remain serialized by its coordinator.
+
+## Historical handoff through 2026-08-19
+
+The record below is retained verbatim for its decisions, failed assumptions and measurements. Its branch, runner, test-count and capability statements are not current status.
+
+**Updated:** 2026-08-19 UTC
 **Lead or owner:** orchestrating session (see `docs/operations/ORCHESTRATOR.md`)
-**Status:** blocked on hosted CI — GitHub Actions is allocating no runners for
-this repository, so no pull request can obtain a hosted Trunk gate result.
-Local work continues.
+**Status:** active — Apollo `core/whats-new` feature-coverage program in flight (see the
+2026-08-19 section at the end). The 2026-08-18 authorization/credential blocker
+below is the prior focus, left as recorded; this session did not touch it.
 
 This file carries the shape of [`HANDOFF.template.md`](HANDOFF.template.md) at
 the top — current state, decisions, next actions — and the dated historical
 record below it. The history is appended to, not rewritten; a correction to an
 earlier session's claim is made where the claim is, and marked.
 
-The top section was last refreshed on 2026-08-19. What it said then is kept
-below under "Top section as it stood from 2026-08-19 to 2026-11-17".
-
 ## Mission
 
-- **Goal:** close the gaps the 2026-11-16 completeness assessment recorded
-  between a working control plane and a shippable product, under four epics:
-  #801 (AI subsystem), #803 (console), #804 (Zarf/UDS packaging and delivery),
-  #805 (platform).
-- **Deliverables:** merged pull requests with reproducible evidence; a
-  readiness record and this handoff that say only what was checked (#850).
-- **Measurable success criteria:** Trunk gate green on the exact head commit;
-  every claimed fix killed by a **compiling** mutant; each issue closed only
-  when its acceptance criteria are met on `main`, not when a pull request that
-  mentions it is opened.
-- **Constraints and non-goals:** a green gate is evidence, never
-  authorization. Releasing, publishing and deploying to a tenant each need an
-  explicit human instruction. Agents do not merge. Repository visibility and
-  licensing statements are not to be changed: the owner has deferred that
-  decision (#845). Do not run `./scripts/verify-local.sh` while another
-  process holds the shared Docker/PostgreSQL daemon.
-- **Budget or deadline:** none recorded here; they arrive in the task message.
-- **Authorized side effects:** branches, pull requests and issues in
-  `jonathanagustin/conduit`. Merging is the owner's.
+- **Goal:** keep `main` correct and shippable while closing the defects the
+  gate cannot catch — authorization and credential-destination faults, which
+  pass CI by construction.
+- **Deliverables:** merged pull requests with reproducible evidence; the
+  operating structure in `docs/operations/ORCHESTRATOR.md` and its companions.
+- **Measurable success criteria:** Trunk gate green on the head commit; every
+  claimed fix killed by a **compiling** mutant; no regression introduced by a
+  fix.
+- **Constraints and non-goals:** a green gate is evidence, never authorization
+  (A5). Releasing, publishing, and deploying to a tenant each need explicit
+  human instruction. Do not run `./scripts/verify-local.sh` while another
+  process holds the shared Docker/Postgres daemon.
+- **Authorized side effects:** branches, pull requests, issues, and merges in
+  `jonathanagustin/conduit` under the standing instruction to handle pull
+  requests. Nothing outside this repository's scope.
 
 ## Current verified state
 
-- `[VERIFIED]` `main` is at `6e3c1c16` (#899) — `git fetch && git log`, checked
-  2026-11-17 05:50 UTC. It moves quickly: it was `1f3ad1b9` (#868) twenty
-  minutes earlier.
-- `[VERIFIED]` Pull requests #854 and #855 are merged (00:45 and 01:37 UTC on
-  2026-11-17). They carried the first two waves of the completeness work. The
-  four epics #801, #803, #804 and #805 are all still open.
-- `[VERIFIED]` Pull request #856 is open and unmerged. It carries the third
-  wave: operator sign-in, HTTP observability, Agent credential revocation, a
-  material preparer, model-call governance and transcripts, an eval harness, a
-  Hub MCP endpoint and console assistant threads. **None of that is on `main`
-  by way of #856**, and no document may describe it as shipped. #857 is also
-  open.
-- `[VERIFIED]` Closed: #806, #816, #819, #822, #826 (and #833, #835). Open:
-  every other issue from #807 to #850 — GitHub issue state, read 05:20 UTC.
-- `[VERIFIED]` #845 (the repository is public while its documents call it
-  private and proprietary) is open and deferred by the owner. No document was
-  changed on that point.
-- `[VERIFIED]` `VERSION` is 0.18.0; the newest tag is `v0.17.5` (2026-08-18);
-  155 commits separate them — `git rev-list --count v0.17.5..origin/main`.
-  Tracked by #844. A release pull request, #783, is open and unmerged.
-- `[VERIFIED]` The newest **successful** Trunk gate run is run number 993
-  (`43994062747`), 01:14 to 01:22 UTC on 2026-11-17, on head `e46ab28b`. No
-  Trunk gate run has succeeded since — `actions/workflows/platform-ci.yml/runs?status=success`,
-  read 05:52 UTC.
-- `[VERIFIED]` `main` gained merges after that run, among them #864 (04:52
-  UTC), #861, #867, #868, #902 and #899 (05:46 UTC), each merged by the owner. The
-  combined status of `6e3c1c16` is `pending`. So the tip of `main` has no
-  hosted gate result.
-- `[VERIFIED]` The commit-metadata gate (`scripts/verify-commit-metadata.mjs`)
-  requires a Conventional Commit subject and pull-request title and refuses
-  agent attribution: a `Co-Authored-By` trailer naming an agent fails it.
-- `[VERIFIED]` The Trunk gate skips a draft pull request (every job is
-  conditioned on `draft == false`). **Changed at `6e3c1c16` by #899:** the
-  workflow now lists `ready_for_review` among its `pull_request` types, so
-  marking a draft ready starts the gate. Before #899 it did not, and a draft
-  marked ready sat unverified until its next push.
-- `[VERIFIED]` `.claude/settings.json` denies both `Bash(gh pr merge:*)` and
-  `mcp__github__merge_pull_request`. Agents cannot merge by either path.
-- `[VERIFIED]` Pull request #903 ("docs: refresh readiness and generate native
-  operator references", branch `docs/readiness-native-reference`, opened 05:37
-  UTC by another account) rewrites `docs/operations/PRODUCTION-READINESS.md`
-  and `docs-site/` for the same issue, #850. It overlaps the readiness commit
-  on `claude/docs-refresh-850` and the two will conflict.
-- `[UNKNOWN]` Whether `main` at `6e3c1c16` passes `./scripts/verify-local.sh`.
-  It has not been run as a whole at that commit or in the 2026-11-16/17
-  sessions. Cheapest probe: run it once on a machine where the Docker and
-  PostgreSQL daemon is free.
-- `[UNKNOWN]` Why Actions allocates no runners (see Blocker). Cheapest probe:
-  the run page of `44026493162` in the web UI, and the account's Actions
-  usage and spending limit.
-
-## Completed work and evidence
-
-- First and second waves — #854, #855 — merged; what they changed is in the
-  dated section "Completeness waves, 2026-11-16 and 2026-11-17" at the end.
-- Documentation refresh for #850 — branch `claude/docs-refresh-850` — README,
-  console documents, the readiness record and this file; not merged.
+- `[VERIFIED]` `main` is at `8d16d35`; merges through #273 have landed —
+  checked at 2026-08-18 17:38 UTC via `git fetch && git log`.
+- `[VERIFIED]` **A live regression is on `main`.** `registrychallenge.CheckRedirect`
+  refuses a credentialed cross-host redirect. Docker Hub answers a credentialed
+  blob read with `307 → production.cloudfront.docker.com`, measured directly
+  from this sandbox at 17:39 UTC, so `ocipublish.CurrentDigest` — the read the
+  Flux converger performs every reconcile — fails against any CDN-backed
+  registry. Fix open as PR #274.
+- `[VERIFIED]` **#242's regression guard is gone from `main`.** Reverting the
+  `intended := *request.URL` capture compiles and the whole `ocipublish`
+  package still passes. #248 removed the only thing that made the pre- and
+  post-round-trip URLs differ. Restored in PR #274.
+- `[VERIFIED]` The two #247 review findings were corrected on `main` by later
+  work: `resource_decision.go` now states plainly that "this cannot decide
+  without filing" is false for `Administrator`, and the coverage test carries the
+  `alice → bob` row pinning the delegated-administrator widening.
+- `[VERIFIED]` The frontend is green on `main`: 70 unit, 122 stubbed e2e, and
+  12 live specs against a real Hub (approve → Agent executes → `SUCCEEDED`),
+  plus the embedded-asset check.
+- `[VERIFIED]` The console already has a hydration seam: the Hub replaces
+  `<!--conduit-console-bootstrap-->` in `web/index.html` with a meta tag, and
+  `internal/consoleui/bootstrap.go` defines `conduit.console.bootstrap/v1`. It
+  **deliberately** carries no API-origin, authentication, capability, script,
+  feature-toggle, or security-policy fields, so tenant data cannot smuggle in a
+  capability.
+- `[VERIFIED]` A written control does not hold: `.claude/settings.json` denies
+  `Bash(gh pr merge:*)`, but merges via `mcp__github__merge_pull_request` do not
+  match that rule and have succeeded. See `docs/operations/HARNESS_REQUIREMENTS.md`.
+- `[UNKNOWN]` How Apollo Hub supplies runtime configuration to its frontend.
+  Matters because the hydration direction was chosen as "however Apollo Hub does
+  it", and this repository forbids inferring Apollo behavior. Cheapest probe:
+  search the pinned snapshot at
+  `docs/reference-platform/snapshots/reference-openapi-c663874bd7467a01e719d039509b0f206d05fe2c`
+  for a config or session-projection operation; expect the answer to be
+  "not established", which is a valid answer.
 
 ## Decisions
 
-- **Describe only what is on `main`** — alternative: describe the third wave
-  as it stands in #856. Reason: an open pull request is not the product.
-  Evidence: `git log origin/main`. Reversible: yes, when #856 merges.
-- **Leave visibility and licensing statements untouched** — alternative:
-  correct "private" and "proprietary" to match the public repository. Reason:
-  the owner deferred the decision in #845. Reversible: yes.
-- **Preserve interrupted work on branches rather than redo it** — reason: a
-  container restart stopped seven agents mid-task; every one had pushed or
-  could be pushed. Evidence: the `claude/wip-*` branches on the remote.
-  Reversible: yes.
-- **Superseded:** the 2026-08-18 Blocker's inference that an exhausted minutes
-  quota explained missing runners "because this repository is private". It
-  was never confirmed. It is corrected where it sits, below.
+- **Strip the credential across a redirect rather than refusing to follow** —
+  alternatives: keep refusing; refuse only the scheme-downgrade row. Reason:
+  the policy sits on the client, so it governs credentialed blob reads, and
+  refusing breaks CDN-backed registries; stripping keeps the identical set of
+  destinations that may receive the credential. Evidence: PR #274, five
+  compiling mutants. Reversible: yes.
+- **Adversarial review before merging security-relevant work** — reason: two
+  live credential leaks (#228, #242) were found by review of already-merged,
+  already-green code, and review of #247/#248 found two more real defects the
+  gate could not. Evidence: the review reports. Reversible: yes, but the base
+  rate argues against.
+- **Superseded:** "the Trunk gate job's conclusion may differ from the status it
+  publishes" — closed by #249; both surfaces now agree.
 
 ## Active workstreams
 
-- #856 — third wave — open; no hosted gate result while runners are not
-  allocated — expected return: high, it is the largest unmerged body of work.
-- #857 — release asset authentication and package-executor chart values —
-  open; same dependency.
-- `claude/wip-*` branches (`wip-810-813-model-governor`,
-  `wip-811-console-assistant`, `wip-814-815-evals-mcp`, `wip-818-sign-in`,
-  `wip-839-observability`, `wip-847-848-agent-credentials`) — work preserved
-  from the interrupted agents — `[UNKNOWN]` how much of each is already in
-  #856; compare before re-dispatching.
-- #850 — `claude/docs-refresh-850` and, separately, #903 — overlap to be
-  resolved by the owner.
-- **Integration owner:** the orchestrating session; merges are the owner's.
+- PR #274 — strip-not-refuse plus the restored #242 guard — gate running as of
+  17:49 UTC — no blocker — high return, it clears a live regression.
+- Multipass IAM port and Apollo hydration research — both agents killed by a
+  session limit before producing anything — blocked on re-dispatch, not on
+  information.
+- **Integration owner:** this session.
 
 ## Actual cost and value
 
-- Seven agents were interrupted by one container restart. No work was lost.
-- Not measured: tokens, compute and wall time for the two sessions.
-
-## Prioritized next actions
-
-1. Resolve the Actions outage — every pull request is blocked on it — needs
-   the account owner; see Blocker.
-2. Run `./scripts/verify-local.sh` once at the tip of `main` — it converts the
-   largest `[UNKNOWN]` above into a fact — needs a free daemon — no risk.
-3. Decide between `claude/docs-refresh-850` and #903 for #850, or combine
-   them — low cost — avoids a conflicted merge.
-4. Get #856 gated and reviewed, then reconcile the `claude/wip-*` branches
-   against it and delete what it already contains.
-5. Publish operator, tenant and API reference pages — the part of #850 not
-   done on `claude/docs-refresh-850`.
+- Four subagents lost to a session limit (reset 13:40 UTC) mid-task; ~7 hours of
+  wall time passed with other sessions merging through #273.
+- Information gained that changed decisions: the Docker Hub 307 measurement, and
+  the surviving-mutant proof that #242's guard was gone. Both overturned what a
+  status report alone would have said.
 
 ## Blocker
 
-- **Exact blocker:** GitHub Actions allocates no runners for this repository.
-  A job ends within seconds with `runner_id: 0`, no `steps` array and a 404
-  log.
-- `[VERIFIED]` Still happening at 05:47 UTC on 2026-11-17: run `44026493162`
-  ("Prepare release", push to `main` at `6e3c1c16`), job `prepare`,
-  `runner_id: 0`, zero steps, 36 seconds. Trunk gate run `44025830664`
-  (05:41 UTC): "Head authentication" failed with `runner_id: 0` and zero
-  steps, and every lane behind it was skipped.
-- `[VERIFIED]` First observed in these sessions between about 02:50 and 04:10
-  UTC on #856 and #857, with the same signature.
-- `[VERIFIED]` The last Trunk gate run that succeeded finished at 01:22 UTC.
-- `[UNKNOWN]` The cause. This is the second recorded occurrence; the first,
-  on 2026-08-18, is in the historical section below and its cause was never
-  established either. Do not carry that section's quota inference forward as
-  an explanation.
-- **Minimum external input or authorization required:** the account owner
-  looks at the run page for `44026493162` and at Actions usage and spending
-  limits.
-- **Useful work preserved at:** #856, #857, the `claude/wip-*` branches and
-  `claude/docs-refresh-850`, all pushed.
-- **Do not** re-run on a timer. The signature is identical across runs; a
-  re-run without new evidence is the repeated unchanged action the doctrine
-  forbids.
+- **Exact blocker:** GitHub Actions is not allocating runners for this
+  repository. Every job fails within about two to three seconds with
+  `runner_id: 0`, no runner name, no `steps` array at all, and a 404 on its
+  log. Verified across two independent branches and four run attempts.
+- `[VERIFIED]` The whole run finishes in 8 seconds
+  (`run_duration_ms: 8000`) against 399 seconds for the last green run
+  (`32154882696`). That is the reliable quantitative discriminator.
+- `[VERIFIED]` It is not caused by any change on either branch: PR #275 is
+  documentation-only and its first run failed identically, and the same
+  workflow succeeded on eight runs earlier today (most recent green:
+  `32154882696`, 15:30 UTC).
+- `[INFERRED]` Possibly an exhausted Actions minutes quota or a reached
+  spending limit — this repository is private. Confidence: **low**. There is no
+  billing evidence behind this; it rests only on the shape of the failure.
+- **A measurement error to not repeat.** This blocker was first recorded citing
+  `get_workflow_run_usage` reporting `total_ms: 0` and `duration_ms: 0` for
+  every job, as proof that nothing executed. That evidence is worthless: the
+  same endpoint reports `total_ms: 0` and `duration_ms: 0` for run
+  `32154882696`, which was **fully green** and whose Go suite ran for 4m41s
+  with complete logs. This endpoint reports zero for this repository whether or
+  not a job ran, so it cannot distinguish the two. Use `run_duration_ms`, the
+  absence of a `steps` array, and `runner_id: 0` instead.
+- **Minimum external input or authorization required:** someone with billing
+  access checks Actions minutes and the spending limit for the account. If that
+  is not it, the run pages for `32167586350` and `32168615490` will carry the
+  reason in the web UI, which the API does not expose.
+- **Useful work preserved at:** branches `claude/fix-redirect-strip-not-refuse`
+  (PR #274) and `claude/orchestrator-deployment` (PR #275), both pushed. Both
+  trees were verified locally; #274's five lanes all passed on GitHub at 17:55
+  UTC before the aggregator stopped being schedulable.
+- **Do not** keep re-running. Four attempts produced the identical signature; a
+  fifth without new evidence is the repeated unchanged action the doctrine
+  forbids. Elapsed time counts as new evidence at most once an hour.
+
+## Prioritized next actions
+
+1. Unblock Actions (see above) — nothing else in CI can proceed until then —
+   requires billing access, which this session does not have.
+2. Merge PR #274 once the gate can run — clears a live regression on the
+   reconcile path — high confidence — low cost — reversible. Its five
+   verification lanes already passed on the exact head `6c13975`; only the
+   status-publishing job never ran, so the commit status is stuck `pending`
+   rather than red.
+3. Decide the `mcp__github__merge_pull_request` gate (close it, or correct the
+   policy to match reality) — this is the repository owner's call, not the
+   agent's — see `docs/operations/HARNESS_REQUIREMENTS.md`.
+4. Re-dispatch the Apollo hydration research and the Multipass IAM port — both
+   are scoped and briefed; neither is blocked on information or on CI.
 
 ## Resume recipe
 
-- **Read first:** this section, then `docs/operations/ORCHESTRATOR.md`, then
-  [`docs/operations/PRODUCTION-READINESS.md`](docs/operations/PRODUCTION-READINESS.md).
-- **Current branch, workspace, or version:** `main` at `6e3c1c16`; `VERSION`
-  0.18.0, untagged.
-- **Commands needed to reproduce state:** `git fetch origin && git log --oneline -20 origin/main`.
-- **Fast health check:** `go build ./... && node scripts/verify-route-authorization.mjs`
-- **Tests or evaluators:** the Trunk gate when runners return;
-  `./scripts/verify-local.sh` when the shared daemon is free; focused
-  `go test` otherwise, reported as focused.
-- **Mutable facts to revalidate:** `main`'s head; whether #856, #857 and #903
-  are still open; whether a Trunk gate run has succeeded since run 993.
-- **First recommended action:** read the newest Trunk gate run's jobs and see
-  whether `runner_id` is still 0.
+- **Read first:** this section, then `docs/operations/ORCHESTRATOR.md`.
+- **Current branch:** `main` at `8d16d35`; open work on
+  `claude/fix-redirect-strip-not-refuse` (PR #274).
+- **Fast health check:** `go build ./... && go test -count=1 ./internal/gitless/...`
+- **Tests or evaluators:** the Trunk gate; `./scripts/verify-local.sh` when the
+  shared Docker/Postgres daemon is free.
+- **Mutable facts to revalidate:** `main`'s head, open pull requests, and
+  whether PR #274 merged — all of them move between sessions.
+- **First recommended action:** check PR #274's Trunk status.
 
 ---
 
@@ -1665,273 +1659,3 @@ emit three fields the committed artifact contains
 — and would drop any bound added without fixing that first. The source capture
 lives outside this repo and is unavailable, so neither artifact can be regenerated
 here; the change must live in generator constants that match the committed bytes.
-
-## Top section as it stood from 2026-08-19 to 2026-11-17
-
-Moved here on 2026-11-17 when the top section was refreshed. The text is
-unchanged apart from its headings, which are one level deeper, and two
-corrections marked with that date where the claims are.
-
-**Updated:** 2026-08-19 UTC
-**Lead or owner:** orchestrating session (see `docs/operations/ORCHESTRATOR.md`)
-**Status:** active — Apollo `core/whats-new` feature-coverage program in flight (see the
-2026-08-19 section at the end). The 2026-08-18 authorization/credential blocker
-below is the prior focus, left as recorded; this session did not touch it.
-
-This file carries the shape of [`HANDOFF.template.md`](HANDOFF.template.md) at
-the top — current state, decisions, next actions — and the dated historical
-record below it. The history is appended to, not rewritten; a correction to an
-earlier session's claim is made where the claim is, and marked.
-
-### Mission
-
-- **Goal:** keep `main` correct and shippable while closing the defects the
-  gate cannot catch — authorization and credential-destination faults, which
-  pass CI by construction.
-- **Deliverables:** merged pull requests with reproducible evidence; the
-  operating structure in `docs/operations/ORCHESTRATOR.md` and its companions.
-- **Measurable success criteria:** Trunk gate green on the head commit; every
-  claimed fix killed by a **compiling** mutant; no regression introduced by a
-  fix.
-- **Constraints and non-goals:** a green gate is evidence, never authorization
-  (A5). Releasing, publishing, and deploying to a tenant each need explicit
-  human instruction. Do not run `./scripts/verify-local.sh` while another
-  process holds the shared Docker/Postgres daemon.
-- **Authorized side effects:** branches, pull requests, issues, and merges in
-  `jonathanagustin/conduit` under the standing instruction to handle pull
-  requests. Nothing outside this repository's scope.
-
-### Current verified state
-
-- `[VERIFIED]` `main` is at `8d16d35`; merges through #273 have landed —
-  checked at 2026-08-18 17:38 UTC via `git fetch && git log`.
-- `[VERIFIED]` **A live regression is on `main`.** `registrychallenge.CheckRedirect`
-  refuses a credentialed cross-host redirect. Docker Hub answers a credentialed
-  blob read with `307 → production.cloudfront.docker.com`, measured directly
-  from this sandbox at 17:39 UTC, so `ocipublish.CurrentDigest` — the read the
-  Flux converger performs every reconcile — fails against any CDN-backed
-  registry. Fix open as PR #274.
-- `[VERIFIED]` **#242's regression guard is gone from `main`.** Reverting the
-  `intended := *request.URL` capture compiles and the whole `ocipublish`
-  package still passes. #248 removed the only thing that made the pre- and
-  post-round-trip URLs differ. Restored in PR #274.
-- `[VERIFIED]` The two #247 review findings were corrected on `main` by later
-  work: `resource_decision.go` now states plainly that "this cannot decide
-  without filing" is false for `Administrator`, and the coverage test carries the
-  `alice → bob` row pinning the delegated-administrator widening.
-- `[VERIFIED]` The frontend is green on `main`: 70 unit, 122 stubbed e2e, and
-  12 live specs against a real Hub (approve → Agent executes → `SUCCEEDED`),
-  plus the embedded-asset check.
-- `[VERIFIED]` The console already has a hydration seam: the Hub replaces
-  `<!--conduit-console-bootstrap-->` in `web/index.html` with a meta tag, and
-  `internal/consoleui/bootstrap.go` defines `conduit.console.bootstrap/v1`. It
-  **deliberately** carries no API-origin, authentication, capability, script,
-  feature-toggle, or security-policy fields, so tenant data cannot smuggle in a
-  capability.
-- `[VERIFIED]` A written control does not hold: `.claude/settings.json` denies
-  `Bash(gh pr merge:*)`, but merges via `mcp__github__merge_pull_request` do not
-  match that rule and have succeeded. See `docs/operations/HARNESS_REQUIREMENTS.md`.
-  *Corrected 2026-11-17:* closed since. `.claude/settings.json` now denies
-  `mcp__github__merge_pull_request` as well, and `HARNESS_REQUIREMENTS.md`
-  records how the gap was closed.
-- `[UNKNOWN]` How Apollo Hub supplies runtime configuration to its frontend.
-  Matters because the hydration direction was chosen as "however Apollo Hub does
-  it", and this repository forbids inferring Apollo behavior. Cheapest probe:
-  search the pinned snapshot at
-  `docs/reference-platform/snapshots/reference-openapi-c663874bd7467a01e719d039509b0f206d05fe2c`
-  for a config or session-projection operation; expect the answer to be
-  "not established", which is a valid answer.
-
-### Decisions
-
-- **Strip the credential across a redirect rather than refusing to follow** —
-  alternatives: keep refusing; refuse only the scheme-downgrade row. Reason:
-  the policy sits on the client, so it governs credentialed blob reads, and
-  refusing breaks CDN-backed registries; stripping keeps the identical set of
-  destinations that may receive the credential. Evidence: PR #274, five
-  compiling mutants. Reversible: yes.
-- **Adversarial review before merging security-relevant work** — reason: two
-  live credential leaks (#228, #242) were found by review of already-merged,
-  already-green code, and review of #247/#248 found two more real defects the
-  gate could not. Evidence: the review reports. Reversible: yes, but the base
-  rate argues against.
-- **Superseded:** "the Trunk gate job's conclusion may differ from the status it
-  publishes" — closed by #249; both surfaces now agree.
-
-### Active workstreams
-
-- PR #274 — strip-not-refuse plus the restored #242 guard — gate running as of
-  17:49 UTC — no blocker — high return, it clears a live regression.
-- Multipass IAM port and Apollo hydration research — both agents killed by a
-  session limit before producing anything — blocked on re-dispatch, not on
-  information.
-- **Integration owner:** this session.
-
-### Actual cost and value
-
-- Four subagents lost to a session limit (reset 13:40 UTC) mid-task; ~7 hours of
-  wall time passed with other sessions merging through #273.
-- Information gained that changed decisions: the Docker Hub 307 measurement, and
-  the surviving-mutant proof that #242's guard was gone. Both overturned what a
-  status report alone would have said.
-
-### Blocker
-
-> **Corrected 2026-11-17: this blocker is retired as the current blocker.** It
-> describes 2026-08-18. Actions did run again after it: the Trunk gate has
-> succeeded many times since, most recently run number 993 at 01:22 UTC on
-> 2026-11-17, and PR #274 and PR #275, named below as preserved work, both
-> merged on 2026-08-19. The low-confidence inference below — an
-> exhausted minutes quota "because this repository is private" — was never
-> confirmed and is not evidence about the repository today. The *signature*
-> recorded here (`runner_id: 0`, no `steps`, a 404 log, a run of a few
-> seconds) is still the right discriminator, and it was observed again on
-> 2026-11-17; that occurrence is recorded in the top section of this file, not
-> here. The text below is left as written.
-
-- **Exact blocker:** GitHub Actions is not allocating runners for this
-  repository. Every job fails within about two to three seconds with
-  `runner_id: 0`, no runner name, no `steps` array at all, and a 404 on its
-  log. Verified across two independent branches and four run attempts.
-- `[VERIFIED]` The whole run finishes in 8 seconds
-  (`run_duration_ms: 8000`) against 399 seconds for the last green run
-  (`32154882696`). That is the reliable quantitative discriminator.
-- `[VERIFIED]` It is not caused by any change on either branch: PR #275 is
-  documentation-only and its first run failed identically, and the same
-  workflow succeeded on eight runs earlier today (most recent green:
-  `32154882696`, 15:30 UTC).
-- `[INFERRED]` Possibly an exhausted Actions minutes quota or a reached
-  spending limit — this repository is private. Confidence: **low**. There is no
-  billing evidence behind this; it rests only on the shape of the failure.
-- **A measurement error to not repeat.** This blocker was first recorded citing
-  `get_workflow_run_usage` reporting `total_ms: 0` and `duration_ms: 0` for
-  every job, as proof that nothing executed. That evidence is worthless: the
-  same endpoint reports `total_ms: 0` and `duration_ms: 0` for run
-  `32154882696`, which was **fully green** and whose Go suite ran for 4m41s
-  with complete logs. This endpoint reports zero for this repository whether or
-  not a job ran, so it cannot distinguish the two. Use `run_duration_ms`, the
-  absence of a `steps` array, and `runner_id: 0` instead.
-- **Minimum external input or authorization required:** someone with billing
-  access checks Actions minutes and the spending limit for the account. If that
-  is not it, the run pages for `32167586350` and `32168615490` will carry the
-  reason in the web UI, which the API does not expose.
-- **Useful work preserved at:** branches `claude/fix-redirect-strip-not-refuse`
-  (PR #274) and `claude/orchestrator-deployment` (PR #275), both pushed. Both
-  trees were verified locally; #274's five lanes all passed on GitHub at 17:55
-  UTC before the aggregator stopped being schedulable.
-- **Do not** keep re-running. Four attempts produced the identical signature; a
-  fifth without new evidence is the repeated unchanged action the doctrine
-  forbids. Elapsed time counts as new evidence at most once an hour.
-
-### Prioritized next actions
-
-1. Unblock Actions (see above) — nothing else in CI can proceed until then —
-   requires billing access, which this session does not have.
-2. Merge PR #274 once the gate can run — clears a live regression on the
-   reconcile path — high confidence — low cost — reversible. Its five
-   verification lanes already passed on the exact head `6c13975`; only the
-   status-publishing job never ran, so the commit status is stuck `pending`
-   rather than red.
-3. Decide the `mcp__github__merge_pull_request` gate (close it, or correct the
-   policy to match reality) — this is the repository owner's call, not the
-   agent's — see `docs/operations/HARNESS_REQUIREMENTS.md`.
-4. Re-dispatch the Apollo hydration research and the Multipass IAM port — both
-   are scoped and briefed; neither is blocked on information or on CI.
-
-### Resume recipe
-
-- **Read first:** this section, then `docs/operations/ORCHESTRATOR.md`.
-- **Current branch:** `main` at `8d16d35`; open work on
-  `claude/fix-redirect-strip-not-refuse` (PR #274).
-- **Fast health check:** `go build ./... && go test -count=1 ./internal/gitless/...`
-- **Tests or evaluators:** the Trunk gate; `./scripts/verify-local.sh` when the
-  shared Docker/Postgres daemon is free.
-- **Mutable facts to revalidate:** `main`'s head, open pull requests, and
-  whether PR #274 merged — all of them move between sessions.
-- **First recommended action:** check PR #274's Trunk status.
-
-## Completeness waves, 2026-11-16 and 2026-11-17
-
-**What the sessions were for.** A completeness assessment on 2026-11-16 filed
-issues #801 to #850 under four epics: #801 the AI subsystem, #803 the console,
-#804 Zarf and UDS, #805 the platform. The sessions then worked them in waves.
-
-**Two waves merged.** #854 (merged 00:45 UTC on 2026-11-17) and #855 (01:37
-UTC). On `main` from them and from the pull requests around them, each
-confirmed against the tree at `6e3c1c16` rather than against a pull-request
-description:
-
-- An OpenAI-compatible HTTP model provider, `internal/modelhttp`, used by the
-  assistant, planning, app generation and packaging proposals; configured by
-  `CONDUIT_MODEL_BASE_URL` and refused alongside `CONDUIT_MODEL_CMD`
-  (`docs/operations/model-http.md`). #806 closed.
-- An environment allowlist for the model subprocess
-  (`internal/localcmd/env.go`, `docs/operations/local-model-cli.md`).
-- Assistant threads kept by the Hub (`/v1/assistant/threads`).
-- A source-host policy and source connections for planning clones
-  (`CONDUIT_SOURCE_ALLOWED_HOSTS`, `CONDUIT_SOURCE_CONNECTIONS`;
-  `docs/operations/planning-source-checkouts.md`). #816 closed.
-- A per-caller rate limiter in front of every Hub route
-  (`internal/hub/composition/rate_limit.go`, `docs/operations/hub-rate-limiting.md`).
-- A cursor-paged authorization audit and a verified JSONL export
-  (`docs/operations/authorization-audit-integrity.md`).
-- Notification emitters for a pending change request, a failed Plan, an
-  aborted promotion and a role change; four declared types still have none.
-- Typed Hub chart values for metrics, notifications, the plan orchestrator and
-  the model provider, and a material preparer value on the Spoke chart.
-- Release artifacts of kind `zarf-package` and `uds-bundle`, a Spoke that
-  routes a Plan step by artifact kind, and a package executor
-  (`internal/agent/adapters/uds`). #833 closed.
-- Schema validation of generated UDS `Package` and `UDSBundle` documents
-  (`internal/udsschema`). #835 closed.
-- A chart-equivalence gate for the Zarf package and `uds create` in the Trunk
-  gate, with the UDS CLI pinned.
-- Console: the notification inbox (#819 closed), navigation that follows
-  session capabilities, the propose, approve and promote journey, planning
-  deep links, corrected data-provenance badges (#822 closed) and render-failure
-  containment (#826 closed).
-
-**The third wave is not merged.** #856 is open. Nothing in it is described
-above.
-
-**What interrupted the work.** The container restarted and stopped seven
-agents mid-task. All of their work was preserved on branches: #856 and the
-`claude/wip-*` branches listed in the top section. Nothing had to be redone
-from memory, which is the reason to push early.
-
-**What stopped the gate.** From about 02:50 UTC on 2026-11-17 Actions
-allocated no runners: jobs ended in seconds with `runner_id: 0`, no steps and
-a 404 log, first on #856 and #857. It was still so at 05:47 UTC. The last
-successful Trunk gate run finished at 01:22 UTC. The owner merged further
-pull requests after that, #861 to #902 among them. The August occurrence of the same signature is recorded above and
-is corrected there.
-
-**Three things learned about the gate, each the hard way.**
-
-- The commit-metadata gate refuses agent attribution trailers and requires
-  Conventional Commit subjects. A commit that carries a `Co-Authored-By` line
-  for an agent fails preflight before any lane starts.
-- The Trunk gate skips draft pull requests, and until #899 it was not started
-  by marking one ready, so a ready pull request could sit with no run. #899
-  added `ready_for_review` to the trigger.
-- `.claude/settings.json` denies the merge tool to agents on both paths. An
-  agent that reports "merged" did not merge.
-
-**What was not done, said plainly.** `./scripts/verify-local.sh` was not run
-as a whole in either session. Nothing ran on a cluster. No model call reached
-a real provider. The Zarf and UDS publish and lifecycle paths were not
-exercised. `docs/operations/PRODUCTION-READINESS.md` gap 14 says the same
-thing where a reader deciding go or no-go will find it.
-
-**Documentation refresh (#850), branch `claude/docs-refresh-850`.** README,
-`docs/README.md`, the console documents, the readiness record and this file
-were corrected against the tree. Corrections that overturn an earlier claim:
-`docs/ui/README.md` said the fleet, plans and products screens "are no longer
-rendered", and the engine renders them; `docs/ui/console-navigation.md` listed
-six areas where `engine.js` has seven; `docs/ui/console-composition-trees.md`
-describes components that no longer exist and is marked historical;
-`web/README.md` ended with the starter's `OPENAI_API_KEY` and `localhost:3000`
-instructions; the readiness record cited #264 and #54 as open tracking and
-both are closed. Operator, tenant and API reference pages were not written.
-A second pull request for the same issue, #903, was opened by another account
-at 05:37 UTC and overlaps.

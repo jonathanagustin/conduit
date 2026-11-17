@@ -48,7 +48,13 @@ if ! node "${STAGE}/scripts/verify-documentation-freshness.mjs" >/dev/null 2>&1;
 fi
 echo "accepted  the committed tree"
 
-expect_reject "a corpus older than the maximum age" "2027-01-15"
+stale_today="$(node -e '
+const capture = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+const stale = new Date(capture.capturedAt + "T00:00:00Z");
+stale.setUTCDate(stale.getUTCDate() + capture.maximumAgeDays + 1);
+process.stdout.write(stale.toISOString().slice(0, 10));
+' "${CAPTURE}")"
+expect_reject "a corpus older than the maximum age" "${stale_today}"
 
 node -e '
 const path = process.argv[1];
@@ -58,7 +64,13 @@ require("fs").writeFileSync(path, JSON.stringify(capture, null, 2));
 ' "${CAPTURE}"
 expect_reject "a page count that disagrees with the manifest"
 
-head -n -1 "${MANIFEST}" > "${MANIFEST}.trimmed" && mv "${MANIFEST}.trimmed" "${MANIFEST}"
+node -e '
+const fs = require("fs");
+const path = process.argv[1];
+const rows = fs.readFileSync(path, "utf8").trimEnd().split("\n");
+rows.pop();
+fs.writeFileSync(path, rows.join("\n") + "\n");
+' "${MANIFEST}"
 expect_reject "a manifest edited without re-recording the capture"
 
 node -e '

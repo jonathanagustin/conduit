@@ -159,8 +159,9 @@ With no model configured, the Hub serves one checked-in application,
 The existing `label` stays `No model call`. The demonstration gives the same
 reply every time, so it is never sent for repair.
 
-The console does not read `recordedDemo` yet. Until it does, the label is the
-only sign in the console that nothing was generated.
+The console reads `recordedDemo` and shows a recorded-demo badge in generation
+history. The `No model call` label remains visible; neither indicator claims
+that the demonstration was generated for the request.
 
 ## Settings
 
