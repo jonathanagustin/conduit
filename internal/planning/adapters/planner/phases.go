@@ -32,7 +32,7 @@ const (
 	readFilesRequire = `Before you answer you MUST call read_file on the key files that exist in the tree: the README, the package manifests (for example package.json, go.mod, pyproject.toml, requirements.txt, pom.xml, Gemfile, Cargo.toml), and the existing build files (for example Dockerfile, docker-compose.yml, Makefile, CI workflows). Do not guess what a file contains.
 You may call tools by replying with {"toolCalls":[{"name":"read_file","arguments":{"path":"relative/path"}},{"name":"inspect_repo","arguments":{}}]}.
 Reply with only that JSON object when you need tools, with at most 4 tool calls per reply.
-`
+` + untrustedRule
 )
 
 // afterInspection runs once, in the turn that inspected the repository. It
@@ -185,7 +185,7 @@ func (planner Planner) runPhase(ctx context.Context, session *domain.Session, ch
 					reads++
 				}
 			}
-			prompt += "\n\nTool results:\n" + facts + skippedNote(skipped) + "\nContinue. Call tools again the same way, or give your final answer.\n"
+			prompt += frameToolResults(facts) + skippedNote(skipped) + "\nContinue. Call tools again the same way, or give your final answer.\n"
 			continue
 		}
 		if needRead && reads == 0 && !nudged {
