@@ -1273,6 +1273,65 @@ test("plan inspector loads the selected environment timeline and preserves audit
   expect(requests).toContain("/v1/environments/env-b/timeline");
 });
 
+test("an index past the read bound lists what was read and says more exist", async ({
+  page,
+}) => {
+  const planPages: string[] = [];
+  const scoped: string[] = [];
+  await page.route("**/v1/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/v1/plans") {
+      const cursor = Number(url.searchParams.get("cursor") || 0);
+      planPages.push(url.search);
+      return route.fulfill({
+        json: {
+          plans: Array.from({ length: 20 }, (_, row) => ({
+            id: `bulk-plan-${cursor}-${row}`,
+            status: "AWAITING_APPROVAL",
+            plan: { environment: "edge-a", steps: [] },
+          })),
+          total: 240,
+          pageSize: 20,
+          limit: 20,
+          nextCursor: String(cursor + 1),
+        },
+      });
+    }
+    if (url.pathname === "/v1/environments")
+      return route.fulfill({
+        json: { environments: [{ environment: { id: "edge-a" } }], total: 1 },
+      });
+    if (url.pathname.endsWith("/timeline") || url.pathname === "/v1/blackouts")
+      scoped.push(url.pathname + url.search);
+    return route.fulfill({ json: {} });
+  });
+  await hydrate(page);
+  await page.goto("/console/");
+  await page.evaluate(() =>
+    (window as unknown as { switchScreen: (id: string) => void }).switchScreen(
+      "s16-approvals-board",
+    ),
+  );
+  const board = page.locator("[data-approvals-board]");
+  await expect(board).toContainText("Needs review · 100");
+  await expect(board).toContainText("bulk-plan-4-19");
+  await expect(board).not.toContainText("Hub did not return plans.");
+  await expect(page.locator("[data-index-truncation]")).toHaveText(
+    "Showing the first 100 of 240 plans. The rest are not loaded in this view.",
+  );
+  expect(planPages.slice(0, 5)).toEqual([
+    "",
+    "?cursor=1",
+    "?cursor=2",
+    "?cursor=3",
+    "?cursor=4",
+  ]);
+  // Environment-scoped refresh reads name the environment the Hub returned.
+  expect(scoped).toContain("/v1/environments/edge-a/timeline");
+  expect(scoped).toContain("/v1/blackouts?environment=edge-a");
+  expect(scoped.some((path) => /\/dev\/|=dev$/.test(path))).toBe(false);
+});
+
 test("environment hub scopes header, installations, blackout and timeline to selection", async ({
   page,
 }) => {

@@ -35,6 +35,16 @@ or an out-of-range limit returns `422`.
   `previousCursor` represents the first page.
 - Keep the last requested URL when a read fails so retry does not widen the query.
 - Do not infer totals or previous cursors from the rows in the current page.
+- The operator workbench's background refresh
+  (`web/src/console/operator/live-hub.js`) is a bounded catch-up, not a
+  cursor-owning index view: it follows `nextCursor` for at most five pages per
+  index. Reaching that bound is a truncated read, not a failed one. The rows read
+  are kept and the affected views state "Showing the first N of `total`", using
+  the envelope's `total` when present and no count otherwise.
+- That refresh still requests the `full` view for Products, Environments, and
+  Plans, because its views read fields the summaries omit (`plan.steps`,
+  `desiredState`, `approvals`, `reported.entities`, `releases`). With the 20-row
+  full-view maximum, the bound is 100 rows for those three indexes.
 
 Packaging-run pages use the same cursor shape: version, filter fingerprint,
 and seek key, capped at 2,048 bytes. The index fingerprint is `phase`,

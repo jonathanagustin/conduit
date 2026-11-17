@@ -66,7 +66,11 @@ import { createAdminStatus } from "./admin-status.js";
 import { productRows, productsMarkup } from "./release-products.js";
 import { createSettings } from "./settings.js";
 import { createLiveHub } from "./live-hub.js";
-import { classifyRenderers, screenBadge } from "./screen-registry.js";
+import {
+  classifyRenderers,
+  screenBadge,
+  truncationMarkup,
+} from "./screen-registry.js";
 import { createIntelligence } from "./intelligence.js";
 import { createDevWorkspaces } from "./dev-workspaces.js";
 import {
@@ -4898,6 +4902,7 @@ export function mountOperator(host, options) {
         .join("")}</div>
       <div data-area-object-header>${header}</div>
       <div id="area-kit">${extra}</div>
+      ${truncationMarkup(state.hub, current.screen, escAttr)}
       <div id="area-body"></div>
     </div>`;
     const renderer = classifyRenderers({
