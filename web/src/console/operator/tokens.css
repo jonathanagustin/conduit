@@ -54,6 +54,7 @@
   --icon-stroke: 1.65;
 
   --shadow-color: #000000;
+  --mask-opaque: var(--shadow-color);
   --globe-ocean-core: #0e2b4a;
   --globe-ocean-mid: #07182c;
   --globe-ocean-edge: #040c18;

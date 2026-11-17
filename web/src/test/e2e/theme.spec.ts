@@ -1,3 +1,4 @@
+import { createServer } from "vite-plus";
 import { expect, test } from "@playwright/test";
 import { AREAS } from "../../console/operator/navigation.js";
 import { stubHub, session } from "./hub-stub";
@@ -109,4 +110,39 @@ test("native light tokens reach workbench, assistant and rendered tool cards", a
   });
   await page.reload();
   await expect(root).toHaveAttribute("data-theme", "dark");
+});
+
+test("gallery primitive aliases follow a local theme opposite the document", async ({
+  page,
+}) => {
+  const server = await createServer({
+    server: { host: "127.0.0.1", port: 0 },
+    logLevel: "error",
+  });
+  try {
+    await server.listen();
+    const address = server.httpServer?.address();
+    if (!address || typeof address === "string")
+      throw new Error("gallery server has no TCP address");
+    await page.goto(`http://127.0.0.1:${address.port}/console/dev/components`);
+    await page.evaluate(() =>
+      document.documentElement.setAttribute("data-theme", "light"),
+    );
+    const gallery = page.locator(".conduit-shell");
+    const card = gallery.locator(".cnd-switch-card");
+    const label = gallery.locator(".cnd-switch-card-label");
+    await expect(gallery).toHaveAttribute("data-theme", "dark");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await expect(card).toHaveCSS("background-color", "rgb(16, 22, 26)");
+    await expect(label).toHaveCSS("color", "rgb(226, 232, 240)");
+    await page.evaluate(() =>
+      document.documentElement.setAttribute("data-theme", "dark"),
+    );
+    await gallery.getByRole("button", { name: "Light", exact: true }).click();
+    await expect(gallery).toHaveAttribute("data-theme", "light");
+    await expect(card).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    await expect(label).toHaveCSS("color", "rgb(15, 23, 42)");
+  } finally {
+    await server.close();
+  }
 });

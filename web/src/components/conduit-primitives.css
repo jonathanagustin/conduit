@@ -3,7 +3,9 @@
  */
 
 :root,
-[data-theme="light"] {
+.operator-root,
+.conduit-shell,
+[data-theme] {
   /* Conduit core token scale */
   --cnd-bg-0: var(--bg-0);
   --cnd-bg-1: var(--bg-1);

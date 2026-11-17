@@ -13,6 +13,32 @@ function walk(directory) {
   });
 }
 const failures = [];
+// Fixed named colors are forbidden; adaptive keywords (currentColor, transparent) remain valid.
+const cssNamedColors = [
+  "aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood",
+  "cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod",
+  "darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon",
+  "darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray",
+  "dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green",
+  "greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon",
+  "lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon",
+  "lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime limegreen linen",
+  "magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue",
+  "mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin navajowhite navy",
+  "oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise palevioletred",
+  "papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon",
+  "sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow springgreen steelblue",
+  "tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen",
+]
+  .join(" ")
+  .split(" ")
+  .join("|");
+const namedCSSPattern =
+  /(?:[:,(]\s*|(?<![\w-])(?:color|background(?:Color|-color)?|fill|stroke|border(?:Color|-color)?)\s*[:=]\s*["']?)(?:NAMED_COLOR)(?=[\s),;/]|$)/i;
+const namedCSSValue = new RegExp(
+  namedCSSPattern.source.replace("NAMED_COLOR", cssNamedColors),
+  "i",
+);
 for (const file of [
   "src/console",
   "src/components",
@@ -37,8 +63,9 @@ for (const file of [
       source = source.slice(0, comment.start) + source.slice(comment.end);
   }
   if (
-    /(?<!&)#[a-f\d]{3}(?:[a-f\d]{3})?(?:[a-f\d]{2})?\b/i.test(source) ||
+    /(?<!&)#(?:[a-f\d]{8}|[a-f\d]{6}|[a-f\d]{4}|[a-f\d]{3})\b/i.test(source) ||
     /\b(?:rgba?|hsla?|oklch|oklab)\(\s*[\d.]/i.test(source) ||
+    namedCSSValue.test(source) ||
     /\b(?:text|bg|border(?:-[lrtbxy])?|ring|fill|stroke)-(?:white|black|(?:slate|gray|zinc|red|orange|amber|yellow|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|pink|rose)-\d{2,3})\b/.test(
       source,
     )

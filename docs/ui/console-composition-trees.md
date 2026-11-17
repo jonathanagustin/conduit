@@ -116,3 +116,11 @@ actual theme toggle and persisted preference, and captures both states. The
 light-mode pass visits every area entry and checks the visible native and
 Blueprint tool-card colors, including the warning tag. The narrower 1440px
 header overflow found during visual review is tracked separately in #827.
+
+Review also reproduced a local-theme alias problem in the real development
+gallery: a dark gallery nested under a light document inherited already-resolved
+light `--cnd-*` values. The aliases now resolve on each theme container, and a
+Chromium regression checks native primitive colors under opposing document and
+gallery themes. Named white alpha mixes and opacity-mask colors now use native
+tokens; the color guard covers named CSS values and all four hex-color lengths
+while retaining the existing semantic `data-aui-color` labels.
