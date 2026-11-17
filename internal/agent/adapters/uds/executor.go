@@ -60,6 +60,7 @@ package uds
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -350,6 +351,23 @@ func parseDeployedPackage(encoded []byte) (*deployedPackage, error) {
 	raw, err := base64.StdEncoding.DecodeString(trimmed)
 	if err != nil {
 		return nil, fmt.Errorf("decode Zarf deployed-package record: %w", err)
+	}
+	// Zarf 1.x stores gzip JSON; older deployments retain plain JSON. Bound
+	// expansion before parsing so a compressed Secret cannot exhaust the worker.
+	const maxRecordBytes = 16 << 20
+	if len(raw) >= 2 && raw[0] == 0x1f && raw[1] == 0x8b {
+		reader, err := gzip.NewReader(bytes.NewReader(raw))
+		if err != nil {
+			return nil, fmt.Errorf("decode compressed Zarf state: %w", err)
+		}
+		defer reader.Close()
+		raw, err = io.ReadAll(io.LimitReader(reader, maxRecordBytes+1))
+		if err != nil {
+			return nil, fmt.Errorf("read compressed Zarf state: %w", err)
+		}
+	}
+	if len(raw) > maxRecordBytes {
+		return nil, fmt.Errorf("Zarf deployed-package record exceeds size limit")
 	}
 	var pkg deployedPackage
 	if err := json.Unmarshal(raw, &pkg); err != nil {
