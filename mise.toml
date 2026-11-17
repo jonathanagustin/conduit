@@ -9,6 +9,7 @@ node = "26.13.1"
 oras = "1.3.6"
 pnpm = "12.20.0"
 rg = "15.2.0"
+ruby = "3.4.12"
 task = "3.54.0"
 uds = "0.41.0"
 zarf = "1.0.0"
@@ -70,6 +71,10 @@ ln -sfn "${final}/cursor-agent" "${HOME}/.local/bin/cursor-agent"
 [tasks.install]
 description = "Install the pinned toolchain and check host prerequisites"
 run = "./scripts/install.sh"
+
+[tasks.install-ruby-json]
+description = "Install the checksum-verified patched JSON gem for the pinned Ruby"
+run = "./scripts/install-ruby-json.sh"
 
 [tasks.demo]
 description = "Reset local demo state, then seed the Hub and a sample release"

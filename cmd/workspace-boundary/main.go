@@ -148,6 +148,7 @@ type credResult struct {
 type probeResult struct {
 	UID              int          `json:"uid"`
 	CapEff           string       `json:"capEff"`
+	CapBnd           string       `json:"capBnd"`
 	CapBounded       bool         `json:"capBounded"`
 	Dials            []dialResult `json:"dials"`
 	Credentials      []credResult `json:"credentials"`
@@ -164,10 +165,13 @@ func probe() error {
 	if err := json.Unmarshal(raw, &spec); err != nil {
 		return fmt.Errorf("CONDUIT_PROBE: %w", err)
 	}
+	effective := capabilityValue("CapEff:")
+	bounding := capabilityValue("CapBnd:")
 	result := probeResult{
 		UID:         os.Getuid(),
-		CapEff:      capEff(),
-		CapBounded:  capIsZero(capEff()),
+		CapEff:      effective,
+		CapBnd:      bounding,
+		CapBounded:  capIsZero(effective) && capIsZero(bounding),
 		Credentials: make([]credResult, 0, len(spec.CredentialPaths)),
 	}
 	for _, dial := range spec.Dials {
@@ -218,14 +222,14 @@ func dialCheck(host string, port int) (bool, string) {
 	return false, body
 }
 
-func capEff() string {
+func capabilityValue(field string) string {
 	data, err := os.ReadFile("/proc/self/status")
 	if err != nil {
 		return ""
 	}
 	for _, line := range strings.Split(string(data), "\n") {
-		if strings.HasPrefix(line, "CapEff:") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "CapEff:"))
+		if strings.HasPrefix(line, field) {
+			return strings.TrimSpace(strings.TrimPrefix(line, field))
 		}
 	}
 	return ""
