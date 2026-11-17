@@ -23,6 +23,15 @@ validation, source-module reachability, navigation documentation and lint.
 type, unit and browser gates. `pnpm docs:navigation` regenerates the area/tab
 inventory after edits to `src/console/operator/navigation.js`.
 
+The stubbed browser specs in `src/test/e2e` are grouped by console area:
+releases, change review, packaging, fleet, audit, intelligence, planning,
+workspaces, ontology and organization. Shell and example-policy behavior have
+their own specs. `console-fixture.ts` shares tenant bootstrap hydration and
+explicitly registers the packaging read stub in each spec; it registers no tests
+or hooks merely by being imported. Existing journey, assistant-turn, visual and
+accessibility specs remain separate. These stubbed checks verify presentation
+and requests for supplied answers; real-Hub writes belong in `src/test/live`.
+
 See [console composition](../docs/ui/console-composition-trees.md) for the active
 entry points, retained component boundaries and the source reachability check.
 The assistant-ui thread and its imports remain; the unmounted registry catalog
