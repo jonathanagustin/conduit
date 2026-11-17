@@ -23,6 +23,12 @@
 # verification measure a different tree than the GitHub workflow.
 set -euo pipefail
 
+if [[ "$(uname -s)" != Linux || "$(uname -m)" != x86_64 ]]; then
+  echo 'The complete local verifier requires Linux x86_64 and its pinned helper binaries.' >&2
+  echo 'On macOS, run focused native tests and use a Linux verification checkout for the full gate; see docs/operations/local-verification.md.' >&2
+  exit 1
+fi
+
 # repo_root is where the gates run; workflow_root is where GitHub reads from.
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 workflow_root="$(git -C "${repo_root}" rev-parse --show-toplevel 2>/dev/null || echo "${repo_root}")"
@@ -235,6 +241,7 @@ self_product_preparation() {
   node scripts/prepare-self-products.test.mjs && node scripts/verify-conduit-inventions.test.mjs
 }
 gate 'Validate self Product preparation' self_product_preparation
+gate 'Validate developer host tools' ./scripts/test-development-host.sh
 gate 'Validate version and tag agreement' ./scripts/verify-version-matches-tag.sh
 gate 'Validate domain boundaries' bash -c 'node scripts/verify-domain-boundaries.mjs && node scripts/test-domain-boundaries.mjs'
 gate 'Validate route authorization' bash -c 'node scripts/verify-route-authorization.test.mjs && node scripts/verify-route-authorization.mjs'

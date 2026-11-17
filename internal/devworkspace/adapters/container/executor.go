@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -117,12 +118,15 @@ func ProveFromEnv(ctx context.Context, getenv func(string) string) (Report, erro
 type Report struct {
 	UID                int             `json:"uid"`
 	CapEff             string          `json:"capEff"`
+	CapBnd             string          `json:"capBnd"`
 	CapBounded         bool            `json:"capBounded"`
 	Dials              []DialResult    `json:"dials"`
 	Credentials        []CredentialHit `json:"credentials"`
 	ForbiddenEnv       []string        `json:"forbiddenEnv"`
 	PolicyWriteError   string          `json:"policyWriteError"`
 	NetworkMode        string          `json:"networkMode"`
+	Networks           []string        `json:"networks"`
+	NetworkInternal    bool            `json:"networkInternal"`
 	User               string          `json:"user"`
 	Binds              []string        `json:"binds"`
 	ReadOnly           bool            `json:"readOnly"`
@@ -274,12 +278,15 @@ func (runtime *Runtime) Prove(ctx context.Context) (Report, error) {
 	return Report{
 		UID:                inside.UID,
 		CapEff:             inside.CapEff,
+		CapBnd:             inside.CapBnd,
 		CapBounded:         inside.CapBounded,
 		Dials:              inside.Dials,
 		Credentials:        inside.Credentials,
 		ForbiddenEnv:       inside.ForbiddenEnv,
 		PolicyWriteError:   inside.PolicyWriteError,
 		NetworkMode:        observed.NetworkMode,
+		Networks:           observed.Networks,
+		NetworkInternal:    observed.NetworkInternal,
 		User:               observed.User,
 		Binds:              observed.Binds,
 		ReadOnly:           observed.ReadOnly,
@@ -334,6 +341,7 @@ type dialSpec struct {
 type probeResult struct {
 	UID              int             `json:"uid"`
 	CapEff           string          `json:"capEff"`
+	CapBnd           string          `json:"capBnd"`
 	CapBounded       bool            `json:"capBounded"`
 	Dials            []DialResult    `json:"dials"`
 	Credentials      []CredentialHit `json:"credentials"`
@@ -347,12 +355,14 @@ type forwardRule struct {
 }
 
 type observedContainer struct {
-	NetworkMode string
-	User        string
-	Binds       []string
-	ReadOnly    bool
-	Privileged  bool
-	CapDrop     []string
+	NetworkMode     string
+	Networks        []string
+	NetworkInternal bool
+	User            string
+	Binds           []string
+	ReadOnly        bool
+	Privileged      bool
+	CapDrop         []string
 }
 
 type sandbox struct {
@@ -481,6 +491,9 @@ func (box *sandbox) inspect(ctx context.Context, name string) (observedContainer
 		Config struct {
 			User string `json:"User"`
 		} `json:"Config"`
+		NetworkSettings struct {
+			Networks map[string]json.RawMessage `json:"Networks"`
+		} `json:"NetworkSettings"`
 	}
 	if err := json.Unmarshal([]byte(out), &rows); err != nil {
 		return observedContainer{}, err
@@ -489,13 +502,40 @@ func (box *sandbox) inspect(ctx context.Context, name string) (observedContainer
 		return observedContainer{}, fmt.Errorf("inspect %s returned %d rows", name, len(rows))
 	}
 	row := rows[0]
+	// Podman reports the bridge driver as NetworkMode even for a named
+	// network. Membership and the network's inspected Internal property are
+	// the evidence of isolation; the driver's label alone cannot establish it.
+	networks := make([]string, 0, len(row.NetworkSettings.Networks))
+	for network := range row.NetworkSettings.Networks {
+		networks = append(networks, network)
+	}
+	sort.Strings(networks)
+	internal := false
+	if len(networks) == 1 && networks[0] == box.internalNet && row.HostConfig.NetworkMode != "host" {
+		networkJSON, _, err := box.cli.run(ctx, "network", "inspect", box.internalNet)
+		if err != nil {
+			return observedContainer{}, err
+		}
+		var networkRows []struct {
+			Internal bool `json:"Internal"`
+		}
+		if err := json.Unmarshal([]byte(networkJSON), &networkRows); err != nil {
+			return observedContainer{}, err
+		}
+		if len(networkRows) != 1 {
+			return observedContainer{}, fmt.Errorf("inspect network %s returned %d rows", box.internalNet, len(networkRows))
+		}
+		internal = networkRows[0].Internal
+	}
 	return observedContainer{
-		NetworkMode: string(row.HostConfig.NetworkMode),
-		User:        row.Config.User,
-		Binds:       row.HostConfig.Binds,
-		ReadOnly:    row.HostConfig.ReadonlyRootfs,
-		Privileged:  row.HostConfig.Privileged,
-		CapDrop:     row.HostConfig.CapDrop,
+		NetworkMode:     string(row.HostConfig.NetworkMode),
+		Networks:        networks,
+		NetworkInternal: internal,
+		User:            row.Config.User,
+		Binds:           row.HostConfig.Binds,
+		ReadOnly:        row.HostConfig.ReadonlyRootfs,
+		Privileged:      row.HostConfig.Privileged,
+		CapDrop:         row.HostConfig.CapDrop,
 	}, nil
 }
 
