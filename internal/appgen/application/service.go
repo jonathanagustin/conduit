@@ -162,7 +162,9 @@ type Handoff interface {
 
 // Audit records the command id, exchange digests, file digests, and gate results.
 type Audit struct {
-	ID string
+	ConfiguredModel string
+	ProviderModel   string
+	ID              string
 	// Attempt is the 1-based number of the model exchange this record covers.
 	Attempt int
 	// PlanRevisionID and PlanDigest name the accepted plan, when there is one.
@@ -352,7 +354,7 @@ func (service Service) attempt(ctx context.Context, request domain.Request, acto
 		result.Error = err.Error()
 		result.Gates = failThenSkip(GateSchema, err.Error())
 		event := Audit{
-			Adapter: provenance.Adapter, PromptSHA256: provenance.PromptSHA256, ResponseSHA256: provenance.ResponseSHA256,
+			Adapter: provenance.Adapter, ConfiguredModel: provenance.ConfiguredModel, ProviderModel: provenance.ProviderModel, PromptSHA256: provenance.PromptSHA256, ResponseSHA256: provenance.ResponseSHA256,
 			Outcome: domain.OutcomeFail, Reason: err.Error(),
 		}
 		if !errors.Is(err, domain.ErrSpecInvalid) {
@@ -553,7 +555,7 @@ func (service Service) auditFrom(result Result, buildPassed bool, buildReason st
 		reason = result.Error
 	}
 	return Audit{
-		Adapter: result.Provenance.Adapter, PromptSHA256: result.Provenance.PromptSHA256,
+		Adapter: result.Provenance.Adapter, ConfiguredModel: result.Provenance.ConfiguredModel, ProviderModel: result.Provenance.ProviderModel, PromptSHA256: result.Provenance.PromptSHA256,
 		ResponseSHA256: result.Provenance.ResponseSHA256, BuildPassed: buildPassed, BuildReason: buildReason,
 		HealthPassed: healthPassed, HealthReason: healthReason, Outcome: outcome, Reason: reason,
 	}

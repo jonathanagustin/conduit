@@ -104,6 +104,12 @@ func (service *GovernanceService) transformLabels(ctx context.Context, id string
 		if err := service.audit(ctx, principal.Username, "CHANGE_REQUEST_LABELS", id, "ALLOW", "labels updated", map[string]any{"labels": request.Labels}); err != nil {
 			return ChangeRequest{}, PlanRecord{}, false, fmt.Errorf("persist label mutation audit: %w", err)
 		}
+		if approved {
+			request, err = service.dispatchApproved(ctx, request)
+			if err != nil {
+				return request, plan, approved, err
+			}
+		}
 		return request, plan, approved, nil
 	}
 	return ChangeRequest{}, PlanRecord{}, false, ErrConflict

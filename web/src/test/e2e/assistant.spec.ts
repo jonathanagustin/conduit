@@ -587,6 +587,11 @@ test("Command Center uses recorded sites and drafts context without writes", asy
   ];
   await page.route("**/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === "/v1/authorization-audit") {
+      const query = new URL(route.request().url()).searchParams;
+      expect(query.get("order")).toBe("desc");
+      expect(query.get("view")).toBe("chain");
+    }
     const bodies: Record<string, unknown> = {
       "/v1/session": {
         actor: { username: "reader" },
@@ -626,6 +631,7 @@ test("Command Center uses recorded sites and drafts context without writes", asy
       "/v1/promotions": { promotions: [] },
       "/v1/packaging-runs": { items: [] },
       "/v1/authorization-audit": {
+        order: "desc",
         entries: [{ sequence: 1, actor: "reader", action: "plan:read" }],
       },
     };
@@ -979,7 +985,10 @@ test("packaging graph and staged chunks keep the selected run and paged history"
         path: new URL(route.request().url()).pathname,
         method: route.request().method(),
       });
-      expect(route.request().postDataJSON()).toEqual({});
+      expect(route.request().postDataJSON()).toEqual({
+        view: "summary",
+        limit: 20,
+      });
       await route.fulfill({
         json: {
           configured: true,
@@ -1325,22 +1334,23 @@ test("an index past the read bound lists what was read and says more exist", asy
     ),
   );
   const board = page.locator("[data-approvals-board]");
-  await expect(board).toContainText("Needs review · 100");
-  await expect(board).toContainText("bulk-plan-4-19");
+  await expect(board).toContainText("Needs review · 20");
+  await expect(board).toContainText("bulk-plan-0-19");
   await expect(board).not.toContainText("Hub did not return plans.");
   await expect(page.locator("[data-index-truncation]")).toHaveText(
-    "Showing the first 100 of 240 plans. The rest are not loaded in this view.",
+    "Showing 20 of 240 plans in this page. Use Next or Previous to change page.",
   );
-  expect(planPages.slice(0, 5)).toEqual([
-    "",
-    "?cursor=1",
-    "?cursor=2",
-    "?cursor=3",
-    "?cursor=4",
-  ]);
+  expect(
+    planPages.every(
+      (query) => new URLSearchParams(query).get("view") === "summary",
+    ),
+  ).toBe(true);
+  expect(
+    planPages.every((query) => !new URLSearchParams(query).has("cursor")),
+  ).toBe(true);
   // Environment-scoped refresh reads name the environment the Hub returned.
-  expect(scoped).toContain("/v1/environments/edge-a/timeline");
-  expect(scoped).toContain("/v1/blackouts?environment=edge-a");
+  // The approval board does not request unrelated environment evidence.
+  expect(scoped).toEqual([]);
   expect(scoped.some((path) => /\/dev\/|=dev$/.test(path))).toBe(false);
 });
 
@@ -1359,13 +1369,24 @@ test("a view whose renderer throws is contained and the shell stays usable", asy
       })
       .catch(() => {});
   });
-  // A plan row the approvals board cannot read: its renderer throws.
+  // Transport validation refuses malformed rows. Plant a renderer failure
+  // after the valid page loads to exercise the separate containment boundary.
   await page.route("**/v1/**", (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/v1/session")
       return route.fulfill({ json: { applications: APPLICATIONS } });
     return path === "/v1/plans"
-      ? route.fulfill({ json: { plans: [null] } })
+      ? route.fulfill({
+          json: {
+            plans: [
+              {
+                id: "render-check",
+                status: "SUCCEEDED",
+                plan: { environment: "edge-a", steps: [] },
+              },
+            ],
+          },
+        })
       : route.fulfill({ json: {} });
   });
   await hydrate(page);
@@ -1375,6 +1396,19 @@ test("a view whose renderer throws is contained and the shell stays usable", asy
       "s16-approvals-board",
     ),
   );
+  await expect(page.locator("[data-approvals-board]")).toContainText(
+    "render-check",
+  );
+  const breakView = () =>
+    page.evaluate(() => {
+      const app = window as unknown as {
+        state: { hub: { plans: unknown[] } };
+        renderMainWorkspace(): void;
+      };
+      app.state.hub.plans = [null];
+      app.renderMainWorkspace();
+    });
+  await breakView();
   const failure = page.locator('[data-render-failure="s16-approvals-board"]');
   await expect(failure).toContainText("This view failed to render");
   await expect(failure.locator("[data-render-failure-screen]")).toHaveText(
@@ -1426,6 +1460,10 @@ test("a view whose renderer throws is contained and the shell stays usable", asy
       "s16-approvals-board",
     ),
   );
+  await expect(page.locator("[data-approvals-board]")).toContainText(
+    "render-check",
+  );
+  await breakView();
   await Promise.all([
     page.waitForEvent("load"),
     failure.getByRole("button", { name: "Reload" }).click(),
@@ -2564,6 +2602,58 @@ test("offline bundles bind verified envelope, physical-copy confirmation and rep
   expect(writes).toHaveLength(2);
 });
 
+test("inspector keeps the newest descending audit events within its 20-row bound", async ({
+  page,
+}) => {
+  const entries = Array.from({ length: 25 }, (_, index) => ({
+    sequence: index + 1,
+    id: `inspector-event-${index + 1}`,
+    actor: "reader",
+    action: `inspector-action-${String(index + 1).padStart(2, "0")}`,
+    resourceRid: "environment/dev",
+  }));
+  await page.route("**/v1/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/v1/session")
+      return route.fulfill({
+        json: { actor: { username: "root" }, effective: { username: "root" } },
+      });
+    if (url.pathname === "/v1/authorization-audit") {
+      expect(url.searchParams.get("order")).toBe("desc");
+      return route.fulfill({ json: { order: "desc", entries } });
+    }
+    return route.fulfill({ status: 404, json: { error: "not configured" } });
+  });
+  await page.route("**/api/v2/ontologies/**", async (route) => {
+    if (!new URL(route.request().url()).pathname.endsWith("/loadObjects"))
+      return route.fulfill({ status: 404, json: { error: "not configured" } });
+    const body = route.request().postDataJSON();
+    return route.fulfill({
+      json: {
+        data:
+          body.objectSet.type === "searchAround"
+            ? []
+            : [{ id: "dev", name: "dev", __primaryKey: "dev" }],
+      },
+    });
+  });
+  await hydrate(page);
+  await page.goto("/console/#au01-audit");
+  await expect(page.locator(".audit-ledger")).toContainText(
+    "inspector-action-01",
+  );
+  await page.evaluate(() =>
+    Reflect.get(window, "inspectObject")("Environment", "dev"),
+  );
+  const inspector = page.locator(".kit-inspector");
+  await inspector.getByRole("tab", { name: "Timeline", exact: true }).click();
+  await expect(inspector.locator("li")).toHaveCount(20);
+  await expect(inspector).toContainText("inspector-action-01");
+  await expect(inspector).toContainText("inspector-action-20");
+  for (const omitted of [21, 22, 23, 24, 25])
+    await expect(inspector).not.toContainText(`inspector-action-${omitted}`);
+});
+
 test("audit verifies native payload bytes and keeps polled events resource scoped", async ({
   page,
 }) => {
@@ -2586,14 +2676,18 @@ test("audit verifies native payload bytes and keeps polled events resource scope
       return route.fulfill({
         json: { actor: { username: "root" }, effective: { username: "root" } },
       });
-    if (url.pathname === "/v1/authorization-audit")
+    if (url.pathname === "/v1/authorization-audit") {
+      expect(url.searchParams.get("order")).toBe("desc");
+      expect(url.searchParams.get("view")).toBe("chain");
       return route.fulfill({
         json: {
+          order: "desc",
           entries: tampered
             ? [{ ...entries[0], actor: "forged" }, entries[1]]
             : entries,
         },
       });
+    }
     return route.fulfill({ status: 404, json: { error: "not configured" } });
   });
   await page.route(
@@ -3439,6 +3533,10 @@ test("engineer focus preserves one live conversation, draft and pending request"
         json: {
           label: "Fixture response",
           text: "Recorded conversation response.",
+          model: {
+            configuredModel: "requested-alias",
+            providerModel: "served-version",
+          },
           results: [],
         },
       });
@@ -3536,6 +3634,9 @@ test("engineer focus preserves one live conversation, draft and pending request"
       .locator('[data-slot="aui_assistant-message-content"]')
       .getByText("Recorded conversation response.", { exact: false }),
   ).toBeVisible();
+  await expect(
+    rail.locator('[data-slot="aui_assistant-message-content"]'),
+  ).toContainText("Model: served-version (configured: requested-alias)");
   await expect(rail.locator("[data-engineer-outline] summary")).toContainText(
     "1 user turn",
   );

@@ -15,12 +15,14 @@ import (
 // PageQuery bounds one read of the chained log. Since is inclusive and Until
 // exclusive; a zero time leaves that side open. AfterSequence is a strict seek
 // on the chain sequence, which is both the hash-chain order and the primary
-// key, so a page costs an index range rather than a sort of the whole log.
+// key. Desc reverses that order and makes the seek strictly less than the
+// position; a false value preserves the existing ascending read.
 type PageQuery struct {
 	Resource      string
 	Since, Until  time.Time
 	AfterSequence uint64
 	Limit         int
+	Desc          bool
 }
 
 type PageRow struct {
@@ -29,9 +31,10 @@ type PageRow struct {
 }
 
 // createdAtExpression reads the event time out of the stored payload. The
-// table has no time column and its rows are immutable, so the bound is applied
-// to the digest-covered bytes. PostgreSQL compares at microsecond resolution.
-const createdAtExpression = "(convert_from(payload, 'UTF8')::jsonb->>'createdAt')::timestamptz"
+// table has no writable time mirror: the immutable extractor and both time
+// indexes derive it from the digest-covered bytes. Keep this exact expression
+// aligned with migration 0002. PostgreSQL compares at microsecond resolution.
+const createdAtExpression = "conduit_authorization_audit_created_at(payload)"
 
 func (query PageQuery) predicate(seek bool) (string, []any) {
 	var clauses []string
@@ -44,7 +47,11 @@ func (query PageQuery) predicate(seek bool) (string, []any) {
 		add("resource_rid =", query.Resource)
 	}
 	if seek && query.AfterSequence > 0 {
-		add("sequence >", int64(query.AfterSequence))
+		comparison := "sequence >"
+		if query.Desc {
+			comparison = "sequence <"
+		}
+		add(comparison, int64(query.AfterSequence))
 	}
 	if !query.Since.IsZero() {
 		add(createdAtExpression+" >=", query.Since.UTC())
@@ -58,8 +65,8 @@ func (query PageQuery) predicate(seek bool) (string, []any) {
 	return " WHERE " + strings.Join(clauses, " AND "), args
 }
 
-// PageAuthorizationAudit returns at most Limit events after AfterSequence, in
-// chain order. The limit is part of the SQL statement: the Hub never holds
+// PageAuthorizationAudit returns at most Limit events after AfterSequence in
+// the requested chain direction. The limit is part of SQL: the Hub never holds
 // more than one page of the log, whatever the log's size.
 func (store *Store) PageAuthorizationAudit(ctx context.Context, query PageQuery) ([]PageRow, error) {
 	if query.Limit < 1 {
@@ -67,8 +74,12 @@ func (store *Store) PageAuthorizationAudit(ctx context.Context, query PageQuery)
 	}
 	where, args := query.predicate(true)
 	args = append(args, query.Limit)
+	order := " ORDER BY sequence"
+	if query.Desc {
+		order += " DESC"
+	}
 	statement := "SELECT " + columns + " FROM conduit_authorization_audit_events" + where +
-		" ORDER BY sequence LIMIT $" + strconv.Itoa(len(args))
+		order + " LIMIT $" + strconv.Itoa(len(args))
 	rows, err := store.transaction.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("page authorization audit events: %w", err)

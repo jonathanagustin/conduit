@@ -342,6 +342,21 @@ assembling the bundle, loading `uds-config.yaml`, and listing every variable
 that file sets. It does not show `uds deploy`; no workflow that runs on its
 own has a cluster.
 
+The same gate runs `TestRenderedBundlesCreateWithPinnedCLI` (#835). Zarf
+v0.82.0 builds a file-only package in a temporary loopback OCI registry, then
+UDS CLI v0.41.0 creates and inspects bundles from both `udsconverge.Render`
+and `RenderBundleFromPackages`. The generated documents are passed unchanged;
+their repository, tag and digest must survive the archive round trip. The CLI
+must also refuse a nonexistent digest and an absent optional component. Both
+executables are required when this gate opts into the integration test;
+ordinary Go tests skip it without downloading tools.
+
+The fixture is unsigned, contains no application images, and uses HTTP only
+on loopback. UDS's insecure and skip-signature-validation flags apply only to
+this fixture. The check establishes bundle creation and inspection, not
+publisher verification, deployment, UDS Core compatibility, or approval of the
+schema licences discussed in `workspace-schemas.md`.
+
 
 
 ## Delivering a tenant's Zarf package or UDS bundle through the Spoke

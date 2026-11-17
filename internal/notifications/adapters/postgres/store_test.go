@@ -26,13 +26,17 @@ type fixedAt struct{ offset time.Duration }
 
 func (clock fixedAt) Now() time.Time { return at().Add(clock.offset) }
 
+type allowRecipients struct{}
+
+func (allowRecipients) Check(context.Context, domain.Owner, string) (bool, error) { return true, nil }
+
 // The slice end to end against a real database: a preference is stored, an
 // event is emitted, and the person who asked can read it back.
 func TestPostgresNotificationsReachTheSubscriberWhoAskedForThem(t *testing.T) {
 	ctx := t.Context()
 	store := newStore(t, ctx)
 	resetStore(t, ctx, store)
-	emitter, err := application.NewEmitter(store)
+	emitter, err := application.NewEmitter(store, allowRecipients{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +99,7 @@ func TestPostgresRecordingTheSameEventTwiceTellsNobodyTwice(t *testing.T) {
 	ctx := t.Context()
 	store := newStore(t, ctx)
 	resetStore(t, ctx, store)
-	emitter, err := application.NewEmitter(store)
+	emitter, err := application.NewEmitter(store, allowRecipients{})
 	if err != nil {
 		t.Fatal(err)
 	}

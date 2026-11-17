@@ -125,8 +125,8 @@ spec:
         ports:
           - 443
           - 5000
-      # PACKAGING_TEMPORAL_ADDRESS. Temporal is operator-supplied, like
-      # Postgres, and 7233 is the frontend port that variable defaults to.
+      # PACKAGING_TEMPORAL_ADDRESS is explicitly operator-supplied. This
+      # existing allow covers the selected frontend on port 7233 only.
       - description: Packaging worker to Temporal
         direction: Egress
         selector:
@@ -135,8 +135,8 @@ spec:
         remoteSelector:
           app.kubernetes.io/name: "###ZARF_VAR_TEMPORAL_NAME_LABEL###"
         port: 7233
-      # PLANNING_TEMPORAL_ADDRESS. Two Hub replicas share planning sessions
-      # through the same operator-supplied frontend, on the same port.
+      # PLANNING_TEMPORAL_ADDRESS and, when enabled, PACKAGING_TEMPORAL_ADDRESS.
+      # Both Hub clients use this same selected frontend and port allow.
       - description: Hub to Temporal
         direction: Egress
         selector:

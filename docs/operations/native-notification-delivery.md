@@ -36,11 +36,58 @@ new product-specific Helm values are introduced.
 
 ## Routing and delivery semantics
 
+Before recording an event's audience, the Hub checks each matching owner against
+current resource-read authority. Removing a native user from a team or removing
+a team's read grant prevents new events reaching its stale subscriptions
+(#884). A user is checked using current native `AdminUsers`/`MemberUsers` and
+the deployment's standing bootstrap policy; a team must still exist and hold
+its own current authority. The emitter's actor and old subscription-time claims
+are never substituted for the recipient. This is Conduit authorization policy,
+not an assertion about private Apollo notification behavior.
+
+Background checks cannot refresh an operator's OIDC group claims: no trusted
+current external directory is configured. A definite native grant or bootstrap
+allow remains sufficient. If only external group membership could authorize a
+user, the check fails explicitly with unavailable current group membership;
+use an appropriately granted team subscription or current native membership.
+Unknown directory/grant lookups abort recording rather than committing a
+partial audience. Post-commit announcement sites log this failure; they do not
+yet guarantee a durable retry of the source-to-notification handoff (#869).
+
+Every external transport rechecks authority after destination resolution,
+immediately before submission. A definite refusal records a terminal queue
+failure with an authorization reason; it never marks the item delivered.
+Lookup uncertainty follows the existing bounded retry budget and likewise
+never counts as sent. These checks do not delete historical inbox entries or
+decide a new policy for reading already-received notifications.
+
+Recording the same event ID again preserves its first committed document and
+recipient snapshot, including an empty snapshot. A subscriber added after the
+event does not receive historical notifications when an emit site retries.
+Issue #872 found that the PostgreSQL adapter ignored a duplicate event insert
+but still inserted newly resolved recipients and queued their delivery. The
+event insert now decides ownership of the entire fan-out; concurrent callers
+commit one complete audience rather than their union. The event and inbox
+entries still roll back together when an entry cannot be recorded. Regression
+tests exercise changed and empty audiences, independent concurrent connections,
+unchanged event documents and delivery counts against PostgreSQL.
+
+Saving an empty type selection with future types off records explicit opt-out
+for the same resource, owner and channel (#905). It affects subsequent fan-out
+using that updated preference; it does not cancel an already selected audience,
+historical inbox entry or queued delivery. The tuple's ID and creation time are
+retained and its revision advances, so it can be loaded and subscribed again.
+Off consent requires no team destination, including when a previous contact was
+deleted. Existing selected contacts are carried by the console, and the API
+retains its existing full-replacement semantics. Turning notifications off grants
+no resource or owner authority. This is Conduit policy and makes no private
+Apollo API compatibility claim.
+
 EMAIL selects SMTP, SLACK selects Slack, and IN_APP remains inbox-only. The
 native resolver re-reads the current resource preference and owner contacts at
 delivery time. It requires the queued preference ID, resource, owner and channel
 to match. When `contactId` is set, only that exact contact belonging to the owner
-and matching the channel is eligible. Team preferences require that selection.
+and matching the channel is eligible. Active team preferences require that selection.
 User preferences without a contact ID use the owner's matching channel contact.
 A deleted preference, missing contact, foreign contact, wrong contact kind or
 unconfigured provider never falls back to another recipient. Store read failures

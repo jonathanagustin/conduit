@@ -17,8 +17,8 @@ func TestWorkspaceACPAgentLaunch(t *testing.T) {
 	}{
 		{name: "default is bundled codex", env: nil},
 		{name: "codex explicit", env: map[string]string{"DEVWORKSPACE_ACP_AGENT": "Codex"}},
-		{name: "claude", env: map[string]string{"DEVWORKSPACE_ACP_AGENT": "claude"}, wantCmd: "claude-code-acp"},
-		{name: "gemini", env: map[string]string{"DEVWORKSPACE_ACP_AGENT": " gemini "}, wantCmd: "gemini", wantArgs: []string{"--experimental-acp"}},
+		{name: "claude", env: map[string]string{"DEVWORKSPACE_ACP_AGENT": "claude"}, wantErr: "no preset"},
+		{name: "gemini", env: map[string]string{"DEVWORKSPACE_ACP_AGENT": " gemini "}, wantErr: "no preset"},
 		{name: "override wins over preset", env: map[string]string{"DEVWORKSPACE_ACP_AGENT": "claude", "DEVWORKSPACE_ACP_AGENT_CMD": "/opt/grok acp --stdio"}, wantCmd: "/opt/grok", wantArgs: []string{"acp", "--stdio"}},
 		{name: "grok needs override", env: map[string]string{"DEVWORKSPACE_ACP_AGENT": "grok"}, wantErr: "no preset"},
 		{name: "unknown refused", env: map[string]string{"DEVWORKSPACE_ACP_AGENT": "bogus"}, wantErr: "unknown"},

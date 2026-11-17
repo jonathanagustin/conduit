@@ -91,6 +91,11 @@ in with it, then set `CONDUIT_MODEL_CMD` to that command before starting the
 Hub. Leave the variable unset to keep the recorded proposals and make no
 model call. See [Local model CLI](docs/operations/local-model-cli.md).
 
+To install and verify a published release (CLI archives, SLSA provenance, SPDX
+SBOMs, digest-pinned Helm charts, container images, and air-gap Zarf packages)
+without building from source, see
+[Installing and verifying a published release](docs/operations/release-and-publication.md#installing-and-verifying-a-published-release).
+
 ## Current status
 
 Conduit has working native contexts for catalog, environments, governance,

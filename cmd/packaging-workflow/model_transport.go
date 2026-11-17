@@ -24,7 +24,8 @@ type modelTransport struct {
 	client *modelhttp.Client
 	argv   []string
 	// name is CONDUIT_MODEL_NAME, the only source of a model CLI's name.
-	name string
+	name    string
+	timeout time.Duration
 	// governor bounds and retries this process's model calls. See
 	// workerGovernor for what it does not do here.
 	governor *modelgovernor.Governor
@@ -92,7 +93,15 @@ func resolveModelTransport(getenv func(string) string) (modelTransport, error) {
 		return modelTransport{}, fmt.Errorf("CONDUIT_MODEL_CMD: %w", err)
 	}
 	warnUnverifiedPreset(argv, getenv("CONDUIT_AGENT_PROVIDER"))
-	return modelTransport{argv: argv, name: strings.TrimSpace(getenv("CONDUIT_MODEL_NAME")), governor: governor}, nil
+	timeout := workerModelTimeout
+	if raw := strings.TrimSpace(getenv("CONDUIT_MODEL_TIMEOUT")); raw != "" {
+		parsed, err := time.ParseDuration(raw)
+		if err != nil || parsed <= 0 {
+			return modelTransport{}, fmt.Errorf("CONDUIT_MODEL_TIMEOUT must be a positive duration")
+		}
+		timeout = parsed
+	}
+	return modelTransport{argv: argv, name: strings.TrimSpace(getenv("CONDUIT_MODEL_NAME")), timeout: timeout, governor: governor}, nil
 }
 
 func (transport modelTransport) configured() bool {
@@ -105,7 +114,7 @@ func (transport modelTransport) planner(clone planner.CloneFunc) planner.Planner
 		return planner.Planner{Model: planner.HTTPModel{Client: transport.governedClient(modelgovernor.CapabilityPlanning)}, Clone: clone}
 	}
 	return planner.Planner{
-		Argv: transport.argv, Timeout: workerModelTimeout, ModelName: transport.name, Clone: clone,
+		Argv: transport.argv, Timeout: transport.timeout, ModelName: transport.name, Clone: clone,
 		Exec: transport.governedExec(modelgovernor.CapabilityPlanning),
 	}
 }
@@ -116,7 +125,7 @@ func (transport modelTransport) packageWriter() packagingapp.PackageWriter {
 		return packagingmodelhttp.Adapter{Client: transport.governedClient(modelgovernor.CapabilityPackaging)}
 	}
 	return modelcli.Runner{
-		Argv: transport.argv, Timeout: workerModelTimeout, ModelName: transport.name,
+		Argv: transport.argv, Timeout: transport.timeout, ModelName: transport.name,
 		Exec: transport.governedExec(modelgovernor.CapabilityPackaging),
 	}
 }

@@ -39,7 +39,7 @@ func (cases intelCases) Add(scenario, bound, value, expected string) (string, er
 
 func newIntelligenceService(repository controlplane.Repository, options controlplane.HandlerOptions) *intelapp.Service {
 	service := intelapp.New(intelligenceAdapter(), intelligenceTimeout())
-	service.Opener = intelligenceOpener{service: controlplane.NewGovernanceService(repository), repository: repository, options: options}
+	service.Opener = intelligenceOpener{service: newGovernanceService(repository, options), repository: repository, options: options}
 	service.Audit = intelligenceAudit{repository: repository}
 	service.Proposer = liveEvalProposer()
 	return service
@@ -87,7 +87,7 @@ func (proposer intelligenceEvalProposer) Propose(ctx context.Context, scenario, 
 }
 
 func mountIntelligence(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, hub Options, service *intelapp.Service) http.Handler {
-	governanceService := controlplane.NewGovernanceService(repository)
+	governanceService := newGovernanceService(repository, options)
 	if service == nil {
 		service = newIntelligenceService(repository, options)
 	}

@@ -31,6 +31,15 @@ variables:
     # second replica exists only when this is set; without it the Hub runs
     # one replica, because replicas cannot share a process-local store.
     PLANNING_TEMPORAL_ADDRESS: REPLACE-WITH-temporal-frontend.temporal.svc.cluster.local:7233
+    # Packaging is separate from planning. Empty keeps its Hub client off and
+    # this bundle does not select the optional packaging-worker. To connect
+    # an external worker, explicitly set its plaintext frontend host:port and
+    # use that worker's Temporal namespace and task queue. Select the optional
+    # packaging-worker only with a nonempty address; it reads these same three
+    # settings. No credentials or TLS material belong in these values.
+    PACKAGING_TEMPORAL_ADDRESS: ""
+    PACKAGING_TEMPORAL_NAMESPACE: default
+    PACKAGING_TEMPORAL_TASK_QUEUE: packaging-localhost
     # Name of the Secret whose `dsn` key holds the PostgreSQL DSN.
     PACKAGING_POSTGRES_SECRET: platform-postgres
     # Where the `uds` component's network allow finds in-cluster PostgreSQL.

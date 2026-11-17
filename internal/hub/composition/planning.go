@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jonathanagustin/conduit/internal/modelconfig"
 	"log/slog"
 	"net"
 	"net/http"
@@ -209,7 +210,7 @@ func planningHandlerWithOptions(
 ) http.Handler {
 	var stores sync.Map
 	var seq atomic.Uint64
-	governanceService := controlplane.NewGovernanceService(repository)
+	governanceService := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	type ownerServices struct {
 		sessions planninghttp.Sessions
@@ -228,7 +229,7 @@ func planningHandlerWithOptions(
 			httpSessions planninghttp.Sessions
 			runSessions  agentstream.Sessions
 		)
-		ownerCompute := sessionCompute(appgenCompute, appgenService, repository, principal, getenv)
+		ownerCompute := sessionCompute(appgenCompute, appgenService, repository, principal, getenv, options)
 		if temporalClient != nil {
 			wfService := planningworkflow.NewClientService(temporalClient, planningTaskQueue(getenv), actor, &seq).
 				WithCompute(ownerCompute)
@@ -280,12 +281,13 @@ func planningHandlerWithOptions(
 func sessionCompute(
 	appgenCompute planningapp.AppgenComputer, appgenService *appgenapp.Service,
 	repository controlplane.Repository, principal controlplane.Principal, getenv func(string) string,
+	handlerOptions ...controlplane.HandlerOptions,
 ) planningapp.AppgenComputer {
 	hook := appgenCompute
 	if hook == nil && appgenService != nil {
-		hook = appgenPlanningComputer(*appgenService, repository, principal, getenv)
+		hook = appgenPlanningComputer(*appgenService, repository, principal, getenv, handlerOptions...)
 	}
-	packaging := packagingPlanningComputer(repository, principal, getenv)
+	packaging := packagingPlanningComputer(repository, principal, getenv, handlerOptions...)
 	computer := func(ctx context.Context, session *planningdomain.Session) error {
 		if session == nil || session.Binding == nil {
 			return planningdomain.ErrComputeBeforeAccept
@@ -305,6 +307,7 @@ func sessionCompute(
 }
 
 func planningPlanner(getenv func(string) string, repository controlplane.Repository) (planningapp.Planner, error) {
+	getenv = modelconfig.ForCapability(getenv, modelconfig.Planning)
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
@@ -412,7 +415,8 @@ func recordPlanningAccept(ctx context.Context, repository controlplane.Repositor
 	ctxMap := map[string]any{"profileName": record.ProfileName, "profileVersion": record.ProfileVersion,
 		"profileHash": record.ProfileHash, "repoUrl": record.RepoURL, "ref": record.Ref,
 		"intakeMessageSha256": packagingdomain.DigestText([]byte(record.Message)),
-		"resolvedCommit":      record.ResolvedCommit, "model": record.Model, "planHash": record.PlanHash}
+		"resolvedCommit":      record.ResolvedCommit, "model": record.Model, "planHash": record.PlanHash,
+		"configuredModel": record.ConfiguredModel, "providerModel": record.ProviderModel}
 	if record.ProblemStatement != "" {
 		ctxMap["problemStatementSha256"] = packagingdomain.DigestText([]byte(record.ProblemStatement))
 	}

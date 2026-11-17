@@ -52,11 +52,15 @@ func (service *GovernanceService) ProposeMembershipPlan(ctx context.Context, sta
 		// for the baseline check and writes; the private delegate uses the same
 		// files without reentering the owner's mutex. This does not promise a
 		// crash-atomic multi-file transaction.
-		file.mu.Lock()
-		defer file.mu.Unlock()
-		if err := operation(&FileRepository{root: file.root}); err != nil {
+		err := func() error {
+			file.mu.Lock()
+			defer file.mu.Unlock()
+			return operation(&FileRepository{root: file.root, transactionLocal: true})
+		}()
+		if err != nil {
 			return PlanRecord{}, ChangeRequest{}, err
 		}
+		service.announceAwaitingApproval(ctx, request)
 		return plan, request, nil
 	}
 	return PlanRecord{}, ChangeRequest{}, fmt.Errorf("%w: membership proposals require a serialized repository", ErrInvalidTransition)

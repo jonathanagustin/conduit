@@ -46,7 +46,30 @@ in [`docs/architecture/deployment-invariants.md`](../../docs/architecture/deploy
 ## Installation
 
 Each deployment supplies exact release-image digests and externally owned
-identity material:
+identity material. Complete the signed asset-inventory and signature checks in
+[`docs/operations/release-and-publication.md`](../../docs/operations/release-and-publication.md#installing-and-verifying-a-published-release)
+first, then run the following from that downloaded release directory. The next
+publication provides the complete asset set; the older `v0.17.5` release predates
+it. The local chart archives and image references below come from the verified
+inventory, so installation does not resolve a mutable OCI chart tag again.
+
+```sh
+VERSION="$(jq -er '.version' platform-oci-manifest.json)"
+HUB_IMAGE="$(jq -er '.images.hub.reference' platform-oci-manifest.json)"
+SPOKE_IMAGE="$(jq -er '.images["spoke-agent"].reference' platform-oci-manifest.json)"
+
+helm upgrade --install platform-hub "./platform-hub-${VERSION}.tgz" \
+  --namespace platform-system \
+  --values hub-values.yaml \
+  --set-string "image=${HUB_IMAGE}"
+
+helm upgrade --install platform-spoke "./platform-spoke-${VERSION}.tgz" \
+  --namespace environment-system \
+  --values spoke-values.yaml \
+  --set-string "image=${SPOKE_IMAGE}"
+```
+
+Or from a source checkout:
 
 ```sh
 helm upgrade --install platform-hub ./deploy/helm/platform-hub \
@@ -111,6 +134,8 @@ render is unchanged by their existence.
 | `planOrchestrator.driver` = `temporal` | `PLAN_ORCHESTRATOR=temporal`, `PLAN_TEMPORAL_ADDRESS` | The Hub dials this frontend without TLS or an API key, in Temporal namespace `default`. An empty `temporalAddress` falls back to `packagingWorkflow.address`. |
 | `model.baseURL`, `model.name` | `CONDUIT_MODEL_BASE_URL`, `CONDUIT_MODEL_NAME`, optional `CONDUIT_MODEL_TIMEOUT` | One OpenAI-compatible HTTP endpoint. The API key is `model.apiKeySecret`, a Secret mounted as a read-only file; an optional CA is `model.caConfigMap`. `model.allowInsecureHTTP` is required with an `http://` URL and refused otherwise. The chart has no value for a model command. See [HTTP model endpoint](../../docs/operations/model-http.md), including which AI capabilities the shipped image cannot run. |
 | Spoke `materialPreparer.command` | `EXTERNAL_MATERIAL_PREPARER` | A clean absolute path. `Containerfile.agent` builds the reference preparer to `/usr/local/bin/platform-material-preparer` (see [the reference material preparer](../../docs/operations/material-preparer.md)); for any other, `materialPreparer.toolsPersistentVolumeClaimName` mounts an existing PVC read-only at `toolsMountPath`. When a command is set the chart also renders `MATERIAL_PREPARER_NAMESPACES` from `rbac.managedNamespaces`. |
+| Spoke `rbac.packageExecutor` | `<fullname>-package-executor` (`Role`/`RoleBinding` per `rbac.managedNamespaces` entry) and `<fullname>-zarf-state` (`Role`/`RoleBinding` in namespace `zarf`) | Opt-in namespaced RBAC profile for the Zarf/UDS package executor (`internal/agent/adapters/uds`), kept separate from the Helm executor's floor. Requires `rbac.create=true`. |
+
 
 Every notification transport requires `repository.kind=postgres`, whose
 durable queue delivery leases from; the Hub refuses to start otherwise and so
@@ -145,6 +170,34 @@ next to the rule** (`platform-spoke/templates/rbac.yaml`). In summary:
 | `networking.k8s.io` ingresses, full verbs | `ingressReferences` in `internal/agent/ingress.go` admits `networking.k8s.io/v1` Ingress out of a deployed manifest; `observeIngressReferences` reads each back for a load-balancer address. |
 | `""` events, read-only | `ingressDiagnostic` attaches controller Events to an unrealized Ingress. The Agent never writes one. |
 | `""` configmaps, full verbs | The one chart this repository installs end to end — `testdata/e2e-chart`, applied by `scripts/test-spoke-e2e.sh` — renders a ConfigMap. |
+
+### Zarf and UDS package executor RBAC profile
+
+When an Agent reconciles Zarf packages or UDS bundles (`internal/agent/adapters/uds`),
+its Kubernetes calls differ from the Helm executor's floor. Rather than widening
+the default Helm floor for every Spoke deployment, `rbac.packageExecutor=true`
+renders a separate, opt-in namespaced profile alongside it:
+
+| Rendered object | Namespace | Rule | Call site in `internal/agent/adapters/uds` |
+| --- | --- | --- | --- |
+| `<fullname>-package-executor` (`Role` + `RoleBinding`) | Each entry in `rbac.managedNamespaces` | `uds.dev` `packages`, full verbs | `applyManifest` (`kubectl apply -n <step.Namespace> -f <PackageManifestPath>`) and `observeUDSPackageCR` (`kubectl get package.uds.dev <name> -n <step.Namespace>`) in `executor.go`. |
+| `<fullname>-package-executor` (`Role` + `RoleBinding`) | Each entry in `rbac.managedNamespaces` | `""` `configmaps`, full verbs | `writeAppliedRecord`, `readAppliedRecord`, and `deleteAppliedRecord` (`conduit-applied-<name>`) in `applied.go` so `Observe` and `Rollback` read cluster-resident package coordinates and revision history. |
+| `<fullname>-zarf-state` (`Role` + `RoleBinding`) | `zarf` | `""` `secrets`, full verbs | `verifyZarfInitialised` (`kubectl get secret zarf-state -n zarf`) and `observeZarfPackage` (`kubectl get secret zarf-package-<name> -n zarf`) in `executor.go`, plus `zarf package deploy` and `zarf package remove` reading `zarf-state` and writing/deleting `zarf-package-<name>` Secrets in `zarf`. |
+
+What remains outside the chart even with `rbac.packageExecutor=true`:
+
+- **`packages.uds.dev` CRD preflight.** When a step carries a `PackageManifestPath`
+  or `uds-bundle` artifact type, `verifyUDSCRDsPresent` runs
+  `kubectl get crd packages.uds.dev -o name`, which requires cluster-scoped
+  `get` on `apiextensions.k8s.io` `customresourcedefinitions` (resource name
+  `packages.uds.dev`). Because the chart never renders a `ClusterRole` or
+  `ClusterRoleBinding`, the tenant's cluster administrator owns that read grant
+  whenever UDS `Package` CRs or bundles are used.
+- **Objects inside the Zarf package or UDS bundle.** Just as `helm upgrade --install`
+  applies whatever a tenant's chart contains, `zarf package deploy` and `uds deploy`
+  apply the manifests and charts packaged inside the Zarf/UDS artifact. Any
+  resource kind outside the managed-namespace floor (or any namespace outside
+  `rbac.managedNamespaces`) must be granted by the tenant's cluster administrator.
 
 **Namespaced, with no cluster-scoped exception.** Every Kubernetes call in
 `internal/agent` carries an explicit namespace: `helm.go` passes `--namespace`
@@ -201,8 +254,10 @@ RoleBinding names the ServiceAccount the Deployment uses, the `roleRef` is a
 namespaced `Role` that the same render produced, no rule carries a wildcard
 apiGroup, resource or verb without a `# wildcard-justified:` line in the
 template naming that exact rule, no rule grants `escalate`, `bind` or
-`impersonate`, and the chart fails closed when `rbac.managedNamespaces` is
-absent or empty.
+`impersonate`, the separate `rbac.packageExecutor` profile renders only when
+explicitly enabled and matches its derived `uds.dev/packages`, `""/configmaps`,
+and `zarf` namespace `""/secrets` rules, and the chart fails closed when
+`rbac.managedNamespaces` is absent or empty.
 
 Human and service-user Hub access can use `operatorOIDC`. Prefer `multipass`
 when a tenant already has Palantir identity infrastructure; `generic` supports

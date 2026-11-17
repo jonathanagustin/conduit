@@ -26,10 +26,23 @@ type Store interface {
 	controlplane.Repository
 }
 
+// Governance records proposals and reviews through the Hub's configured service.
+type Governance interface {
+	ProposeHumanChange(context.Context, string, string, string, []controlplane.EntityChange, controlplane.Principal, string, string) (controlplane.ChangeRequest, error)
+}
+
 // Service proposes a fix.
 type Service struct {
-	Store Store
-	Now   func() time.Time
+	Governance Governance
+	Store      Store
+	Now        func() time.Time
+}
+
+func (service Service) governance() Governance {
+	if service.Governance != nil {
+		return service.Governance
+	}
+	return controlplane.NewGovernanceService(service.Store)
 }
 
 func (service Service) now() time.Time {
@@ -73,7 +86,7 @@ func (service Service) Propose(ctx context.Context, actor controlplane.Principal
 		return Result{Reason: reason, AuditID: auditID}, nil
 	}
 	reason := driftReason(row)
-	governanceService := controlplane.NewGovernanceService(service.Store)
+	governanceService := service.governance()
 	request, err := governanceService.ProposeHumanChange(ctx, "INSTALLATION", installation, environment, []controlplane.EntityChange{{
 		ID: "propose-fix", Type: controlplane.ChangeTypeUpdateEntity, InstallationID: installation,
 		Request: map[string]any{

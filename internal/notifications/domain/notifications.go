@@ -172,9 +172,9 @@ func EventTypes() []EventType {
 // message says "never emits" of an unknown type, which implied the known ones
 // are emitted. Seven of ten were not. This set is the second question, kept
 // apart from the first because the vocabulary is Apollo's and the emit sites
-// are Conduit's: a type stays subscribable whether or not anything raises it,
-// since the console's checkbox list is held to the vocabulary and a preference
-// naming an unraised type is a statement about the future, not an error.
+// are Conduit's. Known unraised types remain readable on legacy preferences,
+// but new explicit selections are refused by ValidateSelection. Forward
+// consent remains available through AllFutureTypes.
 //
 // Each entry has an adapter that raises it:
 //   - PLAN_FAILURES: delivery/reconciliation (proposal exhausted) and
@@ -198,8 +198,7 @@ var raisedTypes = map[EventType]struct{}{
 	EventRoleChange:                   {},
 }
 
-// Raised reports whether any emit site in this build raises the type. False for
-// a known type means a preference naming it is stored and matches nothing yet.
+// Raised reports whether any emit site in this build raises the type.
 func (eventType EventType) Raised() bool {
 	_, raised := raisedTypes[eventType]
 	return raised
@@ -412,17 +411,16 @@ type Preference struct {
 	// vocabulary safe, and it must admit types this build does not know, or it
 	// would be an expensive way to write a closed set.
 	AllFutureTypes bool `json:"allFutureTypes,omitempty"`
-	// ContactID names the team contact to deliver to, for a team preference. A
-	// team preference without one is refused rather than stored, because Apollo
-	// requires a contact before a team receives anything and a stored preference
-	// that delivers nowhere is indistinguishable from a working one.
+	// ContactID names the team contact to deliver to. Active team consent needs
+	// one; explicit off consent needs no destination and may retain an old choice.
 	ContactID string    `json:"contactId,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 	Revision  uint64    `json:"revision"`
 }
 
-// Validate refuses a preference that could never deliver anything.
+// Validate checks a preference's tuple and consent. Selecting no types without
+// future consent explicitly turns notifications off for this tuple.
 func (preference Preference) Validate() error {
 	switch {
 	case strings.TrimSpace(preference.ID) == "":
@@ -435,15 +433,28 @@ func (preference Preference) Validate() error {
 		return fmt.Errorf("notification preference requires the resource it is about")
 	case !preference.Channel.Valid():
 		return fmt.Errorf("notification channel %q is not one a resource can be configured on", preference.Channel)
-	case preference.Owner.Kind == PrincipalTeam && strings.TrimSpace(preference.ContactID) == "":
+	case preference.Owner.Kind == PrincipalTeam && (preference.AllFutureTypes || len(preference.Types) != 0) && strings.TrimSpace(preference.ContactID) == "":
 		return fmt.Errorf("a team notification preference requires the contact it delivers to")
-	case !preference.AllFutureTypes && len(preference.Types) == 0:
-		return fmt.Errorf("notification preference enables no types and has not opted into future ones")
 	}
 	for _, eventType := range preference.Types {
 		if !eventType.Valid() {
 			return fmt.Errorf("notification preference names event type %q, which this build never emits", eventType)
 		}
+	}
+	return nil
+}
+
+// ValidateSelection applies Conduit's write policy without invalidating stored
+// preferences from earlier builds. A named selection must have an emit site;
+// otherwise a successful save would promise notifications that cannot arrive.
+// AllFutureTypes retains its open-ended meaning and ignores the named list.
+// This policy is part of the registered notifications.HTTPSurface extension.
+func (preference Preference) ValidateSelection() error {
+	if preference.AllFutureTypes {
+		return nil
+	}
+	if unavailable := NotYetRaised(preference.Types); len(unavailable) != 0 {
+		return fmt.Errorf("notification event type %q is not yet emitted by this Hub; remove it or opt into all future types", unavailable[0])
 	}
 	return nil
 }
@@ -501,10 +512,11 @@ type InboxEntry struct {
 // one owner reached twice on the same channel, because being told the same
 // thing twice in the same place teaches people to ignore it.
 //
-// A pure function of its inputs: the caller supplies the preferences it has
-// already authorized this reader to see, exactly as Reporting's ports require,
-// because filtering after fanning out would let an inbox hold an entry its
-// owner cannot account for.
+// This pure function resolves subscription consent, not resource authority.
+// Before recording any resulting inbox or delivery row, the caller must check
+// each recipient's current read authority. Filtering only when reading the
+// inbox would leave inaccessible events stored for delivery; external
+// submission therefore checks current authority again.
 // CONDUIT-INVENTED: notifications.Fan
 // Displaced-by: a capture of how Apollo resolves one event to its recipients,
 // in particular whether it deduplicates a recipient reached by two preferences

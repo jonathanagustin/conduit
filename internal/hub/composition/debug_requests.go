@@ -18,7 +18,7 @@ func mountDebugRequests(legacy http.Handler, repository controlplane.Repository,
 	if journal == nil {
 		return legacy, nil
 	}
-	service := controlplane.NewGovernanceService(repository)
+	service := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	err := requesthttp.Register(mux, func(r *http.Request) (*requestapp.Service, error) {
 		if _, err := operatorFrom(r.Context()); err != nil {

@@ -62,6 +62,8 @@ test("a 401 mid-session offers to sign in again and returns to the view on scree
 
   // The session ends while the person is looking at another view.
   await page.goto("/console/#area-fleet");
+  await expect(page).toHaveURL(/#area-fleet\?tab=environments$/);
+  const currentView = new URL(page.url()).hash;
   signedIn = false;
   await page.evaluate(() => fetch("/v1/plans", { credentials: "same-origin" }));
   const prompt = page.locator("#session-ended-prompt");
@@ -69,13 +71,13 @@ test("a 401 mid-session offers to sign in again and returns to the view on scree
   await expect(prompt).toContainText("Your session has ended");
   await expect(prompt).toHaveAttribute("role", "alertdialog");
   // The view is still there behind the prompt: nothing navigated.
-  expect(new URL(page.url()).hash).toBe("#area-fleet");
+  expect(new URL(page.url()).hash).toBe(currentView);
 
   const login = waitForLogin(page);
   await prompt.getByRole("button", { name: "Sign in again" }).click();
   const request = await login;
   expect(request.method()).toBe("GET");
-  expect(returnTo(request)).toBe("/console/#area-fleet");
+  expect(returnTo(request)).toBe(`/console/${currentView}`);
   // The redirect is the Hub's. The console sent no OAuth parameter of its own.
   expect([...new URL(request.url()).searchParams.keys()]).toEqual(["returnTo"]);
 });
@@ -117,7 +119,7 @@ test("a sign-in the Hub refused says so and a retry returns to the console, not 
   await expect(prompt).toContainText("Sign-in did not complete");
   const login = waitForLogin(page);
   await page.locator("#session-sign-in-again").click();
-  expect(returnTo(await login)).toBe("/console/");
+  expect(returnTo(await login)).toBe("/console/#area-command?tab=command");
 });
 
 test("a Hub without sign-in routes shows no sign-in button and no session prompt", async ({
@@ -192,7 +194,14 @@ test("every write the console sends carries the CSRF header, and no read or cros
       return { json: { owner: "riley", contacts: [] } };
     if (url.pathname !== "/v1/notifications/preferences") return undefined;
     if (request.method() === "GET")
-      return { status: 404, json: { error: "no notification preference" } };
+      return {
+        status: 404,
+        json: {
+          error: "no notification preference",
+          typesNotYetEmitted: [],
+          typeAvailabilityScope: "ALL_KNOWN",
+        },
+      };
     return {
       json: {
         id: "pref-1",
@@ -201,6 +210,7 @@ test("every write the console sends carries the CSRF header, and no read or cros
         revision: 1,
         updatedAt: "2026-11-17T00:00:00Z",
         typesNotYetEmitted: [],
+        typeAvailabilityScope: "ALL_KNOWN",
       },
     };
   });

@@ -3,6 +3,7 @@ package composition
 import (
 	"context"
 	"fmt"
+	"github.com/jonathanagustin/conduit/internal/modelconfig"
 	"log/slog"
 	"net/http"
 	"os"
@@ -35,6 +36,7 @@ import (
 )
 
 func appGenerator(getenv func(string) string) (appdomain.AppGenerator, error) {
+	getenv = modelconfig.ForCapability(getenv, modelconfig.Appgen)
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
@@ -59,7 +61,7 @@ func appGenerator(getenv func(string) string) (appdomain.AppGenerator, error) {
 		}
 		timeout = parsed
 	}
-	return modelcli.Runner{Argv: argv, Timeout: timeout, Exec: governedExec(getenv, modelgovernor.CapabilityAppgen)}, nil
+	return modelcli.Runner{Argv: argv, Timeout: timeout, ModelName: configuredModelName(getenv), Exec: governedExec(getenv, modelgovernor.CapabilityAppgen)}, nil
 }
 
 func newAppGenerationService(
@@ -175,7 +177,7 @@ func appGenerationBuildExecutor(sbx application.Sandbox) AppGenerationBuildExecu
 func mountAppGenerationWithService(
 	legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, service application.Service,
 ) http.Handler {
-	governanceService := controlplane.NewGovernanceService(repository)
+	governanceService := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	apphttp.Register(mux, apphttp.Config{
 		Service: service,
@@ -199,6 +201,7 @@ func mountAppGenerationWithService(
 
 func appgenPlanningComputer(
 	service application.Service, repository controlplane.Repository, principal controlplane.Principal, getenv func(string) string,
+	handlerOptions ...controlplane.HandlerOptions,
 ) planningapp.AppgenComputer {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
@@ -321,7 +324,7 @@ func appgenPlanningComputer(
 			}
 		}
 		if repository != nil && strings.TrimSpace(principal.Username) != "" {
-			submitter := devchange.New(controlplane.NewGovernanceService(repository))
+			submitter := devchange.New(newGovernanceService(repository, handlerOptions...))
 			sourceDigest := res.ImageDigest
 			if sourceDigest == "" {
 				sourceDigest = res.Provenance.ResponseSHA256
@@ -394,7 +397,7 @@ func (audit appAudit) Record(ctx context.Context, event application.Audit) error
 		time.Now().UTC(), "app-generation", "app.generate", "app-generation/"+event.ID, decision, event.Reason,
 		map[string]any{
 			"attempt": event.Attempt, "planRevisionId": event.PlanRevisionID, "planDigest": event.PlanDigest,
-			"adapter": event.Adapter, "promptSha256": event.PromptSHA256, "responseSha256": event.ResponseSHA256,
+			"adapter": event.Adapter, "configuredModel": event.ConfiguredModel, "providerModel": event.ProviderModel, "promptSha256": event.PromptSHA256, "responseSha256": event.ResponseSHA256,
 			"files": event.Files, "buildPassed": event.BuildPassed, "buildReason": event.BuildReason,
 			"healthPassed": event.HealthPassed, "healthReason": event.HealthReason,
 			"attachmentSha256": event.AttachmentSHA256,

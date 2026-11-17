@@ -2,6 +2,7 @@
 // The inspector only validates actions. It never applies or approves them.
 
 import { ACTION_RISK, OBJECT_TYPES, riskOf } from "@conduit/ontology-client";
+import { newestAuditEntries } from "./audit-order.js";
 
 export const INSPECTOR_TABS = [
   { id: "props", label: "Properties" },
@@ -219,20 +220,22 @@ function actionsBody(model, esc) {
   return `<ul>${rows}</ul>${outcome}`;
 }
 
-function timelineBody(model, esc, empty, audit) {
+function timelineBody(model, esc, empty, audit, auditOrder) {
   const key = keyOf(model);
-  const entries = (Array.isArray(audit) ? audit : [])
-    .filter((e) => {
-      if (!key || !e) return false;
-      if (String(e.resource ?? "").includes(key)) return true;
-      try {
-        return JSON.stringify(e).includes(key);
-      } catch {
-        return false;
-      }
-    })
-    .sort((a, b) => Number(b.sequence ?? 0) - Number(a.sequence ?? 0))
-    .slice(0, TIMELINE_LIMIT);
+  const matching = (Array.isArray(audit) ? audit : []).filter((e) => {
+    if (!key || !e) return false;
+    if (String(e.resource ?? "").includes(key)) return true;
+    try {
+      return JSON.stringify(e).includes(key);
+    } catch {
+      return false;
+    }
+  });
+  // Keep legacy ascending projections ordered by sequence on this display
+  // copy. Descending projections already put their newest event at sequence 1.
+  if (auditOrder !== "desc")
+    matching.sort((a, b) => Number(a.sequence ?? 0) - Number(b.sequence ?? 0));
+  const entries = newestAuditEntries(matching, auditOrder, TIMELINE_LIMIT);
   if (entries.length === 0) return empty("No audit entry names this object.");
   const rows = entries
     .map(
@@ -250,11 +253,11 @@ function rawBody(model, esc) {
 /** Renders the tab row and the body of the selected tab. */
 /**
  * @param {any} model
- * @param {{ tab?: string, esc?: (v: unknown) => string, audit?: any[] }} [options]
+ * @param {{ tab?: string, esc?: (v: unknown) => string, audit?: ReadonlyArray<any>, auditOrder?: string }} [options]
  */
 export function inspectorMarkup(
   model,
-  { tab = "props", esc = defaultEsc, audit = [] } = {},
+  { tab = "props", esc = defaultEsc, audit = [], auditOrder = "asc" } = {},
 ) {
   model = model ?? {};
   const empty = (text) => `<p class="kit-muted text-[12px]">${esc(text)}</p>`;
@@ -279,7 +282,7 @@ export function inspectorMarkup(
       parts.push(actionsBody(model, esc));
       break;
     case "timeline":
-      parts.push(timelineBody(model, esc, empty, audit));
+      parts.push(timelineBody(model, esc, empty, audit, auditOrder));
       break;
     case "raw":
       parts.push(rawBody(model, esc));

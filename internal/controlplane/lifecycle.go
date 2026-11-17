@@ -70,6 +70,9 @@ type PlanRecord struct {
 	CreatedAt          time.Time                `json:"createdAt"`
 	UpdatedAt          time.Time                `json:"updatedAt"`
 	Revision           uint64                   `json:"revision"`
+	// CompletionRecorded is committed with the terminal status and its evidence.
+	// It fences retries from replaying observations or automatic suppressions.
+	CompletionRecorded bool `json:"completionRecorded,omitempty"`
 }
 
 type EntityCommand struct {
@@ -92,6 +95,9 @@ const (
 )
 
 type Repository interface {
+	// InTransaction identifies a transaction-local view, whose successful writes
+	// remain subject to an enclosing commit. Repository decorators preserve it.
+	InTransaction() bool
 	ModuleRepository
 	ArtifactRepository
 	ProductPublicationRepository
@@ -770,12 +776,13 @@ func (lifecycle *Lifecycle) finishPlanOnce(
 		}
 		normalizedExecution.AgentID = record.Lease.AgentID
 		record.Execution = &normalizedExecution
+		record.CompletionRecorded = true
 		return nil
 	})
 	if err != nil {
 		return PlanRecord{}, err
 	}
-	if err := lifecycle.persistFinishEvidence(ctx, record, report, succeeded); err != nil {
+	if err := lifecycle.persistFinishEvidence(ctx, record, report, succeeded, false); err != nil {
 		return PlanRecord{}, err
 	}
 	return record, nil
@@ -795,34 +802,42 @@ func (lifecycle *Lifecycle) completeRecordedPlan(
 	if !execution.HeldByToken(existing.Lease, leaseToken) {
 		return PlanRecord{}, ErrLeaseRejected
 	}
-	record := existing
-	if record.Execution == nil {
-		normalizedExecution.AgentID = record.Lease.AgentID
-		normalizedExecution.Attempt = record.Lease.Attempt
-		updated, err := lifecycle.updatePlan(ctx, record.ID, func(current *PlanRecord) error {
-			if current.Status != want {
-				return fmt.Errorf("%w: cannot finish plan in %s", ErrInvalidTransition, current.Status)
-			}
-			current.Execution = &normalizedExecution
-			return nil
-		})
-		if err != nil {
-			return PlanRecord{}, err
-		}
-		record = updated
+	if existing.CompletionRecorded {
+		return existing, nil
 	}
-	if err := lifecycle.persistFinishEvidence(ctx, record, report, succeeded); err != nil {
+	// Older records may predate atomic completion. Backfill their missing
+	// evidence once, with the receipt in the same transaction as those writes.
+	normalizedExecution.AgentID = existing.Lease.AgentID
+	normalizedExecution.Attempt = existing.Lease.Attempt
+	// Keep the original completion time, including for notification identity.
+	record, err := lifecycle.repository.UpdatePlan(ctx, existing.ID, func(current *PlanRecord) error {
+		if current.Status != want {
+			return fmt.Errorf("%w: cannot finish plan in %s", ErrInvalidTransition, current.Status)
+		}
+		if current.Execution == nil {
+			current.Execution = &normalizedExecution
+		}
+		current.CompletionRecorded = true
+		return nil
+	})
+	if err != nil {
+		return PlanRecord{}, err
+	}
+	if err := lifecycle.persistFinishEvidence(ctx, record, report, succeeded, true); err != nil {
 		return PlanRecord{}, err
 	}
 	return record, nil
 }
 
 func (lifecycle *Lifecycle) persistFinishEvidence(
-	ctx context.Context, record PlanRecord, report *EnvironmentReport, succeeded bool,
+	ctx context.Context, record PlanRecord, report *EnvironmentReport, succeeded, backfill bool,
 ) error {
 	if report != nil && (succeeded || len(report.Entities) > 0 || len(report.Secrets) > 0) {
-		if existing, err := lifecycle.repository.GetEnvironmentReport(ctx, record.Plan.Environment); err == nil && existing.PlanID == record.ID {
-			// This plan's observed state is already committed.
+		if existing, err := lifecycle.repository.GetEnvironmentReport(ctx, record.Plan.Environment); err == nil &&
+			(existing.PlanID == record.ID || (backfill && !existing.ObservedAt.Before(record.UpdatedAt))) {
+			// Historical backfill keeps observations at the same instant or
+			// later; timestamp ties cannot prove the snapshot is older. A first
+			// completion still publishes its own exact observation.
 		} else if err != nil && !errors.Is(err, ErrNotFound) {
 			return fmt.Errorf("load reported state: %w", err)
 		} else {

@@ -243,6 +243,14 @@ spec:
             {{- if $model.baseURL }}
             - { name: CONDUIT_MODEL_BASE_URL, value: {{ $model.baseURL | quote }} }
             - { name: CONDUIT_MODEL_NAME, value: {{ $model.name | quote }} }
+            {{- range $capability, $settings := $model.capabilities }}
+            {{- with $settings.name }}
+            - { name: CONDUIT_{{ $capability | upper }}_MODEL_NAME, value: {{ . | quote }} }
+            {{- end }}
+            {{- with $settings.timeout }}
+            - { name: CONDUIT_{{ $capability | upper }}_MODEL_TIMEOUT, value: {{ . | quote }} }
+            {{- end }}
+            {{- end }}
             {{- with $model.timeout }}
             - { name: CONDUIT_MODEL_TIMEOUT, value: {{ . | quote }} }
             {{- end }}

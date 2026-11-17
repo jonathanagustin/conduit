@@ -25,6 +25,8 @@ type Planner interface {
 
 // TurnResult is what a Planner may add to a session after one turn.
 type TurnResult struct {
+	ConfiguredModel  string
+	ProviderModel    string
 	Messages         []domain.Message
 	Inspection       *domain.Inspection
 	InspectionEvents []*domain.Inspection
@@ -41,6 +43,8 @@ const ActionAccept = "planning.accept"
 // Audit is one record for the audit chain. Accept fills the binding fields
 // and the profile and plan hashes.
 type Audit struct {
+	ConfiguredModel  string
+	ProviderModel    string
 	Action           string
 	SessionID        string
 	ProfileName      string
@@ -250,6 +254,8 @@ func (service *Service) Turn(ctx context.Context, id, message string) (*domain.S
 		}
 		if result.Model != "" {
 			session.Model = result.Model
+			session.ConfiguredModel = result.ConfiguredModel
+			session.ProviderModel = result.ProviderModel
 		}
 		if session.Model == "" {
 			session.Model = domain.DefaultModelLabel
@@ -400,12 +406,13 @@ func (service *Service) Accept(ctx context.Context, id string) (*domain.Session,
 		model = domain.DefaultModelLabel
 	}
 	binding := &domain.Binding{
-		Profile:        session.Profile,
-		Intake:         intake,
-		ResolvedCommit: session.ResolvedCommit,
-		Model:          model,
-		Plan:           plan,
-		AcceptedAt:     now,
+		Profile:         session.Profile,
+		Intake:          intake,
+		ResolvedCommit:  session.ResolvedCommit,
+		Model:           model,
+		ConfiguredModel: session.ConfiguredModel, ProviderModel: session.ProviderModel,
+		Plan:       plan,
+		AcceptedAt: now,
 	}
 	if service.auditor != nil {
 		err := service.auditor.Record(ctx, Audit{
@@ -421,8 +428,9 @@ func (service *Service) Accept(ctx context.Context, id string) (*domain.Session,
 			Message:          intake.Message,
 			ResolvedCommit:   binding.ResolvedCommit,
 			Model:            binding.Model,
-			PlanHash:         plan.SHA256,
-			AcceptedAt:       now,
+			ConfiguredModel:  binding.ConfiguredModel, ProviderModel: binding.ProviderModel,
+			PlanHash:   plan.SHA256,
+			AcceptedAt: now,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("record the planning.accept audit event: %w", err)

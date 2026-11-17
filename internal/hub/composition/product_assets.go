@@ -19,7 +19,7 @@ func mountProductAssets(legacy http.Handler, repository controlplane.Repository,
 	if store == nil {
 		return legacy, nil
 	}
-	service := controlplane.NewGovernanceService(repository)
+	service := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	err := assethttp.Register(mux, func(r *http.Request) (*assetapp.Service, error) {
 		carrier, err := operatorFrom(r.Context())

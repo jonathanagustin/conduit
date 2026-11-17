@@ -207,6 +207,14 @@ abort "the observability manifest must not carry a Zarf variable; it is generate
 # paths are the ones mounted here, and no model command is configurable: the
 # Hub image carries no model CLI.
 {
+  "CONDUIT_ASSISTANT_MODEL_NAME" => ["ASSISTANT_MODEL_NAME", "", "^\\S*$"],
+  "CONDUIT_ASSISTANT_MODEL_TIMEOUT" => ["ASSISTANT_MODEL_TIMEOUT", "", "^$|^[1-9][0-9]*(ms|s|m)$"],
+  "CONDUIT_PLANNING_MODEL_NAME" => ["PLANNING_MODEL_NAME", "", "^\\S*$"],
+  "CONDUIT_PLANNING_MODEL_TIMEOUT" => ["PLANNING_MODEL_TIMEOUT", "", "^$|^[1-9][0-9]*(ms|s|m)$"],
+  "CONDUIT_PACKAGING_MODEL_NAME" => ["PACKAGING_MODEL_NAME", "", "^\\S*$"],
+  "CONDUIT_PACKAGING_MODEL_TIMEOUT" => ["PACKAGING_MODEL_TIMEOUT", "", "^$|^[1-9][0-9]*(ms|s|m)$"],
+  "CONDUIT_APPGEN_MODEL_NAME" => ["APPGEN_MODEL_NAME", "", "^\\S*$"],
+  "CONDUIT_APPGEN_MODEL_TIMEOUT" => ["APPGEN_MODEL_TIMEOUT", "", "^$|^[1-9][0-9]*(ms|s|m)$"],
   "CONDUIT_MODEL_BASE_URL" => ["MODEL_BASE_URL", "", "^$|^https?://[^\\s@?#]+$"],
   "CONDUIT_MODEL_NAME" => ["MODEL_NAME", "", "^\\S*$"],
   "CONDUIT_MODEL_TIMEOUT" => ["MODEL_TIMEOUT", "", "^$|^[1-9][0-9]*(ms|s|m)$"],
@@ -402,6 +410,7 @@ configured = uds_config.dig("variables", conduit["name"])
 unknown = configured.keys - declared_variables
 abort "uds-config.yaml sets variables the package does not declare: #{unknown.join(', ')}" unless unknown.empty?
 required_config = %w[ENVIRONMENT_ID AGENT_ID BOOTSTRAP_ADMINISTRATORS REPOSITORY_KIND PACKAGING_POSTGRES_SECRET PLANNING_TEMPORAL_ADDRESS
+                     PACKAGING_TEMPORAL_ADDRESS PACKAGING_TEMPORAL_NAMESPACE PACKAGING_TEMPORAL_TASK_QUEUE
                      OPERATOR_OIDC_ISSUER OPERATOR_OIDC_CLIENT_ID OPERATOR_OIDC_USERNAME_CLAIM OPERATOR_OIDC_GROUPS_CLAIM OPERATOR_OIDC_CA_FILE]
 without_default = definition.fetch("variables").reject { |item| item.key?("default") }.map { |item| item["name"] }
 missing = (required_config | without_default) - configured.keys

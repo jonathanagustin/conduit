@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jonathanagustin/conduit/internal/modelconfig"
 	"net/http"
 	"os"
 	"sort"
@@ -26,7 +27,7 @@ import (
 func mountAssistant(
 	legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, hub Options, model assistantdomain.Model, cases evalAdder,
 ) http.Handler {
-	governanceService := controlplane.NewGovernanceService(repository)
+	governanceService := newGovernanceService(repository, options)
 	threads := hub.AssistantThreads
 	if threads == nil {
 		// No durable store was handed in. Threads still work, in this process
@@ -60,6 +61,7 @@ func mountAssistant(
 }
 
 func assistantModel(getenv func(string) string) (assistantdomain.Model, error) {
+	getenv = modelconfig.ForCapability(getenv, modelconfig.Assistant)
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
@@ -84,7 +86,7 @@ func assistantModel(getenv func(string) string) (assistantdomain.Model, error) {
 		}
 		timeout = parsed
 	}
-	return modelcli.Runner{Argv: argv, Timeout: timeout, Exec: governedExec(getenv, modelgovernor.CapabilityAssistant)}, nil
+	return modelcli.Runner{Argv: argv, Timeout: timeout, ModelName: configuredModelName(getenv), Exec: governedExec(getenv, modelgovernor.CapabilityAssistant)}, nil
 }
 
 type assistantAPI struct {
@@ -105,13 +107,14 @@ func (api assistantAPI) service(actor application.Actor) application.Service {
 	return application.Service{
 		Objects:  catalogQuery{governance: api.governance, options: api.options, repository: api.repository},
 		Governor: actionGate{repository: api.repository, hub: api.hub},
-		Changes:  changeOpener{service: api.governance},
+		Changes:  changeOpener{service: api.governance, actions: assistantActions{repository: api.repository, options: api.options, hub: api.hub}},
 		Diffs:    changeReader{repository: api.repository},
 		Audit:    toolAudit{repository: api.repository},
 		Model:    api.model,
 		Cases:    api.cases,
 		Authors:  requestAuthor{repository: api.repository},
 		Reviews:  changeReviewer{service: api.governance},
+		Receipts: assistantReceiptReader{repository: api.repository},
 		Threads:  api.threads,
 	}
 }
@@ -210,6 +213,17 @@ func (gate actionGate) Evaluate(ctx context.Context, actor, action, resource str
 	if err != nil {
 		return application.Decision{}, err
 	}
+	if action == "approve_change_request" || action == "reject_change_request" {
+		request, err := gate.repository.GetChangeRequest(ctx, strings.TrimPrefix(resource, "change-request/"))
+		if err == nil {
+			facts.ChangeStatus = request.Status
+		}
+	}
+	if strings.HasPrefix(resource, "packaging-run/") && gate.hub.PackagingStatus != nil {
+		if run, err := gate.hub.PackagingStatus.Read(ctx, strings.TrimPrefix(resource, "packaging-run/")); err == nil {
+			facts = assistantPackagingFacts(run)
+		}
+	}
 	facts.Roles = append([]string{}, roles...)
 	decision := ontologydomain.Decide(action, facts)
 	verdict := governance.DecisionDeny
@@ -250,15 +264,26 @@ type changeReviewer struct {
 }
 
 func (reviewer changeReviewer) Approve(ctx context.Context, id, actor, rationale string, roles []string) (string, error) {
-	request, _, err := reviewer.service.Approve(ctx, id, controlplane.Principal{Username: actor, Teams: roles}, rationale)
+	principal, err := operatorFrom(ctx)
+	if err != nil || principal.Username != actor {
+		return "", controlplane.ErrForbidden
+	}
+	request, _, err := reviewer.service.Approve(ctx, id, principal, rationale)
 	if err != nil {
+		if request.Status == controlplane.ChangeApproved && request.Execution != nil {
+			return request.Status, nil
+		}
 		return "", err
 	}
 	return request.Status, nil
 }
 
 func (reviewer changeReviewer) Reject(ctx context.Context, id, actor, rationale string, roles []string) (string, error) {
-	request, _, err := reviewer.service.Reject(ctx, id, controlplane.Principal{Username: actor, Teams: roles}, rationale)
+	principal, err := operatorFrom(ctx)
+	if err != nil || principal.Username != actor {
+		return "", controlplane.ErrForbidden
+	}
+	request, _, err := reviewer.service.Reject(ctx, id, principal, rationale)
 	if err != nil {
 		return "", err
 	}
@@ -267,28 +292,11 @@ func (reviewer changeReviewer) Reject(ctx context.Context, id, actor, rationale 
 
 type changeOpener struct {
 	service *controlplane.GovernanceService
+	actions assistantActions
 }
 
 func (opener changeOpener) Open(ctx context.Context, proposal application.Proposal) (application.OpenedChange, error) {
-	environmentID := strings.TrimSpace(proposal.Environment)
-	installationID := strings.TrimSpace(proposal.InstallationID)
-	productID := strings.TrimSpace(proposal.ProductID)
-	request, err := opener.service.ProposeHumanChange(ctx, "PLAN", proposal.TargetEntityID+":"+proposal.ActionID, environmentID, []controlplane.EntityChange{{
-		ID: "governed-action", Type: controlplane.ChangeTypeUpdateEntity, InstallationID: installationID,
-		Request: map[string]any{"actionId": proposal.ActionID, "targetEntityId": proposal.TargetEntityID},
-		Diff: map[string]controlplane.ChangeDiffEntry{
-			"action": {After: proposal.ActionID},
-		},
-		ReferencedResources: map[string]controlplane.ReferencedResource{
-			"environment":  {RID: "environment/" + environmentID, Name: environmentID},
-			"installation": {RID: "installation/" + environmentID + "/" + installationID, Name: installationID},
-			"product":      {RID: "product/" + productID, Name: productID},
-		},
-	}}, controlplane.Principal{Username: proposal.Author}, "Proposed "+proposal.ActionID+" on "+proposal.TargetEntityID, proposal.Reason)
-	if err != nil {
-		return application.OpenedChange{}, err
-	}
-	return application.OpenedChange{ID: request.ID, Status: request.Status}, nil
+	return opener.actions.open(ctx, opener.service, proposal)
 }
 
 type changeReader struct {

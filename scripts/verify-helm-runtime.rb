@@ -213,6 +213,69 @@ def assert_spoke_rbac_floor!(root, documents, expected_namespaces, profile)
 
 end
 
+def assert_spoke_package_executor_rbac!(root, documents, expected_namespaces, profile)
+  deployment = documents.find { |item| item["kind"] == "Deployment" }
+  fullname = deployment.dig("metadata", "name")
+  identity = deployment.dig("spec", "template", "spec", "serviceAccountName")
+  release_namespace = deployment.dig("metadata", "namespace")
+
+  floor_documents = documents.reject do |item|
+    %w[Role RoleBinding].include?(item["kind"]) &&
+      ["#{fullname}-package-executor", "#{fullname}-zarf-state"].include?(item.dig("metadata", "name"))
+  end
+  assert_spoke_rbac_floor!(root, floor_documents, expected_namespaces, "#{profile} (Helm floor)")
+
+  package_roles = documents.select { |item| item["kind"] == "Role" && item.dig("metadata", "name") == "#{fullname}-package-executor" }
+  package_bindings = documents.select { |item| item["kind"] == "RoleBinding" && item.dig("metadata", "name") == "#{fullname}-package-executor" }
+  abort "#{profile} Spoke did not render one package-executor Role per managed namespace" unless
+    package_roles.map { |item| item.dig("metadata", "namespace") }.sort == expected_namespaces.sort
+  abort "#{profile} Spoke did not render one package-executor RoleBinding per managed namespace" unless
+    package_bindings.map { |item| item.dig("metadata", "namespace") }.sort == expected_namespaces.sort
+
+  zarf_roles = documents.select { |item| item["kind"] == "Role" && item.dig("metadata", "name") == "#{fullname}-zarf-state" }
+  zarf_bindings = documents.select { |item| item["kind"] == "RoleBinding" && item.dig("metadata", "name") == "#{fullname}-zarf-state" }
+  abort "#{profile} Spoke did not render exactly one zarf-state Role in namespace zarf" unless
+    zarf_roles.map { |item| item.dig("metadata", "namespace") } == ["zarf"]
+  abort "#{profile} Spoke did not render exactly one zarf-state RoleBinding in namespace zarf" unless
+    zarf_bindings.map { |item| item.dig("metadata", "namespace") } == ["zarf"]
+
+  (package_bindings + zarf_bindings).each do |binding|
+    namespace = binding.dig("metadata", "namespace")
+    name = binding.dig("metadata", "name")
+    abort "#{profile} Spoke RoleBinding #{name} in #{namespace} does not name the Pod's ServiceAccount" unless
+      binding.fetch("subjects") == [{"kind" => "ServiceAccount", "name" => identity, "namespace" => release_namespace}]
+    reference = binding.fetch("roleRef")
+    abort "#{profile} Spoke RoleBinding #{name} in #{namespace} does not reference matching Role" unless
+      reference == {"apiGroup" => "rbac.authorization.k8s.io", "kind" => "Role", "name" => name}
+  end
+
+  expected_package_rules = {
+    ["uds.dev", "packages"] => %w[get list watch create update patch delete],
+    ["", "configmaps"] => %w[get list watch create update patch delete]
+  }
+  package_roles.each do |role|
+    granted = Hash.new { |hash, key| hash[key] = [] }
+    role.fetch("rules").each do |rule|
+      rule.fetch("apiGroups").product(rule.fetch("resources")).each do |group, resource|
+        granted[[group, resource]] |= rule.fetch("verbs")
+      end
+    end
+    namespace = role.dig("metadata", "namespace")
+    abort "#{profile} package-executor Role in #{namespace} drifted from derived rules" unless granted == expected_package_rules
+  end
+
+  expected_zarf_rules = {
+    ["", "secrets"] => %w[get list watch create update patch delete]
+  }
+  zarf_granted = Hash.new { |hash, key| hash[key] = [] }
+  zarf_roles.first.fetch("rules").each do |rule|
+    rule.fetch("apiGroups").product(rule.fetch("resources")).each do |group, resource|
+      zarf_granted[[group, resource]] |= rule.fetch("verbs")
+    end
+  end
+  abort "#{profile} zarf-state Role in zarf drifted from derived rules" unless zarf_granted == expected_zarf_rules
+end
+
 charts.each_value do |chart|
   metadata = YAML.safe_load(File.read(File.join(chart, "Chart.yaml")))
   abort "chart version drifted from VERSION" unless metadata["version"] == version && metadata["appVersion"] == version
@@ -373,6 +436,24 @@ multi_namespace_spoke = render!(
   ["--set", "rbac.managedNamespaces={example-product,example-second}"]
 )
 assert_spoke_rbac_floor!(root, multi_namespace_spoke, %w[example-product example-second], "multi-namespace")
+# The Zarf/UDS package executor RBAC profile (#837) stays separate from the
+# Helm floor and off by default.
+package_executor_spoke = render!(
+  helm,
+  "platform-spoke",
+  charts.fetch(:spoke),
+  File.join(charts.fetch(:spoke), "ci/test-values.yaml"),
+  ["--set", "rbac.packageExecutor=true", "--set", "rbac.managedNamespaces={example-product,example-second}"]
+)
+abort "Spoke package-executor RBAC profile created cluster/bootstrap authorization" unless
+  (package_executor_spoke.map { |item| item["kind"] } & %w[Namespace CustomResourceDefinition ClusterRole ClusterRoleBinding]).empty?
+assert_spoke_package_executor_rbac!(root, package_executor_spoke, %w[example-product example-second], "package-executor")
+assert_fails_closed!(
+  helm,
+  "platform-spoke",
+  charts.fetch(:spoke),
+  ["--values", File.join(charts.fetch(:spoke), "ci/test-values.yaml"), "--set", "rbac.create=false", "--set", "rbac.packageExecutor=true"]
+)
 
 hub_service_account = hub_documents.find { |item| item["kind"] == "ServiceAccount" }
 abort "Hub ServiceAccount must not mount a token" unless hub_service_account&.dig("metadata", "name") == "platform-hub" && hub_service_account["automountServiceAccountToken"] == false
@@ -835,6 +916,22 @@ abort "model environment did not render exactly" unless model_env == [
 ]
 abort "the chart must not configure a model command: the Hub image carries no model CLI" if
   model_container.fetch("env").any? { |item| item["name"] == "CONDUIT_MODEL_CMD" }
+# #808: all capability selections use the same endpoint/key and survive render.
+capabilities = %w[assistant planning packaging appgen]
+capability_args = capabilities.flat_map do |capability|
+  ["--set-string", "model.capabilities.#{capability}.name=#{capability}-model",
+   "--set-string", "model.capabilities.#{capability}.timeout=2m"]
+end
+capability_pod = render!(helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set-string", "model.baseURL=https://models.example.test/v1", "--set-string", "model.name=global-model", *capability_args]
+).find { |item| item["kind"] == "Deployment" }
+capability_env = capability_pod.dig("spec", "template", "spec", "containers", 0, "env").to_h { |item| [item["name"], item["value"]] }
+capabilities.each do |capability|
+  abort "#{capability} model override was not rendered" unless
+    capability_env["CONDUIT_#{capability.upcase}_MODEL_NAME"] == "#{capability}-model" &&
+    capability_env["CONDUIT_#{capability.upcase}_MODEL_TIMEOUT"] == "2m"
+end
+
 model_volumes = model_pod.dig("spec", "template", "spec", "volumes").to_h { |item| [item["name"], item] }
 abort "model API key must be one required Secret key mounted as a file" unless
   model_volumes.dig("conduit-model", "secret") == {
@@ -883,6 +980,11 @@ model_base = ["--set-string", "model.baseURL=https://models.example.test/v1", "-
   [*model_base, "--set-string", "model.apiKeySecret.value=sk-literal"],
   [*model_base, "--set", "model.allowInsecureHTTP=true"],
   [*model_base, "--set-string", "model.command=codex exec -"],
+  [*model_base, "--set-string", "model.capabilities.assistant.timeout=0s"],
+  [*model_base, "--set-string", "model.capabilities.planning.name=has space"],
+  [*model_base, "--set-string", "model.capabilities.packaging.baseURL=https://elsewhere.example/v1"],
+  [*model_base, "--set-string", "model.capabilities.bogus.name=unknown"],
+  ["--set-string", "model.capabilities.assistant.name=unconfigured"],
   ["--set-string", "model.baseURL=http://vllm.models.svc.cluster.local:8000/v1", "--set-string", "model.name=served-model"],
   ["--set-string", "model.baseURL=https://user:secret@models.example.test/v1", "--set-string", "model.name=served-model"],
   ["--set-string", "model.baseURL=https://models.example.test/v1?key=secret", "--set-string", "model.name=served-model"],

@@ -43,8 +43,17 @@ variables:
     description: Existing Secret containing bundle-signing-key.pem
     default: platform-bundle-signing
   - name: PACKAGING_TEMPORAL_ADDRESS
-    description: Frontend address of the operator-supplied Temporal server. Used only by the optional packaging-worker component.
-    default: "127.0.0.1:7233"
+    description: Plaintext host:port of the operator-supplied Temporal frontend used by the Hub packaging client and optional packaging worker. Leave empty to disable the Hub client; explicitly set with REPOSITORY_KIND=postgres before selecting packaging-worker. No URL or credentials; TLS and API-key configuration are not exposed by this package.
+    default: ""
+    pattern: '^$|^([\p{L}\p{N}\p{M}_.-]+|\[[0-9A-Fa-f:.]+(%[A-Za-z0-9_.-]+)?\]):0*(6553[0-5]|655[0-2][0-9]|65[0-4][0-9]{2}|6[0-4][0-9]{3}|[1-5][0-9]{4}|[1-9][0-9]{0,3})$'
+  - name: PACKAGING_TEMPORAL_NAMESPACE
+    description: Temporal namespace shared by the Hub packaging client and optional packaging worker. Read only when PACKAGING_TEMPORAL_ADDRESS is set; not a Kubernetes namespace.
+    default: default
+    pattern: '^[^"\\\p{Cc}]+$'
+  - name: PACKAGING_TEMPORAL_TASK_QUEUE
+    description: Temporal task queue shared by the Hub packaging client and optional packaging worker. Read only when PACKAGING_TEMPORAL_ADDRESS is set.
+    default: packaging-localhost
+    pattern: '^[^"\\\p{Cc}]+$'
   - name: PACKAGING_POSTGRES_SECRET
     description: Existing Secret whose dsn key is the Hub Postgres DSN. Read by the Hub when REPOSITORY_KIND=postgres and by the optional packaging-worker component.
     default: platform-postgres
@@ -167,6 +176,38 @@ variables:
     description: Model id sent in each request and recorded as the configured model. Required when MODEL_BASE_URL is set; the Hub refuses to start without it.
     default: ""
     pattern: "^\\S*$"
+  - name: ASSISTANT_MODEL_NAME
+    description: assistant model id on MODEL_BASE_URL. Empty inherits MODEL_NAME.
+    default: ""
+    pattern: "^\\S*$"
+  - name: ASSISTANT_MODEL_TIMEOUT
+    description: assistant model request deadline. Empty inherits MODEL_TIMEOUT.
+    default: ""
+    pattern: "^$|^[1-9][0-9]*(ms|s|m)$"
+  - name: PLANNING_MODEL_NAME
+    description: planning model id on MODEL_BASE_URL. Empty inherits MODEL_NAME.
+    default: ""
+    pattern: "^\\S*$"
+  - name: PLANNING_MODEL_TIMEOUT
+    description: planning model request deadline. Empty inherits MODEL_TIMEOUT.
+    default: ""
+    pattern: "^$|^[1-9][0-9]*(ms|s|m)$"
+  - name: PACKAGING_MODEL_NAME
+    description: packaging model id on MODEL_BASE_URL. Empty inherits MODEL_NAME.
+    default: ""
+    pattern: "^\\S*$"
+  - name: PACKAGING_MODEL_TIMEOUT
+    description: packaging model request deadline. Empty inherits MODEL_TIMEOUT.
+    default: ""
+    pattern: "^$|^[1-9][0-9]*(ms|s|m)$"
+  - name: APPGEN_MODEL_NAME
+    description: appgen model id on MODEL_BASE_URL. Empty inherits MODEL_NAME.
+    default: ""
+    pattern: "^\\S*$"
+  - name: APPGEN_MODEL_TIMEOUT
+    description: appgen model request deadline. Empty inherits MODEL_TIMEOUT.
+    default: ""
+    pattern: "^$|^[1-9][0-9]*(ms|s|m)$"
   - name: MODEL_TIMEOUT
     description: Bound on one whole model request, for example 90s. Leave empty for the Hub default of 45s.
     default: ""
@@ -220,6 +261,8 @@ components:
     actions:
       onDeploy:
         before:
+          - description: Refuse packaging workflow configuration beside a file-backed Hub
+            cmd: 'case "${ZARF_VAR_REPOSITORY_KIND}:${ZARF_VAR_PACKAGING_TEMPORAL_ADDRESS:+enabled}" in postgres:*|file:) ;; *) echo "PACKAGING_TEMPORAL_ADDRESS requires REPOSITORY_KIND=postgres so the Hub and worker share one Plan store" >&2; exit 1 ;; esac'
           - description: Derive the Hub replica count from REPOSITORY_KIND and PLANNING_TEMPORAL_ADDRESS
             cmd: 'case "${ZARF_VAR_REPOSITORY_KIND}:${ZARF_VAR_PLANNING_TEMPORAL_ADDRESS:+shared}" in postgres:shared) echo 2 ;; postgres:|file:|file:shared) echo 1 ;; *) exit 1 ;; esac'
             setVariables:
@@ -255,6 +298,8 @@ components:
         before:
           - description: Refuse the packaging worker beside a file-backed Hub
             cmd: 'test "${ZARF_VAR_REPOSITORY_KIND}" = postgres || { echo "packaging-worker requires REPOSITORY_KIND=postgres so the worker and the Hub share one Plan store" >&2; exit 1; }'
+          - description: Refuse the packaging worker without an explicit Temporal frontend
+            cmd: 'test -n "${ZARF_VAR_PACKAGING_TEMPORAL_ADDRESS}" || { echo "packaging-worker requires an explicit PACKAGING_TEMPORAL_ADDRESS" >&2; exit 1; }'
     manifests:
       - name: packaging-worker
         namespace: platform-system

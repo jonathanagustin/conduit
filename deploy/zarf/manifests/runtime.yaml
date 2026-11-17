@@ -98,6 +98,12 @@ spec:
             # optional Secret mounted below.
             - { name: REPOSITORY_KIND, value: "###ZARF_VAR_REPOSITORY_KIND###" }
             - { name: POSTGRES_DSN_FILE, value: /run/conduit-database/dsn }
+            # Packaging workflow status and governed controls use the same
+            # frontend, namespace and queue as the optional worker. An empty
+            # address (the default) leaves the Hub client disabled.
+            - { name: PACKAGING_TEMPORAL_ADDRESS, value: "###ZARF_VAR_PACKAGING_TEMPORAL_ADDRESS###" }
+            - { name: PACKAGING_TEMPORAL_NAMESPACE, value: "###ZARF_VAR_PACKAGING_TEMPORAL_NAMESPACE###" }
+            - { name: PACKAGING_TEMPORAL_TASK_QUEUE, value: "###ZARF_VAR_PACKAGING_TEMPORAL_TASK_QUEUE###" }
             # Empty by default: no metrics listener. The Hub serves /metrics
             # only when this is set AND the repository is postgres; with the
             # file repository it logs a warning and opens nothing.
@@ -116,6 +122,14 @@ spec:
             # optional Secret mounted below. See docs/operations/model-http.md.
             - { name: CONDUIT_MODEL_BASE_URL, value: "###ZARF_VAR_MODEL_BASE_URL###" }
             - { name: CONDUIT_MODEL_NAME, value: "###ZARF_VAR_MODEL_NAME###" }
+            - { name: CONDUIT_ASSISTANT_MODEL_NAME, value: "###ZARF_VAR_ASSISTANT_MODEL_NAME###" }
+            - { name: CONDUIT_ASSISTANT_MODEL_TIMEOUT, value: "###ZARF_VAR_ASSISTANT_MODEL_TIMEOUT###" }
+            - { name: CONDUIT_PLANNING_MODEL_NAME, value: "###ZARF_VAR_PLANNING_MODEL_NAME###" }
+            - { name: CONDUIT_PLANNING_MODEL_TIMEOUT, value: "###ZARF_VAR_PLANNING_MODEL_TIMEOUT###" }
+            - { name: CONDUIT_PACKAGING_MODEL_NAME, value: "###ZARF_VAR_PACKAGING_MODEL_NAME###" }
+            - { name: CONDUIT_PACKAGING_MODEL_TIMEOUT, value: "###ZARF_VAR_PACKAGING_MODEL_TIMEOUT###" }
+            - { name: CONDUIT_APPGEN_MODEL_NAME, value: "###ZARF_VAR_APPGEN_MODEL_NAME###" }
+            - { name: CONDUIT_APPGEN_MODEL_TIMEOUT, value: "###ZARF_VAR_APPGEN_MODEL_TIMEOUT###" }
             - { name: CONDUIT_MODEL_TIMEOUT, value: "###ZARF_VAR_MODEL_TIMEOUT###" }
             - { name: CONDUIT_MODEL_API_KEY_FILE, value: "###ZARF_VAR_MODEL_API_KEY_FILE###" }
             - { name: CONDUIT_MODEL_CA_FILE, value: "###ZARF_VAR_MODEL_CA_FILE###" }

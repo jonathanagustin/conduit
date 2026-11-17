@@ -36,15 +36,29 @@ type Presence interface {
 	Online(ctx context.Context, site string) (bool, error)
 }
 
+// Governance records proposals and reviews through the Hub's configured service.
+type Governance interface {
+	ProposeHumanChange(context.Context, string, string, string, []controlplane.EntityChange, controlplane.Principal, string, string) (controlplane.ChangeRequest, error)
+	Approve(context.Context, string, controlplane.Principal, string) (controlplane.ChangeRequest, controlplane.PlanRecord, error)
+}
+
 // Service stores hand-offs.
 type Service struct {
-	Store    controlplane.Repository
-	Verifier Verifier
-	Presence Presence
-	Now      func() time.Time
-	mu       sync.Mutex
-	handoffs map[string]Handoff
-	pending  map[string]string
+	Governance Governance
+	Store      controlplane.Repository
+	Verifier   Verifier
+	Presence   Presence
+	Now        func() time.Time
+	mu         sync.Mutex
+	handoffs   map[string]Handoff
+	pending    map[string]string
+}
+
+func (service *Service) governance() Governance {
+	if service.Governance != nil {
+		return service.Governance
+	}
+	return controlplane.NewGovernanceService(service.Store)
 }
 
 func (service *Service) now() time.Time {
@@ -111,7 +125,7 @@ func (service *Service) ProposeReport(ctx context.Context, actor controlplane.Pr
 		service.mu.Unlock()
 		return handoff, "install report recorded", nil
 	}
-	request, err := controlplane.NewGovernanceService(service.Store).ProposeHumanChange(ctx, "OFFLINE_BUNDLE", id, handoff.Site, []controlplane.EntityChange{{
+	request, err := service.governance().ProposeHumanChange(ctx, "OFFLINE_BUNDLE", id, handoff.Site, []controlplane.EntityChange{{
 		ID: "install-report", Type: controlplane.ChangeTypeUpdateEntity, InstallationID: id,
 		Request: map[string]any{"digest": handoff.Digest, "outcome": outcome},
 		ReferencedResources: map[string]controlplane.ReferencedResource{
@@ -144,7 +158,7 @@ func (service *Service) ApproveInstall(ctx context.Context, approver controlplan
 	if handoff.TakenBy == approver.Username {
 		return handoff, "the author cannot approve their own change request", nil
 	}
-	if _, _, err := controlplane.NewGovernanceService(service.Store).Approve(ctx, changeID, approver, rationale); err != nil {
+	if _, _, err := service.governance().Approve(ctx, changeID, approver, rationale); err != nil {
 		return Handoff{}, "", err
 	}
 	handoff.Status = "installed"

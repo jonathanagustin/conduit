@@ -34,12 +34,12 @@ name: Trunk gate
 #     than no status at all.
 on:
   # Verification of every proposed tree, without a person dispatching it (#195).
-  # The default activity types -- opened, synchronize, reopened -- are exactly
-  # the moments a tree becomes proposed or changes. Restricted to pull requests
-  # targeting main, the only long-lived branch, so a pull request between two
-  # topic branches does not spend a runner on a tree that is not a candidate.
+  # Drafts skip the gate, so becoming ready must verify their existing head (#893).
+  # Keep the ordinary opened, synchronize and reopened events alongside that
+  # transition. Keep verification limited to pull requests targeting main.
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
   # Kept, and not a leftover: no event fires when nothing was pushed, so a
   # re-run against an unchanged tree -- after a flake, or after a fix to the
   # gate itself on main -- can only be asked for.
@@ -365,6 +365,11 @@ jobs:
             --output /tmp/zarf
           echo 'e372002110600a458ca2a9222a34b8cdebc9c0fcd81d7e34febd3d8411d7beaf  /tmp/zarf' | sha256sum --check
           chmod 0755 /tmp/zarf
+      - name: Validate race runtime preflight
+        if: needs.scope.outputs.go == 'true'
+        run: |
+          ./scripts/test-race-runtime-preflight.sh
+          ./scripts/verify-race-runtime.sh
       - name: Test
         if: needs.scope.outputs.go == 'true'
         # Turns the integration test's skip into a failure, so a missing helm is
@@ -746,6 +751,7 @@ jobs:
           ruby scripts/verify-trusted-supply-chain.rb
           ./scripts/test-retry-keyless-signing.sh
           ./scripts/test-cosign-credential-helper.sh
+          ./scripts/verify-published-release.test.sh
       - name: Validate optimizer candidate release policy
         if: needs.scope.outputs.checks == 'true'
         run: |

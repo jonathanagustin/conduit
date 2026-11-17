@@ -102,10 +102,28 @@ func TestNotYetRaisedNamesOnlyKnownTypesNothingRaises(t *testing.T) {
 	if NotYetRaised([]EventType{EventPlanFailures}) != nil {
 		t.Error("a preference whose every type is raised was reported as having some that are not")
 	}
-	// Every type stays subscribable: being unraised is not being unknown.
+	// Unavailable for explicit selection is distinct from unknown vocabulary.
 	for _, eventType := range want {
 		if !eventType.Valid() {
 			t.Errorf("%s is not raised and was also made unknown", eventType)
+		}
+	}
+}
+
+func TestExplicitPreferenceSelectionRequiresAnEmitSite(t *testing.T) {
+	t.Parallel()
+	for _, eventType := range EventTypes() {
+		preference := Preference{Types: []EventType{EventPlanFailures, eventType}}
+		err := preference.ValidateSelection()
+		if eventType.Raised() && err != nil {
+			t.Errorf("raised type %s was refused: %v", eventType, err)
+		}
+		if !eventType.Raised() && (err == nil || !strings.Contains(err.Error(), string(eventType))) {
+			t.Errorf("unraised type %s was not named in its refusal: %v", eventType, err)
+		}
+		preference.AllFutureTypes = true
+		if err := preference.ValidateSelection(); err != nil {
+			t.Errorf("forward consent carrying %s was refused: %v", eventType, err)
 		}
 	}
 }

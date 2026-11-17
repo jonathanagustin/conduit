@@ -11,7 +11,7 @@ import (
 type planSummaryPrincipalKey struct{}
 
 func mountPlanSummaryConnect(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions) http.Handler {
-	governance := controlplane.NewGovernanceService(repository)
+	governance := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	planhttp.RegisterPlanSummaryConnect(mux, planhttp.PlanSummaryConfig{
 		Authenticate: func(request *http.Request) (context.Context, error) {

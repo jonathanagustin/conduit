@@ -135,7 +135,7 @@ func TestAIProbeReportsTheCommandProviderAndItsPreset(t *testing.T) {
 	preset := componentsByID(probeWith(map[string]string{
 		"CONDUIT_MODEL_CMD": "packaging-workflow agent-exec --provider claude", "CONDUIT_MODEL_NAME": "operator-chosen",
 	}, "packaging-workflow").components())
-	if detail := preset["modelProvider"].Detail; !strings.Contains(detail, "agent-exec preset claude, UNVERIFIED") || !strings.Contains(detail, "configured model operator-chosen") {
+	if detail := preset["modelProvider"].Detail; strings.Contains(detail, "agent-exec preset claude") || !strings.Contains(detail, "configured model operator-chosen") {
 		t.Fatalf("preset provider = %q", detail)
 	}
 	none := componentsByID(probeWith(nil).components())

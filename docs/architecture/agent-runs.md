@@ -164,6 +164,73 @@ audits per tool call instead, as it did before.
 A thread belongs to the authenticated username. A thread that does not exist
 and a thread another operator owns are the same `404 THREAD_NOT_FOUND`.
 
+### Supported assistant writes and execution
+
+The Conduit-native `governed_write` allowlist is `add_eval_case`,
+`approve_change`, `reject_change`, `cancel_packaging_run` and
+`rerun_packaging_run`. Every write has a server action rule. Eval feedback
+requires Developer or Operator authority and the existing explicit confirmation;
+it calls the real case service. Review calls use the original authenticated
+principal, including its delegation constraints, and the existing independent
+reviewer rules. Read/query/diff tools remain available.
+
+Compatibility change for #812: `promote`, `recall`, `propose_memory`,
+`select_course` and `start_packaging_run` are no longer advertised or accepted.
+They have no executable assistant contract and return `400 TOOL_INVALID`.
+`propose_governed_action` accepts only cancel/rerun of a PackagingRun. Generic
+ontology action names can no longer mint inert assistant proposals. The console
+does not offer the removed memory write. Intelligence's separate scoped memory
+course proposal remains an intent-only feature, described in
+`intelligence-view-controls.md`.
+
+Packaging proposals use target kind `CONDUIT_NATIVE_ASSISTANT_ACTION` and
+`conduit.assistant-action/v1` with tier `CONDUIT_NATIVE`. The server resolves
+the run, verifies Environment/installation/Product against current desired fleet
+state, and records its source digest, proposal revision, target reference,
+template and tool versions. Those exact coordinates and the author determine
+proposal identity. An unknown or mismatched target is refused; the browser
+cannot substitute the first unrelated installation from another screen.
+
+Unattended dispatch re-resolves the author's current server-owned membership and
+resource grants. Saved token Groups/Teams are not replayed as credentials.
+Group-only or delegated authors cannot use this path; they can use directly
+authenticated packaging controls. An unconfigured worker refuses proposals.
+These restrictions are Conduit policy, not an Apollo compatibility claim.
+
+Independent approval commits before dispatch. A durable execution claim is
+recorded before the shared packaging control service sends a worker command.
+The service rechecks the current target and author, writes the exact-bound
+decision audit and preserves the ordinary control route's handoff and replay
+guards. Neither cancellation nor rerun cancels an existing Plan. Historical
+assistant `PLAN` records with only `actionId` remain intent-only: missing binding
+evidence is never invented to execute them.
+
+Execution receipts distinguish `CANCEL_REQUEST_ACCEPTED` (the worker accepted a
+request; termination has not been observed) from `CANCELLATION_OBSERVED`.
+`RUN_STARTED` acknowledges the new run; `RUN_OBSERVED` reports an existing exact
+successor. A successful dispatch receipt does not establish application health
+or delivery. Failures are stored as failed executions; REST returns the stored
+review and execution receipt with its failure response, and assistant review
+results distinguish the recorded review from its execution outcome.
+
+A process death or lost receipt can leave execution `RUNNING`; this is visible,
+not a success. A still-eligible reviewer who already approved can explicitly
+repeat approval with a rationale to recover the same bound operation. Native
+reviews bind both credential carrier and effective human; changing an
+on-behalf-of identity cannot reuse the earlier review. Recovery
+rechecks authority and target, repeats only an idempotent cancel request, or
+observes/starts the same deterministic successor workflow ID. It never carries
+the old proposal revision into the new run or creates another successor on a
+lost acknowledgement. This is retryable command dispatch, not a claim of
+exactly-once external effects. Rejected/cancelled or changed targets cannot be
+recovered this way. No automatic recovery is scheduled.
+
+Overlapping recovery attempts can submit the same idempotent command. A stored
+successful receipt is canonical: a later failure returns that success and
+cannot replace its result or advance its revision. An acknowledgement that
+arrives after a competing failure can still record success for the same exact
+bound operation. Failures cannot overwrite a newer attempt's receipt.
+
 ### The turn
 
 Request: `{"mode", "message", "context"?, "threadId"?}`. `threadId` is the

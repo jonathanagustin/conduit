@@ -139,7 +139,7 @@ oci_manifest() {
 
 supply_chain() {
   ruby scripts/test-safe-yaml.rb && ruby scripts/verify-trusted-supply-chain.rb && ./scripts/test-retry-keyless-signing.sh &&
-    ./scripts/test-cosign-credential-helper.sh
+    ./scripts/test-cosign-credential-helper.sh && ./scripts/verify-published-release.test.sh
 }
 
 optimizer_candidate_release() {
@@ -216,6 +216,7 @@ gate 'Validate tenant fidelity policy' ./scripts/verify-pr-fidelity.test.sh
 gate 'Read pull request body' ./scripts/read-pull-request-body.test.sh
 gate 'Validate GitHub API retry' ./scripts/test-retry-github-api.sh
 gate 'Build operator console' ./scripts/build-console.sh
+gate 'Validate race runtime preflight' bash -c './scripts/test-race-runtime-preflight.sh && ./scripts/verify-race-runtime.sh'
 gate 'Test' env PLATFORM_REQUIRE_HELM=1 ZARF_BIN="${zarf_bin}" go test -race ./...
 gate 'Validate mutation harness' ./scripts/verify-mutant-killed.test.sh
 gate 'Validate packaging regression gates' python3 scripts/test-packaging-gates.py

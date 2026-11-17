@@ -16,6 +16,12 @@ The envelope binds its manifest, resources, layer digests, lineage, security
 report, and source-format note. Payloads remain opaque to that context. A
 consumer verifies the digest and signature before interpreting the payload.
 
+The file repository's enclosing JSON indentation can change a resource payload's
+whitespace. On Bundle reads it restores compact payload bytes only when those
+bytes exactly match the existing resource digest. Already matching bytes remain
+opaque, and other mismatches remain subject to normal verification. This does
+not rewrite stored records, digests, signatures or the Bundle wire format.
+
 Snapshot, incremental, and checkpoint Bundles have different lineage rules.
 An incremental Bundle names its dependency. A checkpoint collapses a chain
 into a complete state. Missing lineage is not repaired by guessing which prior

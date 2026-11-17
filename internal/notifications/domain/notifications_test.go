@@ -195,10 +195,9 @@ func TestFanIsOrderedSoTwoRunsAgree(t *testing.T) {
 	}
 }
 
-// A preference that cannot deliver is refused at the door rather than stored,
-// because a stored one is indistinguishable from a working one that nothing has
-// happened to yet -- and the owner concludes the system is quiet.
-func TestAPreferenceThatCouldNeverDeliverIsRefused(t *testing.T) {
+// Malformed identities, channels and unknown type names remain invalid even
+// though an empty selection now represents explicit off consent.
+func TestAMalformedPreferenceIsRefused(t *testing.T) {
 	t.Parallel()
 	owner := Owner{Kind: PrincipalUser, ID: "alice"}
 	for name, mutate := range map[string]func(*Preference){
@@ -207,10 +206,6 @@ func TestAPreferenceThatCouldNeverDeliverIsRefused(t *testing.T) {
 		"unknown owner": func(value *Preference) { value.Owner.Kind = "SERVICE" },
 		"no resource":   func(value *Preference) { value.ResourceRID = "" },
 		"unknown type":  func(value *Preference) { value.Types = []EventType{"NEVER_EMITTED"} },
-		"no types at all": func(value *Preference) {
-			value.Types = nil
-			value.AllFutureTypes = false
-		},
 		// PagerDuty remains a stored contact kind without a delivery channel.
 		"contact kind as channel": func(value *Preference) { value.Channel = Channel(ContactPagerDuty) },
 	} {
@@ -224,9 +219,8 @@ func TestAPreferenceThatCouldNeverDeliverIsRefused(t *testing.T) {
 	}
 }
 
-// A team receives nothing until a contact exists for it -- contacts are created
-// in Hub Settings and a resource can only select one that already exists. A team
-// preference without one is the exact shape of "configured and silent".
+// Active team consent needs a selected contact. Explicit off consent is covered
+// separately and does not require a destination.
 func TestATeamPreferenceWithoutAContactIsRefused(t *testing.T) {
 	t.Parallel()
 	team := Owner{Kind: PrincipalTeam, ID: "platform"}

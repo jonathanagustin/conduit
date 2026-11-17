@@ -141,9 +141,11 @@ type RawToolCall struct {
 
 // Provenance records the command name and the exchange digests.
 type Provenance struct {
-	Adapter        string
-	PromptSHA256   string
-	ResponseSHA256 string
+	ConfiguredModel string `json:"configuredModel,omitempty"`
+	ProviderModel   string `json:"providerModel,omitempty"`
+	Adapter         string
+	PromptSHA256    string
+	ResponseSHA256  string
 }
 
 // ModeAllows reports whether a mode may run a tool.
@@ -210,6 +212,9 @@ func ParseToolCall(name string, arguments json.RawMessage) (ToolCall, error) {
 			}
 		}
 		call.Propose = args
+		if args.TargetObjectType != "PackagingRun" || (args.ActionID != "cancel_packaging_run" && args.ActionID != "rerun_packaging_run") {
+			return ToolCall{}, fmt.Errorf("%w: action has no assistant executor", ErrToolInvalid)
+		}
 	case ToolDiff:
 		args, err := decode[DiffArgs](call.Arguments)
 		if err != nil {
@@ -287,8 +292,7 @@ func parseReplyObject(raw []byte) (ModelReply, bool, error) {
 // WriteActions lists every action governed_write accepts.
 func WriteActions() []string {
 	return []string{
-		"add_eval_case", "propose_memory", "cancel_packaging_run", "rerun_packaging_run",
-		"promote", "recall", "approve_change", "reject_change", "select_course", "start_packaging_run",
+		"add_eval_case", "cancel_packaging_run", "rerun_packaging_run", "approve_change", "reject_change",
 	}
 }
 
@@ -303,10 +307,11 @@ func knownWriteAction(action string) bool {
 }
 
 // Risk is low when the caller's role may apply the action after Confirm.
-// Promote, recall, approval, and resource changes stay high and open a change request.
+// Packaging commands stay high and require a separate reviewer; review actions
+// record the review itself through the existing review service.
 func Risk(action string) string {
 	switch strings.TrimSpace(action) {
-	case "add_eval_case", "rerun_packaging_run", "start_packaging_run":
+	case "add_eval_case":
 		return "low"
 	default:
 		return "high"
@@ -334,15 +339,7 @@ func MissingFields(args WriteArgs) []Field {
 		need("justification", "Scenario", args.Justification)
 		need("value", "Memory value", args.Value)
 		need("expectedOutcome", "Expected outcome", args.Expected, "PASS", "FAIL_REQUIRED")
-	case "propose_memory", "select_course":
-		need("value", "Memory value", args.Value, "512Mi", "1Gi", "8Gi")
-		need("justification", "Justification", args.Justification)
-		changeTarget()
-	case "promote", "recall":
-		need("targetId", "Target", args.TargetID)
-		need("justification", "Justification", args.Justification)
-		changeTarget()
-	case "cancel_packaging_run":
+	case "cancel_packaging_run", "rerun_packaging_run":
 		need("targetId", "Packaging run", args.TargetID)
 		changeTarget()
 	case "approve_change", "reject_change":

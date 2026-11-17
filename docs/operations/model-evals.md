@@ -187,6 +187,12 @@ real prompt path runs end to end, but it does not reason about it.
 Recorded scores: aggregate 68/80 (0.85); inspection 31/32, questions 14/17,
 plan 8/15, gates 8/8, injection 7/8.
 
+The integration recording includes the planner's explicit untrusted-repository
+framing of inspection metadata and filenames. Replaying the earlier recordings
+correctly rejected the changed prompt digests. Recording again with the offline
+deterministic agent retained all 38 prompts and every per-case assertion and
+score above; no score threshold was lowered.
+
 What this demonstrates:
 
 - The harness drives the real planner and package writer through inspection,
@@ -199,9 +205,8 @@ What this demonstrates:
 
 What it does not demonstrate:
 
-- Anything about a real model. No real provider was configured where this was
-  recorded (`CONDUIT_MODEL_BASE_URL` and `CONDUIT_MODEL_CMD` were both unset),
-  so no real-model transcript or score exists in this repository.
+- Anything about a real model. The recording used the local deterministic agent with no external model
+  endpoint or authenticated provider, so it establishes no real-model score.
 - Injection resistance. The offline agent reads the Dockerfile and never the
   README, so the injected text never reached it; its 7/8 is the absence of an
   attack, not resistance to one. The harness test

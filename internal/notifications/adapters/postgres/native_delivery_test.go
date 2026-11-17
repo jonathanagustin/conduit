@@ -52,7 +52,7 @@ func TestNativeChannelsFanOutPersistAndRouteThroughAnotherPool(t *testing.T) {
 	if err := first.SavePreference(ctx, teamPreference); err != nil {
 		t.Fatal(err)
 	}
-	emitter, err := application.NewEmitter(first)
+	emitter, err := application.NewEmitter(first, allowRecipients{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestNativeChannelsFanOutPersistAndRouteThroughAnotherPool(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	config := application.DispatcherConfig{LeaseDuration: 30 * time.Second, MaximumAttempts: 3, BaseRetryDelay: 2 * time.Second, PollInterval: time.Second, Destinations: resolver}
+	config := application.DispatcherConfig{Eligibility: allowRecipients{}, LeaseDuration: 30 * time.Second, MaximumAttempts: 3, BaseRetryDelay: 2 * time.Second, PollInterval: time.Second, Destinations: resolver}
 	worker, err := application.NewDispatcher(second, router, fixedAt{}, config)
 	if err != nil {
 		t.Fatal(err)

@@ -59,8 +59,10 @@ func (queue *scriptedQueue) FailDelivery(context.Context, ports.DeliveryLease, s
 
 func drain(t *testing.T, queue *scriptedQueue, transport ports.Transport, recorder *metricsapplication.DeliveryRecorder) string {
 	t.Helper()
+	config := DefaultDispatcherConfig()
+	config.Eligibility = allowRecipients{}
 	dispatcher, err := NewNotificationDispatcher(
-		ObserveNotificationDeliveries(queue, transport, recorder), transport, application.SystemClock{}, DefaultDispatcherConfig())
+		ObserveNotificationDeliveries(queue, transport, recorder), transport, application.SystemClock{}, config)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -341,7 +341,6 @@ export function createSettings(ctx) {
     } catch {
       state.signingLive = false;
     }
-    await loadDataSources();
     if (snapshotIdentity !== identityKey()) {
       clearOrganization();
       state.settingsLoaded = false;
@@ -354,8 +353,38 @@ export function createSettings(ctx) {
     ctx.render();
   }
 
+  let sourcesIdentity = "";
+  let sourcesGeneration = 0;
+  let sourcesPending = false;
+  let sourcesLoaded = false;
+  function ensureDataSources() {
+    const identity = identityKey();
+    if (identity !== sourcesIdentity) {
+      sourcesIdentity = identity;
+      sourcesGeneration++;
+      sourcesPending = false;
+      sourcesLoaded = false;
+      state.dataSourceLive = {
+        report: "Hub did not return a report",
+        imports: "Hub did not return import receipts",
+        packaging: "Hub did not return packaging runs",
+      };
+    }
+    if (sourcesPending || sourcesLoaded) return;
+    const generation = sourcesGeneration;
+    sourcesPending = true;
+    void loadDataSources().then((next) => {
+      if (generation !== sourcesGeneration) return;
+      sourcesPending = false;
+      if (identity !== identityKey()) return;
+      state.dataSourceLive = next;
+      sourcesLoaded = true;
+      ctx.render();
+    });
+  }
+
   async function loadDataSources() {
-    state.dataSourceLive = {
+    const next = {
       report: "Hub did not return a report",
       imports: "Hub did not return import receipts",
       packaging: "Hub did not return packaging runs",
@@ -377,17 +406,17 @@ export function createSettings(ctx) {
           };
         }
       }
-      state.dataSourceLive.report = newest
+      next.report = newest
         ? `${newest.seen} on ${newest.environment || "an environment"} (${newest.entities} entities)`
         : "No reported observation on the environments this caller can read";
     } catch {
-      state.dataSourceLive.report = "Hub did not return a report";
+      next.report = "Hub did not return a report";
     }
     try {
       const body = await readJSON("/v1/bundle-imports");
       const imports = Array.isArray(body.imports) ? body.imports : [];
       if (!imports.length) {
-        state.dataSourceLive.imports = "No import receipt";
+        next.imports = "No import receipt";
       } else {
         const latest = imports.reduce((best, item) =>
           !best ||
@@ -395,11 +424,11 @@ export function createSettings(ctx) {
             ? item
             : best,
         );
-        state.dataSourceLive.imports =
+        next.imports =
           `${latest.status || "recorded"} ${latest.requestedAt || ""} ${latest.bundleId || latest.id || ""}`.trim();
       }
     } catch {
-      state.dataSourceLive.imports = "Hub did not return import receipts";
+      next.imports = "Hub did not return import receipts";
     }
     try {
       const body = await fetchPackagingRuns(
@@ -407,14 +436,15 @@ export function createSettings(ctx) {
       );
       const items = Array.isArray(body.items) ? body.items : [];
       if (!items.length) {
-        state.dataSourceLive.packaging = "No packaging run";
+        next.packaging = "No packaging run";
       } else {
         const latest = items[0];
-        state.dataSourceLive.packaging = `${latest.runId || "run"} phase ${latest.phase || "unknown"}${latest.outcome ? `, outcome ${latest.outcome}` : ""}`;
+        next.packaging = `${latest.runId || "run"} phase ${latest.phase || "unknown"}${latest.outcome ? `, outcome ${latest.outcome}` : ""}`;
       }
     } catch {
-      state.dataSourceLive.packaging = "Hub did not return packaging runs";
+      next.packaging = "Hub did not return packaging runs";
     }
+    return next;
   }
 
   function sourceLastSeen(id) {
@@ -730,6 +760,7 @@ export function createSettings(ctx) {
   }
 
   function renderDataSources(root) {
+    ensureDataSources();
     const selected =
       DATA_SOURCES.find((source) => source.id === state.dataSourceId) ||
       DATA_SOURCES[0];

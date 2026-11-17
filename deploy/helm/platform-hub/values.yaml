@@ -295,6 +295,13 @@ model:
   name: ""
   # Bounds one whole request, e.g. 90s. Empty keeps the Hub default (45s).
   timeout: ""
+  # Per-capability names and deadlines share the endpoint and key above.
+  # Empty fields inherit the global value. CLI commands require a custom runtime.
+  capabilities:
+    assistant: { name: "", timeout: "" }
+    planning: { name: "", timeout: "" }
+    packaging: { name: "", timeout: "" }
+    appgen: { name: "", timeout: "" }
   # The API key is never a chart value. It is one key of a deployment-owned
   # Secret, mounted as a file and re-read on every call. Leave the name empty
   # for a keyless in-cluster server.

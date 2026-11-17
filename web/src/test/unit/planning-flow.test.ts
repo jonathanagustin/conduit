@@ -119,11 +119,15 @@ describe("planning flow state", () => {
       intake: { repoUrl: "https://h/o/r", ref: "main" },
       resolvedCommit: "c".repeat(40),
       model: "m-1",
+      configuredModel: "configured-alias",
+      providerModel: "provider-version",
       plan,
       acceptedAt: "2026-01-01T00:00:00Z",
     };
     const rows = Object.fromEntries(bindingRows(binding));
     expect(rows["Profile version"]).toBe("v3");
+    expect(rows["Configured model"]).toBe("configured-alias");
+    expect(rows["Provider-reported model"]).toBe("provider-version");
     expect(rows["Profile hash"]).toBe("ph");
     expect(rows["Commit SHA"]).toBe("c".repeat(40));
     expect(rows["Plan hash"]).toBe("abc123");
@@ -223,6 +227,7 @@ describe("planning flow state", () => {
       }),
     );
     expect(rows["Model"]).toBe("Configured model");
+    expect(rows["Provider-reported model"]).toBe("Not recorded");
     expect(rows["Accepted"]).toContain("ET");
     expect(rows["Accepted"]).toContain("2026-04-19T19:01:02Z");
   });
@@ -281,6 +286,48 @@ describe("planning flow state", () => {
     const htmlOpen = planningMarkup({ ...state, showPlanJson: true });
     expect(htmlOpen).toContain("data-plan-json");
     expect(htmlOpen).toContain("Hide JSON");
+  });
+
+  it("formats problem-statement commit badge without mid-word truncation and deduplicates operator/user prompt rows", () => {
+    const html = planningMarkup({
+      ...emptyPlanning(),
+      session: session({
+        profile: { name: "appgen", version: "1.0.0", hash: "ph" },
+        intake: {
+          repoUrl: "",
+          ref: "",
+          problemStatement: "Build room companion",
+          appName: "excalidraw-companion",
+        },
+        resolvedCommit:
+          "none (no source repository — problem-statement intake)",
+        messages: [
+          {
+            id: "",
+            role: "operator",
+            text: "Generate non-root Go service and Zarf/UDS package",
+          },
+        ],
+      }),
+      agentMessages: [
+        {
+          id: "u1",
+          role: "user",
+          content: "Generate non-root Go service and Zarf/UDS package",
+        },
+        {
+          id: "a1",
+          role: "model",
+          content:
+            'Prepared generation plan. {"model":"conduit-packaging-agent-v1"}',
+        },
+      ],
+    });
+    expect(html).toContain(">commit none (appgen)<");
+    expect(html).not.toContain(">commit none (no sou<");
+    expect(html.match(/data-plan-message/g)).toHaveLength(2);
+    expect(html).toContain("conduit-packaging-agent-v1");
+    expect(html).not.toContain("{&quot;model&quot;:");
   });
 });
 

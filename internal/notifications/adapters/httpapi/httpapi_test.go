@@ -557,8 +557,7 @@ func TestAPreferenceRoundTripsAtTheTupleTheStoreKeysOn(t *testing.T) {
 	}
 
 	// The other channel is a different tuple and has nothing stored, which is
-	// distinguishable from a tuple whose preference enables nothing -- a state
-	// the domain refuses to store at all.
+	// distinguishable from an explicitly saved off preference on that tuple.
 	missing := test.do(http.MethodGet,
 		"/v1/notifications/preferences?resourceRid="+resource+"&channel=IN_APP", "")
 	if missing.Code != http.StatusNotFound {
@@ -566,44 +565,64 @@ func TestAPreferenceRoundTripsAtTheTupleTheStoreKeysOn(t *testing.T) {
 	}
 }
 
-// A preference may name a type nothing in this build raises -- the vocabulary
-// is Apollo's and the console offers all of it -- so the write is accepted and
-// the response says which of the named types will not fire yet. Without that a
-// subscriber to BLUE_GREEN_UPGRADE_FAILED reads silence as "no upgrade failed".
-func TestAPreferenceResponseSaysWhichOfItsTypesNothingRaises(t *testing.T) {
+func TestPreferenceCoverageIsAvailableBeforeSavingAndUnavailableSelectionsAreRefused(t *testing.T) {
 	t.Parallel()
 	test := newHarness(t, alice())
-	written := test.do(http.MethodPut, "/v1/notifications/preferences", fmt.Sprintf(
-		`{"resourceRid":%q,"channel":"EMAIL","types":["PLAN_FAILURES","BLUE_GREEN_UPGRADE_FAILED","RBAC_CHANGE"]}`,
-		resource))
-	if written.Code != http.StatusOK {
-		t.Fatalf("a preference naming an unraised type was refused: %d %s", written.Code, written.Body.String())
+	missing := test.do(http.MethodGet,
+		"/v1/notifications/preferences?resourceRid="+resource+"&channel=EMAIL", "")
+	if missing.Code != http.StatusNotFound {
+		t.Fatalf("missing preference answered %d", missing.Code)
 	}
+	legacy := domain.Preference{
+		ID: "legacy", Owner: domain.Owner{Kind: domain.PrincipalUser, ID: "alice"},
+		ResourceRID: resource, Channel: domain.ChannelEmail,
+		Types: []domain.EventType{domain.EventPlanFailures, domain.EventRBACChange}, Revision: 4,
+	}
+	// Earlier builds admitted this selection. Reading it must not rewrite it.
+	test.store.preferences[preferenceKey(legacy)] = legacy
 	read := test.do(http.MethodGet,
 		"/v1/notifications/preferences?resourceRid="+resource+"&channel=EMAIL", "")
-	for name, response := range map[string]*httptest.ResponseRecorder{"write": written, "read": read} {
+	if read.Code != http.StatusOK {
+		t.Fatalf("legacy preference became unreadable: %d %s", read.Code, read.Body.String())
+	}
+	written := test.do(http.MethodPut, "/v1/notifications/preferences", fmt.Sprintf(
+		`{"resourceRid":%q,"channel":"EMAIL","types":["PLAN_FAILURES","RBAC_CHANGE"]}`, resource))
+	if written.Code != http.StatusUnprocessableEntity || !strings.Contains(written.Body.String(), "RBAC_CHANGE") {
+		t.Fatalf("unavailable selection was not refused: %d %s", written.Code, written.Body.String())
+	}
+	if test.store.preferences[preferenceKey(legacy)].Revision != 4 {
+		t.Fatal("a refused write changed the stored preference")
+	}
+	repaired := test.do(http.MethodPut, "/v1/notifications/preferences", fmt.Sprintf(
+		`{"resourceRid":%q,"channel":"EMAIL","types":["PLAN_FAILURES"]}`, resource))
+	if repaired.Code != http.StatusOK {
+		t.Fatalf("removing unavailable types failed: %d %s", repaired.Code, repaired.Body.String())
+	}
+	forward := test.do(http.MethodPut, "/v1/notifications/preferences", fmt.Sprintf(
+		`{"resourceRid":%q,"channel":"IN_APP","types":["RBAC_CHANGE"],"allFutureTypes":true}`, resource))
+	if forward.Code != http.StatusOK {
+		t.Fatalf("forward consent was refused: %d %s", forward.Code, forward.Body.String())
+	}
+	for name, response := range map[string]*httptest.ResponseRecorder{"missing": missing, "legacy": read, "repaired": repaired, "forward": forward} {
 		var body struct {
-			Types              []domain.EventType `json:"types"`
-			TypesNotYetEmitted []domain.EventType `json:"typesNotYetEmitted"`
+			Types                 []domain.EventType `json:"types"`
+			TypesNotYetEmitted    []domain.EventType `json:"typesNotYetEmitted"`
+			TypeAvailabilityScope string             `json:"typeAvailabilityScope"`
 		}
 		decode(t, response, &body)
-		if len(body.Types) != 3 {
-			t.Errorf("%s: the stored types were altered: %v", name, body.Types)
+		if body.TypeAvailabilityScope != "ALL_KNOWN" {
+			t.Errorf("%s: typeAvailabilityScope = %q, want ALL_KNOWN", name, body.TypeAvailabilityScope)
 		}
-		if len(body.TypesNotYetEmitted) != 2 ||
+		if len(body.TypesNotYetEmitted) != 4 ||
 			body.TypesNotYetEmitted[0] != domain.EventBlueGreenUpgradeFailed ||
-			body.TypesNotYetEmitted[1] != domain.EventRBACChange {
+			body.TypesNotYetEmitted[1] != domain.EventInstalledReleaseVulnerability ||
+			body.TypesNotYetEmitted[2] != domain.EventLatestReleaseVulnerability ||
+			body.TypesNotYetEmitted[3] != domain.EventRBACChange {
 			t.Errorf("%s: typesNotYetEmitted = %v", name, body.TypesNotYetEmitted)
 		}
-	}
-
-	raised := test.do(http.MethodPut, "/v1/notifications/preferences", fmt.Sprintf(
-		`{"resourceRid":%q,"channel":"IN_APP","types":["CHANGE_REQUEST_PENDING_APPROVAL"]}`, resource))
-	if raised.Code != http.StatusOK {
-		t.Fatalf("write answered %d: %s", raised.Code, raised.Body.String())
-	}
-	if strings.Contains(raised.Body.String(), "typesNotYetEmitted") {
-		t.Errorf("a preference whose every type is raised carries the field: %s", raised.Body.String())
+		if name == "legacy" && (len(body.Types) != 2 || body.Types[1] != domain.EventRBACChange) {
+			t.Errorf("legacy selection was hidden: %v", body.Types)
+		}
 	}
 }
 
@@ -665,9 +684,9 @@ func TestARequestThatNamesNoChannelOrResourceIsRefusedRatherThanGuessed(t *testi
 	// package could not read: the caller said what they meant and it cannot be
 	// stored.
 	unstorable := test.do(http.MethodPut, "/v1/notifications/preferences",
-		fmt.Sprintf(`{"resourceRid":%q,"channel":"EMAIL"}`, resource))
+		fmt.Sprintf(`{"resourceRid":%q,"channel":"EMAIL","types":["UNKNOWN_TYPE"]}`, resource))
 	if unstorable.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("a preference enabling nothing answered %d, want %d",
+		t.Fatalf("an unknown notification type answered %d, want %d",
 			unstorable.Code, http.StatusUnprocessableEntity)
 	}
 }

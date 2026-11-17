@@ -207,32 +207,36 @@ type ComputeReceipt struct {
 // Binding is recorded at Accept and never rewritten. It is the profile
 // version and hash, the intake, the source commit, the model, and the plan.
 type Binding struct {
-	Profile        ProfileRef `json:"profile"`
-	Intake         Intake     `json:"intake"`
-	ResolvedCommit string     `json:"resolvedCommit"`
-	Model          string     `json:"model"`
-	Plan           Plan       `json:"plan"`
-	AcceptedAt     time.Time  `json:"acceptedAt"`
+	ConfiguredModel string     `json:"configuredModel,omitempty"`
+	ProviderModel   string     `json:"providerModel,omitempty"`
+	Profile         ProfileRef `json:"profile"`
+	Intake          Intake     `json:"intake"`
+	ResolvedCommit  string     `json:"resolvedCommit"`
+	Model           string     `json:"model"`
+	Plan            Plan       `json:"plan"`
+	AcceptedAt      time.Time  `json:"acceptedAt"`
 }
 
 // Session is the planning-session document the HTTP contract returns.
 type Session struct {
-	ID             string          `json:"id"`
-	Status         string          `json:"status"`
-	Profile        ProfileRef      `json:"profile"`
-	Intake         Intake          `json:"intake"`
-	ResolvedCommit string          `json:"resolvedCommit"`
-	Model          string          `json:"model"`
-	Inspection     *Inspection     `json:"inspection"`
-	NeedsInput     []Question      `json:"needsInput"`
-	Answers        []Answer        `json:"answers"`
-	Plan           *Plan           `json:"plan"`
-	Binding        *Binding        `json:"binding"`
-	ComputeReceipt *ComputeReceipt `json:"computeReceipt,omitempty"`
-	Messages       []Message       `json:"messages"`
-	Events         []Event         `json:"events"`
-	CreatedAt      time.Time       `json:"createdAt"`
-	UpdatedAt      time.Time       `json:"updatedAt"`
+	ConfiguredModel string          `json:"configuredModel,omitempty"`
+	ProviderModel   string          `json:"providerModel,omitempty"`
+	ID              string          `json:"id"`
+	Status          string          `json:"status"`
+	Profile         ProfileRef      `json:"profile"`
+	Intake          Intake          `json:"intake"`
+	ResolvedCommit  string          `json:"resolvedCommit"`
+	Model           string          `json:"model"`
+	Inspection      *Inspection     `json:"inspection"`
+	NeedsInput      []Question      `json:"needsInput"`
+	Answers         []Answer        `json:"answers"`
+	Plan            *Plan           `json:"plan"`
+	Binding         *Binding        `json:"binding"`
+	ComputeReceipt  *ComputeReceipt `json:"computeReceipt,omitempty"`
+	Messages        []Message       `json:"messages"`
+	Events          []Event         `json:"events"`
+	CreatedAt       time.Time       `json:"createdAt"`
+	UpdatedAt       time.Time       `json:"updatedAt"`
 }
 
 // IntakeError is a rejected repository URL, ref, or problem-statement intake.

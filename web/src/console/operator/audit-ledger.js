@@ -1,11 +1,12 @@
 import { verifyProjection } from "./audit-proof.mjs";
+import { newestAuditEntries } from "./audit-order.js";
 // Audit projection display. Older responses support link checks only; exact
 // returned payload inputs allow separate projection-digest recomputation.
 
 export const CHAIN_VERSION = "conduit.authorization-audit-chain/v1";
 
 const NOTE =
-  "Link checks do not recompute payload digests. Returned-payload verification checks projection consistency only; stored ledger order, event truth and independent checkpoints are separate.";
+  "Link checks do not recompute payload digests. Returned-payload verification checks projection consistency only; projection sequence follows the requested read order. Stored ledger order, event truth and independent checkpoints are separate.";
 
 function esc(value) {
   return String(value ?? "")
@@ -26,7 +27,7 @@ export async function genesisDigest() {
 }
 
 /**
- * Checks sequence continuity and previousDigest links. Entries are oldest first.
+ * Checks sequence continuity and previousDigest links in returned projection order.
  * Returns { ok, checked, breaks: [{ sequence, reason }] }.
  */
 export function checkChainLinks(entries, genesis) {
@@ -223,9 +224,10 @@ function checkMarkup(check, entries, escape) {
 }
 
 /**
- * Builds the ledger HTML. `entries` are oldest first; the table shows newest first.
- * @param {any[]} entries
- * @param {{ query?: string, decision?: string, page?: number, pageSize?: number, check?: any, esc?: (v: unknown) => string }} [options]
+ * Builds the ledger HTML. Entries retain projection order; the table shows
+ * newest recorded events first according to the requested read order.
+ * @param {ReadonlyArray<any>} entries
+ * @param {{ query?: string, decision?: string, page?: number, pageSize?: number, order?: string, check?: any, esc?: (v: unknown) => string }} [options]
  */
 export function ledgerMarkup(
   entries,
@@ -234,6 +236,7 @@ export function ledgerMarkup(
     decision = "all",
     page = 0,
     pageSize = 50,
+    order = "asc",
     check = null,
     proof = null,
     checking = false,
@@ -241,7 +244,10 @@ export function ledgerMarkup(
   } = {},
 ) {
   const all = Array.isArray(entries) ? entries : [];
-  const filtered = filterEntries(all, { query, decision }).slice().reverse();
+  const filtered = newestAuditEntries(
+    filterEntries(all, { query, decision }),
+    order,
+  );
   const total = filtered.length;
   const size = Math.max(1, pageSize | 0);
   const lastPage = Math.max(0, Math.ceil(total / size) - 1);
@@ -313,10 +319,14 @@ export function ledgerMarkup(
 }
 
 /**
- * Stateful wrapper. `getEntries()` returns the entries (oldest first);
+ * Stateful wrapper. `getEntries()` returns entries in projection order;
  * `rerender()` is called after state changes so the host can call render(root).
  */
-export function createAuditLedger({ getEntries, rerender }) {
+export function createAuditLedger({
+  getEntries,
+  getOrder = () => "asc",
+  rerender,
+}) {
   const state = {
     query: "",
     decision: "all",
@@ -331,6 +341,7 @@ export function createAuditLedger({ getEntries, rerender }) {
     const entries = getEntries();
     root.innerHTML = ledgerMarkup(entries, {
       ...state,
+      order: getOrder(),
       check: state.checkedEntries === entries ? state.check : null,
       proof: state.checkedEntries === entries ? state.proof : null,
       esc,

@@ -162,6 +162,7 @@ func (repository *MemoryRepository) Transaction(
 	if err != nil {
 		return err
 	}
+	working.transactionLocal = true
 	working.apolloAgentReports = cloneApolloAgentReports(repository.apolloAgentReports)
 	if err := operation(working); err != nil {
 		return err

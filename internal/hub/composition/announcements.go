@@ -27,14 +27,11 @@ import (
 // every one of these sites on purpose and a broken notification store must not
 // be silent in the place silence is the defect.
 //
-// Which services are told is a property of this assembly and is narrower than
-// "every change request". NewHub hands these to the facade, so a request opened
-// through the facade's own routes is announced. A request opened by a surface
-// that builds its own GovernanceService -- the assistant, model proposals,
-// workspace ACP, blackouts, drift fixes, waves, offline bundles -- is not, until
-// that surface is given these too.
+// NewHub shares these ports with the facade and the governance services used
+// by its other surfaces. Transaction-local services stay silent; the owner of
+// the transaction announces only after its writes have committed.
 func NewAnnouncements(
-	store notificationports.Store, logger *slog.Logger,
+	store notificationports.Store, eligibility notificationports.RecipientEligibility, logger *slog.Logger,
 ) (controlplane.Announcements, error) {
 	if store == nil {
 		return controlplane.Announcements{}, nil
@@ -42,7 +39,7 @@ func NewAnnouncements(
 	if logger == nil {
 		return controlplane.Announcements{}, errors.New("a logger is required: the surfaces that announce drop the error")
 	}
-	emitter, err := notifications.NewEmitter(store)
+	emitter, err := notifications.NewEmitter(store, eligibility)
 	if err != nil {
 		return controlplane.Announcements{}, err
 	}
@@ -69,9 +66,9 @@ func NewAnnouncements(
 // withAnnouncements fills in what the caller did not supply. A caller that set
 // a port keeps it, so a test can observe one site without assembling a store.
 func withAnnouncements(
-	options controlplane.HandlerOptions, store notificationports.Store, logger *slog.Logger,
+	options controlplane.HandlerOptions, store notificationports.Store, eligibility notificationports.RecipientEligibility, logger *slog.Logger,
 ) (controlplane.HandlerOptions, error) {
-	assembled, err := NewAnnouncements(store, logger)
+	assembled, err := NewAnnouncements(store, eligibility, logger)
 	if err != nil {
 		return options, err
 	}
@@ -88,6 +85,18 @@ func withAnnouncements(
 		options.Announcements.PromotionFailures = assembled.PromotionFailures
 	}
 	return options, nil
+}
+
+// newGovernanceService keeps announcement and approved-action ports on every Hub surface,
+// including services called outside the legacy facade. A caller-supplied port
+// is preserved, and absent ports remain nil when no store is configured.
+func newGovernanceService(repository controlplane.Repository, options ...controlplane.HandlerOptions) *controlplane.GovernanceService {
+	service := controlplane.NewGovernanceService(repository)
+	if len(options) > 0 {
+		service.SetAnnouncements(options[0].Announcements)
+		service.SetAfterChangeApproved(options[0].AfterChangeApproved)
+	}
+	return service
 }
 
 // loggedAnnouncements is what makes the dropped errors honest, as

@@ -54,8 +54,8 @@ func TestGenerateParsesTheSpecFromTheCompletion(t *testing.T) {
 		provenance.ResponseSHA256 != domain.Digest(raw) {
 		t.Fatalf("provenance = %+v", provenance)
 	}
-	if domain.Label(provenance) != domain.LabelLiveModel || adapter.ReportedModel() != "served" {
-		t.Fatalf("label %q model %q", domain.Label(provenance), adapter.ReportedModel())
+	if domain.Label(provenance) != domain.LabelLiveModel || provenance.ProviderModel != "served" {
+		t.Fatalf("label %q model %q", domain.Label(provenance), provenance.ProviderModel)
 	}
 }
 

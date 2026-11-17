@@ -42,5 +42,6 @@ The full contract, including what is verified against a local install and what i
 ## Read next
 
 - [How it works](/conduit/how-it-works/) for the governed path the demo walks.
+- [Installing and verifying a published release](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/release-and-publication.md#installing-and-verifying-a-published-release) for CLI archive, SLSA provenance, SPDX SBOM, Helm chart, and air-gap Zarf package verification and installation by digest.
 - [Repository README](https://github.com/jonathanagustin/conduit/blob/main/README.md) for the same quick start beside the demo media.
 - [Local verification](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/local-verification.md) for what a local test result does and does not prove.

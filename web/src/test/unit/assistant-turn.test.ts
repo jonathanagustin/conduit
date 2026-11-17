@@ -342,6 +342,27 @@ describe("assistantErrorText", () => {
 });
 
 describe("modelLabel", () => {
+  it("retains configured and provider identities through persisted turn documents", () => {
+    const model = {
+      kind: "openai-http",
+      configuredModel: "reviewed-alias",
+      providerModel: "served-model",
+    };
+    const turn = applyTurnDocument(newTurn(), { model });
+    expect(turn.model).toEqual(model);
+    expect(modelLabel(turn.model)).toEqual({
+      text: "Model: served-model (configured: reviewed-alias)",
+      caution: false,
+    });
+    const configured = applyTurnDocument(newTurn(), {
+      model: { kind: "model-cli", configuredModel: "reviewed-alias" },
+    });
+    expect(modelLabel(configured.model)).toEqual({
+      text: "Model: reviewed-alias (operator configured; provider id unavailable)",
+      caution: true,
+    });
+  });
+
   it("names the adapter and the reported model", () => {
     expect(modelLabel({ kind: "openai-http", model: "gpt-test" })).toEqual({
       text: "openai-http · gpt-test",

@@ -306,6 +306,12 @@ components:
           type: string
         model:
           type: string
+        configuredModel:
+          type: string
+          description: Operator-configured model id; absent on legacy records.
+        providerModel:
+          type: string
+          description: Model id from the final call response metadata; absent when not reported.
         inspection:
           nullable: true
           allOf:
@@ -500,6 +506,12 @@ components:
           type: string
         model:
           type: string
+        configuredModel:
+          type: string
+          description: Operator-configured model id; absent on legacy records.
+        providerModel:
+          type: string
+          description: Model id from the final call response metadata; absent when not reported.
         plan:
           $ref: "#/components/schemas/Plan"
         acceptedAt:

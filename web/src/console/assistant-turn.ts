@@ -1,3 +1,4 @@
+import { servedModelLabel } from "./model-identity";
 /*
  * The assistant's turn and thread state, as pure functions.
  *
@@ -11,7 +12,12 @@
 
 export type HubResult = Record<string, unknown>;
 
-export type ServedModel = { kind: string; model?: string };
+export type ServedModel = {
+  kind: string;
+  model?: string;
+  configuredModel?: string;
+  providerModel?: string;
+};
 
 /** One tool call of a turn, with what the Hub ran and what it returned. */
 export type ToolRow = {
@@ -101,8 +107,15 @@ function servedModel(value: unknown): ServedModel | null {
   const fields = record(value);
   const kind = text(fields["kind"]);
   const model = text(fields["model"]);
-  if (!kind && !model) return null;
-  return model ? { kind, model } : { kind };
+  const configuredModel = text(fields["configuredModel"]);
+  const providerModel = text(fields["providerModel"]);
+  if (!kind && !model && !configuredModel && !providerModel) return null;
+  return {
+    kind,
+    ...(model ? { model } : {}),
+    ...(configuredModel ? { configuredModel } : {}),
+    ...(providerModel ? { providerModel } : {}),
+  };
 }
 
 function withTool(
@@ -369,6 +382,12 @@ export function modelLabel(
   model: ServedModel | null | undefined,
 ): { text: string; caution: boolean } | null {
   if (!model) return null;
+  if (model.configuredModel?.trim() || model.providerModel?.trim()) {
+    return {
+      text: servedModelLabel(model),
+      caution: !model.providerModel?.trim(),
+    };
+  }
   const name = (model.model ?? "").trim();
   const kind = model.kind.trim();
   if (!name && !kind) return null;

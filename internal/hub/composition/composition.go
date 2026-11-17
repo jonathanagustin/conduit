@@ -66,7 +66,14 @@ func NewHub(
 		options.BundlePrivateKey = key
 	}
 	options = withSpaceLookup(repository, options, hubOptions.Spaces)
-	options, err := withAnnouncements(options, hubOptions.NotificationStore, slog.Default())
+	if options.SessionResourceScope == nil {
+		options.SessionResourceScope = notificationResourceResolver{repository: repository}.resolve
+	}
+	eligibility, err := NewNotificationRecipientEligibility(repository, options)
+	if err != nil {
+		return nil, err
+	}
+	options, err = withAnnouncements(options, hubOptions.NotificationStore, eligibility, slog.Default())
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +82,7 @@ func NewHub(
 		return nil, err
 	}
 	options.AfterPlanApproved = sequencer
+	options = withAssistantActions(repository, options, hubOptions)
 	handler, err := mountNotifications(controlplane.NewHandler(repository, options), repository, options, hubOptions)
 	if err != nil {
 		return nil, err
@@ -122,7 +130,7 @@ func NewHub(
 	}
 	workspaces := assembleDevWorkspace(repository, options, os.Getenv)
 	handler = mountDevWorkspace(handler, repository, options, workspaces)
-	workspaceACP := assembleWorkspaceACP(repository, workspaces, hubOptions, os.Getenv)
+	workspaceACP := assembleWorkspaceACP(repository, workspaces, hubOptions, os.Getenv, options)
 	if hubOptions.AppGenerator == nil {
 		generator, err := appGenerator(os.Getenv)
 		if err != nil {

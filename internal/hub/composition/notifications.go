@@ -5,6 +5,7 @@ import (
 	"errors"
 	assistantapp "github.com/jonathanagustin/conduit/internal/assistant/application"
 	intelapp "github.com/jonathanagustin/conduit/internal/intelligence/application"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -155,14 +156,14 @@ func mountNotifications(
 			return nil, err
 		}
 	}
-	service := controlplane.NewGovernanceService(repository)
+	service := newGovernanceService(repository, options)
 	mux := http.NewServeMux()
 	if err := notificationhttp.Register(mux, notificationhttp.Config{
 		Reader:      reader,
 		Preferences: preferences,
 		Contacts:    contacts,
 		Resolve:     operatorPrincipal(),
-		Authorize:   resourceOperation(service, options),
+		Authorize:   resourceOperation(service, options, notificationResourceResolver{repository: repository}),
 	}); err != nil {
 		return nil, err
 	}
@@ -193,6 +194,7 @@ func mountNotifications(
 // refused here rather than authorized as somebody else.
 func resourceOperation(
 	service *controlplane.GovernanceService, options controlplane.HandlerOptions,
+	resources notificationResourceResolver,
 ) notificationhttp.Authorize {
 	return func(
 		ctx context.Context, principal notificationhttp.Principal, resourceRID, operation string,
@@ -201,7 +203,14 @@ func resourceOperation(
 		if err != nil || governance.EffectivePrincipal(carrier).Username != principal.Username {
 			return false
 		}
-		return service.AuthorizeResourceOperation(ctx, carrier, options, resourceRID, operation)
+		scope, known, err := resources.resolve(ctx, resourceRID)
+		if err != nil {
+			slog.ErrorContext(ctx, "resolve notification resource authorization", "resource", resourceRID, "error", err)
+		}
+		if err != nil || !known {
+			return false
+		}
+		return service.AuthorizeResourceOperation(ctx, carrier, options, scope, operation)
 	}
 }
 

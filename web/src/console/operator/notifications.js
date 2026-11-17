@@ -194,6 +194,18 @@ export function initialPreferenceDraft(stored) {
   };
 }
 
+/** Earlier Hubs reported only unavailable types among the saved selection. */
+export function hasCompleteTypeAvailability(body) {
+  return (
+    body?.typeAvailabilityScope === "ALL_KNOWN" &&
+    Array.isArray(body.typesNotYetEmitted) &&
+    body.typesNotYetEmitted.every(
+      (type) =>
+        typeof type === "string" && type.trim() === type && type.length > 0,
+    )
+  );
+}
+
 /** What an explicit save would change, against what the Hub last returned. */
 export function preferenceDiff(stored, draft) {
   const before = initialPreferenceDraft(stored);
@@ -236,11 +248,14 @@ export function preferencePayload(resourceRid, channel, draft) {
 }
 
 /** Why the Hub would refuse this edit; empty when it would not. */
-export function preferenceProblem(resourceRid, draft) {
+export function preferenceProblem(resourceRid, draft, unavailable = []) {
   if (!String(resourceRid ?? "").trim())
     return "Name the resource this preference is about.";
-  if (!draft.types.length && !draft.allFutureTypes)
-    return "Enable at least one type or opt into future types. A preference that selects nothing can never deliver, and the Hub refuses it.";
+  if (
+    !draft.allFutureTypes &&
+    draft.types.some((type) => unavailable.includes(type))
+  )
+    return "Remove the selected types this Hub does not emit, or opt into all future types.";
   return "";
 }
 
@@ -268,7 +283,7 @@ export function contactProblem(draft) {
   return "";
 }
 
-async function hubRequest(method, path, body) {
+async function hubRequest(method, path, body, signal) {
   let response;
   try {
     response = await fetch(path, {
@@ -278,7 +293,9 @@ async function hubRequest(method, path, body) {
           ? { accept: "application/json" }
           : { accept: "application/json", "content-type": "application/json" },
       credentials: "same-origin",
-      signal: AbortSignal.timeout(15000),
+      signal: signal
+        ? AbortSignal.any([AbortSignal.timeout(15000), signal])
+        : AbortSignal.timeout(15000),
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   } catch {
@@ -289,6 +306,7 @@ async function hubRequest(method, path, body) {
     return {
       ok: false,
       status: response.status,
+      body: json,
       message:
         typeof json?.error === "string" && json.error
           ? json.error
@@ -381,24 +399,26 @@ function inboxMarkup(model, newSince) {
 function preferenceEditor(model, decision) {
   const pref = model.pref;
   const draft = pref.draft;
-  const unraised = pref.notYetEmitted.filter((type) =>
-    draft.types.includes(type),
-  );
+  const unraised = pref.notYetEmitted;
   const carried = draft.types.filter((type) => !EVENT_TYPES.includes(type));
   const boxes = EVENT_TYPES.filter((type) => !unraised.includes(type))
     .map(
       (type) =>
-        `<label class="flex items-start gap-2 text-[12px]"><input type="checkbox" data-ntf-type="${esc(type)}" data-key="type-${esc(type)}" ${draft.types.includes(type) ? "checked" : ""}/><span>${esc(typeLabel(type))} <span class="code-id text-[10.5px] text-[#8b96a5]">${esc(type)}</span></span></label>`,
+        `<label class="flex items-start gap-2 text-[12px]"><input type="checkbox" data-ntf-type="${esc(type)}" data-key="type-${esc(type)}" ${draft.allFutureTypes || draft.types.includes(type) ? "checked" : ""} ${draft.allFutureTypes || !pref.availabilityKnown ? "disabled" : ""}/><span>${esc(typeLabel(type))} <span class="code-id text-[10.5px] text-[#8b96a5]">${esc(type)}</span></span></label>`,
     )
     .join("");
   const silent = unraised
     .map(
       (type) =>
-        `<li class="flex items-start gap-2 text-[12px]" data-type-not-emitted="${esc(type)}"><input type="checkbox" checked disabled aria-label="${esc(typeLabel(type))}, not yet emitted by this Hub"/><span>${esc(typeLabel(type))} <span class="code-id text-[10.5px] text-[#8b96a5]">${esc(type)}</span><br/><span class="text-[#eab854]">Not yet emitted by this Hub. It is stored on your preference, and nothing in this build raises it, so silence on it does not mean nothing happened.</span></span><button type="button" class="so-btn so-btn-sm" data-ntf-remove-type="${esc(type)}" data-key="remove-${esc(type)}">Remove</button></li>`,
+        `<li class="flex items-start gap-2 text-[12px]" data-type-not-emitted="${esc(type)}"><input type="checkbox" ${draft.types.includes(type) ? "checked" : ""} disabled aria-label="${esc(typeLabel(type))}, not yet emitted by this Hub"/><span>${esc(typeLabel(type))} <span class="code-id text-[10.5px] text-[#8b96a5]">${esc(type)}</span><br/><span class="text-[#eab854]">Not yet emitted by this Hub. ${draft.types.includes(type) ? "It remains selected on your preference; remove it before saving individual types. " : "It cannot be selected individually. "}Silence on it does not mean nothing happened.</span></span>${draft.types.includes(type) ? `<button type="button" class="so-btn so-btn-sm" data-ntf-remove-type="${esc(type)}" data-key="remove-${esc(type)}">Remove</button>` : ""}</li>`,
     )
     .join("");
   const diff = preferenceDiff(pref.stored, draft);
-  const problem = preferenceProblem(pref.resourceRid, draft);
+  const problem = pref.writeUncertain
+    ? "The save may have completed. Reload the preference before saving again."
+    : !pref.availabilityKnown
+      ? "This Hub did not report notification availability. Reload after updating the Hub before editing preferences."
+      : preferenceProblem(pref.resourceRid, draft, unraised);
   const reason =
     decision.allowed === false
       ? decision.reason
@@ -432,12 +452,13 @@ function preferenceEditor(model, decision) {
         : `You are not subscribed to <span class="code-id">${esc(pref.resourceRid)}</span> on ${esc(model.inbox.channel)}. Saving creates the preference.`
     }</div>
     <fieldset class="space-y-1.5"><legend class="text-[11px] uppercase tracking-[0.08em] text-[#8b96a5] mb-1">Event types</legend>${boxes}</fieldset>
-    ${silent ? `<div><div class="text-[11px] uppercase tracking-[0.08em] text-[#8b96a5] mb-1">Stored types nothing raises yet</div><ul class="space-y-1.5">${silent}</ul></div>` : ""}
-    <p class="text-[11px] text-[#8b96a5]">The Hub reports a type as not yet emitted only for types already saved on this preference, so a box above can still name a type nothing raises; the answer appears after a save.</p>
+    ${silent ? `<div><div class="text-[11px] uppercase tracking-[0.08em] text-[#8b96a5] mb-1">Unavailable notification types</div><ul class="space-y-1.5">${silent}</ul></div>` : ""}
+    <p class="text-[11px] text-[#8b96a5]">Unavailable types remain visible as part of the known vocabulary. All future types includes types this Hub emits and consents to later implementations; it cannot make an unavailable type deliver today.</p>
+    ${!draft.types.length && !draft.allFutureTypes ? `<p class="text-[12px]" data-notifications-off>Notifications off for future events on this resource and channel. ${diff.changed ? "Save to keep this choice. " : ""}Existing inbox and queued notifications are retained.</p>` : ""}
     ${carried.length ? `<p class="text-[12px]" data-carried-types>Stored types this console does not know are carried through a save unchanged: <span class="code-id">${esc(carried.join(", "))}</span></p>` : ""}
-    <label class="flex items-start gap-2 text-[12px]"><input type="checkbox" data-ntf-future data-key="future" ${draft.allFutureTypes ? "checked" : ""}/><span>All future types. Include types a later Hub adds.</span></label>
+    <label class="flex items-start gap-2 text-[12px]"><input type="checkbox" data-ntf-future data-key="future" ${draft.allFutureTypes ? "checked" : ""} ${pref.availabilityKnown ? "" : "disabled"}/><span>All future types. Include types a later Hub adds.</span></label>
     <label class="block text-[12px]">Contact
-      <select class="so-select ml-2" data-ntf-contact data-key="pref-contact">${contactOptions}</select>
+      <select class="so-select ml-2" data-ntf-contact data-key="pref-contact" ${pref.availabilityKnown ? "" : "disabled"}>${contactOptions}</select>
       ${model.contacts.status === "ready" ? "" : `<span class="text-[11px] text-[#8b96a5] ml-2">Your contacts ${model.contacts.status === "loading" ? "are loading" : "could not be read"}.</span>`}
     </label>
     <div class="flex items-center gap-2 flex-wrap">
@@ -624,7 +645,9 @@ export function initialNotifications(channel = DEFAULT_CHANNEL) {
       stored: null,
       draft: initialPreferenceDraft(null),
       notYetEmitted: [],
+      availabilityKnown: false,
       saving: false,
+      writeUncertain: false,
       error: "",
       saved: "",
     },
@@ -643,6 +666,11 @@ export function initialNotifications(channel = DEFAULT_CHANNEL) {
 }
 
 export function createNotifications({ state, render, capabilities }) {
+  let disposed = false;
+  const repaint = render;
+  render = () => {
+    if (!disposed) repaint();
+  };
   const initialChannel =
     typeof location === "undefined"
       ? DEFAULT_CHANNEL
@@ -652,12 +680,102 @@ export function createNotifications({ state, render, capabilities }) {
   let visitNewSince = null;
   let inboxGeneration = 0;
   let prefGeneration = 0;
+  let prefRead = null;
+  let prefSave = null;
   let badgeEntries = [];
   let badgeLimit = 0;
   let badgeOwner = "";
 
   const visible = () => state.screen === NOTIFICATIONS_SCREEN;
   const seenKey = () => `${SEEN_KEY}:${badgeOwner}`;
+  const identity = () =>
+    JSON.stringify({
+      actor: state.reviewOperatorActor || "",
+      effective: state.reviewOperatorName || "",
+      identities: state.reviewOperatorIdentities || [],
+    });
+  const preferenceContext = () =>
+    JSON.stringify([state.screen, model.view, model.inbox.channel]);
+  const preferenceScope = () =>
+    JSON.stringify([identity(), preferenceContext(), model.pref.resourceRid]);
+  const preferenceEdit = () =>
+    JSON.stringify({
+      payload: preferencePayload(
+        model.pref.resourceRid,
+        model.inbox.channel,
+        model.pref.draft,
+      ),
+      revision: model.pref.stored?.revision ?? null,
+    });
+  let prefIdentity = identity();
+  let prefContext = preferenceContext();
+
+  function cancelPreferenceSave(reason = "") {
+    const pending = prefSave;
+    prefSave = null;
+    pending?.controller.abort();
+    model.pref.saving = false;
+    if (pending?.writing) model.pref.writeUncertain = true;
+    if (pending && (reason || pending.writing)) {
+      model.pref.error = pending.writing
+        ? "The save may have completed. Reload the preference before saving again."
+        : reason;
+    }
+  }
+
+  function cancelPreferenceRequests() {
+    ++prefGeneration;
+    prefRead?.controller.abort();
+    prefRead = null;
+    cancelPreferenceSave();
+    if (model.pref.status === "loading") model.pref.status = "idle";
+  }
+
+  function syncPreferenceScope() {
+    const nextIdentity = identity();
+    const nextContext = preferenceContext();
+    if (nextIdentity === prefIdentity && nextContext === prefContext) return;
+    cancelPreferenceRequests();
+    if (nextIdentity !== prefIdentity) {
+      Object.assign(model.pref, {
+        status: "idle",
+        stored: null,
+        draft: initialPreferenceDraft(null),
+        availabilityKnown: false,
+        notYetEmitted: [],
+        writeUncertain: false,
+        error: "",
+        saved: "",
+      });
+    }
+    prefIdentity = nextIdentity;
+    prefContext = nextContext;
+  }
+
+  function currentPreferenceRequest(pending, saving = false) {
+    syncPreferenceScope();
+    const active = saving ? prefSave : prefRead;
+    if (
+      disposed ||
+      active !== pending ||
+      pending.generation !== prefGeneration ||
+      pending.scope !== preferenceScope()
+    ) {
+      pending.controller.abort();
+      if (active === pending) {
+        if (saving) cancelPreferenceSave();
+        else prefRead = null;
+      }
+      return false;
+    }
+    if (saving && pending.edit !== preferenceEdit()) {
+      cancelPreferenceSave(
+        "The draft changed while the preference was being checked. Review it and save explicitly.",
+      );
+      return false;
+    }
+    return true;
+  }
 
   function paintIndicator() {
     if (typeof document === "undefined") return;
@@ -788,43 +906,59 @@ export function createNotifications({ state, render, capabilities }) {
     render();
   }
 
-  const preferencePath = () =>
-    `/v1/notifications/preferences?resourceRid=${encodeURIComponent(model.pref.resourceRid)}&channel=${encodeURIComponent(model.inbox.channel)}`;
+  const preferencePath = (resourceRid, channel) =>
+    `/v1/notifications/preferences?resourceRid=${encodeURIComponent(resourceRid)}&channel=${encodeURIComponent(channel)}`;
 
-  function acceptPreference(stored) {
+  function acceptPreference(stored, coverage = stored) {
     const pref = model.pref;
     pref.status = "ready";
     pref.stored = stored;
     pref.draft = initialPreferenceDraft(stored);
-    pref.notYetEmitted = Array.isArray(stored?.typesNotYetEmitted)
-      ? stored.typesNotYetEmitted.filter((type) => typeof type === "string")
+    pref.availabilityKnown = hasCompleteTypeAvailability(coverage);
+    pref.notYetEmitted = pref.availabilityKnown
+      ? coverage.typesNotYetEmitted
       : [];
   }
 
   async function loadPreference() {
+    if (disposed) return;
+    syncPreferenceScope();
+    cancelPreferenceRequests();
     const pref = model.pref;
-    const mine = ++prefGeneration;
     pref.resourceRid = pref.ridDraft.trim();
     pref.error = "";
     pref.saved = "";
     pref.stored = null;
+    pref.writeUncertain = false;
     if (!pref.resourceRid) {
       pref.status = "idle";
       render();
       return;
     }
+    const pending = {
+      generation: prefGeneration,
+      scope: preferenceScope(),
+      controller: new AbortController(),
+    };
+    prefRead = pending;
     pref.status = "loading";
     capabilities.watch([pref.resourceRid]);
     render();
-    const result = await hubRequest("GET", preferencePath());
-    if (mine !== prefGeneration) return;
+    const result = await hubRequest(
+      "GET",
+      preferencePath(pref.resourceRid, model.inbox.channel),
+      undefined,
+      pending.controller.signal,
+    );
+    if (!currentPreferenceRequest(pending)) return;
+    prefRead = null;
     if (result.ok && result.body?.resourceRid !== pref.resourceRid) {
       pref.status = "failed";
       pref.error =
         "The Hub's answer did not describe the preference for this resource.";
     } else if (result.ok) acceptPreference(result.body);
     // 404 is a state, not a failure: there is no preference yet.
-    else if (result.status === 404) acceptPreference(null);
+    else if (result.status === 404) acceptPreference(null, result.body);
     else {
       pref.status = result.status === 403 ? "refused" : "failed";
       pref.error = result.message;
@@ -833,37 +967,95 @@ export function createNotifications({ state, render, capabilities }) {
   }
 
   async function savePreference() {
+    if (disposed) return;
+    syncPreferenceScope();
     const pref = model.pref;
-    if (pref.saving || pref.status !== "ready") return;
-    if (preferenceProblem(pref.resourceRid, pref.draft)) return;
+    if (
+      prefSave ||
+      pref.saving ||
+      pref.writeUncertain ||
+      pref.status !== "ready"
+    )
+      return;
+    if (
+      !pref.availabilityKnown ||
+      preferenceProblem(pref.resourceRid, pref.draft, pref.notYetEmitted)
+    )
+      return;
     if (
       capabilities.canPerform("resource:read", pref.resourceRid).allowed ===
       false
     )
       return;
+    const pending = {
+      generation: prefGeneration,
+      scope: preferenceScope(),
+      edit: preferenceEdit(),
+      stored: pref.stored ? { revision: pref.stored.revision } : null,
+      payload: preferencePayload(
+        pref.resourceRid,
+        model.inbox.channel,
+        pref.draft,
+      ),
+      path: preferencePath(pref.resourceRid, model.inbox.channel),
+      controller: new AbortController(),
+      writing: false,
+    };
+    prefSave = pending;
     pref.saving = true;
     pref.error = "";
     pref.saved = "";
     render();
     // The route takes no revision, so the check is read-then-write here.
-    const current = await hubRequest("GET", preferencePath());
-    const stale =
-      current.ok || current.status === 404
-        ? staleRevision(pref.stored, current.ok ? current.body : null)
-        : `The preference could not be re-read before saving, so nothing was saved. ${current.message}`;
+    const current = await hubRequest(
+      "GET",
+      pending.path,
+      undefined,
+      pending.controller.signal,
+    );
+    if (!currentPreferenceRequest(pending, true)) return render();
+    let stale = "";
+    if (!current.ok && current.status !== 404)
+      stale = `The preference could not be re-read before saving, so nothing was saved. ${current.message}`;
+    else if (!hasCompleteTypeAvailability(current.body))
+      stale =
+        "The Hub did not report complete notification availability; nothing was saved. Reload after updating the Hub.";
+    else if (
+      current.ok &&
+      (current.body?.resourceRid !== pending.payload.resourceRid ||
+        current.body?.channel !== pending.payload.channel)
+    )
+      stale =
+        "The Hub's answer did not describe the preference being saved. Reload it before saving.";
+    else
+      stale = staleRevision(pending.stored, current.ok ? current.body : null);
     if (stale) {
+      prefSave = null;
       pref.saving = false;
       pref.error = stale;
       render();
       return;
     }
+    pending.writing = true;
     const result = await hubRequest(
       "PUT",
       "/v1/notifications/preferences",
-      preferencePayload(pref.resourceRid, model.inbox.channel, pref.draft),
+      pending.payload,
+      pending.controller.signal,
     );
+    if (!currentPreferenceRequest(pending, true)) return render();
+    prefSave = null;
     pref.saving = false;
-    if (!result.ok) {
+    if (
+      (result.ok &&
+        (result.body?.resourceRid !== pending.payload.resourceRid ||
+          result.body?.channel !== pending.payload.channel)) ||
+      result.status === 0
+    ) {
+      pref.writeUncertain = true;
+      pref.error =
+        "The save outcome is unknown. Reload the preference before saving again.";
+    } else if (!result.ok) {
       pref.error =
         result.status === 422
           ? `The Hub refused this preference: ${result.message}`
@@ -950,6 +1142,7 @@ export function createNotifications({ state, render, capabilities }) {
 
   function bindView(node) {
     node.addEventListener("click", (event) => {
+      if (disposed) return;
       const target = event.target instanceof Element ? event.target : null;
       const view = target?.closest("[data-ntf-view]");
       if (view) return openView(view.getAttribute("data-ntf-view"));
@@ -967,6 +1160,9 @@ export function createNotifications({ state, render, capabilities }) {
       if (action === "reload-contacts") return void loadContacts();
       const remove = target?.closest("[data-ntf-remove-type]");
       if (remove) {
+        cancelPreferenceSave(
+          "The draft changed; review it and save explicitly.",
+        );
         const type = remove.getAttribute("data-ntf-remove-type");
         model.pref.draft.types = model.pref.draft.types.filter(
           (item) => item !== type,
@@ -990,9 +1186,13 @@ export function createNotifications({ state, render, capabilities }) {
       return undefined;
     });
     node.addEventListener("input", (event) => {
+      if (disposed) return;
       const input = event.target instanceof Element ? event.target : null;
       const name = input?.getAttribute("data-ntf-input");
-      if (name === "pref-rid") model.pref.ridDraft = input.value;
+      if (name === "pref-rid") {
+        cancelPreferenceRequests();
+        model.pref.ridDraft = input.value;
+      }
       if (name === "contact-address") {
         model.contacts.draft.address = input.value;
         const save = node.querySelector("[data-save-contact]");
@@ -1003,6 +1203,7 @@ export function createNotifications({ state, render, capabilities }) {
       }
     });
     node.addEventListener("change", (event) => {
+      if (disposed) return;
       const input = event.target instanceof Element ? event.target : null;
       if (!input) return;
       if (input.hasAttribute("data-ntf-channel"))
@@ -1022,10 +1223,19 @@ export function createNotifications({ state, render, capabilities }) {
       else if (input.hasAttribute("data-ntf-contact-future"))
         model.contacts.draft.optIntoFutureResources = input.checked;
       else return undefined;
+      if (
+        input.hasAttribute("data-ntf-type") ||
+        input.hasAttribute("data-ntf-future") ||
+        input.hasAttribute("data-ntf-contact")
+      )
+        cancelPreferenceSave(
+          "The draft changed; review it and save explicitly.",
+        );
       pref.saved = "";
       return render();
     });
     node.addEventListener("submit", (event) => {
+      if (disposed) return;
       event.preventDefault();
       const form =
         event.target instanceof Element
@@ -1038,6 +1248,8 @@ export function createNotifications({ state, render, capabilities }) {
 
   let painted = "";
   function renderScreen(root) {
+    if (disposed) return;
+    syncPreferenceScope();
     const decision =
       model.view === "preferences" && model.pref.resourceRid
         ? capabilities.canPerform("resource:read", model.pref.resourceRid)
@@ -1101,6 +1313,8 @@ export function createNotifications({ state, render, capabilities }) {
      * replaced: the console's existing refresh cycle.
      */
     sync() {
+      if (disposed) return;
+      syncPreferenceScope();
       paintIndicator();
       if (!visible()) visitNewSince = null;
       if (state.hub === seenHub) return;
@@ -1108,6 +1322,11 @@ export function createNotifications({ state, render, capabilities }) {
       if (visible() && model.view === "inbox" && model.inbox.status === "ready")
         void loadInbox({ quiet: true });
       void pollBadge();
+    },
+    dispose() {
+      disposed = true;
+      cancelPreferenceRequests();
+      ++inboxGeneration;
     },
   };
 }

@@ -184,8 +184,10 @@ export function truncationNotices(hub, screen) {
   return (screenEntry(screen)?.indexes || [])
     .filter((index) => marks[index])
     .map((index) => {
-      const { shown, total } = marks[index];
+      const { shown, total, window } = marks[index];
       const label = INDEX_LABELS[index] || index;
+      if (window)
+        return `Showing ${shown}${total === null ? "" : ` of ${total}`} ${label} in this page. Use Next or Previous to change page.`;
       return Number.isSafeInteger(total) && total > shown
         ? `Showing the first ${shown} of ${total} ${label}. The rest are not loaded in this view.`
         : `Showing the first ${shown} ${label}; the Hub has more that are not loaded in this view.`;

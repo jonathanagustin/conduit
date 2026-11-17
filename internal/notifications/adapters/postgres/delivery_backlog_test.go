@@ -14,7 +14,7 @@ func TestTheDeliveryBacklogIsPerChannelAndAgesFromWhenTheEventWasRaised(t *testi
 	ctx := t.Context()
 	store := newStore(t, ctx)
 	resetStore(t, ctx, store)
-	emitter, err := application.NewEmitter(store)
+	emitter, err := application.NewEmitter(store, allowRecipients{})
 	if err != nil {
 		t.Fatal(err)
 	}

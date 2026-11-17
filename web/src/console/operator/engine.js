@@ -76,7 +76,18 @@ import {
   mountPlanProposal,
   mountPromotion,
 } from "./delivery-journey.js";
-import { parseScreenHash, screenHash } from "./planning-session-link.js";
+import {
+  parseScreenHash,
+  screenHash,
+  planningSessionFromHash,
+} from "./planning-session-link.js";
+import {
+  changeIndexQuery,
+  indexControlsMarkup,
+  routeQuery,
+  INDEX_DEFINITIONS,
+} from "./index-pages.js";
+import { changeSpaceSelection } from "./space-scope.js";
 import {
   classifyRenderers,
   screenBadge,
@@ -1038,6 +1049,7 @@ export function mountOperator(host, options) {
         };
       if (item?.objectType === "Environment") {
         state.envDetailId = item.id;
+        state.releaseEnvironmentId = item.id;
         state.envDetailTab = "state";
       }
       switchScreen(screen);
@@ -1087,6 +1099,8 @@ export function mountOperator(host, options) {
     navigate: switchScreen,
     state,
     render: () => renderApp({ backgroundRefresh: true }),
+    getScreen: visibleScreen,
+    routeChanged: () => writeIndexLocation({ replace: false }),
   });
   state.liveHub = liveHub;
   const mountOntologyExplorer = createOntologyExplorer({
@@ -1315,8 +1329,7 @@ export function mountOperator(host, options) {
     } else {
       state.screen = scrId;
     }
-    const nextHash = screenHash(mapped ? state.screen : scrId, state);
-    if (location.hash !== nextHash) history.replaceState(null, "", nextHash);
+    writeIndexLocation({ replace: false });
     if (!state.openTabs.includes(scrId)) {
       state.openTabs.splice(1, 0, scrId);
       if (state.openTabs.length > 5) state.openTabs.pop();
@@ -1404,6 +1417,116 @@ export function mountOperator(host, options) {
     return tab.screen;
   }
 
+  function restoreIndexFields(query) {
+    state.indexQuery = query.toString();
+    state.releasePlanId = query.get("plan") || "";
+    state.releaseEnvironmentId = query.get("environment") || "";
+    state.envDetailId = state.releaseEnvironmentId;
+    if (state.releaseEnvironmentId) {
+      for (const index of ["plans", "installations", "changes"]) {
+        if (!query.has(`${index}.environment`))
+          query.set(`${index}.environment`, state.releaseEnvironmentId);
+      }
+      state.indexQuery = query.toString();
+    }
+    state.packagingRunId = query.get("run") || "";
+    if (state.crReview || query.has("change")) {
+      const review = (state.crReview ||= {
+        filter: "all",
+        draft: { decision: "", rationale: "" },
+        pending: false,
+        error: "",
+      });
+      const id = query.get("change") || "";
+      if (review.selectedId !== id)
+        review.draft = { decision: "", rationale: "" };
+      review.selectedId = id;
+    }
+    state.spaceId = query.get("space") || "";
+  }
+
+  function writeIndexLocation({ replace = true } = {}) {
+    changeSpaceSelection(state, state.spaceId);
+    const query = new URLSearchParams(state.indexQuery || "");
+    const environment = state.releaseEnvironmentId || state.envDetailId || "";
+    if (environment !== (query.get("environment") || "")) {
+      for (const index of ["plans", "installations", "changes"]) {
+        if (environment) query.set(`${index}.environment`, environment);
+        else query.delete(`${index}.environment`);
+        query.delete(`${index}.cursor`);
+      }
+      state.releasePlanId = "";
+      if (state.crReview) state.crReview.selectedId = "";
+    }
+    const fields = {
+      plan: state.releasePlanId,
+      environment,
+      change: state.crReview?.selectedId,
+      run: state.packagingRunId,
+      space: state.spaceId,
+    };
+    for (const [key, value] of Object.entries(fields)) {
+      if (value) query.set(key, value);
+      else query.delete(key);
+    }
+    if (AREAS[state.screen])
+      query.set("tab", state.areaTab || AREAS[state.screen].tabs[0].id);
+    else query.delete("tab");
+    state.indexQuery = query.toString();
+    let hash = screenHash(state.screen, state);
+    const linkedSession =
+      state.screen === "s01-intake" && !state.planning?.session
+        ? planningSessionFromHash(location.hash)
+        : "";
+    if (linkedSession)
+      hash = hash.replace(
+        "#s01-intake",
+        `#s01-intake/${encodeURIComponent(linkedSession)}`,
+      );
+    if (location.hash !== hash)
+      history[replace ? "replaceState" : "pushState"](null, "", hash);
+  }
+
+  function onIndexSubmit(event) {
+    const form = event.target instanceof HTMLFormElement ? event.target : null;
+    const index = form?.getAttribute("data-index-filter");
+    if (!INDEX_DEFINITIONS[index] || !form.closest("#main-workspace")) return;
+    event.preventDefault();
+    if (state.crReview?.pending) return;
+    const changes = Object.fromEntries(new FormData(form));
+    restoreIndexFields(changeIndexQuery(state.indexQuery, index, changes));
+    writeIndexLocation({ replace: false });
+    renderApp();
+  }
+
+  function onIndexClick(event) {
+    const target = event.target instanceof Element ? event.target : null;
+    const button = target?.closest("[data-index-page], [data-index-retry]");
+    if (
+      !button ||
+      button.disabled ||
+      !button.closest("#main-workspace") ||
+      state.crReview?.pending
+    )
+      return;
+    const index =
+      button.getAttribute("data-index-page") ||
+      button.getAttribute("data-index-retry");
+    if (!INDEX_DEFINITIONS[index]) return;
+    event.preventDefault();
+    if (button.hasAttribute("data-index-retry")) {
+      void liveHub.refresh();
+      return;
+    }
+    restoreIndexFields(
+      changeIndexQuery(state.indexQuery, index, {
+        cursor: button.getAttribute("data-index-cursor") || "",
+      }),
+    );
+    writeIndexLocation({ replace: false });
+    renderApp();
+  }
+
   function updateExampleBadge() {
     const badge = document.getElementById("example-data-badge");
     if (!badge) return;
@@ -1474,11 +1597,11 @@ export function mountOperator(host, options) {
       .join("");
     strip.dataset.liveState = state.liveEvents?.state || "idle";
     strip.title =
-      "Latest authorized Hub read; counts cover loaded rows. Spoke liveness is report freshness, not a network probe.";
+      "Latest authorized Hub read. A dash means the complete, unfiltered input is unavailable in this view. Spoke liveness is report freshness, not a network probe.";
     strip.innerHTML =
       (allLive(kpis)
         ? ""
-        : '<span class="text-[10px] uppercase tracking-[0.08em] text-[#eab854]">Read unavailable</span>') +
+        : `<span class="text-[10px] uppercase tracking-[0.08em] text-[#eab854]">${state.hub?.pagedIndexes && !state.hub.loading ? "View snapshot" : "Read unavailable"}</span>`) +
       cells;
   }
 
@@ -1898,6 +2021,7 @@ export function mountOperator(host, options) {
         tab: inspector.tab,
         esc: escHtml,
         audit: Array.isArray(state.hub?.audit) ? state.hub.audit : [],
+        auditOrder: state.hub?.auditOrder || "asc",
       },
     )}</div>`;
   }
@@ -1950,6 +2074,7 @@ export function mountOperator(host, options) {
   let ledgerRoot = null;
   const auditLedger = createAuditLedger({
     getEntries: () => (Array.isArray(state.hub?.audit) ? state.hub.audit : []),
+    getOrder: () => state.hub?.auditOrder || "asc",
     rerender: () => {
       if (ledgerRoot && ledgerRoot.isConnected) auditLedger.render(ledgerRoot);
     },
@@ -3656,6 +3781,8 @@ export function mountOperator(host, options) {
         liveHub.proposeFix(environment, installationId),
       onSelect: (id) => {
         state.releaseEnvironmentId = id;
+        state.envDetailId = id;
+        writeIndexLocation({ replace: false });
         renderMainWorkspace();
       },
     });
@@ -3699,6 +3826,7 @@ export function mountOperator(host, options) {
       )
         return;
       state.releaseEnvironmentId = id;
+      state.envDetailId = id;
       switchScreen("s14-env-detail");
     };
   }
@@ -4326,6 +4454,7 @@ export function mountOperator(host, options) {
       selectedId: state.releasePlanId || "",
       onSelect: (id) => {
         state.releasePlanId = id;
+        writeIndexLocation({ replace: false });
         decide();
       },
     });
@@ -4507,6 +4636,7 @@ export function mountOperator(host, options) {
         review.selectedId = pick.getAttribute("data-cr-select") || "";
         review.draft = { decision: "", rationale: "" };
         review.error = "";
+        writeIndexLocation({ replace: false });
         return rerender();
       }
       const decide = target.closest("[data-cr-decide]");
@@ -4726,6 +4856,7 @@ export function mountOperator(host, options) {
     }
     if (target.env) {
       state.envDetailId = target.env;
+      state.releaseEnvironmentId = target.env;
       state.envDetailTab = "state";
     }
     if (target.change && state.crReview)
@@ -4875,6 +5006,8 @@ export function mountOperator(host, options) {
 
   let previousScreen = "";
   function renderMainWorkspace() {
+    writeIndexLocation();
+    liveHub.ensure();
     if (state.screen !== "au01-audit" && state.screen !== "area-audit")
       mountAuditEvents.dispose();
     const root = document.getElementById("main-workspace");
@@ -4941,6 +5074,13 @@ export function mountOperator(host, options) {
         renderer(root);
       }
     });
+    const indexControls = indexControlsMarkup(
+      state.hub,
+      state.screen,
+      state.indexQuery,
+      escAttr,
+    );
+    if (indexControls) root.insertAdjacentHTML("afterbegin", indexControls);
     if (!root.dataset.renderFailed) loggedRenderFailure = "";
     updateExampleBadge();
     settings.applyChrome();
@@ -5005,6 +5145,7 @@ export function mountOperator(host, options) {
         .join("")}</div>
       <div data-area-object-header>${header}</div>
       <div id="area-kit">${extra}</div>
+      ${indexControlsMarkup(state.hub, current.screen, state.indexQuery, escAttr)}
       ${truncationMarkup(state.hub, current.screen, escAttr)}
       ${capabilities.grantMarkup(current.screen, escAttr)}
       <div id="area-body"></div>
@@ -5042,12 +5183,18 @@ export function mountOperator(host, options) {
           const open = target?.closest("[data-env-open]");
           if (open) {
             state.envDetailId = open.getAttribute("data-env-open");
+            state.releaseEnvironmentId = state.envDetailId;
+            writeIndexLocation({ replace: false });
+            void liveHub.refresh();
             state.envDetailTab = "state";
             paint();
             return;
           }
           if (target?.closest("[data-env-back]")) {
             state.envDetailId = "";
+            state.releaseEnvironmentId = "";
+            writeIndexLocation({ replace: false });
+            liveHub.ensure();
             paint();
             return;
           }
@@ -5108,6 +5255,7 @@ export function mountOperator(host, options) {
           selectedId: state.releaseEnvironmentId || "",
           onSelect: (id) => {
             state.releaseEnvironmentId = id;
+            state.envDetailId = id;
             renderMainWorkspace();
           },
           onProposeFix: (environment, installationId) =>
@@ -5143,7 +5291,8 @@ export function mountOperator(host, options) {
     root.querySelectorAll("[data-area-tab]").forEach((button) => {
       button.addEventListener("click", () => {
         state.areaTab = button.getAttribute("data-area-tab");
-        renderMainWorkspace();
+        writeIndexLocation({ replace: false });
+        renderApp();
       });
     });
     const waves = wavesFromRecords(state.hub?.promotions);
@@ -5230,26 +5379,33 @@ export function mountOperator(host, options) {
     }
   };
   window.addEventListener("keydown", onKey);
-  const onHash = () => {
-    // `#screen/param`: the param (a planning session id) is the screen's own.
+  function restoreLocation() {
     const { screen: id, param } = parseScreenHash(location.hash);
     const mapped = areaFor(id);
-    if (!mapped && !AREAS[id] && !SCREENS.some((s) => s.id === id)) return;
-    closeEngineerWorkspace();
+    if (!mapped && !AREAS[id] && !SCREENS.some((s) => s.id === id))
+      return false;
+    restoreIndexFields(routeQuery(location.hash));
     if (mapped) {
       state.screen = mapped.area;
       state.areaTab = mapped.tab;
     } else if (AREAS[id]) {
       state.screen = id;
-      state.areaTab = AREAS[id].tabs[0].id;
-    } else if (state.screen !== id || param) {
-      state.screen = id;
-    } else return;
+      const tab = routeQuery(location.hash).get("tab");
+      state.areaTab = AREAS[id].tabs.some((item) => item.id === tab)
+        ? tab
+        : AREAS[id].tabs[0].id;
+    } else if (state.screen !== id || param) state.screen = id;
+    return true;
+  }
+  const onHash = () => {
+    if (!restoreLocation()) return;
+    closeEngineerWorkspace();
     renderApp();
   };
   window.addEventListener("hashchange", onHash);
-  const initialHash = parseScreenHash(location.hash).screen;
-  if (SCREENS.some((s) => s.id === initialHash)) state.screen = initialHash;
+  document.addEventListener("submit", onIndexSubmit);
+  document.addEventListener("click", onIndexClick);
+  restoreLocation();
   window.switchScreen = switchScreen;
   window.closeTab = closeTab;
   window.toggleMobileNav = toggleMobileNav;
@@ -5297,10 +5453,13 @@ export function mountOperator(host, options) {
   renderApp();
   return () => {
     engineerFocus.dispose();
+    notifications.dispose();
     liveHub.stop();
     mountAuditEvents.dispose();
     removeInlineActions();
     window.removeEventListener("keydown", onKey);
     window.removeEventListener("hashchange", onHash);
+    document.removeEventListener("submit", onIndexSubmit);
+    document.removeEventListener("click", onIndexClick);
   };
 }
