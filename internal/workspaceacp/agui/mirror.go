@@ -39,6 +39,10 @@ type ToolView struct {
 }
 
 type activeRun struct {
+	// Publication spans validation, external auditing and commit. The channel
+	// makes waiting cancellable without holding the projection mutex or coupling
+	// independent runs to an auditor stalled on another run.
+	publication   chan struct{}
 	runID         string
 	sequence      *agui.Sequence
 	frames        [][]byte
@@ -125,6 +129,7 @@ func (m *Mirror) StartRun(ctx context.Context, threadID, runID, userPrompt strin
 		return domain.ErrNotFound
 	}
 	run := &activeRun{
+		publication:   make(chan struct{}, 1),
 		runID:         runID,
 		sequence:      agui.NewSequence(threadID, runID),
 		subscribers:   map[chan []byte]struct{}{},
@@ -141,7 +146,6 @@ func (m *Mirror) StartRun(ctx context.Context, threadID, runID, userPrompt strin
 		})
 	}
 	entry.active = run
-	snap := snapshotPayloadLocked(entry)
 	m.mu.Unlock()
 
 	if err := m.emit(ctx, entry, run, map[string]any{
@@ -151,7 +155,7 @@ func (m *Mirror) StartRun(ctx context.Context, threadID, runID, userPrompt strin
 	}, false); err != nil {
 		return err
 	}
-	return m.emitState(ctx, entry, run, snap)
+	return m.emitState(ctx, entry, run)
 }
 
 // RecordToolStart mirrors the start of an editor tool call, file write, or command.
@@ -199,7 +203,6 @@ func (m *Mirror) RecordToolStart(ctx context.Context, threadID, runID, toolCallI
 			},
 		},
 	})
-	snap := snapshotPayloadLocked(entry)
 	m.mu.Unlock()
 
 	for _, ev := range []map[string]any{
@@ -213,7 +216,7 @@ func (m *Mirror) RecordToolStart(ctx context.Context, threadID, runID, toolCallI
 			return err
 		}
 	}
-	return m.emitState(ctx, entry, run, snap)
+	return m.emitState(ctx, entry, run)
 }
 
 // RecordToolResult mirrors completion or failure of a tool call, file write, or command.
@@ -265,7 +268,6 @@ func (m *Mirror) RecordToolResult(ctx context.Context, threadID, runID, toolCall
 			"content":    string(resultPayload),
 		})
 	}
-	snap := snapshotPayloadLocked(entry)
 	m.mu.Unlock()
 
 	if !alreadyAnswered {
@@ -278,7 +280,7 @@ func (m *Mirror) RecordToolResult(ctx context.Context, threadID, runID, toolCall
 			return err
 		}
 	}
-	return m.emitState(ctx, entry, run, snap)
+	return m.emitState(ctx, entry, run)
 }
 
 // RecordPermission updates the governed permission gate projection on the AG-UI stream.
@@ -305,9 +307,8 @@ func (m *Mirror) RecordPermission(ctx context.Context, gate domain.PermissionGat
 		m.mu.Unlock()
 		return nil
 	}
-	snap := snapshotPayloadLocked(entry)
 	m.mu.Unlock()
-	return m.emitState(ctx, entry, run, snap)
+	return m.emitState(ctx, entry, run)
 }
 
 // RecordAssistantText streams one assistant message segment onto the AG-UI run.
@@ -357,11 +358,10 @@ func (m *Mirror) FinishRun(ctx context.Context, threadID, runID string, cancelle
 	} else {
 		entry.status = "ready"
 	}
-	snap := snapshotPayloadLocked(entry)
 	msgs := cloneSlice(entry.messages)
 	m.mu.Unlock()
 
-	if err := m.emitState(ctx, entry, run, snap); err != nil {
+	if err := m.emitState(ctx, entry, run); err != nil {
 		return err
 	}
 	if err := m.emit(ctx, entry, run, map[string]any{
@@ -573,8 +573,31 @@ func (m *Mirror) Stream(ctx context.Context, actor, threadID, requestedRunID str
 	})
 }
 
-func (m *Mirror) emitState(ctx context.Context, entry *threadEntry, run *activeRun, value map[string]any) error {
+func (run *activeRun) lockPublication(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	select {
+	case run.publication <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (m *Mirror) emitState(ctx context.Context, entry *threadEntry, run *activeRun) error {
+	if err := run.lockPublication(ctx); err != nil {
+		return err
+	}
+	defer func() { <-run.publication }()
 	m.mu.Lock()
+	if run.closed {
+		m.mu.Unlock()
+		return nil
+	}
+	// Read after acquiring publication ownership: a caller's earlier snapshot
+	// can predate another publisher's audited state and regress the stream.
+	value := snapshotPayloadLocked(entry)
 	next := map[string]json.RawMessage{}
 	for key, child := range value {
 		raw, err := json.Marshal(child)
@@ -588,7 +611,7 @@ func (m *Mirror) emitState(ctx context.Context, entry *threadEntry, run *activeR
 	m.mu.Unlock()
 
 	if prev == nil {
-		if err := m.emit(ctx, entry, run, map[string]any{"type": "STATE_SNAPSHOT", "snapshot": value}, true); err != nil {
+		if err := m.emitLocked(ctx, entry, run, map[string]any{"type": "STATE_SNAPSHOT", "snapshot": value}, true); err != nil {
 			return err
 		}
 	} else {
@@ -612,18 +635,30 @@ func (m *Mirror) emitState(ctx context.Context, entry *threadEntry, run *activeR
 			patch = append(patch, map[string]any{"op": op, "path": "/" + escaped, "value": parsed})
 		}
 		if len(patch) > 0 {
-			if err := m.emit(ctx, entry, run, map[string]any{"type": "STATE_DELTA", "delta": patch}, true); err != nil {
+			if err := m.emitLocked(ctx, entry, run, map[string]any{"type": "STATE_DELTA", "delta": patch}, true); err != nil {
 				return err
 			}
 		}
 	}
 	m.mu.Lock()
-	run.state = next
+	if !run.closed {
+		run.state = next
+	}
 	m.mu.Unlock()
 	return nil
 }
 
 func (m *Mirror) emit(ctx context.Context, entry *threadEntry, run *activeRun, event map[string]any, recordInBody bool) error {
+	if err := run.lockPublication(ctx); err != nil {
+		return err
+	}
+	defer func() { <-run.publication }()
+	return m.emitLocked(ctx, entry, run, event, recordInBody)
+}
+
+// emitLocked requires this run's publication ownership. The projection mutex
+// still protects shared data and stays released while calling the auditor.
+func (m *Mirror) emitLocked(ctx context.Context, entry *threadEntry, run *activeRun, event map[string]any, recordInBody bool) error {
 	raw, err := json.Marshal(event)
 	if err != nil {
 		return err
