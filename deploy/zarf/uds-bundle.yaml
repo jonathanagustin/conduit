@@ -6,7 +6,19 @@
 #
 #   uds deploy oci://ghcr.io/defenseunicorns/packages/uds/bundles/k3d-core-slim-dev:1.17.1 --confirm
 #   uds create deploy/zarf --confirm
-#   uds deploy uds-bundle-conduit-amd64-0.18.0.tar.zst --confirm  # x-release-please-version
+#   UDS_CONFIG=uds-config.yaml uds deploy uds-bundle-conduit-amd64-0.18.0.tar.zst --confirm  # x-release-please-version
+#
+# Deployment variables (ENVIRONMENT_ID, AGENT_ID, BOOTSTRAP_ADMINISTRATORS,
+# REPOSITORY_KIND, OPERATOR_OIDC_*, ...) are Zarf variables of the package, and
+# their bundle-level home is uds-config.yaml beside this file. This bundle
+# declares no `overrides`: in the v0.41.0 schema pinned above, overrides set
+# Helm chart values per component and chart, and this package deploys
+# manifests, so there is no chart for one to address.
+#
+# 1.17.1 is the one UDS Core version the deploy path targets: it is the
+# slim-dev bundle scripts/uds-up.sh pins and the version of the Package schema
+# vendored in workspace-schemas/v1. No other Core version has been paired with
+# this bundle.
 #
 # Release Please bumps every line marked x-release-please-version. Its YAML
 # updater would also do it, and would delete these comments while it did.

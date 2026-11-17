@@ -63,7 +63,7 @@ packaged.each_key do |constant|
   abort "#{name} must be a digest-constrained package constant" unless
     definition.fetch("constants").any? { |item| item["name"] == name && item["pattern"] == "^.+@sha256:[a-f0-9]{64}$" }
 end
-readme = File.read(File.join(root, "deploy/zarf/README.md"))
+readme = File.read(File.join(root, "deploy/zarf/README.md"), encoding: "UTF-8")
 external = readme[/^## Declared external dependencies\n(.*?)(?=^## )/m, 1]
 abort "Zarf README must declare the package's external dependencies" unless external
 workspace_default = File.read(File.join(root, "internal/devworkspace/domain/pod.go"))[/request\.Image = "([^"]+)"/, 1]
@@ -295,6 +295,51 @@ abort "UDS bundle must carry the Conduit package" unless bundle["kind"] == "UDSB
 abort "UDS bundle version must track VERSION" unless bundle.dig("metadata", "version") == version
 conduit = (bundle["packages"] || []).find { |item| item["name"] == "platform-runtime" }
 abort "UDS bundle must build the local Zarf package and select the uds component" unless conduit&.dig("path") == "." && conduit["ref"] == version && conduit["optionalComponents"] == ["uds"]
+
+# The bundle's deployment variables live in uds-config.yaml (#831). UDS CLI
+# passes `variables.<package>.<NAME>` to that package as Zarf variables, and a
+# name the package does not declare is a setting that silently does nothing.
+bundle_schema = File.read(bundle_path).lines.first[%r{\A# yaml-language-server: \$schema=https://raw\.githubusercontent\.com/defenseunicorns/uds-cli/(v[0-9.]+)/uds\.schema\.json$}, 1]
+abort "UDS bundle must pin its schema to a UDS CLI release on its first line" unless bundle_schema
+ci_workflow = File.read(File.join(root, ".github/workflows/platform-ci.yml"), encoding: "UTF-8")
+uds_pin = ci_workflow[%r{https://github\.com/defenseunicorns/uds-cli/releases/download/(v[0-9.]+)/uds-cli_\1_Linux_amd64}, 1]
+abort "Trunk gate must install a checksum-pinned UDS CLI" unless uds_pin && ci_workflow.match?(%r{^\s+echo '[a-f0-9]{64}  /tmp/uds' \| sha256sum --check$})
+abort "UDS bundle schema (#{bundle_schema}) must be the UDS CLI release the Trunk gate pins (#{uds_pin})" unless bundle_schema == uds_pin
+# `uds create` accepts a bundle with unknown keys, so the shape is held here.
+# These are the property names of UDSBundle, UDSMetadata and Package in the
+# pinned uds.schema.json, each of which sets additionalProperties: false.
+bundle_keys = {
+  "bundle" => [bundle.keys, %w[kind metadata build packages]],
+  "metadata" => [bundle.fetch("metadata").keys, %w[name description version url uncompressed architecture authors documentation source vendor aggregateChecksum]],
+  "package" => [(bundle["packages"] || []).flat_map(&:keys), %w[name description repository path ref namespace timeout flavor optionalComponents publicKey keylessVerification imports exports overrides]]
+}
+bundle_keys.each do |where, (present, allowed)|
+  unknown_keys = present.reject { |key| key.start_with?("x-") } - allowed
+  abort "UDS bundle #{where} has keys the pinned schema does not define: #{unknown_keys.join(', ')}" unless unknown_keys.empty?
+end
+abort "UDS bundle must carry exactly the Conduit package" unless bundle["packages"].length == 1
+abort "UDS bundle must not declare chart overrides: the package deploys manifests, not charts" if conduit.key?("overrides")
+uds_config_text = File.read(File.join(root, "deploy/zarf/uds-config.yaml"), encoding: "UTF-8")
+uds_config = YAML.safe_load(uds_config_text)
+abort "uds-config.yaml may carry only variables" unless uds_config.keys == ["variables"]
+abort "uds-config.yaml must address exactly the bundle's package" unless uds_config["variables"].keys == [conduit["name"]]
+configured = uds_config.dig("variables", conduit["name"])
+unknown = configured.keys - declared_variables
+abort "uds-config.yaml sets variables the package does not declare: #{unknown.join(', ')}" unless unknown.empty?
+required_config = %w[ENVIRONMENT_ID AGENT_ID BOOTSTRAP_ADMINISTRATORS REPOSITORY_KIND PACKAGING_POSTGRES_SECRET
+                     OPERATOR_OIDC_ISSUER OPERATOR_OIDC_CLIENT_ID OPERATOR_OIDC_USERNAME_CLAIM OPERATOR_OIDC_GROUPS_CLAIM OPERATOR_OIDC_CA_FILE]
+without_default = definition.fetch("variables").reject { |item| item.key?("default") }.map { |item| item["name"] }
+missing = (required_config | without_default) - configured.keys
+abort "uds-config.yaml must carry the deployment variables: #{missing.join(', ')}" unless missing.empty?
+abort "uds-config.yaml must select the production profile" unless configured["REPOSITORY_KIND"] == "postgres"
+configured.each do |name, value|
+  abort "uds-config.yaml #{name} must be a plain string" unless value.is_a?(String)
+  pattern = definition.fetch("variables").find { |item| item["name"] == name }["pattern"]
+  abort "uds-config.yaml #{name} does not match the pattern the package enforces at deploy" if pattern && !value.match?(Regexp.new(pattern))
+end
+# No secret may sit in a file that is read as plain text and reaches Pod specs.
+abort "uds-config.yaml must not carry credential material" if
+  uds_config_text.match?(/BEGIN [A-Z ]*(?:PRIVATE KEY|CERTIFICATE)|:\/\/[^\s\/:@]+:[^\s\/@]+@|(?:password|passwd|token|api[_-]?key)\s*[:=]\s*\S/i)
 
 example = File.join(root, "internal/packagingworkflow/fixtures/example-package")
 example_definition = YAML.safe_load(File.read(File.join(example, "zarf.yaml")))

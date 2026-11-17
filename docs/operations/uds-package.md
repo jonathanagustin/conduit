@@ -99,8 +99,14 @@ Postgres, a scrape succeeding, or what Zarf does when both `uds` and
 ## Tool versions used here
 
 - Zarf CLI `v0.82.0` for package create, lint, and the plain install.
-- UDS CLI `v0.41.0`. On the UDS cluster, deploy the Conduit package with
-  `uds zarf` so the CLI matches the Zarf agent that slim-dev installed.
+- UDS CLI `v0.41.0`, pinned by checksum in the Trunk gate
+  (`Install pinned UDS CLI` in `.github/workflows/platform-ci.yml`). On the
+  UDS cluster, deploy the Conduit package with `uds zarf` so the CLI matches
+  the Zarf agent that slim-dev installed. That vendored Zarf is `v0.89.0`
+  (`uds zarf version`), not the `v0.82.0` that builds the package; the gate
+  shows the newer one reading a package the older one built, and nothing
+  shows it deploying one. `mise.toml` does not pin the UDS CLI: adding it
+  needs `mise lock` against the GitHub API to record release asset IDs.
 - k3d `v5.9.0` for the plain cluster. The UDS path uses the k3d packaged in
   `uds-k3d` 0.21.4 (its offline variant), which the slim-dev bundle pins.
 - Slim-dev bundle
@@ -117,6 +123,21 @@ Postgres, a scrape succeeding, or what Zarf does when both `uds` and
 embeds its Core packages inside the published bundle, so this file does not
 re-pin them. Create it only after `zarf package create` has produced a
 package whose version matches `VERSION`.
+
+### UDS Core version
+
+The deploy path targets one UDS Core version, **1.17.1**. `scripts/uds-up.sh`
+pins the slim-dev bundle at 1.17.1, `workspace-schemas/v1` vendors the 1.17.1
+Package schema, and both Package CRs in `deploy/zarf/manifests` are written
+against it. That is a pairing, not a tested matrix: no other Core version has
+been deployed with this package, and the 1.17.1 pairing itself has only the
+connected-machine evidence this page describes.
+
+`docs/evidence/uds-packaging/` names UDS Core **1.15.0** instead. It is a
+frozen reference corpus for a different question, what a generated tenant
+package must satisfy, and 1.15.0 is the normative target its sources were
+pinned at. It is not a second deploy target for this package and is left as
+recorded.
 
 ## Images
 
@@ -275,14 +296,30 @@ curl -sk "https://keycloak.uds.dev/admin/realms/uds/clients?clientId=conduit-hub
 From inside the cluster, use the Keycloak Service instead. The 2026-11-14
 evidence did not reach this query: Keycloak was not installed.
 
-Optional bundle, after the Zarf package exists:
+Optional bundle, after the Zarf package exists in `deploy/zarf`:
 
 ```sh
 uds create deploy/zarf --confirm --output /tmp/conduit-zarf
+cp deploy/zarf/uds-config.yaml /tmp/conduit-zarf/uds-config.yaml
+# Replace every REPLACE-WITH value, then:
+UDS_CONFIG=/tmp/conduit-zarf/uds-config.yaml \
+  uds deploy /tmp/conduit-zarf/uds-bundle-conduit-amd64-*.tar.zst --confirm
 ```
 
 That archive contains the Conduit package with the `uds` component selected.
 It does not contain UDS Core. Deploy slim-dev first, then this bundle.
+[`uds-config.yaml`](../../deploy/zarf/uds-config.yaml) carries the deployment
+variables the `--set-variables` flags above pass one at a time, and selects
+the production `postgres` profile, so it also needs the PostgreSQL Secret.
+The bundle declares no `overrides`: in the pinned v0.41.0 schema those set
+Helm chart values, and the package deploys manifests.
+
+The Trunk gate runs `uds create` on this bundle
+(`scripts/test-uds-bundle-create.sh`) against the package built without its
+image layers, which needs no registry or cluster. It shows the pinned CLI
+assembling the bundle, loading `uds-config.yaml`, and listing every variable
+that file sets. It does not show `uds deploy`; no workflow that runs on its
+own has a cluster.
 
 
 

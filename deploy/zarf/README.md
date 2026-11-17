@@ -54,7 +54,7 @@ actions, so they cannot be set inconsistently by hand.
 The variable's default is `file`, so that a package deployed with no variables
 still starts on a cluster with no database, and an existing file-backed install
 upgrades in place. A production deployment sets `REPOSITORY_KIND=postgres`
-explicitly.
+explicitly; [`uds-config.yaml`](uds-config.yaml) does.
 
 The actions are three POSIX `sh` `case` statements. They run on the host that
 runs `zarf package deploy`, which therefore needs `sh`; a Windows deploy host
@@ -105,6 +105,25 @@ or version-pinned by the package.
 to PostgreSQL and a file-backed Hub never reads them, so the component's
 `onDeploy` action refuses the deployment, as the Helm chart refuses
 `packagingWorkflow.worker.enabled` with `repository.kind=file`.
+
+## UDS bundle
+
+[`uds-bundle.yaml`](uds-bundle.yaml) wraps this package with the `uds`
+component selected, for a cluster that already has UDS Core 1.17.1. It does
+not contain UDS Core. [`uds-config.yaml`](uds-config.yaml) is the example
+deployment configuration: it carries `ENVIRONMENT_ID`, `AGENT_ID`,
+`BOOTSTRAP_ADMINISTRATORS`, the profile, the Secret names and the
+`OPERATOR_OIDC_*` settings as package variables, and no secret values.
+
+```sh
+uds create deploy/zarf --confirm
+UDS_CONFIG=uds-config.yaml uds deploy uds-bundle-conduit-amd64-<version>.tar.zst --confirm
+```
+
+The UDS CLI is pinned at v0.41.0 by checksum in the Trunk gate, which runs
+`uds create` on the bundle without a cluster. Release Please bumps the
+bundle's version with `VERSION`. The limits of what has been run are in
+[the UDS package note](../../docs/operations/uds-package.md).
 
 ## Environment-owned Secrets
 
