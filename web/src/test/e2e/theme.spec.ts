@@ -166,3 +166,27 @@ test("gallery primitive aliases follow a local theme opposite the document", asy
     await server.close();
   }
 });
+
+test("pending URL navigation survives a repaint before hashchange", async ({
+  page,
+}) => {
+  await stubHub(page, (_request, url) => {
+    if (url.pathname === "/v1/session") return { json: session() };
+    return {
+      json: { items: [], plans: [], environments: [], bundles: [], events: [] },
+    };
+  });
+  await page.goto("/console/#area-packaging");
+  await expect(page.locator("#main-workspace")).toContainText(
+    "Packaging / Runs",
+  );
+  await page.evaluate(() => {
+    // Reproduce a refresh between URL assignment and the queued hashchange.
+    window.location.hash = "#area-releases?tab=plans&plans.status=approved";
+    Reflect.get(window, "renderMainWorkspace")();
+  });
+  await expect(page.locator("#main-workspace")).toContainText(
+    "Releases / Plans",
+  );
+  await expect(page).toHaveURL(/#area-releases\?.*plans.status=approved/);
+});

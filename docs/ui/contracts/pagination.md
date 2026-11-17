@@ -4,6 +4,12 @@ The Product, Environment, Plan, Fleet, Change Request, and Promotion indexes use
 cursors. The browser owns the current filter and cursor in the URL so reload,
 back, retry, and shared links address the same result window.
 
+Background repaints must consume a pending URL hash change before serializing
+index state. Otherwise a refresh between URL assignment and `hashchange` can
+replace the requested screen and its filters with the previous selection.
+The regression in `theme.spec.ts` forces that ordering in one browser task;
+explicit internal navigation continues to write its new selection to history.
+
 ## HTTP contract
 
 | Index | Endpoint | Filters | Views and limits |
