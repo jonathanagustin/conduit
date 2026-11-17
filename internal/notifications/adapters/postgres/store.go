@@ -218,13 +218,13 @@ func (store *Store) Close() error {
 
 // RecordEvent commits the event and every entry it reached in one transaction.
 //
-// Both inserts skip conflicts, and the reason is a real path rather than
-// defensiveness. An emit site raises this from inside a retry loop: it writes
-// the notification first and marks its own work terminal second, so that a
-// crash between the two loses a duplicate rather than the escalation. The
-// duplicate then arrives here with the same event ID, and it must land as
-// nothing at all -- not as a second inbox row telling somebody the same thing
-// twice, and not as an error that would wedge the retry that produced it.
+// The first committed recording fixes both the event and its audience. An emit
+// site can retry after a crash, re-resolving preferences that changed since its
+// first attempt. A duplicate event must therefore skip the entire new fan-out,
+// including recipients absent from the original audience. ON CONFLICT waits
+// for a concurrent event insert to commit or roll back before choosing which
+// transaction owns that snapshot; an aborted first attempt leaves a retry free
+// to record the event and its complete audience together.
 func (store *Store) RecordEvent(
 	ctx context.Context, event domain.Event, entries []domain.InboxEntry,
 ) error {
@@ -240,13 +240,21 @@ func (store *Store) RecordEvent(
 		return err
 	}
 	defer transaction.Rollback()
-	if _, err := transaction.ExecContext(ctx, `
+	inserted, err := transaction.ExecContext(ctx, `
 INSERT INTO conduit_notification_events (id, type, resource_rid, environment, occurred_at, document)
 VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (id) DO NOTHING`,
 		event.ID, string(event.Type), event.ResourceRID, event.Environment,
-		event.OccurredAt.UTC(), document); err != nil {
+		event.OccurredAt.UTC(), document)
+	if err != nil {
 		return fmt.Errorf("record notification event %s: %w", event.ID, err)
+	}
+	rows, err := inserted.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("inspect notification event insert %s: %w", event.ID, err)
+	}
+	if rows == 0 {
+		return nil
 	}
 	for _, entry := range entries {
 		if entry.Event.ID != event.ID {
