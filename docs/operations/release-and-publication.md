@@ -19,7 +19,21 @@ Before a release:
 ## Cutting a release: one instruction
 
 Land the `VERSION` bump the ordinary way — pull request, green Trunk gate,
-squash merge — and then give one instruction:
+squash merge. Before releasing, deliberately dispatch both cluster acceptance
+workflows from `main` at that release commit and let them finish:
+
+```bash
+gh workflow run platform-e2e.yml --repo jonathanagustin/conduit --ref main
+gh workflow run platform-gitless-e2e.yml --repo jonathanagustin/conduit --ref main
+```
+
+Confirm the reported run `head_sha` equals the intended full release SHA; a
+dispatch names a branch or tag, and `main` can advance between instructions.
+These are verification instructions, with disposable clusters and no publication
+authority. They remain manual-only under ADR 0006. They require working hosted
+runner capacity, the pinned tools, registry/network access and the public keyless
+signature used by Gitless acceptance. A local fixture pass does not qualify a
+release. Once both complete successfully, give the release instruction:
 
 ```bash
 gh workflow run platform-release.yml \
@@ -42,7 +56,30 @@ commit `main` points at:
   so the commit on `main` is an object no gate has seen; the verdict lives on
   the pull-request head the gate authenticated, and the check follows the merge
   back to it when exactly one merged pull request names this commit as its merge
-  commit.
+  commit;
+- the latest manually dispatched `platform-e2e.yml` and
+  `platform-gitless-e2e.yml` runs at the **exact release SHA** are completed and
+  successful in this repository. Both supported Helm matrix jobs, the Gitless
+  acceptance job, and their required acceptance steps must succeed in the
+  current run attempt. Skipped, missing, cancelled, failed and unfinished
+  evidence refuses release; a prior green run cannot hide a newer failed run.
+  Partial job reruns must be followed by a complete successful attempt. The
+  qualifier reads attempt-specific jobs, rechecks the run and latest dispatch,
+  and fails closed on unavailable/malformed API responses or incomplete result
+  pages (bounded to 100 exact-SHA dispatches per workflow). Trunk's squash-head
+  bridge never applies to cluster qualification.
+
+The Gitless owner runs its Flux API and keyless Go probes before deleting its
+cluster and private kubeconfig, with the same pinned tool path. Qualification
+requires every expected Go acceptance test to run and pass; a package success
+with skipped or absent test bodies is a refusal.
+
+The preconditions print each accepted workflow run ID, attempt, SHA and URL.
+After authorized real runs, record those actual receipts in the readiness
+evidence. Issue #843's runtime qualification and readiness run-ID requirement
+remain open until that evidence exists; the source checks and fixture tests do
+not supply it. If `main` advances before release, qualify the new exact commit
+before dispatching the release instruction.
 
 Only then does it create `vX.Y.Z`, read the tag back to confirm it names the
 verified commit, and dispatch `platform-images.yml` against the tag. It does not
@@ -59,7 +96,9 @@ tested.
 
 Dispatching `platform-images.yml` by hand is no longer a supported release step
 and now fails immediately from any ref that is not a `vX.Y.Z` tag agreeing with
-`VERSION`. It used to succeed there: the image push was not tag-gated while the
+`VERSION`, or whose actual tag commit lacks the same exact-SHA cluster
+qualification. Its preflight has read-only Actions access and checks this
+independently of the release caller. It used to succeed there: the image push was not tag-gated while the
 runtime source, charts, offline-bundle packages, CLI and GitHub release were, so a
 branch dispatch published `<component>-sha-<commit>` images, skipped everything
 else, and reported success for a fraction of a release.
