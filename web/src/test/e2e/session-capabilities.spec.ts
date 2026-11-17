@@ -86,7 +86,26 @@ test("a failed session read is stated, and Retry restores navigation", async ({
   await expect(rail(page, "Change requests")).toHaveCount(0);
   await expect(rail(page, "Packaging")).toBeVisible();
   await expect(rail(page, "Intelligence")).toBeVisible();
-  broken = false;
+  // The console also re-reads the session on its refresh cycle. Healing the
+  // stub before the click would let that refresh remove the notice, and the
+  // Retry button with it, before the click lands. Heal on the click itself, in
+  // the capture phase, so the read Retry starts is the first one that succeeds.
+  await page.exposeFunction("healSessionStub", () => {
+    broken = false;
+  });
+  await page.evaluate(() => {
+    document.addEventListener(
+      "click",
+      (event) => {
+        const target = event.target as Element | null;
+        if (target?.closest('[data-onclick="retryCapabilities()"]'))
+          void (
+            window as unknown as { healSessionStub: () => Promise<void> }
+          ).healSessionStub();
+      },
+      true,
+    );
+  });
   await notice.getByRole("button", { name: "Retry" }).click();
   await expect(rail(page, "Fleet")).toBeVisible();
   await expect(rail(page, "Change requests")).toBeVisible();
