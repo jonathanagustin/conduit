@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -39,8 +40,28 @@ type stdioClient struct {
 	cmd    *exec.Cmd
 	stdin  io.WriteCloser
 	lines  chan []byte
-	stderr *bytes.Buffer
+	stderr *stderrBuffer
 	nextID int
+}
+
+// os/exec writes stderr from a copying goroutine while a failing assertion may
+// need a snapshot before the child exits. Do not expose bytes.Buffer.ReadFrom:
+// io.Copy must go through the synchronized Write method too.
+type stderrBuffer struct {
+	mu     sync.Mutex
+	buffer bytes.Buffer
+}
+
+func (buffer *stderrBuffer) Write(data []byte) (int, error) {
+	buffer.mu.Lock()
+	defer buffer.mu.Unlock()
+	return buffer.buffer.Write(data)
+}
+
+func (buffer *stderrBuffer) String() string {
+	buffer.mu.Lock()
+	defer buffer.mu.Unlock()
+	return buffer.buffer.String()
 }
 
 func start(t *testing.T, args ...string) *stdioClient {
@@ -56,7 +77,7 @@ func start(t *testing.T, args ...string) *stdioClient {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := &stdioClient{t: t, cmd: cmd, stdin: stdin, lines: make(chan []byte, 16), stderr: &bytes.Buffer{}}
+	client := &stdioClient{t: t, cmd: cmd, stdin: stdin, lines: make(chan []byte, 16), stderr: &stderrBuffer{}}
 	cmd.Stderr = client.stderr
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
