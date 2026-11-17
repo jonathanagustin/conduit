@@ -522,6 +522,93 @@ test("a session without resource:operate is not offered a promotion, and is told
   expect(hub.writes).toHaveLength(0);
 });
 
+for (const permitted of [false, true]) {
+  test(`maintenance proposal ${permitted ? "uses a reviewed preview" : "states the missing environment operation"}`, async ({
+    page,
+  }) => {
+    const hub: Hub = {
+      operator: "alice",
+      resourceOperations: permitted
+        ? ["resource:read", "change:propose"]
+        : ["resource:read"],
+      plans: [
+        {
+          ...basePlan,
+          plan: {
+            environment: "dev",
+            steps: [{ entity: "api", installationId: "api-1" }],
+          },
+        },
+      ],
+      changes: [],
+      promotions: [],
+      writes: [],
+      answer: (path, body) =>
+        path !== "/v1/temporary-maintenance-overrides"
+          ? null
+          : {
+              status: 200,
+              json: {
+                valueTier: "CONDUIT_NATIVE",
+                dryRun: body.dryRun,
+                requests: [
+                  {
+                    changeRequestId: "maintenance-preview",
+                    environment: "dev",
+                    entity: "api",
+                    startsAt: body.startsAt,
+                    endsAt: new Date(
+                      Date.parse(body.startsAt) +
+                        Number(body.duration.slice(0, -1)) * 60000,
+                    ).toISOString(),
+                    type: body.downtime ? "DOWNTIME" : "NO_DOWNTIME",
+                    status: "PENDING_APPROVALS",
+                  },
+                ],
+              },
+            },
+    };
+    await hydrate(page);
+    await stubHub(page, hub);
+    await page.goto("/console/");
+    await openArea(page, "Releases", "Windows");
+    const panel = page.locator("[data-window-scheduler]");
+    const preview = panel.locator("[data-preview-window]");
+    const save = panel.locator("[data-save-window]");
+    if (!permitted) {
+      const reason =
+        "Your session does not hold change:propose on environment/dev.";
+      await expect(panel.locator("[data-window-capability]")).toHaveText(
+        reason,
+      );
+      await expect(preview).toBeDisabled();
+      await expect(preview).toHaveAttribute("title", reason);
+      await expect(save).toBeDisabled();
+      expect(hub.writes).toHaveLength(0);
+      return;
+    }
+    await expect(preview).toBeEnabled();
+    await panel.locator('[name="reason"]').fill("reviewed maintenance");
+    await preview.click();
+    await expect(panel.locator("[data-window-message]")).toContainText(
+      "Preview maintenance-preview",
+    );
+    await expect(save).toBeDisabled();
+    expect(hub.writes).toHaveLength(1);
+    expect(hub.writes[0].body.dryRun).toBe(true);
+    await panel.locator("[data-confirm-window]").check();
+    await save.click();
+    await expect(panel.locator("[data-window-message]")).toContainText(
+      "Change request maintenance-preview",
+    );
+    expect(hub.writes).toHaveLength(2);
+    expect(hub.writes[1].body).toMatchObject({
+      dryRun: false,
+      expectedChangeRequestId: "maintenance-preview",
+    });
+  });
+}
+
 const planningSession = {
   id: "ps_linked",
   status: "ready",

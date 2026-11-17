@@ -1,4 +1,8 @@
 import {
+  capabilityBlocks,
+  deliveryCapabilityHook,
+} from "./delivery-actions.js";
+import {
   mountEnvironmentHub,
   selectedEnvironment,
 } from "./release-environment-hub.js";
@@ -130,6 +134,8 @@ export function mountWindowScheduler(root, hub, options = {}) {
       "<h2>Propose a maintenance window</h2><p>No visible planned Entity is available for the selected environment.</p>";
     return;
   }
+  const capability = () =>
+    deliveryCapabilityHook("change:propose", `environment/${environment}`);
   let values = {
     entity: targets[0].entity,
     start: new Date(Math.ceil((Date.now() + 3600000) / 60000) * 60000)
@@ -173,6 +179,9 @@ export function mountWindowScheduler(root, hub, options = {}) {
   });
   function paint() {
     if (!current()) return;
+    const gate = capability();
+    const blocked = capabilityBlocks(gate);
+    const refusal = blocked ? ` title="${esc(gate.reason)}"` : "";
     form.innerHTML = `<h2>Propose a maintenance window</h2><p>Draft only. Drag the bar to shift the start, or its end handle to resize. Arrow keys shift by 15 minutes; Shift + arrow resizes. No recorded window is edited.</p>
    <fieldset ${busy ? "disabled" : ""}><label>Entity <select name="entity">${targets.map((row) => `<option value="${esc(row.entity)}">${esc(row.entity)}</option>`).join("")}</select></label>
    <label>Start (UTC) <input name="start" type="datetime-local" required /></label>
@@ -180,9 +189,10 @@ export function mountWindowScheduler(root, hub, options = {}) {
    <label>Reason <input name="reason" maxlength="4096" required /></label><label>Compliance ticket <input name="ticket" maxlength="512" /></label>
    <label><input name="downtime" type="checkbox" ${values.downtime ? "checked" : ""} />Permit downtime in this proposal</label>
    <div data-draft-track style="height:40px;background:var(--so-card)"><div data-draft-bar role="slider" tabindex="0" aria-label="Draft maintenance interval" aria-valuemin="1" aria-valuemax="216000" aria-valuenow="${esc(values.minutes)}" aria-valuetext="${esc(values.start)} UTC, ${esc(values.minutes)} minutes" style="height:40px;background:var(--bar-info);touch-action:none;position:relative"><span data-draft-label></span><span data-draft-resize role="button" tabindex="0" aria-label="Resize draft duration" style="position:absolute;right:0;top:0;height:40px;cursor:ew-resize">↔</span></div></div>
-   <button type="button" data-preview-window ${busy ? "disabled" : ""}>Preview change request</button>
-   <label><input type="checkbox" data-confirm-window ${confirmed ? "checked" : ""} ${!preview || busy ? "disabled" : ""}/>Confirm this reviewed maintenance proposal</label>
-   <button type="button" data-save-window ${!preview || !confirmed || busy ? "disabled" : ""}>Create change request</button>
+   ${blocked ? `<p role="status" data-window-capability>${esc(gate.reason)}</p>` : ""}
+   <button type="button" data-preview-window ${busy || blocked ? "disabled" : ""}${refusal}>Preview change request</button>
+   <label><input type="checkbox" data-confirm-window ${confirmed ? "checked" : ""} ${!preview || busy || blocked ? "disabled" : ""}/>Confirm this reviewed maintenance proposal</label>
+   <button type="button" data-save-window ${!preview || !confirmed || busy || blocked ? "disabled" : ""}${refusal}>Create change request</button>
    </fieldset><p role="status" data-window-message>${esc(message)}</p><p>Normal Hub policy decides approval. Creating a request does not execute a Plan or publish a release. Existing windows, blackouts and dependency timing still require their native evidence.</p>`;
     fields();
   }
@@ -204,7 +214,7 @@ export function mountWindowScheduler(root, hub, options = {}) {
     if (event.target.matches("[data-confirm-window]")) {
       confirmed = event.target.checked;
       form.querySelector("[data-save-window]").disabled =
-        !preview || !confirmed;
+        !preview || !confirmed || capabilityBlocks(capability());
       return;
     }
     values = read();
@@ -260,7 +270,11 @@ export function mountWindowScheduler(root, hub, options = {}) {
     const button = event.target.closest(
       "[data-preview-window],[data-save-window]",
     );
-    if (!button || busy) return;
+    if (!button || busy || button.disabled) return;
+    if (capabilityBlocks(capability())) {
+      paint();
+      return;
+    }
     const saving = button.hasAttribute("data-save-window");
     let body, fingerprint;
     try {
