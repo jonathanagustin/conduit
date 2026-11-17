@@ -50,6 +50,12 @@ func (service *Service) boundRoot() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("repository root: %w", err)
 	}
+	// Derive every returned relative path against the same canonical root used
+	// for confinement, including checkouts reached through filesystem aliases.
+	abs, err = filepath.EvalSymlinks(abs)
+	if err != nil {
+		return "", fmt.Errorf("repository root: %w", err)
+	}
 	info, err := os.Stat(abs)
 	if err != nil {
 		return "", fmt.Errorf("repository root: %w", err)
@@ -348,7 +354,7 @@ func readRepoFile(root, rel string) (domain.RepoFile, error) {
 	sum := sha256.Sum256(data)
 	display, err := filepath.Rel(root, clean)
 	if err != nil {
-		display = rel
+		return domain.RepoFile{}, fmt.Errorf("repository-relative file path: %w", err)
 	}
 	return domain.RepoFile{
 		Path:      filepath.ToSlash(display),

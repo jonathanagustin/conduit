@@ -2,8 +2,12 @@ package packagingtools
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -87,5 +91,54 @@ func writeFile(t *testing.T, root, name, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestReadFileCanonicalizesAliasedRepositoryRoot(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink fixture")
+	}
+	parent := t.TempDir()
+	root := filepath.Join(parent, "owned")
+	const raw = "# guide\npassword=hunter2hunter2\n"
+	writeFile(t, root, "docs/guide.md", raw)
+	writeFile(t, root, ".env", "API_TOKEN=fixture\n")
+	writeFile(t, parent, "outside.txt", "outside repository\n")
+	alias := filepath.Join(parent, "checkout-alias")
+	for name, target := range map[string]string{
+		alias:                               root,
+		filepath.Join(root, "README.md"):    filepath.Join("docs", "guide.md"),
+		filepath.Join(root, "outside-link"): filepath.Join(parent, "outside.txt"),
+		filepath.Join(root, "secret-link"):  ".env",
+	} {
+		if err := os.Symlink(target, name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sum := sha256.Sum256([]byte(raw))
+	for name, checkout := range map[string]string{"direct": root, "alias": alias} {
+		t.Run(name, func(t *testing.T) {
+			service := New(WithRepoRoot(checkout))
+			if !service.RepositoryBound() {
+				t.Fatal("existing checkout must remain bound")
+			}
+			for _, requested := range []string{"docs/guide.md", "README.md"} {
+				got, err := service.ReadFile(t.Context(), requested)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got.Path != "docs/guide.md" || got.Content != "# guide\npassword=[REDACTED]\n" || got.SHA256 != hex.EncodeToString(sum[:]) || got.Truncated {
+					t.Fatalf("%s: canonical path/raw digest/redaction mismatch: %#v", requested, got)
+				}
+			}
+			for _, requested := range []string{"../outside.txt", "outside-link"} {
+				if _, err := service.ReadFile(t.Context(), requested); err == nil {
+					t.Fatalf("escape accepted: %s", requested)
+				}
+			}
+			if _, err := service.ReadFile(t.Context(), "secret-link"); !errors.Is(err, ErrSecretPath) {
+				t.Fatalf("secret symlink accepted: %v", err)
+			}
+		})
 	}
 }
