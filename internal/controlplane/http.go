@@ -53,6 +53,9 @@ type EntityConfigurationAdapter func(
 type HandlerOptions struct {
 	RequireSpaceSelection func(context.Context, Principal, string) error
 	ReserveProductSpace   func(context.Context, Principal, string, string) error
+	// SessionResourceScope resolves requested capability metadata only. It does
+	// not participate in route authorization or change the returned resource key.
+	SessionResourceScope func(context.Context, string) (string, bool, error)
 	// SpaceIDLookup reads independently authorized native assignment metadata.
 	SpaceIDLookup                        func(context.Context, Principal, string, string) (string, error)
 	ConsoleHandler                       http.Handler

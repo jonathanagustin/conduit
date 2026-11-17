@@ -3,6 +3,7 @@ package controlplane
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -149,5 +150,65 @@ func TestSessionRequiresAuthenticatedOperatorIdentity(t *testing.T) {
 	NewHandler(NewMemoryRepository()).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/session", nil))
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestSessionResourceScopeIsMetadataOnlyAndFailsClosed(t *testing.T) {
+	t.Parallel()
+	repository := NewMemoryRepository()
+	governance := NewGovernanceService(repository)
+	if _, err := governance.PutTeam(t.Context(), Team{
+		Name: "viewers", DisplayName: "Viewers", AdminUsers: []string{"team-admin"}, MemberUsers: []string{"alice"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := governance.PutGrant(t.Context(), ResourceGrant{
+		ResourceRID: "environment/dev", Team: "viewers", Roles: []string{"environment:viewer"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	requested := []string{"known-alias", "unknown-alias", "error-alias", "empty-alias", "environment/dev"}
+	configuration := HandlerOptions{
+		BootstrapAdministrators: []string{"root"},
+		SessionResourceScope: func(_ context.Context, resource string) (string, bool, error) {
+			switch resource {
+			case "known-alias":
+				return "environment/dev", true, nil
+			case "unknown-alias":
+				return "environment/dev", false, nil
+			case "error-alias":
+				return "environment/dev", true, errors.New("inventory unavailable")
+			case "empty-alias":
+				return "", true, nil
+			case "environment/dev":
+				return resource, true, nil
+			default:
+				t.Fatalf("resolver received unrequested resource %q", resource)
+				return "", false, nil
+			}
+		},
+	}
+	for _, actor := range []string{"alice", "root"} {
+		principal := Principal{Username: actor, Teams: []string{"viewers"}}
+		projection, err := projectSession(t.Context(), governance, principal, configuration, requested)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, resource := range projection.Resources {
+			readable := resource.ResourceRID == "known-alias" || resource.ResourceRID == "environment/dev"
+			if contains(resource.Operations, OperationReadResource) != readable || (!readable && len(resource.Operations) != 0) {
+				t.Fatalf("%s capability metadata failed closed resolution: %#v", actor, resource)
+			}
+		}
+		if len(projection.GlobalOperations) != 0 && actor == "alice" {
+			t.Fatalf("alias expanded global capabilities: %#v", projection.GlobalOperations)
+		}
+	}
+	// The optional projection port cannot become an authorization shortcut for
+	// another route. Only its ordinary native coordinate receives the grant.
+	alice := Principal{Username: "alice", Teams: []string{"viewers"}}
+	if governance.AuthorizeResourceOperation(t.Context(), alice, configuration, "known-alias", OperationReadResource) ||
+		!governance.AuthorizeResourceOperation(t.Context(), alice, configuration, "environment/dev", OperationReadResource) {
+		t.Fatal("session metadata resolver changed native route authorization")
 	}
 }

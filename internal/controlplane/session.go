@@ -99,9 +99,18 @@ func projectSession(
 		Resources:        make([]SessionResourceCapabilities, 0, len(resourceRIDs)),
 	}
 	for _, rid := range resourceRIDs {
+		scope, known := rid, true
+		var err error
+		if configuration.SessionResourceScope != nil {
+			scope, known, err = configuration.SessionResourceScope(ctx, rid)
+		}
+		operations := []string{}
+		if err == nil && known && scope != "" {
+			operations = sessionOperations(ctx, governance, principal, configuration, scope)
+		}
 		projection.Resources = append(projection.Resources, SessionResourceCapabilities{
 			ResourceRID: rid,
-			Operations:  sessionOperations(ctx, governance, principal, configuration, rid),
+			Operations:  operations,
 		})
 	}
 	return projection, nil

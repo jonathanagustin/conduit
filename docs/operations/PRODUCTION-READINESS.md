@@ -158,6 +158,18 @@ carried to the residual list as item 5.
    `TestThroughTheHubOnePrincipalIsRefusedAnotherPrincipalsInboxAndPreference`
    holds it down against the assembled Hub.
 
+   **Environment notification authorization uses the existing native scope.**
+   #890 joins an opaque Environment RID to one exact valid identity in the
+   durable native Environment catalog, then asks the existing authorizer about
+   `environment/<id>`. The shared resolver also supplies background recipient
+   checks and requested-resource session capabilities, preserving the raw response
+   key and leaving mutating route authorization unchanged. Native viewer grants
+   and their revocation apply before fan-out and external submission. Unknown or
+   ambiguous aliases fail closed; event metadata is not an identity source.
+   Stored keys and historical audiences are unchanged.
+   This alias is a registered Conduit extension, and a missing catalog identity
+   prevents opaque-RID authorization rather than triggering a guessed fallback.
+
    **A recipient now has an address of their own.** The sentence this row
    carried for its whole life — nothing in this repository stores a person's
    email address or a team's Slack channel — is no longer true. `ports.Contacts`

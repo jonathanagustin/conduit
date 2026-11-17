@@ -64,6 +64,9 @@ func NewHub(
 		options.BundlePrivateKey = key
 	}
 	options = withSpaceLookup(repository, options, hubOptions.Spaces)
+	if options.SessionResourceScope == nil {
+		options.SessionResourceScope = notificationResourceResolver{repository: repository}.resolve
+	}
 	eligibility, err := NewNotificationRecipientEligibility(repository, options)
 	if err != nil {
 		return nil, err
