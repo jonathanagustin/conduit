@@ -70,15 +70,17 @@ kind, full repository and digest, architecture and package name in both the
 Plan inspector and the newest release in Products and versions. These are
 declared coordinates, not evidence that an artifact is deployed.
 
-When selecting a package, the desired state's Environment must declare
-`packageArchitecture: amd64` or `packageArchitecture: arm64`. This is a
+When selecting a package, the native desired-state Environment must declare
+`packageArchitecture: amd64` or `packageArchitecture: arm64`. This field belongs
+only to that native document, not an Apollo API or Environment profile. This is a
 Conduit-native operator declaration, not discovered cluster inventory. A
 pinned incompatible Release is refused at proposal; channel selection excludes
 incompatible Releases and can select an older compatible one. A catalog may
 still contain packages for other targets. Helm-only deployments need no
 declaration. The Spoke independently checks its configured architecture before
 running a package command, so an incorrect operator declaration grants no
-execution authority.
+execution authority. Ineligibility reason `PACKAGE_ARCHITECTURE` is also
+Conduit-native.
 
 `digest` must name the platform manifest for that one architecture. An OCI index
 digest is unsupported. A false declaration of one architecture is not verified

@@ -227,6 +227,9 @@ type ReleaseIneligibility struct {
 //     Apollo Hub". This repository fails closed on both.
 //   - The SECURITY_ kinds have no upstream counterpart on that page. ArtifactSecurityPolicy is a
 //     policy this repository applies; nothing recovered names a vulnerability-scan constraint.
+//   - PACKAGE_ARCHITECTURE is Conduit-native admission against the operator's
+//     native desired-state target declaration, not an Apollo constraint or
+//     discovered cluster capability.
 const (
 	IneligiblePackageArchitecture = "PACKAGE_ARCHITECTURE"
 
