@@ -727,8 +727,13 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       next.packagingNote = "Hub did not return packaging runs.";
     }
     try {
-      const chain = await read("/v1/authorization-audit?view=chain");
-      next.audit = Array.isArray(chain.entries) ? chain.entries : [];
+      // The audit read is cursor-paged and oldest-first. Follow the cursor to
+      // the catch-up bound; past it the truncation mark says rows are missing.
+      next.audit = await pages(
+        "/v1/authorization-audit?view=chain&limit=200",
+        "entries",
+        "audit",
+      );
     } catch {
       next.auditNote = "Hub did not return the audit chain.";
     }
