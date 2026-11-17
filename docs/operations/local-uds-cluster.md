@@ -31,6 +31,21 @@ CLI context without identifying the API endpoint to UDS/k3d. With an explicit
 `DOCKER_HOST`, the scripts clear `DOCKER_CONTEXT` in their own process so that
 Docker CLI operations use that endpoint, too.
 
+The pinned slim-dev bundle also requires a Docker-compatible executable named
+`docker` on `PATH`, as well as host `k3d` (minimum 5.7.1; Core 1.17.1's own
+tooling pins 5.9.0). Selecting Podman as the engine does not supply that client.
+The required airgap component directly runs `docker image load`,
+`docker volume create` and `docker run` to prepare the k3s image volume. See the
+[pinned component source](https://github.com/defenseunicorns/uds-k3d/blob/fd1b73c13c7d75ca0856a8ae7f9293042e9e9fb1/airgap/k3d/zarf.yaml#L49-L56).
+A separate Docker daemon is unnecessary when that compatible client uses the
+explicit API endpoint of the selected Podman engine.
+
+Before any network or bundle mutation, `uds-up` requires `docker --version` to
+succeed. This checks that the client can execute; it does not qualify its image
+load/volume commands against Podman. The wrapper retains this preflight when
+`UDS_CORE_REF` is overridden. Custom bundles and their additional requirements
+remain unverified. No Podman-as-Docker shim is installed or assumed.
+
 k3d describes Podman support as experimental. Its
 [Podman guide](https://k3d.io/v5.6.2/usage/advanced/podman/) covers API service,
 socket mount and rootless engine prerequisites, including `DOCKER_SOCK` where
@@ -58,8 +73,11 @@ mise run uds-up
 ```
 
 `--print-plan` needs no engine and runs no cluster commands. `--dry-run` checks
-the selected engine with `info`, then prints the proposed commands. Neither
-creates a cluster or applies the host adaptations.
+the selected engine with `info`, then prints the proposed commands and the
+bundle-client requirement. Both skip the deployment-only `docker --version`
+check, so a printed plan is not a prerequisite check. Neither creates a cluster
+or applies the host adaptations. `uds-down` does not need this extra client;
+it retains the selected engine and named k3d deletion path.
 
 Choose unused host ports for concurrent tasks. The optional
 `UDS_K3D_API_PORT`, `UDS_K3D_HTTP_PORT` and `UDS_K3D_HTTPS_PORT` settings forward
