@@ -1588,11 +1588,11 @@ export function mountOperator(host, options) {
       .join("");
     strip.dataset.liveState = state.liveEvents?.state || "idle";
     strip.title =
-      "Latest authorized Hub read; counts cover loaded rows. Spoke liveness is report freshness, not a network probe.";
+      "Latest authorized Hub read. A dash means the complete, unfiltered input is unavailable in this view. Spoke liveness is report freshness, not a network probe.";
     strip.innerHTML =
       (allLive(kpis)
         ? ""
-        : '<span class="text-[10px] uppercase tracking-[0.08em] text-[#eab854]">Read unavailable</span>') +
+        : `<span class="text-[10px] uppercase tracking-[0.08em] text-[#eab854]">${state.hub?.pagedIndexes && !state.hub.loading ? "View snapshot" : "Read unavailable"}</span>`) +
       cells;
   }
 

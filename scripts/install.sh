@@ -129,9 +129,9 @@ sha256_check() {
 	printf '%s  %s\n' "${expected}" "$(basename "${file}")" >"${checksums}"
 	status=0
 	if command -v sha256sum >/dev/null 2>&1; then
-		(cd "$(dirname "${file}")" && sha256sum --check "${checksums}") || status=$?
+		(cd "$(dirname "${file}")" && sha256sum -c "${checksums}") || status=$?
 	elif command -v shasum >/dev/null 2>&1; then
-		(cd "$(dirname "${file}")" && shasum -a 256 --check "${checksums}") || status=$?
+		(cd "$(dirname "${file}")" && shasum -a 256 -c "${checksums}") || status=$?
 	else
 		echo "Need sha256sum or shasum to verify the mise download." >&2
 		status=1
@@ -229,6 +229,10 @@ install_main() {
 
 	detect_platform
 	echo "Platform: ${platform_label} ${platform_machine}."
+	if [[ "${platform_family}" == macos ]] && ! conduit_host_tool_works cc --version; then
+		echo 'The full developer setup needs Xcode Command Line Tools to compile the patched Ruby JSON gem and run Go race tests. Install them with xcode-select --install, then re-run. Prebuilt Go, Node and Conduit CLI binaries can run without them.' >&2
+		return 1
+	fi
 
 	existing="$(command -v mise 2>/dev/null || true)"
 	if [[ -n "${existing}" ]] && mise_version_matches "${existing}"; then
@@ -239,7 +243,7 @@ install_main() {
 			mise_dest="${existing}"
 		fi
 	else
-		install_mise_asset
+		install_mise_asset || return $?
 	fi
 
 	# Trust before activation so the first read of mise.toml does not warn.
@@ -251,7 +255,8 @@ install_main() {
 
 	# mise.toml sets lockfile, locked provenance verification, and minimum
 	# release age. Do not pass flags that turn those off.
-	mise install --locked --yes
+	mise install --locked --yes || return $?
+	mise run install-ruby-json || return $?
 
 	if [[ "$(uname -s)" == "Linux" && "$(uname -m)" == "x86_64" ]]; then
 		mise run install-cursor
@@ -262,10 +267,10 @@ install_main() {
 
 	echo
 	echo "Host prerequisites outside mise:"
-	if ! command -v git >/dev/null 2>&1; then
+	if ! conduit_host_tool_works git --version; then
 		case "${platform_label}" in
 		macOS)
-			problem "Git is not on PATH. Install the Xcode command line tools or a Git package, then re-run."
+			problem "Git cannot run. Install the Xcode command line tools or a Git package, then re-run."
 			;;
 		"Windows Git Bash")
 			problem "Git is not on PATH. Install Git for Windows and re-run this script from Git Bash."
@@ -287,25 +292,25 @@ install_main() {
 	else
 		echo "tar: present"
 	fi
-	if ! command -v sha256sum >/dev/null 2>&1; then
-		problem "sha256sum is not on PATH. scripts/fetch-temporal-cli.sh checks its download with sha256sum."
+	if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
+		problem "sha256sum or shasum is required to verify the Temporal CLI download."
 	else
-		echo "sha256sum: present"
+		echo "SHA-256 checker: present"
 	fi
-	if ! command -v python3 >/dev/null 2>&1; then
-		problem "python3 is not on PATH. scripts/demo-seed.sh uses it to publish the sample chart and read JSON."
+	if ! conduit_host_tool_works python3 --version; then
+		problem "python3 cannot run. scripts/demo-seed.sh uses it to publish the sample chart and read JSON."
 	else
 		echo "python3: $(python3 --version 2>&1)"
 	fi
-	if ! command -v go >/dev/null 2>&1; then
-		problem "go is not on PATH after mise install. Activate mise and re-run."
+	if ! conduit_host_tool_works go version; then
+		problem "go cannot run after mise install. Activate mise and re-run."
 	else
 		echo "go: $(go version)"
 	fi
-	if ! date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ >/dev/null 2>&1; then
-		problem "GNU date is required (date -d). scripts/demo-seed.sh uses it. Install GNU coreutils and put that date on PATH."
+	if ! conduit_host_tool_works ruby --version; then
+		problem "ruby cannot run after mise install. Activate mise and re-run; macOS system Ruby is too old for the validators."
 	else
-		echo "GNU date: present"
+		echo "ruby: $(ruby --version)"
 	fi
 	if ! command -v seq >/dev/null 2>&1; then
 		problem "seq is not on PATH. scripts/demo-seed.sh uses it while waiting for local services."
@@ -344,6 +349,8 @@ install_main() {
 }
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/development-host.sh
+source "${repo_root}/scripts/lib/development-host.sh"
 CONDUIT_INSTALL_SOURCED="${sourced}"
 status=0
 (

@@ -426,8 +426,10 @@ if [[ "$(reported_at)" == "${seeded_report}" ]]; then
   exit 1
 fi
 
-now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-hour_ago="$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ)"
+# shellcheck source=lib/development-host.sh
+source "${root}/scripts/lib/development-host.sh"
+now="$(conduit_utc_timestamp 0)"
+hour_ago="$(conduit_utc_timestamp -3600)"
 api POST /v1/promotions/evaluations "$(cat <<JSON
 {
   "release": {

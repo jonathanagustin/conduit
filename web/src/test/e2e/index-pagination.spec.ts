@@ -98,6 +98,12 @@ test("1,000-row indexes keep server filters, cursors and linked selections acros
   await expect(planControls.locator("[data-index-count]")).toHaveText(
     "Showing 20 of 1000 plans in this page.",
   );
+  await expect(page.locator("#header-kpi-strip")).toContainText(
+    "View snapshot",
+  );
+  await expect(page.locator("#header-kpi-strip")).not.toContainText(
+    "Read unavailable",
+  );
   await expect(page.locator("[data-release-plan-inspector]")).toContainText(
     "plan-999 · SUCCEEDED",
   );
