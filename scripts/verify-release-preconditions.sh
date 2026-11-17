@@ -159,6 +159,8 @@ EOF
   exit 1
 fi
 
+RELEASE_COMMIT="${commit}" "${repo_root}/scripts/verify-cluster-qualification.sh"
+
 cat <<EOF
 release preconditions: ${tag} is unused, VERSION at ${commit} says ${version},
 ${commit} is contained in ${base_branch}, and the ${trunk_gate_context} status is
