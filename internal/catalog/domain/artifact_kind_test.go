@@ -11,7 +11,7 @@ const packageDigest = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccc
 func zarfArtifact() Artifact {
 	return Artifact{
 		Kind: ArtifactKindZarfPackage, Repository: "ghcr.io/example/excalidraw", Digest: packageDigest,
-		Architectures: []string{"amd64", "arm64"}, PackageName: "excalidraw",
+		Architectures: []string{"amd64"}, PackageName: "excalidraw",
 	}
 }
 
@@ -62,6 +62,7 @@ func TestPackageArtifactRefusals(t *testing.T) {
 		"digest inside repository":  {func(a *Artifact) { a.Repository += "@" + packageDigest }, "repository"},
 		"uppercase digest":          {func(a *Artifact) { a.Digest = strings.ToUpper(a.Digest) }, "digest"},
 		"no architectures":          {func(a *Artifact) { a.Architectures = nil }, "architectures"},
+		"multiarchitecture index":   {func(a *Artifact) { a.Architectures = []string{"amd64", "arm64"} }, "architectures"},
 		"unknown architecture":      {func(a *Artifact) { a.Architectures = []string{"sparc"} }, "architectures"},
 		"repeated architecture":     {func(a *Artifact) { a.Architectures = []string{"amd64", "amd64"} }, "architectures"},
 		"no package name":           {func(a *Artifact) { a.PackageName = "" }, "packageName"},

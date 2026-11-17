@@ -471,10 +471,10 @@
     },
     {
       "id": "catalog.PackageArtifactKind",
-      "what": "Three optional fields on a Release's deployable artifact (the existing chart coordinate): kind (helm-chart by default, zarf-package or uds-bundle), architectures, and packageName, the Zarf package name the artifact deploys as. A package kind is addressed by repository and sha256 digest only; a tag is refused.",
+      "what": "Three optional fields on a Release's deployable artifact (the existing chart coordinate): kind (helm-chart by default, zarf-package or uds-bundle), architectures (exactly one platform), and packageName, the Zarf package name the artifact deploys as. A package kind is addressed by repository and sha256 digest only; a tag is refused.",
       "why": "The pinned Apollo publication models carry Helm charts and services and state no Zarf or UDS artifact. Without a declared kind the Spoke's Zarf/UDS executor derived an OCI reference from the Product name, and nothing told a reviewer or the Spoke which tool a step would run. The existing coordinate was extended, rather than a second artifact added, so that scanning coverage, availability evidence, registry assignment and Bundle transfer cover a package by the rules they already apply to a chart.",
       "displacedBy": "a published or owner-approved Product Release contract that states how a Zarf package or UDS bundle artifact, its architectures and its deployed package name are declared.",
-      "riskIfWrong": "The field names and the reuse of the chart coordinate may need replacing. Absent fields mean a Helm chart, so no stored Release changes meaning or digest. Architecture is enforced by the Spoke at execution, not at planning, because the Environment model records none. A multi-architecture index digest does not match what Zarf records and fails closed. The Apollo manifest routes cannot publish a package kind."
+      "riskIfWrong": "The field names and reuse of the chart coordinate may need replacing. Absent fields preserve Helm documents and digests. The Hub checks selected packages against the operator-declared Environment packageArchitecture, and the Spoke independently checks its configured target. Multiarchitecture declarations are refused; a falsely declared OCI index still fails exact deployed-digest readback. The Apollo manifest routes cannot publish a package kind."
     },
     {
       "id": "agent.AppliedPackageRecord",
@@ -482,6 +482,13 @@
       "why": "Zarf v0.82.0 records which package is deployed and its generation but not the variables a deployment was given, and uds v0.41.0 has no machine-readable record of a deployed bundle. Without a record of its own the executor could only echo the Plan or report the configuration as indeterminate, and the Hub accepts neither as a success, so no package Plan could finish. The Helm executor already keeps the same kind of identity in the release description.",
       "displacedBy": "a Zarf or UDS release that records the variables and source reference a deployment was given in its own deployed-package state, or a published contract for reading them back.",
       "riskIfWrong": "The record is the Spoke's account of its own action, not a read of live configuration: changes made underneath the package without a Zarf deploy are not detected, and anyone who can write ConfigMaps in the namespace can write it. For a bundle only the one named package is bound. A reader between the delete and the create sees no record and reports INDETERMINATE."
+    },
+    {
+      "id": "environments.PackageTargetArchitecture",
+      "what": "An optional packageArchitecture on the native desired-state Environment, required when selecting a Zarf package or UDS bundle, admitting only matching package declarations with one architecture and excluding incompatible channel candidates.",
+      "why": "Issue #833 requires architecture admission before approval. No Environment runtime capability or discovered architecture currently exists. An explicit operator declaration is narrower than guessing from Hub hardware, labels, or Spoke enrollment; the Spoke independently checks its actual configured target.",
+      "displacedBy": "a published or owner-approved Environment capability contract establishing package target architecture and its admission semantics.",
+      "riskIfWrong": "This is a Conduit-native operator declaration, not cluster discovery or proof that all nodes share an architecture. A misdeclared target is still refused by the Spoke before execution. Clusters with mixed architectures and OCI index-to-platform resolution remain unsupported; the omission preserves existing Helm desired-state documents."
     }
   ],
   "displaced": [
