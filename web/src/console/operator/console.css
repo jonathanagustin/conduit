@@ -547,9 +547,6 @@
 }
 
 @media (max-width: 1220px) {
-  .topbar-kpi-strip {
-    display: none !important;
-  }
   #right-chat-rail:not(.is-collapsed) {
     width: 206px !important;
   }
@@ -740,8 +737,38 @@
   }
 }
 
-/* Show header inline KPIs cleanly on >= 980px unless screen hides KPIs */
-@media (min-width: 980px) {
+/* Reserve the compact header for controls; KPI content must not push them
+   outside the viewport and scroll a pointer target during focus. */
+.topbar-kpi-strip {
+  display: none !important;
+}
+/* Stream state can change between pointer down and up. Reserve its slots in
+   compact headers so a status/retry update does not move neighbouring buttons. */
+@media (min-width: 768px) and (max-width: 1439px) {
+  #live-events-controls {
+    width: 184px;
+    flex: 0 0 184px;
+  }
+  #operator-chip {
+    width: 160px;
+    min-width: 0;
+    flex: 0 0 160px;
+  }
+  #live-events-status {
+    width: 96px;
+    flex: 0 0 96px;
+  }
+  #live-events-retry {
+    width: 80px;
+    flex: 0 0 80px;
+  }
+  #live-events-retry[hidden] {
+    display: inline-flex !important;
+    visibility: hidden;
+  }
+}
+/* Show inline KPIs at desktop width unless the screen hides them. */
+@media (min-width: 1440px) {
   .topbar-kpi-strip:not(.kpi-hidden) {
     display: flex !important;
   }

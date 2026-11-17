@@ -509,7 +509,7 @@ jobs:
       - name: Build operator console
         if: needs.scope.outputs.console == 'true'
         run: ./scripts/build-console.sh
-      - name: Install pinned console browser
+      - name: Install pinned console browsers
         if: needs.scope.outputs.console == 'true'
         # Bounded and retried, because an unbounded download here can consume
         # the whole job. Twice on 2026-08-18 this step hung for 19.6 minutes and
@@ -528,7 +528,7 @@ jobs:
         # lane, not the Go, CLI, and validator lanes, which have already run.
         run: |
           for attempt in 1 2 3; do
-            if timeout 5m pnpm --dir web exec playwright install --with-deps chromium; then
+            if timeout 5m pnpm --dir web exec playwright install --with-deps chromium firefox webkit; then
               exit 0
             fi
             echo "console browser install attempt ${attempt} failed or timed out" >&2

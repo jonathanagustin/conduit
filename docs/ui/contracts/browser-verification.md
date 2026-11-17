@@ -1,0 +1,45 @@
+# Console browser verification
+
+The normal console suite has Chromium, Firefox and WebKit projects using the
+revisions selected by the frozen Playwright dependency. Functional and axe
+accessibility specs run on all three engines. Chromium alone runs
+`visual-areas.spec.ts`: its pixel baselines are explicitly qualified for native
+Linux and the named QEMU renderer, not other rendering engines.
+
+`platform-ci.yml` installs all three browsers and their OS dependencies through
+Playwright's standard `--with-deps` installer, with the existing bounded retry
+policy. `test-console.sh` installs the same browser revisions before executing
+the complete suite. Browser test failures do not receive retries. The named
+local Chromium launch profile remains unchanged; Firefox/WebKit receive no
+Chromium-specific flags.
+
+For a focused local engine run after installing its dependencies:
+
+```sh
+cd web
+pnpm exec playwright install firefox webkit
+pnpm exec playwright test --project=firefox
+pnpm exec playwright test --project=webkit
+```
+
+A downloaded binary is not a qualified browser. Missing libraries or startup
+failures are infrastructure failures, not passing or skipped assertions. A
+focused project result is not a complete local-CI receipt. Review the complete
+native hosted gate for the proposed head before merging browser changes.
+
+## Pointer and focus stability
+
+The compact header reserves space for identity and live-status controls before
+their first reads complete. A held pointer must still target the same button
+after those reads; font rounding alone is not a lost click. Unchanged shell
+markup retains its DOM targets. If navigation markup changes, a still-rendered
+control that had focus is restored by its action identity. Area tabs and a
+completed delivery outcome likewise retain focus through workspace repaint.
+No control is activated by restoring focus, and removed controls are not revived.
+
+The header regression holds the session response between pointer down and up,
+checks the actual hit target, and requires the assistant to open. The keyboard
+journey uses real forward/backward Tab and waits for each focus transition;
+it does not depend on Tab wrapping through browser chrome. Proposal and
+independent approval still require both confirmations and exact write counts.
+A deliberate completed-outcome repaint must retain focus before navigation.

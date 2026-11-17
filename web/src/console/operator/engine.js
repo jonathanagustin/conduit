@@ -141,7 +141,7 @@ export function mountOperator(host, options) {
   host.innerHTML =
     '<!-- ===================================================================== -->\n  <!-- Conduit 44px top bar (kit v6.1 rhythm)                                -->\n  <!-- ===================================================================== -->\n  <header class="cnd-topbar shrink-0 bg-[var(--bg-1)] border-b border-[var(--border-subtle)] px-4 flex items-center justify-between gap-4 z-40">\n    <!-- Left: Bold Product Wordmark + Divider + Wide-Tracked Operational Context -->\n    <div class="flex items-center gap-3 min-w-0 shrink-0">\n      <button id="btn-mobile-menu" data-onclick="toggleMobileNav()" class="so-btn so-btn-sm lg:hidden" aria-label="Toggle navigation">\n        <span data-ic="menu"></span>\n      </button>\n      <span data-onclick="switchScreen(\'s13-fleet-overview\')" class="cnd-brand font-bold text-[17px] tracking-[-0.02em] text-[var(--text-1)] cursor-pointer select-none">' +
     brandMarkMarkup(20) +
-    '<span>Conduit</span></span>\n      <span class="h-4 w-[1px] bg-[var(--bg-2)]"></span>\n      <span id="topbar-subtitle" class="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[var(--text-2)] hidden sm:inline truncate">FLEET COMMAND CENTER</span>\n    </div>\n\n    <!-- Center: Iconic Conduit Icon + 20px Bold Numeral + Two-Line Label KPI Strip -->\n    <div id="header-kpi-strip" class="topbar-kpi-strip hidden lg:flex items-center gap-4 shrink-0">\n    </div>\n\n    <!-- Right: Search (Cmd+K) + LIVE Badge + Ontology Button + Avatar -->\n    <div class="flex items-center gap-2 shrink-0">\n      <div class="omnibar-trigger hidden md:flex items-center relative">\n        <span class="omnibar-icon" data-ic="search" aria-hidden="true"></span>\n        <button id="global-search-input" type="button" data-onclick="openCmdOmnibar()" aria-label="Search views" aria-haspopup="dialog"\n          class="so-input w-full pl-7 pr-9 text-[11px] text-left">Jump to view...</button>\n        <kbd class="code-id absolute right-1.5 px-1.5 py-0.5 text-[9px] text-[var(--text-2)] bg-[var(--bg-1)] border border-[var(--border-subtle)] rounded-[3px]">&#8984;K</kbd>\n      </div>\n\n      <span class="hidden xl:inline-flex items-center h-[26px] px-2 rounded-[4px] bg-[var(--bg-2)] border border-[var(--warn-border)] text-[9.5px] font-semibold code-id text-[var(--warn-text)]" id="example-data-badge" title="Example data">EXAMPLE DATA</span>\n\n      <button type="button" id="theme-toggle" data-onclick="toggleTheme()" class="so-btn !h-[26px]">Light</button>\n\n      <button type="button" id="settings-toggle" data-onclick="toggleSettingsDialog()" class="so-btn !h-[26px] !px-2" title="Settings (Ctrl/Cmd + ,)" aria-label="Settings">&#9881;</button>\n\n      <button data-onclick="switchScreen(\'s19-ontology\')" class="so-btn !h-[26px]">\n        <span data-ic="globe"></span>\n        <span class="hidden sm:inline">Ontology</span>\n      </button>\n\n      <button data-onclick="toggleChatRail()" class="so-btn !h-[26px] !px-2" title="Toggle right chat panel">\n        <span data-ic="panelRight"></span>\n      </button>\n\n      <div class="h-[26px] px-2.5 rounded-[4px] bg-[var(--bg-1)] border border-[var(--border-subtle)] flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-1)]" id="operator-chip" role="img" title="Operator identity unavailable" aria-label="Operator identity unavailable">\n        <span id="operator-initials" class="w-4 h-4 rounded-full bg-[var(--info-fill)] text-[var(--info-text)] text-[9.5px] font-semibold flex items-center justify-center">?</span>\n        <span id="operator-name" class="hidden sm:inline max-w-[180px] truncate">Identity unavailable</span>\n      </div>\n    </div>\n  </header>\n\n  <!-- ===================================================================== -->\n  <!-- THREE-PANE BODY: Conduit LEFT SIDEBAR + TABBED WORKSPACE + PLAIN CHAT  -->\n  <!-- ===================================================================== -->\n  <div class="flex-1 min-h-0 min-w-0 flex relative overflow-hidden">\n\n    <div id="mobile-nav-backdrop" data-onclick="closeMobileNav()"></div>\n\n    <!-- PANE 1 (LEFT SIDEBAR, 206px — ONLY on Hub screens, calm & spacious like Conduit f_01_18_cc!) -->\n    <aside id="left-nav" class="w-[var(--w-rail)] shrink-0 bg-[var(--bg-1)] border-r border-[var(--border-subtle)] flex flex-col justify-between min-h-0 select-none">\n      <div id="left-nav-sections" class="px-2.5 pt-3.5 space-y-5 overflow-y-auto"></div>\n      <!-- Minimal Conduit Bottom-Left Two-Dot Collapse Indicator (No text, no box!) -->\n      <div class="px-4 py-3 shrink-0 flex flex-col items-start gap-1.5">\n        <button data-onclick="toggleLeftRailCollapse()" role="switch" aria-checked="true" class="kit-rail-switch inline-flex items-center gap-1.5 py-1 opacity-85 hover:opacity-100" title="Expand / collapse sidebar" aria-label="Expand or collapse sidebar">\n          <span class="w-[6px] h-[6px] rounded-full bg-[var(--ok-border)] shadow-[0_0_5px_var(--ok-border)]"></span>\n          <span class="w-[6px] h-[6px] rounded-full bg-[var(--ok-fill)]"></span>\n        </button>\n        <div id="left-nav-sites" class="text-[10px] text-[var(--text-2)]"></div>\n      </div>\n    </aside>\n\n    <!-- PANE 2 (WORKSPACE — Flush below <header> on Hub screens; clean breadcrumb sub-bar on Dedicated App screens!) -->\n    <section class="flex-1 min-w-0 min-h-0 flex flex-col bg-[var(--bg-1)] overflow-hidden">\n      <div id="app-breadcrumb-bar" class="hidden h-[34px] shrink-0 bg-[var(--bg-1)] border-b border-[var(--border-subtle)] px-4 items-center justify-between gap-3 z-30"></div>\n      <main id="main-workspace" class="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden cnd-workspace"></main>\n    </section>\n\n    <!-- PANE 3 (PLAIN NEUTRAL CHAT DRAWER — Closed by default like Conduit, toggleable from top bar!) -->\n    <aside id="right-chat-rail" class="hidden w-[248px] shrink-0 bg-[var(--bg-1)] border-l border-[var(--border-subtle)] flex-col min-h-0"></aside>\n  </div>\n\n  <div id="so-portal-tooltip" class="so-tooltip-bubble hidden"></div>\n  <div id="conduit-modal-root"></div>';
+    '<span>Conduit</span></span>\n      <span class="h-4 w-[1px] bg-[var(--bg-2)]"></span>\n      <span id="topbar-subtitle" class="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[var(--text-2)] hidden sm:inline truncate">FLEET COMMAND CENTER</span>\n    </div>\n\n    <!-- Center: Iconic Conduit Icon + 20px Bold Numeral + Two-Line Label KPI Strip -->\n    <div id="header-kpi-strip" class="topbar-kpi-strip hidden lg:flex items-center gap-4 shrink-0">\n    </div>\n\n    <!-- Right: Search (Cmd+K) + LIVE Badge + Ontology Button + Avatar -->\n    <div class="flex items-center gap-2 shrink-0">\n      <div class="omnibar-trigger hidden md:flex items-center relative">\n        <span class="omnibar-icon" data-ic="search" aria-hidden="true"></span>\n        <button id="global-search-input" type="button" data-onclick="openCmdOmnibar()" aria-label="Search views" aria-haspopup="dialog"\n          class="so-input w-full pl-7 pr-9 text-[11px] text-left">Jump to view...</button>\n        <kbd class="code-id absolute right-1.5 px-1.5 py-0.5 text-[9px] text-[var(--text-2)] bg-[var(--bg-1)] border border-[var(--border-subtle)] rounded-[3px]">&#8984;K</kbd>\n      </div>\n\n      <span class="hidden xl:inline-flex items-center h-[26px] px-2 rounded-[4px] bg-[var(--bg-2)] border border-[var(--warn-border)] text-[9.5px] font-semibold code-id text-[var(--warn-text)]" id="example-data-badge" title="Example data">EXAMPLE DATA</span>\n\n      <button type="button" id="theme-toggle" data-onclick="toggleTheme()" class="so-btn !h-[26px]">Light</button>\n\n      <button type="button" id="settings-toggle" data-onclick="toggleSettingsDialog()" class="so-btn !h-[26px] !px-2" title="Settings (Ctrl/Cmd + ,)" aria-label="Settings">&#9881;</button>\n\n      <button data-onclick="switchScreen(\'s19-ontology\')" class="so-btn !h-[26px]">\n        <span data-ic="globe"></span>\n        <span class="hidden sm:inline">Ontology</span>\n      </button>\n\n      <button data-onclick="toggleChatRail()" class="so-btn !h-[26px] !px-2" title="Toggle right chat panel">\n        <span data-ic="panelRight"></span>\n      </button>\n\n      <span id="live-events-controls" class="inline-flex items-center gap-2"></span>\n      <div class="h-[26px] px-2.5 rounded-[4px] bg-[var(--bg-1)] border border-[var(--border-subtle)] flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-1)]" id="operator-chip" role="img" title="Operator identity unavailable" aria-label="Operator identity unavailable">\n        <span id="operator-initials" class="w-4 h-4 rounded-full bg-[var(--info-fill)] text-[var(--info-text)] text-[9.5px] font-semibold flex items-center justify-center">?</span>\n        <span id="operator-name" class="hidden sm:inline max-w-[180px] truncate">Identity unavailable</span>\n      </div>\n    </div>\n  </header>\n\n  <!-- ===================================================================== -->\n  <!-- THREE-PANE BODY: Conduit LEFT SIDEBAR + TABBED WORKSPACE + PLAIN CHAT  -->\n  <!-- ===================================================================== -->\n  <div class="flex-1 min-h-0 min-w-0 flex relative overflow-hidden">\n\n    <div id="mobile-nav-backdrop" data-onclick="closeMobileNav()"></div>\n\n    <!-- PANE 1 (LEFT SIDEBAR, 206px — ONLY on Hub screens, calm & spacious like Conduit f_01_18_cc!) -->\n    <aside id="left-nav" class="w-[var(--w-rail)] shrink-0 bg-[var(--bg-1)] border-r border-[var(--border-subtle)] flex flex-col justify-between min-h-0 select-none">\n      <div id="left-nav-sections" class="px-2.5 pt-3.5 space-y-5"></div>\n      <!-- Minimal Conduit Bottom-Left Two-Dot Collapse Indicator (No text, no box!) -->\n      <div class="px-4 py-3 shrink-0 flex flex-col items-start gap-1.5">\n        <button data-onclick="toggleLeftRailCollapse()" role="switch" aria-checked="true" class="kit-rail-switch inline-flex items-center gap-1.5 py-1 opacity-85 hover:opacity-100" title="Expand / collapse sidebar" aria-label="Expand or collapse sidebar">\n          <span class="w-[6px] h-[6px] rounded-full bg-[var(--ok-border)] shadow-[0_0_5px_var(--ok-border)]"></span>\n          <span class="w-[6px] h-[6px] rounded-full bg-[var(--ok-fill)]"></span>\n        </button>\n        <div id="left-nav-sites" class="text-[10px] text-[var(--text-2)]"></div>\n      </div>\n    </aside>\n\n    <!-- PANE 2 (WORKSPACE — Flush below <header> on Hub screens; clean breadcrumb sub-bar on Dedicated App screens!) -->\n    <section class="flex-1 min-w-0 min-h-0 flex flex-col bg-[var(--bg-1)] overflow-hidden">\n      <div id="app-breadcrumb-bar" class="hidden h-[34px] shrink-0 bg-[var(--bg-1)] border-b border-[var(--border-subtle)] px-4 items-center justify-between gap-3 z-30"></div>\n      <main id="main-workspace" class="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden cnd-workspace"></main>\n    </section>\n\n    <!-- PANE 3 (PLAIN NEUTRAL CHAT DRAWER — Closed by default like Conduit, toggleable from top bar!) -->\n    <aside id="right-chat-rail" class="hidden w-[248px] shrink-0 bg-[var(--bg-1)] border-l border-[var(--border-subtle)] flex-col min-h-0"></aside>\n  </div>\n\n  <div id="so-portal-tooltip" class="so-tooltip-bubble hidden"></div>\n  <div id="conduit-modal-root"></div>';
 
   const ICONS = {
     extLink:
@@ -1525,9 +1525,28 @@ export function mountOperator(host, options) {
       cells;
   }
 
+  // Preserve unchanged controls and icon targets through background refreshes.
+  // Replacing them can interrupt pointer clicks or the browser's tab sequence.
+  const shellMarkup = new WeakMap();
+  function paintShellMarkup(element, markup) {
+    if (shellMarkup.get(element) === markup) return;
+    const active = document.activeElement;
+    const focusedAction = element.contains(active)
+      ? active?.closest("[data-onclick]")?.getAttribute("data-onclick")
+      : null;
+    element.innerHTML = markup;
+    shellMarkup.set(element, markup);
+    if (focusedAction) {
+      [...element.querySelectorAll("[data-onclick]")]
+        .find(
+          (control) => control.getAttribute("data-onclick") === focusedAction,
+        )
+        ?.focus();
+    }
+  }
   function renderLeftRail() {
     document.querySelectorAll("[data-ic]").forEach((el) => {
-      el.innerHTML = ic(el.getAttribute("data-ic"));
+      paintShellMarkup(el, ic(el.getAttribute("data-ic")));
     });
 
     const activeMeta = SCREENS.find((s) => s.id === state.screen) || SCREENS[0];
@@ -1623,28 +1642,31 @@ export function mountOperator(host, options) {
         "is-rail-collapsed w-[var(--w-rail-collapsed)] shrink-0 bg-[var(--bg-1)] border-r border-[var(--border-subtle)] flex flex-col justify-between items-center py-2.5 select-none" +
         hubHiddenCls;
       sectionsEl.className = "flex flex-col items-center gap-1.5 pt-1";
-      sectionsEl.innerHTML = sections
-        .map((section) =>
-          section.groups
-            .flatMap((g) => g.items)
-            .map(
-              (m) =>
-                `<button data-onclick="switchScreen('${m.id}')" title="${m.label}" aria-label="${m.label}" class="so-nav-row !w-[36px] !px-0 !justify-center ${
-                  state.screen === m.id ? "is-active" : ""
-                }">${ic(m.icon)}</button>`,
-            )
-            .join(""),
-        )
-        .join(
-          '<div class="w-[24px] h-px bg-[var(--bg-2)] my-1" role="separator"></div>',
-        );
+      paintShellMarkup(
+        sectionsEl,
+        sections
+          .map((section) =>
+            section.groups
+              .flatMap((g) => g.items)
+              .map(
+                (m) =>
+                  `<button data-onclick="switchScreen('${m.id}')" title="${m.label}" aria-label="${m.label}" class="so-nav-row !w-[36px] !px-0 !justify-center ${
+                    state.screen === m.id ? "is-active" : ""
+                  }">${ic(m.icon)}</button>`,
+              )
+              .join(""),
+          )
+          .join(
+            '<div class="w-[24px] h-px bg-[var(--bg-2)] my-1" role="separator"></div>',
+          ),
+      );
       return;
     }
 
     aside.className =
       "w-[var(--w-rail)] shrink-0 bg-[var(--bg-1)] border-r border-[var(--border-subtle)] flex flex-col justify-between min-h-0 select-none" +
       hubHiddenCls;
-    sectionsEl.className = "px-2.5 pt-3.5 space-y-5 overflow-y-auto";
+    sectionsEl.className = "px-2.5 pt-3.5 space-y-5";
 
     const renderAppGroup = (title, apps) => `
         <div>
@@ -1703,9 +1725,11 @@ export function mountOperator(host, options) {
         </div>
       `;
 
-    sectionsEl.innerHTML = sections
-      .map(
-        (section, i) => `
+    paintShellMarkup(
+      sectionsEl,
+      sections
+        .map(
+          (section, i) => `
         <div class="${i ? "border-t border-[var(--border-subtle)] pt-4" : ""} space-y-5">
           ${section.groups
             .map((g) =>
@@ -1715,8 +1739,9 @@ export function mountOperator(host, options) {
             )
             .join("")}
         </div>`,
-      )
-      .join("");
+        )
+        .join(""),
+    );
   }
 
   function renderCenterTabStrip() {
@@ -4815,6 +4840,14 @@ export function mountOperator(host, options) {
 
   let previousScreen = "";
   function renderMainWorkspace() {
+    const focusedAreaTab = document.activeElement
+      ?.closest("#main-workspace [data-area-tab]")
+      ?.getAttribute("data-area-tab");
+    const focusedOutcome = document.activeElement?.hasAttribute("data-dj-again")
+      ? document.activeElement
+          .closest("#main-workspace [data-dj-panel]")
+          ?.getAttribute("data-dj-panel")
+      : null;
     const focusedCommandLayer =
       visibleScreen() === "cc-overview"
         ? document.activeElement
@@ -4842,6 +4875,19 @@ export function mountOperator(host, options) {
             (element) =>
               element.getAttribute("data-cc-layer") === focusedCommandLayer,
           )
+          ?.focus();
+      }
+      if (focusedAreaTab) {
+        [...root.querySelectorAll("[data-area-tab]")]
+          .find((tab) => tab.getAttribute("data-area-tab") === focusedAreaTab)
+          ?.focus();
+      }
+      if (focusedOutcome) {
+        [...root.querySelectorAll("[data-dj-panel]")]
+          .find(
+            (panel) => panel.getAttribute("data-dj-panel") === focusedOutcome,
+          )
+          ?.querySelector("[data-dj-again]")
           ?.focus();
       }
       return;
