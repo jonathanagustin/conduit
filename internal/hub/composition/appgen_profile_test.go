@@ -154,18 +154,28 @@ func TestAppgenProfileMissingAppNameRaisesNeedsInput(t *testing.T) {
 func writeZarfStub(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "zarf")
+	// This fixture simulates both creation and definition inspection. Real
+	// archive parsing is qualified by packagingtools' native Zarf cases.
 	script := `#!/bin/sh
+set -eu
 out=
 prev=
+arch=$(uname -m)
+case "$arch" in x86_64) arch=amd64;; aarch64) arch=arm64;; esac
 for arg in "$@"; do
-  if [ "$prev" = "--output" ]; then
-    out=$arg
-  fi
+  if [ "$prev" = "--output" ]; then out=$arg; fi
+  if [ "$prev" = "--architecture" ]; then arch=$arg; fi
   prev=$arg
 done
+if [ "$2" = "inspect" ]; then
+  awk -v arch="$arch" '/^metadata:/ { print; print "  architecture: " arch; next } { print }' zarf.yaml
+  exit 0
+fi
 if [ -n "$out" ]; then
+  name=$(awk '$1 == "name:" { gsub(/["\047]/, "", $2); print $2; exit }' zarf.yaml)
+  version=$(awk '$1 == "version:" { gsub(/["\047]/, "", $2); print $2; exit }' zarf.yaml)
   mkdir -p "$out"
-  printf 'archive\n' > "$out/zarf-package-test.tar.zst"
+  printf 'simulated archive\n' > "$out/zarf-package-$name-$arch-$version.tar.zst"
 fi
 exit 0
 `
