@@ -39,7 +39,7 @@ Status applies only to the **bounded component contribution described**:
 
 Test references are evidence locations, not fresh execution receipts. For each
 deployed version, retain exact configuration and negative-case results outside
-this public repository without exposing credentials or tenant payloads.
+this repository without exposing credentials or tenant payloads.
 
 ## Access and identity
 
