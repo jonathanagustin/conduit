@@ -333,9 +333,9 @@ jobs:
         if: needs.scope.outputs.go == 'true'
         run: |
           curl --fail --silent --show-error --location \
-            https://github.com/zarf-dev/zarf/releases/download/v0.82.0/zarf_v0.82.0_Linux_amd64 \
+            https://github.com/zarf-dev/zarf/releases/download/v1.0.0/zarf_v1.0.0_Linux_amd64 \
             --output /tmp/zarf
-          echo 'e372002110600a458ca2a9222a34b8cdebc9c0fcd81d7e34febd3d8411d7beaf  /tmp/zarf' | sha256sum --check
+          echo 'c58cf0241796525d9df9a449a5a2218743efa446b540a996f355d71349852857  /tmp/zarf' | sha256sum --check
           sudo install -m 0755 /tmp/zarf /usr/local/bin/zarf
       # Nothing here checked formatting until now: vet does not, and staticcheck
       # does not. An unformatted file reached main in #21 and stayed there
@@ -361,9 +361,9 @@ jobs:
         if: needs.scope.outputs.go == 'true'
         run: |
           curl --fail --silent --show-error --location \
-            https://github.com/zarf-dev/zarf/releases/download/v0.82.0/zarf_v0.82.0_Linux_amd64 \
+            https://github.com/zarf-dev/zarf/releases/download/v1.0.0/zarf_v1.0.0_Linux_amd64 \
             --output /tmp/zarf
-          echo 'e372002110600a458ca2a9222a34b8cdebc9c0fcd81d7e34febd3d8411d7beaf  /tmp/zarf' | sha256sum --check
+          echo 'c58cf0241796525d9df9a449a5a2218743efa446b540a996f355d71349852857  /tmp/zarf' | sha256sum --check
           chmod 0755 /tmp/zarf
       - name: Validate race runtime preflight
         if: needs.scope.outputs.go == 'true'
@@ -804,9 +804,9 @@ jobs:
         if: needs.scope.outputs.checks == 'true'
         run: |
           curl --fail --silent --show-error --location \
-            https://github.com/zarf-dev/zarf/releases/download/v0.82.0/zarf_v0.82.0_Linux_amd64 \
+            https://github.com/zarf-dev/zarf/releases/download/v1.0.0/zarf_v1.0.0_Linux_amd64 \
             --output /tmp/zarf
-          echo 'e372002110600a458ca2a9222a34b8cdebc9c0fcd81d7e34febd3d8411d7beaf  /tmp/zarf' | sha256sum --check
+          echo 'c58cf0241796525d9df9a449a5a2218743efa446b540a996f355d71349852857  /tmp/zarf' | sha256sum --check
           chmod 0755 /tmp/zarf
       # The UDS CLI the bundle's schema comment names. It is here so the gate
       # below can run `uds create` on deploy/zarf/uds-bundle.yaml, which no

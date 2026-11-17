@@ -91,7 +91,7 @@ uds zarf package deploy zarf-package-platform-runtime-*.tar.zst \
 `PACKAGING_POSTGRES_SECRET`, the Secret the packaging worker already uses.
 `uds-metrics` applies the same Package CR as `uds` plus a ServiceMonitor for
 Service port `metrics` (9090, path `/metrics`). The two components carry the
-same Package object and now share the pinned Zarf v0.82.0 `uds-mode` choice
+same Package object and now share the pinned Zarf v1.0.0 `uds-mode` choice
 group. The no-op `uds-disabled` default preserves a plain `--confirm` install.
 Selecting both UDS owners, or selecting every component with `*`, fails the
 real Zarf selection filter before any component runs. The deprecated `group`
@@ -125,12 +125,12 @@ conventions; no cluster run has shown either, and no rule has been evaluated.
 
 ## Tool versions used here
 
-- Zarf CLI `v0.82.0` for package create, lint, and the plain install.
+- Zarf CLI `v1.0.0` for package create, lint, and the plain install.
 - UDS CLI `v0.41.0`, pinned by checksum in the Trunk gate
   (`Install pinned UDS CLI` in `.github/workflows/platform-ci.yml`). On the
   UDS cluster, deploy the Conduit package with `uds zarf` so the CLI matches
   the Zarf agent that slim-dev installed. That vendored Zarf is `v0.89.0`
-  (`uds zarf version`), not the `v0.82.0` that builds the package; the gate
+  (`uds zarf version`), not the `v1.0.0` that builds the package; the gate
   shows the newer one reading a package the older one built, and nothing
   shows it deploying one. `mise.toml` does not pin the UDS CLI: adding it
   needs `mise lock` against the GitHub API to record release asset IDs.
@@ -352,7 +352,7 @@ that file sets. It does not show `uds deploy`; no workflow that runs on its
 own has a cluster.
 
 The same gate runs `TestRenderedBundlesCreateWithPinnedCLI` (#835). Zarf
-v0.82.0 builds a file-only package in a temporary loopback OCI registry, then
+v1.0.0 builds a file-only package in a temporary loopback OCI registry, then
 UDS CLI v0.41.0 creates and inspects bundles from both `udsconverge.Render`
 and `RenderBundleFromPackages`. The generated documents are passed unchanged;
 their repository, tag and digest must survive the archive round trip. The CLI
@@ -471,7 +471,7 @@ and [Zarf config lookup](https://github.com/zarf-dev/zarf/blob/356f4b6041346854e
 Run the bounded native conformance check with previously verified binaries:
 
 ```sh
-ZARF_BIN=/verified/zarf-v0.82.0 UDS_BIN=/verified/uds-v0.41.0 \
+ZARF_BIN=/verified/zarf-v1.0.0 UDS_BIN=/verified/uds-v0.41.0 \
   scripts/test-uds-executor.sh
 ```
 

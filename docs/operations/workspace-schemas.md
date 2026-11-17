@@ -21,10 +21,10 @@ execution admission remain authoritative. An editor diagnostic is no grant.
 ## Sources and limits
 
 The manifest records schema SHA-256 hashes and the exact source versions.
-Zarf targets **0.82.0**, the version downloaded and linted by both CI paths.
+Zarf targets **1.0.0**, the version downloaded and linted by both CI paths.
 `mise.toml` currently selects 1.0.0 for developers; that is a known separate
 qualification mismatch, not a reason to label a 1.0.0 schema as compatible with
-0.82.0. Change the schema target alongside the verified runtime target when
+1.0.0. Change the schema target alongside the verified runtime target when
 qualifying that upgrade. UDS Package targets the **1.17.1** Core default in
 `scripts/uds-up.sh`. Upstream schemas are retained byte-for-byte, together with
 Zarf’s Apache-2.0 and UDS Core’s AGPL-3.0 root license files. Their source

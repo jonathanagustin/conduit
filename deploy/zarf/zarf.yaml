@@ -505,7 +505,7 @@ components:
         kind: Deployment
         namespace: platform-system
         name: platform-packaging-worker
-  # Zarf v0.82.0 rejects selecting both Package owners before any component runs.
+  # Zarf v1.0.0 rejects selecting both Package owners before any component runs.
   - name: uds-disabled
     group: uds-mode
     required: false

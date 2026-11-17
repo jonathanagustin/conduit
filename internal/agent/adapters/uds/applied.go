@@ -15,10 +15,11 @@ import (
 // The applied record.
 //
 // Zarf's deployed-package record says which package is deployed and at which
-// generation. It does not say which variables the deployment was given, which
-// Release the Hub was deploying, or -- for a bundle -- which bundle the package
-// came from. Without those the executor could only echo the Plan back, so it
-// reported the configuration as INDETERMINATE and no Plan could succeed.
+// generation. Legacy state lacks deployment variables; Zarf 1.x adds a native
+// DeployConfig snapshot. Neither identifies the Conduit Release the Hub was
+// deploying or -- for a bundle -- which bundle the package came from. Without
+// that mapping the executor could only echo the Plan back, so it reported the
+// configuration as INDETERMINATE and no Plan could succeed.
 //
 // So the executor writes down what it did. After a deploy has succeeded and
 // Zarf's own record has been read back, it stores an appliedRecord in a

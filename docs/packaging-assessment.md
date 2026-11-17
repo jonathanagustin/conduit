@@ -131,11 +131,11 @@ Pins and references:
 - Generator profile: internal-stateless/v1. Its exact input is included in the
   artifacts, so changing source evidence, target pins or parameters changes the
   artifact digest. This digest is a review identifier, NOT a release signature. The verifier accepts trusted generated input, not arbitrary externally supplied templates.
-- Zarf v0.65.1 commit d15db6ddad0fc2ea7255a8aaf2b0005a8c96c09a:
-  https://raw.githubusercontent.com/zarf-dev/zarf/d15db6ddad0fc2ea7255a8aaf2b0005a8c96c09a/zarf.schema.json
-  Save as zarf-v0.65.1.json. SHA-256
-  7da2226c9c5deeed754eacd8c481f818a020b21a197ce3564705abd258b956f6.
-  This version's images field contains STRINGS, unlike newer examples.
+- Zarf v1.0.0 (the declared v1beta1 scaffold target):
+  https://raw.githubusercontent.com/zarf-dev/zarf/v1.0.0/zarf.schema.json
+  Save as zarf-v1.0.0.json. SHA-256
+  ffb43dc23c17491a48e081c2ea5fe763089cf746b4d2a7beb162dd82b2b9273d.
+  The v1beta1 images field contains objects with a name; local charts use local.path and inherit the Chart.yaml version.
 - UDS Core commit 9c808fd0af6bd0dca138da05f4a0d4785f109c32:
   https://raw.githubusercontent.com/defenseunicorns/uds-core/9c808fd0af6bd0dca138da05f4a0d4785f109c32/src/pepr/uds-cluster-crds/templates/packages.uds.dev.yaml
   Save as uds-package-v1alpha1.yaml. SHA-256

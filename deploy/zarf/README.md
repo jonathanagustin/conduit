@@ -14,7 +14,7 @@ existing cluster was initialized with the default `all` policy, change that
 policy or label every consumer-owned application namespace
 `zarf.dev/agent=ignore` before starting Conduit.
 
-The pinned Zarf v0.82.0 init archive already carries the required internal OCI
+The pinned Zarf v1.0.0 init archive already carries the required internal OCI
 registry (OCI Distribution `registry` 3.1.1) and Zarf Agent. It also carries
 optional K3s 1.34.3+k3s1 and Gitea 1.24.6 components. On a bare supported Linux
 host, initialize all three facilities with:
@@ -85,7 +85,7 @@ A deploy guard refuses that component unless both are set. The `uds` and
 `uds-metrics` components share a Zarf choice group: requesting both (including
 `--components '*'`) fails selection before any component action or manifest.
 The group's default `uds-disabled` member has no assets or actions, preserving
-a plain `--confirm` install with no UDS CR. This uses the pinned Zarf v0.82.0
+a plain `--confirm` install with no UDS CR. This uses the pinned Zarf v1.0.0
 `group` field; it is deprecated upstream and needs migration before a future
 schema removes it. No UDS Core installation is implied by selecting a component.
 
@@ -335,7 +335,7 @@ what another would require, without deciding. `task zarf:lint`,
 `task zarf:create`, `task uds:create` and `task zarf:lifecycle` wrap the
 commands on this page.
 
-Conduit pins Zarf v0.82.0 for package validation and construction. Package
+Conduit pins Zarf v1.0.0 for package validation and construction. Package
 creation runs once for `amd64` and once for `arm64`; both bundled images
 are addressed by the exact platform-manifest digest selected from a pinned OCI
 index, and Zarf produces its normal image SBOM inventory. The release workflow

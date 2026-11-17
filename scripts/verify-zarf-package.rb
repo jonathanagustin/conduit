@@ -438,7 +438,7 @@ abort "Zarf package publication must follow signing and verification" unless Arr
 abort "Zarf package publication must be limited to release tags" unless publish_job["if"] == "startsWith(github.ref, 'refs/tags/v')"
 publish_run = publish_job.fetch("steps").map { |step| step["run"].to_s }.join("\n")
 abort "Zarf package publication must use the checksum-pinned Zarf" unless
-  publish_run.include?("zarf_v0.82.0_Linux_amd64") && publish_run.include?("e372002110600a458ca2a9222a34b8cdebc9c0fcd81d7e34febd3d8411d7beaf  /tmp/zarf' | sha256sum --check")
+  publish_run.include?("zarf_v1.0.0_Linux_amd64") && publish_run.include?("c58cf0241796525d9df9a449a5a2218743efa446b540a996f355d71349852857  /tmp/zarf' | sha256sum --check")
 abort "Zarf packages must be published to the repository-linked packages namespace" unless
   publish_run.include?('repository="oci://ghcr.io/${GITHUB_REPOSITORY}/packages"')
 abort "Zarf package publication must cover both architectures" unless publish_run.scan("for architecture in amd64 arm64; do").length == 2

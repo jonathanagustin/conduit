@@ -166,7 +166,7 @@ func TestRenderIsDeterministicAndOmitsSource(t *testing.T) {
 	if !strings.Contains(string(first.Dockerfile), "FROM scratch") || !strings.Contains(string(first.Dockerfile), "USER 65532:65532") {
 		t.Fatalf("dockerfile = %s", first.Dockerfile)
 	}
-	if !strings.Contains(string(first.ChartValues), "memory: 64Mi") || !strings.Contains(string(first.Zarf), "CONDUIT_NATIVE") || !strings.Contains(string(first.Zarf), `localPath: "chart"`) {
+	if !strings.Contains(string(first.ChartValues), "memory: 64Mi") || !strings.Contains(string(first.Zarf), "CONDUIT_NATIVE") || !strings.Contains(string(first.Zarf), `path: "chart"`) {
 		t.Fatal("chart or package is missing the template fields")
 	}
 	if !strings.Contains(chartText(first), "kind: Deployment") || !strings.Contains(chartText(first), "kind: Service") || strings.Contains(chartText(first), "kind: ConfigMap") {

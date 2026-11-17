@@ -82,7 +82,7 @@ func dockerignore() string {
 }
 
 func zarfYAML(app, tag, digest string) string {
-	return fmt.Sprintf(`apiVersion: zarf.dev/v1alpha1
+	return fmt.Sprintf(`apiVersion: zarf.dev/v1beta1
 kind: ZarfPackageConfig
 metadata:
   name: %q
@@ -93,9 +93,10 @@ metadata:
     packaging.conduit.dev/value-tier: "CONDUIT_NATIVE"
 components:
   - name: %q
-    required: true
+    optional: false
     images:
-      - %q
+      - name: %q
+        source: daemon
     manifests:
       - name: "uds-package"
         namespace: %q

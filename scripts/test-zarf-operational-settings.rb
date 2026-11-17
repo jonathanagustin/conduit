@@ -13,7 +13,7 @@ root = File.expand_path("..", __dir__)
 definition = YAML.safe_load_file(File.join(root, "deploy/zarf/zarf.yaml"))
 zarf = ENV.fetch("ZARF_BIN", "zarf")
 version, error, status = Open3.capture3(zarf, "version")
-abort "requires pinned Zarf v0.82.0: #{version}#{error}" unless status.success? && version.strip == "v0.82.0"
+abort "requires pinned Zarf v1.0.0: #{version}#{error}" unless status.success? && version.strip == "v1.0.0"
 
 components = definition.fetch("components").to_h { |item| [item.fetch("name"), item] }
 off = components.fetch("uds-disabled")

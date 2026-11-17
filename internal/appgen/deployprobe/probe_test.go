@@ -97,7 +97,7 @@ func TestDeployGeneratedPackage(t *testing.T) {
 		t.Fatalf("package crd: %v\n%s", err, out)
 	}
 	initDir := t.TempDir()
-	if out, err := command(ctx, "zarf", "package", "pull", "oci://ghcr.io/zarf-dev/packages/init:v0.82.0", "-o", initDir); err != nil {
+	if out, err := command(ctx, "zarf", "package", "pull", "oci://ghcr.io/zarf-dev/packages/init:v1.0.0", "-o", initDir); err != nil {
 		t.Fatalf("zarf init package: %v\n%s", err, out)
 	}
 	initPkg := ""

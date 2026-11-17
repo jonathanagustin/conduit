@@ -96,29 +96,29 @@ resources:
 
 func zarfManifest(spec Spec) []byte {
 	name := spec.Name
-	return []byte(fmt.Sprintf(`apiVersion: zarf.dev/v1alpha1
+	return []byte(fmt.Sprintf(`apiVersion: zarf.dev/v1beta1
 kind: ZarfPackageConfig
 metadata:
   name: "%s"
   description: "Generated HTTP application %s"
   version: "%s"
   annotations:
-    packaging.conduit.dev/template: "http-app-1"
+    packaging.conduit.dev/template: "http-app-2"
     packaging.conduit.dev/value-tier: "CONDUIT_NATIVE"
 %scomponents:
   - name: "%s"
-    required: true
+    optional: false
     charts:
       - name: "%s"
-        version: "%s"
         namespace: "%s"
-        localPath: "chart"
+        local:
+          path: "chart"
     manifests:
       - name: "package"
         namespace: "%s"
         files:
           - "uds-package.yaml"
-%s`, name, name, ChartVersion, fileDigestLines(spec), name, name, ChartVersion, name, name, imagePinUnset))
+%s`, name, name, ChartVersion, fileDigestLines(spec), name, name, name, name, imagePinUnset))
 }
 
 func packageCR(spec Spec) []byte {
@@ -129,7 +129,7 @@ metadata:
   name: "%s"
   namespace: "%s"
   annotations:
-    packaging.conduit.dev/template: "http-app-1"
+    packaging.conduit.dev/template: "http-app-2"
     packaging.conduit.dev/value-tier: "CONDUIT_NATIVE"
     packaging.conduit.dev/port: "%d"
 %sspec:

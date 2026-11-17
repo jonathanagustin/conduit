@@ -38,7 +38,7 @@ end
 
 # Zarf runs each action as `sh -e -c <cmd>` with every variable exported as
 # ZARF_VAR_<NAME>, and stores trimmed stdout in each setVariables name
-# (zarf v0.82.0 src/pkg/packager/actions/actions.go). `unsetenv_others` keeps
+# (zarf v1.0.0 src/pkg/packager/actions/actions.go). `unsetenv_others` keeps
 # this process's environment out, so a command that passes here does not pass
 # only because of a variable the gate happened to inherit.
 def run_action(action, variables)

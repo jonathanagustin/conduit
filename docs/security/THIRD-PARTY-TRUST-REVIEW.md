@@ -189,7 +189,7 @@ certification, political-boundary authority, live site location or network path.
 
 ## Offline workspace schema pack
 
-The pack vendors data schemas from the primary Zarf v0.82.0 and UDS Core
+The pack vendors data schemas from the primary Zarf v1.0.0 and UDS Core
 v1.17.1 tagged repositories. `workspace-schemas/v1/manifest.json` records exact
 source URLs, SHA-256 values and the retained upstream root-license hashes (Zarf Apache-2.0; UDS Core AGPL-3.0).
 These are reviewed bytes, not signed supplier certification. Neither upstream

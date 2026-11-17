@@ -29,6 +29,13 @@
           ],
           "type": "string"
         },
+        "attachments": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Attachments are files included in the package.",
+          "type": "object"
+        },
         "build": {
           "additionalProperties": false,
           "description": "Zarf-generated package build data.",
@@ -45,12 +52,21 @@
               "type": "string"
             },
             "differential": {
-              "description": "Whether this package was created with differential components.",
-              "type": "boolean"
-            },
-            "differentialPackageVersion": {
-              "description": "Version of a previously built package used as the basis for creating this differential package.",
-              "type": "string"
+              "additionalProperties": false,
+              "description": "Base package used to create this differential package. Omitted for full packages.",
+              "patternProperties": {
+                "^x-": {}
+              },
+              "properties": {
+                "fromVersion": {
+                  "description": "Version of a previously built package used as the basis for creating this differential package.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "fromVersion"
+              ],
+              "type": "object"
             },
             "flavor": {
               "description": "The flavor of Zarf used to build this package.",
@@ -208,7 +224,13 @@
                                     "type": "string"
                                   },
                                   "type": {
-                                    "description": "Type declares the kind of data being stored in the value.",
+                                    "default": "string",
+                                    "description": "Type declares the kind of data being stored in the value. Defaults to \"string\" when omitted.",
+                                    "enum": [
+                                      "yaml",
+                                      "json",
+                                      "string"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -476,7 +498,13 @@
                                     "type": "string"
                                   },
                                   "type": {
-                                    "description": "Type declares the kind of data being stored in the value.",
+                                    "default": "string",
+                                    "description": "Type declares the kind of data being stored in the value. Defaults to \"string\" when omitted.",
+                                    "enum": [
+                                      "yaml",
+                                      "json",
+                                      "string"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -674,7 +702,13 @@
                                     "type": "string"
                                   },
                                   "type": {
-                                    "description": "Type declares the kind of data being stored in the value.",
+                                    "default": "string",
+                                    "description": "Type declares the kind of data being stored in the value. Defaults to \"string\" when omitted.",
+                                    "enum": [
+                                      "yaml",
+                                      "json",
+                                      "string"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -882,7 +916,13 @@
                                     "type": "string"
                                   },
                                   "type": {
-                                    "description": "Type declares the kind of data being stored in the value.",
+                                    "default": "string",
+                                    "description": "Type declares the kind of data being stored in the value. Defaults to \"string\" when omitted.",
+                                    "enum": [
+                                      "yaml",
+                                      "json",
+                                      "string"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -1150,7 +1190,13 @@
                                     "type": "string"
                                   },
                                   "type": {
-                                    "description": "Type declares the kind of data being stored in the value.",
+                                    "default": "string",
+                                    "description": "Type declares the kind of data being stored in the value. Defaults to \"string\" when omitted.",
+                                    "enum": [
+                                      "yaml",
+                                      "json",
+                                      "string"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -1348,7 +1394,13 @@
                                     "type": "string"
                                   },
                                   "type": {
-                                    "description": "Type declares the kind of data being stored in the value.",
+                                    "default": "string",
+                                    "description": "Type declares the kind of data being stored in the value. Defaults to \"string\" when omitted.",
+                                    "enum": [
+                                      "yaml",
+                                      "json",
+                                      "string"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -1556,7 +1608,13 @@
                                     "type": "string"
                                   },
                                   "type": {
-                                    "description": "Type declares the kind of data being stored in the value.",
+                                    "default": "string",
+                                    "description": "Type declares the kind of data being stored in the value. Defaults to \"string\" when omitted.",
+                                    "enum": [
+                                      "yaml",
+                                      "json",
+                                      "string"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -1824,7 +1882,13 @@
                                     "type": "string"
                                   },
                                   "type": {
-                                    "description": "Type declares the kind of data being stored in the value.",
+                                    "default": "string",
+                                    "description": "Type declares the kind of data being stored in the value. Defaults to \"string\" when omitted.",
+                                    "enum": [
+                                      "yaml",
+                                      "json",
+                                      "string"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -2022,7 +2086,13 @@
                                     "type": "string"
                                   },
                                   "type": {
-                                    "description": "Type declares the kind of data being stored in the value.",
+                                    "default": "string",
+                                    "description": "Type declares the kind of data being stored in the value. Defaults to \"string\" when omitted.",
+                                    "enum": [
+                                      "yaml",
+                                      "json",
+                                      "string"
+                                    ],
                                     "type": "string"
                                   }
                                 },
@@ -2192,14 +2262,54 @@
                           "description": "The subdirectory containing the chart within a Git repo.",
                           "type": "string"
                         },
+                        "ref": {
+                          "additionalProperties": false,
+                          "description": "The Git reference to check out. Required for charts.",
+                          "oneOf": [
+                            {
+                              "required": [
+                                "tag"
+                              ],
+                              "title": "tag"
+                            },
+                            {
+                              "required": [
+                                "branch"
+                              ],
+                              "title": "branch"
+                            },
+                            {
+                              "required": [
+                                "commit"
+                              ],
+                              "title": "commit"
+                            }
+                          ],
+                          "patternProperties": {
+                            "^x-": {}
+                          },
+                          "properties": {
+                            "branch": {
+                              "description": "The Git branch.",
+                              "type": "string"
+                            },
+                            "commit": {
+                              "description": "The Git commit SHA-1.",
+                              "pattern": "^[0-9A-Fa-f]{40}$",
+                              "type": "string"
+                            },
+                            "tag": {
+                              "description": "The Git tag.",
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "url": {
-                          "description": "The URL of the Git repository where the Helm chart is stored.",
+                          "description": "The URL of the Git repository where the Helm chart is stored. Must not contain an @ref suffix.",
                           "type": "string"
                         }
                       },
-                      "required": [
-                        "url"
-                      ],
                       "type": "object"
                     },
                     "helmRepository": {
@@ -2222,10 +2332,6 @@
                           "type": "string"
                         }
                       },
-                      "required": [
-                        "url",
-                        "version"
-                      ],
                       "type": "object"
                     },
                     "local": {
@@ -2247,6 +2353,7 @@
                     },
                     "name": {
                       "description": "The name of the chart within Zarf; note that this must be unique and does not need to be the same as the name in the chart repository.",
+                      "pattern": "^[^/\\\\]*$",
                       "type": "string"
                     },
                     "namespace": {
@@ -2260,19 +2367,43 @@
                         "^x-": {}
                       },
                       "properties": {
+                        "ref": {
+                          "additionalProperties": false,
+                          "description": "The OCI reference to pull. Exactly one of Ref.Tag or Ref.Digest must be set.",
+                          "oneOf": [
+                            {
+                              "required": [
+                                "tag"
+                              ],
+                              "title": "tag"
+                            },
+                            {
+                              "required": [
+                                "digest"
+                              ],
+                              "title": "digest"
+                            }
+                          ],
+                          "patternProperties": {
+                            "^x-": {}
+                          },
+                          "properties": {
+                            "digest": {
+                              "description": "The OCI digest, in the form sha256:\u003csha\u003e.",
+                              "type": "string"
+                            },
+                            "tag": {
+                              "description": "The OCI tag.",
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "url": {
                           "description": "The URL of the OCI registry where the Helm chart is stored.",
                           "type": "string"
-                        },
-                        "version": {
-                          "description": "The version of the chart in the OCI registry.",
-                          "type": "string"
                         }
                       },
-                      "required": [
-                        "url",
-                        "version"
-                      ],
                       "type": "object"
                     },
                     "releaseName": {
@@ -2280,6 +2411,7 @@
                       "type": "string"
                     },
                     "serverSideApply": {
+                      "default": "auto",
                       "description": "Controls whether Helm uses Server-Side Apply (SSA) or client-side apply (CSA) when deploying this chart. Defaults to \"auto\" when omitted.",
                       "enum": [
                         "true",
@@ -2305,6 +2437,17 @@
                           "^x-": {}
                         },
                         "properties": {
+                          "excludePaths": {
+                            "description": "Paths under sourcePath to omit when mapping to the target. Each path must be a descendant of sourcePath.",
+                            "items": {
+                              "examples": [
+                                ".registry.image"
+                              ],
+                              "pattern": "^\\.[a-zA-Z0-9_-]+(\\.[a-zA-Z0-9_-]+)*$",
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
                           "sourcePath": {
                             "description": "The source path for the value.",
                             "type": "string"
@@ -2323,9 +2466,27 @@
                       "type": "array"
                     },
                     "valuesFiles": {
-                      "description": "List of local values file paths or remote URLs to include in the package; these will be merged together when deployed.",
+                      "description": "List of values files to include in the package; these will be merged together when deployed.",
                       "items": {
-                        "type": "string"
+                        "additionalProperties": false,
+                        "description": "ValuesFile is a values file merged into a Helm chart on deploy.",
+                        "patternProperties": {
+                          "^x-": {}
+                        },
+                        "properties": {
+                          "enableTemplating": {
+                            "description": "Render Zarf template values in the file at deploy time before merging it.",
+                            "type": "boolean"
+                          },
+                          "path": {
+                            "description": "Local path or remote URL of the values file.",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "path"
+                        ],
+                        "type": "object"
                       },
                       "type": "array"
                     }
@@ -2402,7 +2563,25 @@
                     "images": {
                       "description": "The list of images contained in the archive.",
                       "items": {
-                        "type": "string"
+                        "additionalProperties": false,
+                        "description": "ArchiveImage identifies an image selected from an archive.",
+                        "patternProperties": {
+                          "^x-": {}
+                        },
+                        "properties": {
+                          "id": {
+                            "description": "Optional ID, unique across regular and archive images in the component. Does not enable import overrides.",
+                            "type": "string"
+                          },
+                          "name": {
+                            "description": "The image reference contained in the archive.",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ],
+                        "type": "object"
                       },
                       "type": "array"
                     },
@@ -2428,11 +2607,16 @@
                     "^x-": {}
                   },
                   "properties": {
+                    "id": {
+                      "description": "Optional ID, unique within the component; matching IDs let importing components replace regular images.",
+                      "type": "string"
+                    },
                     "name": {
                       "description": "The image reference.",
                       "type": "string"
                     },
                     "source": {
+                      "default": "registry",
                       "description": "The source to pull the image from. Defaults to \"registry\".",
                       "enum": [
                         "registry",
@@ -2451,6 +2635,20 @@
               "import": {
                 "additionalProperties": false,
                 "description": "Import a component from another Zarf component config.",
+                "oneOf": [
+                  {
+                    "required": [
+                      "local"
+                    ],
+                    "title": "local"
+                  },
+                  {
+                    "required": [
+                      "remote"
+                    ],
+                    "title": "remote"
+                  }
+                ],
                 "patternProperties": {
                   "^x-": {}
                 },
@@ -2532,7 +2730,7 @@
                           "type": "boolean"
                         },
                         "enablePlugins": {
-                          "description": "Enable kustomize plugins when building manifests.",
+                          "description": "Allow external Kustomize plugins when building manifests.",
                           "type": "boolean"
                         },
                         "files": {
@@ -2548,6 +2746,7 @@
                     "name": {
                       "description": "A name to give this collection of manifests; this will become the name of the dynamically-created helm chart.",
                       "maxLength": 40,
+                      "pattern": "^[^/\\\\]*$",
                       "type": "string"
                     },
                     "namespace": {
@@ -2555,6 +2754,7 @@
                       "type": "string"
                     },
                     "serverSideApply": {
+                      "default": "auto",
                       "description": "Controls whether Server-Side Apply (SSA) or client-side apply (CSA) is used during deploy. Defaults to \"auto\" when omitted.",
                       "enum": [
                         "true",
@@ -2593,8 +2793,52 @@
                     "^x-": {}
                   },
                   "properties": {
+                    "ref": {
+                      "additionalProperties": false,
+                      "description": "The Git reference to mirror. Optional; when unset, all branches and tags are mirrored.",
+                      "oneOf": [
+                        {
+                          "required": [
+                            "tag"
+                          ],
+                          "title": "tag"
+                        },
+                        {
+                          "required": [
+                            "branch"
+                          ],
+                          "title": "branch"
+                        },
+                        {
+                          "required": [
+                            "commit"
+                          ],
+                          "title": "commit"
+                        }
+                      ],
+                      "patternProperties": {
+                        "^x-": {}
+                      },
+                      "properties": {
+                        "branch": {
+                          "description": "The Git branch.",
+                          "type": "string"
+                        },
+                        "commit": {
+                          "description": "The Git commit SHA-1.",
+                          "pattern": "^[0-9A-Fa-f]{40}$",
+                          "type": "string"
+                        },
+                        "tag": {
+                          "description": "The Git tag.",
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
                     "url": {
                       "description": "The URL of the git repository.",
+                      "format": "uri",
                       "type": "string"
                     }
                   },
@@ -2628,19 +2872,37 @@
                 "type": "object"
               },
               "service": {
+                "additionalProperties": false,
                 "description": "The Zarf CLI service this component provides, such as the registry, injector, or agent.",
-                "enum": [
-                  "registry",
-                  "seed-registry",
-                  "injector",
-                  "agent",
-                  "git-server"
+                "patternProperties": {
+                  "^x-": {}
+                },
+                "properties": {
+                  "name": {
+                    "description": "The name of the Zarf CLI service this component provides.",
+                    "enum": [
+                      "registry",
+                      "seed-registry",
+                      "injector",
+                      "agent",
+                      "git-server"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
                 ],
-                "type": "string"
+                "type": "object"
               },
               "stateAccess": {
                 "description": "Groups of sensitive .State fields this component may access in Go templates (manifests, files, actions with template: true).\nValid values: \"registryCredentials\", \"gitCredentials\", \"agentCerts\".",
                 "items": {
+                  "enum": [
+                    "registryCredentials",
+                    "gitCredentials",
+                    "agentCerts"
+                  ],
                   "type": "string"
                 },
                 "type": "array"
@@ -2673,16 +2935,11 @@
           "minItems": 1,
           "type": "array"
         },
-        "documentation": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "Documentation files included in the package.",
-          "type": "object"
-        },
         "kind": {
+          "default": "ZarfPackageConfig",
           "description": "The kind of Zarf package.",
           "enum": [
+            "ZarfInitConfig",
             "ZarfPackageConfig"
           ],
           "type": "string"
@@ -2989,6 +3246,7 @@
                             "type": "array"
                           },
                           "setVariable": {
+                            "deprecated": true,
                             "description": "[Deprecated] (replaced by setVariables) (onDeploy/cmd only) The name of a variable to update with the output of the command. This variable will be available to all remaining actions and components in the package. This will be removed in Zarf v1.0.0.",
                             "pattern": "^[A-Z0-9_]+$",
                             "type": "string"
@@ -3245,6 +3503,7 @@
                             "type": "array"
                           },
                           "setVariable": {
+                            "deprecated": true,
                             "description": "[Deprecated] (replaced by setVariables) (onDeploy/cmd only) The name of a variable to update with the output of the command. This variable will be available to all remaining actions and components in the package. This will be removed in Zarf v1.0.0.",
                             "pattern": "^[A-Z0-9_]+$",
                             "type": "string"
@@ -3578,6 +3837,7 @@
                             "type": "array"
                           },
                           "setVariable": {
+                            "deprecated": true,
                             "description": "[Deprecated] (replaced by setVariables) (onDeploy/cmd only) The name of a variable to update with the output of the command. This variable will be available to all remaining actions and components in the package. This will be removed in Zarf v1.0.0.",
                             "pattern": "^[A-Z0-9_]+$",
                             "type": "string"
@@ -3834,6 +4094,7 @@
                             "type": "array"
                           },
                           "setVariable": {
+                            "deprecated": true,
                             "description": "[Deprecated] (replaced by setVariables) (onDeploy/cmd only) The name of a variable to update with the output of the command. This variable will be available to all remaining actions and components in the package. This will be removed in Zarf v1.0.0.",
                             "pattern": "^[A-Z0-9_]+$",
                             "type": "string"
@@ -4100,6 +4361,7 @@
                             "type": "array"
                           },
                           "setVariable": {
+                            "deprecated": true,
                             "description": "[Deprecated] (replaced by setVariables) (onDeploy/cmd only) The name of a variable to update with the output of the command. This variable will be available to all remaining actions and components in the package. This will be removed in Zarf v1.0.0.",
                             "pattern": "^[A-Z0-9_]+$",
                             "type": "string"
@@ -4356,6 +4618,7 @@
                             "type": "array"
                           },
                           "setVariable": {
+                            "deprecated": true,
                             "description": "[Deprecated] (replaced by setVariables) (onDeploy/cmd only) The name of a variable to update with the output of the command. This variable will be available to all remaining actions and components in the package. This will be removed in Zarf v1.0.0.",
                             "pattern": "^[A-Z0-9_]+$",
                             "type": "string"
@@ -4689,6 +4952,7 @@
                             "type": "array"
                           },
                           "setVariable": {
+                            "deprecated": true,
                             "description": "[Deprecated] (replaced by setVariables) (onDeploy/cmd only) The name of a variable to update with the output of the command. This variable will be available to all remaining actions and components in the package. This will be removed in Zarf v1.0.0.",
                             "pattern": "^[A-Z0-9_]+$",
                             "type": "string"
@@ -4945,6 +5209,7 @@
                             "type": "array"
                           },
                           "setVariable": {
+                            "deprecated": true,
                             "description": "[Deprecated] (replaced by setVariables) (onDeploy/cmd only) The name of a variable to update with the output of the command. This variable will be available to all remaining actions and components in the package. This will be removed in Zarf v1.0.0.",
                             "pattern": "^[A-Z0-9_]+$",
                             "type": "string"
@@ -5211,6 +5476,7 @@
                             "type": "array"
                           },
                           "setVariable": {
+                            "deprecated": true,
                             "description": "[Deprecated] (replaced by setVariables) (onDeploy/cmd only) The name of a variable to update with the output of the command. This variable will be available to all remaining actions and components in the package. This will be removed in Zarf v1.0.0.",
                             "pattern": "^[A-Z0-9_]+$",
                             "type": "string"
@@ -5467,6 +5733,7 @@
                             "type": "array"
                           },
                           "setVariable": {
+                            "deprecated": true,
                             "description": "[Deprecated] (replaced by setVariables) (onDeploy/cmd only) The name of a variable to update with the output of the command. This variable will be available to all remaining actions and components in the package. This will be removed in Zarf v1.0.0.",
                             "pattern": "^[A-Z0-9_]+$",
                             "type": "string"
@@ -5800,6 +6067,7 @@
                             "type": "array"
                           },
                           "setVariable": {
+                            "deprecated": true,
                             "description": "[Deprecated] (replaced by setVariables) (onDeploy/cmd only) The name of a variable to update with the output of the command. This variable will be available to all remaining actions and components in the package. This will be removed in Zarf v1.0.0.",
                             "pattern": "^[A-Z0-9_]+$",
                             "type": "string"
@@ -6056,6 +6324,7 @@
                             "type": "array"
                           },
                           "setVariable": {
+                            "deprecated": true,
                             "description": "[Deprecated] (replaced by setVariables) (onDeploy/cmd only) The name of a variable to update with the output of the command. This variable will be available to all remaining actions and components in the package. This will be removed in Zarf v1.0.0.",
                             "pattern": "^[A-Z0-9_]+$",
                             "type": "string"
@@ -6307,7 +6576,7 @@
                     "type": "string"
                   },
                   "templatedValuesFiles": {
-                    "description": "[alpha] List of local values file paths or remote URLs that will have Go templates applied at deploy time",
+                    "description": "[beta] List of local values file paths or remote URLs that will have Go templates applied at deploy time",
                     "items": {
                       "type": "string"
                     },
@@ -6323,7 +6592,7 @@
                     "type": "string"
                   },
                   "values": {
-                    "description": "[alpha] List of values sources to their Helm override target",
+                    "description": "[beta] List of values sources to their Helm override target",
                     "items": {
                       "additionalProperties": false,
                       "description": "ZarfChartValue maps a Zarf Value key to a Helm Value.",
@@ -6420,6 +6689,7 @@
               "type": "array"
             },
             "dataInjections": {
+              "deprecated": true,
               "description": "[Deprecated] Datasets to inject into a container in the target cluster.",
               "items": {
                 "additionalProperties": false,
@@ -6525,7 +6795,7 @@
                     "type": "string"
                   },
                   "template": {
-                    "description": "[alpha]\nTemplate enables go-templates inside manifests. This is useful for parameterizing fields that the value will be\nknown at deploy-time. See documentation for Zarf Values for how to set these values.",
+                    "description": "[beta]\nTemplate enables go-templates inside manifests. This is useful for parameterizing fields that the value will be\nknown at deploy-time. See documentation for Zarf Values for how to set these values.",
                     "type": "boolean"
                   }
                 },
@@ -6538,6 +6808,7 @@
               "type": "array"
             },
             "group": {
+              "deprecated": true,
               "description": "[Deprecated] Create a user selector field based on all components in the same group. This will be removed in Zarf v1.0.0. Consider using 'only.flavor' instead.",
               "type": "string"
             },
@@ -6690,7 +6961,7 @@
                     "type": "string"
                   },
                   "template": {
-                    "description": "[alpha]\nTemplate enables go-templates inside manifests. This is useful for parameterizing fields that the value will be\nknown at deploy-time. See documentation for Zarf Values for how to set these values.",
+                    "description": "[beta]\nTemplate enables go-templates inside manifests. This is useful for parameterizing fields that the value will be\nknown at deploy-time. See documentation for Zarf Values for how to set these values.",
                     "type": "boolean"
                   }
                 },
@@ -6771,6 +7042,7 @@
             },
             "scripts": {
               "additionalProperties": false,
+              "deprecated": true,
               "description": "[Deprecated] (replaced by actions) Custom commands to run before or after package deployment. This will be removed in Zarf v1.0.0.",
               "patternProperties": {
                 "^x-": {}
@@ -6959,7 +7231,8 @@
             "type": "string"
           },
           "yolo": {
-            "description": "Yaml OnLy Online (YOLO): True enables deploying a Zarf package without first running zarf init against the cluster. This is ideal for connected environments where you want to use existing VCS and container registries.",
+            "deprecated": true,
+            "description": "[Deprecated] Yaml OnLy Online (YOLO) enables deploying a Zarf package without first running zarf init against the cluster. Use --connected when deploying instead.",
             "type": "boolean"
           }
         },

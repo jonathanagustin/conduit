@@ -2,7 +2,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-: "${ZARF_BIN:?set ZARF_BIN to the verified Zarf v0.82.0 binary}"
+: "${ZARF_BIN:?set ZARF_BIN to the verified Zarf v1.0.0 binary}"
 : "${UDS_BIN:?set UDS_BIN to the verified UDS v0.41.0 binary}"
 export CONDUIT_TEST_UDS_EXECUTOR_CLI=1
 export GOMAXPROCS="${GOMAXPROCS:-2}"
