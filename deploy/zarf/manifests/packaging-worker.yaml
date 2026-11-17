@@ -24,15 +24,15 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: packaging-worker
-          image: "###ZARF_CONST_HUB_IMAGE###"
+          image: {{ index .Pkg.Metadata.Annotations "conduit.dev/hub-image" | toString | toJson }}
           imagePullPolicy: IfNotPresent
           args: ["packaging-worker"]
           env:
             - { name: REPOSITORY_KIND, value: postgres }
             - { name: POSTGRES_DSN_FILE, value: /run/conduit-database/dsn }
-            - { name: PACKAGING_TEMPORAL_ADDRESS, value: "###ZARF_VAR_PACKAGING_TEMPORAL_ADDRESS###" }
-            - { name: PACKAGING_TEMPORAL_NAMESPACE, value: "###ZARF_VAR_PACKAGING_TEMPORAL_NAMESPACE###" }
-            - { name: PACKAGING_TEMPORAL_TASK_QUEUE, value: "###ZARF_VAR_PACKAGING_TEMPORAL_TASK_QUEUE###" }
+            - { name: PACKAGING_TEMPORAL_ADDRESS, value: {{ .Values.PACKAGING_TEMPORAL_ADDRESS | toString | toJson }} }
+            - { name: PACKAGING_TEMPORAL_NAMESPACE, value: {{ .Values.PACKAGING_TEMPORAL_NAMESPACE | toString | toJson }} }
+            - { name: PACKAGING_TEMPORAL_TASK_QUEUE, value: {{ .Values.PACKAGING_TEMPORAL_TASK_QUEUE | toString | toJson }} }
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -43,6 +43,6 @@ spec:
       volumes:
         - name: database
           secret:
-            secretName: "###ZARF_VAR_PACKAGING_POSTGRES_SECRET###"
+            secretName: {{ .Values.PACKAGING_POSTGRES_SECRET | toString | toJson }}
             items:
               - { key: dsn, path: dsn }

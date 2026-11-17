@@ -14,7 +14,7 @@ fresh() {
   mkdir -p "$work/tree/deploy" "$work/tree/scripts/lib"
   cp -R "$root/deploy/zarf" "$root/deploy/helm" "$work/tree/deploy/"
   cp "$root/scripts/verify-zarf-chart-equivalence.rb" "$work/tree/scripts/"
-  cp "$root/scripts/lib/safe_yaml.rb" "$work/tree/scripts/lib/"
+  cp "$root/scripts/lib/"{safe_yaml,zarf_runtime_values}.rb "$work/tree/scripts/lib/"
 }
 
 fresh
@@ -52,7 +52,9 @@ rejects() {
 }
 
 runtime=deploy/zarf/manifests/runtime.yaml
-definition=deploy/zarf/zarf.yaml
+definition=deploy/zarf/zarf.tpl.yaml
+values=deploy/zarf/values.yaml
+schema=deploy/zarf/values.schema.json
 contract=deploy/zarf/chart-equivalence.yaml
 
 # Drift in either definition is a difference nobody reviewed.
@@ -74,13 +76,13 @@ rejects 'postgres profile must run two Hub replicas when planning is shared' "$d
 rejects 'postgres-single: more than one Hub replica without a shared planning frontend' "$definition" 's/postgres:shared) echo 2 ;; postgres:|file:|file:shared) echo 1 ;;/postgres:shared|postgres:) echo 2 ;; file:|file:shared) echo 1 ;;/'
 rejects 'file: more than one Hub replica without a shared planning frontend' "$definition" 's/postgres:|file:|file:shared) echo 1 ;;/postgres:|file:shared) echo 1 ;; file:) echo 2 ;;/'
 rejects 'postgres: more than one Hub replica without a shared planning frontend' "$runtime" 's/name: CONDUIT_TEMPORAL_SHARED, value: "true"/name: CONDUIT_TEMPORAL_SHARED, value: "false"/'
-rejects 'postgres: Hub is told HUB_REPLICA_COUNT=1 but runs 2 replicas' "$runtime" 's/name: HUB_REPLICA_COUNT, value: "###ZARF_VAR_HUB_REPLICAS###"/name: HUB_REPLICA_COUNT, value: "1"/'
+rejects 'postgres: Hub is told HUB_REPLICA_COUNT=1 but runs 2 replicas' "$runtime" 's/name: HUB_REPLICA_COUNT, value: {{ .Values.rendered.HUB_REPLICAS | toString | toJson }}/name: HUB_REPLICA_COUNT, value: "1"/'
 rejects 'profile postgres-single must leave empty PLANNING_TEMPORAL_ADDRESS' "$contract" '/^  postgres-single:$/,/^    hubValues:$/s/^      AGENT_ID: example-agent$/      AGENT_ID: example-agent\n      PLANNING_TEMPORAL_ADDRESS: "temporal:7233"/'
 rejects 'profile postgres must set PLANNING_TEMPORAL_ADDRESS' "$contract" '/^      PLANNING_TEMPORAL_ADDRESS: planning-frontend/d'
 # The planning and model wiring is compared like for like in the postgres
 # profile, so drift there is a difference, not an allowed one.
 rejects 'postgres: Deployment/platform-delivery spec.template.spec.containers[delivery-control-plane].env[CONDUIT_TEMPORAL_TASK_QUEUE].value differs is not an allowed difference' \
-  "$definition" 's/^    default: planning-sessions$/    default: planning/'
+  "$values" 's/^PLANNING_TEMPORAL_TASK_QUEUE: planning-sessions$/PLANNING_TEMPORAL_TASK_QUEUE: planning/'
 rejects 'postgres: Deployment/platform-delivery spec.template.spec.containers[delivery-control-plane].env[CONDUIT_MODEL_API_KEY_FILE].value differs is not an allowed difference' \
   deploy/helm/platform-hub/templates/deployment.yaml 's|value: /run/conduit-model/api-key }|value: /run/model/api-key }|'
 rejects 'postgres: Deployment/platform-delivery spec.template.spec.containers[delivery-control-plane].env[CONDUIT_TEMPORAL_ADDRESS].value differs is not an allowed difference' \
@@ -95,34 +97,34 @@ rejects 'postgres profile must not share a ReadWriteOnce claim between replicas'
   "$definition" 's/postgres) echo "emptyDir: {}"/postgres) echo "persistentVolumeClaim: {claimName: platform-delivery-state}"/'
 rejects 'file profile must keep Hub state on the retained claim' \
   "$definition" 's/file) echo "persistentVolumeClaim: {claimName: platform-delivery-state}"/file) echo "emptyDir: {}"/'
-rejects 'runtime component must derive exactly HUB_REPLICAS, HUB_STRATEGY and HUB_STATE_VOLUME' "$definition" 's/- name: HUB_STRATEGY$/- name: HUB_ROLLOUT/'
-rejects 'derived Hub settings must not also be operator-settable variables' "$definition" 's/^  - name: AGENT_TLS_SECRET$/  - name: HUB_REPLICAS/'
-rejects 'REPOSITORY_KIND must be the profile switch' "$definition" 's/pattern: "^(file|postgres)\$"/pattern: "^.*\$"/'
-rejects 'manifest uses an unresolved Zarf placeholder: ###ZARF_VAR_HUB_REPLICA_COUNT###' "$runtime" 's/ZARF_VAR_HUB_REPLICAS/ZARF_VAR_HUB_REPLICA_COUNT/'
+rejects 'runtime component must derive exactly HUB_REPLICAS, HUB_STRATEGY and HUB_STATE_VOLUME' "$definition" 's/key: .rendered.HUB_STRATEGY$/key: .rendered.HUB_ROLLOUT/'
+rejects 'derived Hub settings must not also be operator-settable variables' "$schema" 's/"AGENT_TLS_SECRET":/"HUB_REPLICAS":/'
+rejects 'REPOSITORY_KIND must be the profile switch' "$schema" 's/"pattern": "^(file|postgres)\$"/"pattern": "^.*\$"/'
+rejects 'key not found: "HUB_REPLICA_COUNT"' "$runtime" 's/rendered.HUB_REPLICAS/rendered.HUB_REPLICA_COUNT/'
 rejects 'Hub PodDisruptionBudget must select the Hub Pods and keep all but one' "$runtime" 's/^  maxUnavailable: 1$/  maxUnavailable: 2/'
 
 # The packaging worker beside a file-backed Hub.
-rejects 'packaging-worker guard accepted a file-backed Hub' "$definition" 's/test "\${ZARF_VAR_REPOSITORY_KIND}" = postgres/test -n "${ZARF_VAR_REPOSITORY_KIND}"/'
-rejects 'packaging-worker guard refused the postgres profile' "$definition" 's/test "\${ZARF_VAR_REPOSITORY_KIND}" = postgres/test "${ZARF_VAR_REPOSITORY_KIND}" = neither/'
+rejects 'packaging-worker guard accepted a file-backed Hub' "$definition" 's/test "\${CONDUIT_VALUE_REPOSITORY_KIND}" = postgres/test -n "${CONDUIT_VALUE_REPOSITORY_KIND}"/'
+rejects 'packaging-worker guard refused the postgres profile' "$definition" 's/test "\${CONDUIT_VALUE_REPOSITORY_KIND}" = postgres/test "${CONDUIT_VALUE_REPOSITORY_KIND}" = neither/'
 rejects 'packaging-worker guard must say why it refused' "$definition" 's/echo "packaging-worker requires REPOSITORY_KIND=postgres/echo "refused/'
 rejects 'packaging-worker must carry a deploy-time profile guard' "$definition" '/Refuse the packaging worker beside a file-backed Hub/,+1d'
 rejects 'profile file selects the packaging worker beside a file-backed Hub' "$contract" '0,/^    repositoryKind: file$/s//    repositoryKind: file\n    packagingWorker: true/'
 
 # Packaging's Hub client and worker use one explicitly enabled configuration.
 rejects 'packaging Temporal must default to disabled with its established namespace and queue' \
-  "$definition" '/^  - name: PACKAGING_TEMPORAL_ADDRESS$/,/^  - name: PACKAGING_TEMPORAL_NAMESPACE$/s/default: ""/default: "127.0.0.1:7233"/'
+  "$values" 's/^PACKAGING_TEMPORAL_ADDRESS:.*$/PACKAGING_TEMPORAL_ADDRESS: "127.0.0.1:7233"/'
 rejects 'file: Hub must forward the shared PACKAGING_TEMPORAL_ADDRESS' "$runtime" '/name: PACKAGING_TEMPORAL_ADDRESS,/d'
 rejects 'postgres: Hub and worker must share PACKAGING_TEMPORAL_TASK_QUEUE' \
-  deploy/zarf/manifests/packaging-worker.yaml 's/ZARF_VAR_PACKAGING_TEMPORAL_TASK_QUEUE/ZARF_VAR_PACKAGING_TEMPORAL_NAMESPACE/'
+  deploy/zarf/manifests/packaging-worker.yaml 's/Values.PACKAGING_TEMPORAL_TASK_QUEUE/Values.PACKAGING_TEMPORAL_NAMESPACE/'
 rejects 'runtime packaging guard must refuse only a configured file-backed Hub' "$definition" 's/file:) ;;/file:*) ;;/'
 rejects 'packaging-worker address guard must refuse an empty frontend' \
-  "$definition" 's/test -n "${ZARF_VAR_PACKAGING_TEMPORAL_ADDRESS}"/test -z "${ZARF_VAR_PACKAGING_TEMPORAL_ADDRESS}"/'
+  "$definition" 's/test -n "${CONDUIT_VALUE_PACKAGING_TEMPORAL_ADDRESS}"/test -z "${CONDUIT_VALUE_PACKAGING_TEMPORAL_ADDRESS}"/'
 rejects 'PACKAGING_TEMPORAL_ADDRESS accepts a credential, URI or unsafe manifest value' \
-  "$definition" '/^  - name: PACKAGING_TEMPORAL_ADDRESS$/,/^  - name: PACKAGING_TEMPORAL_NAMESPACE$/s/pattern: .*/pattern: "^.*$"/'
+  "$schema" '/"PACKAGING_TEMPORAL_ADDRESS":/,/"PACKAGING_TEMPORAL_NAMESPACE":/s/"pattern": .*/"pattern": "^.*$"/'
 rejects 'PACKAGING_TEMPORAL_ADDRESS must preserve bracketed IPv6 endpoints and interface zones' \
-  "$definition" 's/%\[A-Za-z0-9_.-\]/%[0-9]/'
+  "$schema" 's/%\[A-Za-z0-9_.-\]/%[0-9]/'
 rejects 'PACKAGING_TEMPORAL_ADDRESS must refuse ports outside 1 through 65535' \
-  "$definition" 's/6553\[0-5\]/6553[0-9]/'
+  "$schema" 's/6553\[0-5\]/6553[0-9]/'
 
 # The reviewed list itself.
 rejects 'Service/platform-delivery spec.type chart-only is not an allowed difference' "$contract" '/^  - object: Service\/platform-delivery$/{N;/spec.type/{N;N;N;d}}'

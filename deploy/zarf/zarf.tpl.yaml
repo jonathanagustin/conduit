@@ -1,0 +1,350 @@
+apiVersion: zarf.dev/v1beta1
+kind: ZarfPackageConfig
+metadata:
+  name: platform-runtime
+  description: Product-agnostic Platform Hub and outbound-only Spoke runtime
+  version: [[ printf "%q" .PLATFORM_VERSION ]]
+  annotations:
+    dev.uds.title: Conduit
+    documentation: https://github.com/jonathanagustin/conduit/blob/main/deploy/zarf/README.md
+    org.opencontainers.image.source: https://github.com/jonathanagustin/conduit
+    source: https://github.com/jonathanagustin/conduit
+    conduit.dev/hub-image: [[ printf "%q" .HUB_IMAGE ]]
+    conduit.dev/spoke-agent-image: [[ printf "%q" .SPOKE_AGENT_IMAGE ]]
+  preventNamespaceOverride: true
+components:
+- name: runtime
+  description: Installs the secure Hub and Spoke runtime; credentials and application RBAC remain Environment-owned
+  manifests:
+  - name: platform-runtime
+    namespace: platform-system
+    files:
+    - manifests/runtime.yaml
+    enableTemplating: true
+  images:
+  - name: [[ printf "%q" .HUB_IMAGE ]]
+    source: registry
+  - name: [[ printf "%q" .SPOKE_AGENT_IMAGE ]]
+    source: registry
+  actions:
+    onDeploy:
+      before:
+      - cmd: |-
+          CONDUIT_VALUE_PACKAGING_TEMPORAL_ADDRESS="$(printf '%s' '{{ .Values.PACKAGING_TEMPORAL_ADDRESS | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_PACKAGING_TEMPORAL_ADDRESS
+          CONDUIT_VALUE_REPOSITORY_KIND="$(printf '%s' '{{ .Values.REPOSITORY_KIND | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_REPOSITORY_KIND
+          case "${CONDUIT_VALUE_REPOSITORY_KIND}:${CONDUIT_VALUE_PACKAGING_TEMPORAL_ADDRESS:+enabled}" in postgres:*|file:) ;; *) echo "PACKAGING_TEMPORAL_ADDRESS requires REPOSITORY_KIND=postgres so the Hub and worker share one Plan store" >&2; exit 1 ;; esac
+        description: Refuse packaging workflow configuration beside a file-backed Hub
+        enableTemplating: true
+      - cmd: |-
+          CONDUIT_VALUE_PLANNING_TEMPORAL_ADDRESS="$(printf '%s' '{{ .Values.PLANNING_TEMPORAL_ADDRESS | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_PLANNING_TEMPORAL_ADDRESS
+          CONDUIT_VALUE_REPOSITORY_KIND="$(printf '%s' '{{ .Values.REPOSITORY_KIND | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_REPOSITORY_KIND
+          case "${CONDUIT_VALUE_REPOSITORY_KIND}:${CONDUIT_VALUE_PLANNING_TEMPORAL_ADDRESS:+shared}" in postgres:shared) echo 2 ;; postgres:|file:|file:shared) echo 1 ;; *) exit 1 ;; esac
+        description: Derive the Hub replica count from REPOSITORY_KIND and PLANNING_TEMPORAL_ADDRESS
+        enableTemplating: true
+        setValues:
+        - key: .rendered.HUB_REPLICAS
+          type: string
+      - cmd: |-
+          CONDUIT_VALUE_REPOSITORY_KIND="$(printf '%s' '{{ .Values.REPOSITORY_KIND | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_REPOSITORY_KIND
+          case "${CONDUIT_VALUE_REPOSITORY_KIND}" in postgres) echo "{type: RollingUpdate, rollingUpdate: {maxUnavailable: 0, maxSurge: 1}}" ;; file) echo "{type: Recreate}" ;; *) exit 1 ;; esac
+        description: Derive the Hub rollout strategy from REPOSITORY_KIND
+        enableTemplating: true
+        setValues:
+        - key: .rendered.HUB_STRATEGY
+          type: string
+      - cmd: |-
+          CONDUIT_VALUE_REPOSITORY_KIND="$(printf '%s' '{{ .Values.REPOSITORY_KIND | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_REPOSITORY_KIND
+          case "${CONDUIT_VALUE_REPOSITORY_KIND}" in postgres) echo "emptyDir: {}" ;; file) echo "persistentVolumeClaim: {claimName: platform-delivery-state}" ;; *) exit 1 ;; esac
+        description: Derive the Hub state volume from REPOSITORY_KIND
+        enableTemplating: true
+        setValues:
+        - key: .rendered.HUB_STATE_VOLUME
+          type: string
+      - cmd: |
+          CONDUIT_VALUE_NOTIFICATION_NATIVE_TIMEOUT="$(printf '%s' '{{ .Values.NOTIFICATION_NATIVE_TIMEOUT | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_NATIVE_TIMEOUT
+          CONDUIT_VALUE_NOTIFICATION_SLACK_TOKEN_SECRET_NAME="$(printf '%s' '{{ .Values.NOTIFICATION_SLACK_TOKEN_SECRET_NAME | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_SLACK_TOKEN_SECRET_NAME
+          CONDUIT_VALUE_NOTIFICATION_SMTP_ADDRESS="$(printf '%s' '{{ .Values.NOTIFICATION_SMTP_ADDRESS | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_SMTP_ADDRESS
+          CONDUIT_VALUE_NOTIFICATION_SMTP_CA_CONFIGMAP_NAME="$(printf '%s' '{{ .Values.NOTIFICATION_SMTP_CA_CONFIGMAP_NAME | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_SMTP_CA_CONFIGMAP_NAME
+          CONDUIT_VALUE_NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME="$(printf '%s' '{{ .Values.NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME
+          CONDUIT_VALUE_NOTIFICATION_SMTP_FROM="$(printf '%s' '{{ .Values.NOTIFICATION_SMTP_FROM | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_SMTP_FROM
+          CONDUIT_VALUE_NOTIFICATION_SMTP_TLS_MODE="$(printf '%s' '{{ .Values.NOTIFICATION_SMTP_TLS_MODE | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_SMTP_TLS_MODE
+          CONDUIT_VALUE_NOTIFICATION_TRANSPORT="$(printf '%s' '{{ .Values.NOTIFICATION_TRANSPORT | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_TRANSPORT
+          CONDUIT_VALUE_NOTIFICATION_WEBHOOK_SECRET_KEY="$(printf '%s' '{{ .Values.NOTIFICATION_WEBHOOK_SECRET_KEY | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_WEBHOOK_SECRET_KEY
+          CONDUIT_VALUE_NOTIFICATION_WEBHOOK_SECRET_NAME="$(printf '%s' '{{ .Values.NOTIFICATION_WEBHOOK_SECRET_NAME | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_WEBHOOK_SECRET_NAME
+          CONDUIT_VALUE_NOTIFICATION_WEBHOOK_TIMEOUT="$(printf '%s' '{{ .Values.NOTIFICATION_WEBHOOK_TIMEOUT | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_WEBHOOK_TIMEOUT
+          CONDUIT_VALUE_PLAN_ORCHESTRATOR="$(printf '%s' '{{ .Values.PLAN_ORCHESTRATOR | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_PLAN_ORCHESTRATOR
+          CONDUIT_VALUE_PLAN_TEMPORAL_ADDRESS="$(printf '%s' '{{ .Values.PLAN_TEMPORAL_ADDRESS | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_PLAN_TEMPORAL_ADDRESS
+          CONDUIT_VALUE_REPOSITORY_KIND="$(printf '%s' '{{ .Values.REPOSITORY_KIND | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_REPOSITORY_KIND
+          echo '# typed operational settings'
+          # Admission excludes Unicode controls, line separators and YAML
+          # noncharacters. Quote permitted UTF-8 bytes without locale folding.
+          json() { printf '%s' "$1" | LC_ALL=C sed 's/\\/\\\\/g; s/"/\\"/g'; }
+          item() { printf -- '            - {"name":"%s","value":"%s"}\n' "$1" "$(json "$2")"; }
+          # All values arrive as environment data, never interpolated shell code.
+          if [ "${CONDUIT_VALUE_NOTIFICATION_TRANSPORT}" != none ] && [ "${CONDUIT_VALUE_REPOSITORY_KIND}" != postgres ]; then
+            echo 'notifications require REPOSITORY_KIND=postgres' >&2; exit 1
+          fi
+          case "${CONDUIT_VALUE_NOTIFICATION_TRANSPORT}" in
+            none) : ;;
+            log) item NOTIFICATION_DELIVERY_LOG true ;;
+            webhook)
+              test -n "${CONDUIT_VALUE_NOTIFICATION_WEBHOOK_SECRET_NAME}" || { echo 'webhook requires NOTIFICATION_WEBHOOK_SECRET_NAME' >&2; exit 1; }
+              printf -- '            - {"name":"NOTIFICATION_WEBHOOK_URL","valueFrom":{"secretKeyRef":{"name":"%s","key":"%s","optional":false}}}\n' "${CONDUIT_VALUE_NOTIFICATION_WEBHOOK_SECRET_NAME}" "${CONDUIT_VALUE_NOTIFICATION_WEBHOOK_SECRET_KEY}"
+              test -z "${CONDUIT_VALUE_NOTIFICATION_WEBHOOK_TIMEOUT}" || item NOTIFICATION_WEBHOOK_TIMEOUT "${CONDUIT_VALUE_NOTIFICATION_WEBHOOK_TIMEOUT}"
+              ;;
+            native)
+              test -n "${CONDUIT_VALUE_NOTIFICATION_SMTP_ADDRESS}${CONDUIT_VALUE_NOTIFICATION_SLACK_TOKEN_SECRET_NAME}" || { echo 'native notifications require SMTP address or Slack token Secret' >&2; exit 1; }
+              test -z "${CONDUIT_VALUE_NOTIFICATION_NATIVE_TIMEOUT}" || item NOTIFICATION_NATIVE_TIMEOUT "${CONDUIT_VALUE_NOTIFICATION_NATIVE_TIMEOUT}"
+              if [ -n "${CONDUIT_VALUE_NOTIFICATION_SMTP_ADDRESS}" ]; then
+                test -n "${CONDUIT_VALUE_NOTIFICATION_SMTP_FROM}" || { echo 'SMTP requires NOTIFICATION_SMTP_FROM' >&2; exit 1; }
+                item NOTIFICATION_SMTP_ADDRESS "${CONDUIT_VALUE_NOTIFICATION_SMTP_ADDRESS}"
+                item NOTIFICATION_SMTP_FROM "${CONDUIT_VALUE_NOTIFICATION_SMTP_FROM}"
+                test -z "${CONDUIT_VALUE_NOTIFICATION_SMTP_TLS_MODE}" || item NOTIFICATION_SMTP_TLS_MODE "${CONDUIT_VALUE_NOTIFICATION_SMTP_TLS_MODE}"
+                if [ -n "${CONDUIT_VALUE_NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME}" ]; then
+                  item NOTIFICATION_SMTP_USERNAME_FILE /run/notification-smtp/username
+                  item NOTIFICATION_SMTP_PASSWORD_FILE /run/notification-smtp/password
+                fi
+                test -z "${CONDUIT_VALUE_NOTIFICATION_SMTP_CA_CONFIGMAP_NAME}" || item NOTIFICATION_SMTP_CA_FILE /run/notification-smtp-ca/ca.pem
+              fi
+              test -z "${CONDUIT_VALUE_NOTIFICATION_SLACK_TOKEN_SECRET_NAME}" || item NOTIFICATION_SLACK_TOKEN_FILE /run/notification-slack/token
+              ;;
+            *) echo 'invalid NOTIFICATION_TRANSPORT' >&2; exit 1 ;;
+          esac
+          case "${CONDUIT_VALUE_PLAN_ORCHESTRATOR}" in
+            native) : ;;
+            temporal)
+              test -n "${CONDUIT_VALUE_PLAN_TEMPORAL_ADDRESS}" || { echo 'temporal Plan orchestration requires PLAN_TEMPORAL_ADDRESS' >&2; exit 1; }
+              item PLAN_ORCHESTRATOR temporal
+              item PLAN_TEMPORAL_ADDRESS "${CONDUIT_VALUE_PLAN_TEMPORAL_ADDRESS}"
+              ;;
+            *) echo 'invalid PLAN_ORCHESTRATOR' >&2; exit 1 ;;
+          esac
+          # Keep a nonempty replacement when both features are disabled.
+          echo '# end operational environment'
+        description: Derive HUB_OPERATIONAL_ENV from typed operational settings
+        enableTemplating: true
+        setValues:
+        - key: .rendered.HUB_OPERATIONAL_ENV
+          type: string
+      - cmd: |
+          CONDUIT_VALUE_NOTIFICATION_SLACK_TOKEN_SECRET_NAME="$(printf '%s' '{{ .Values.NOTIFICATION_SLACK_TOKEN_SECRET_NAME | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_SLACK_TOKEN_SECRET_NAME
+          CONDUIT_VALUE_NOTIFICATION_SMTP_ADDRESS="$(printf '%s' '{{ .Values.NOTIFICATION_SMTP_ADDRESS | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_SMTP_ADDRESS
+          CONDUIT_VALUE_NOTIFICATION_SMTP_CA_CONFIGMAP_NAME="$(printf '%s' '{{ .Values.NOTIFICATION_SMTP_CA_CONFIGMAP_NAME | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_SMTP_CA_CONFIGMAP_NAME
+          CONDUIT_VALUE_NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME="$(printf '%s' '{{ .Values.NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME
+          CONDUIT_VALUE_NOTIFICATION_TRANSPORT="$(printf '%s' '{{ .Values.NOTIFICATION_TRANSPORT | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_TRANSPORT
+          echo '# typed operational settings'
+          if [ "${CONDUIT_VALUE_NOTIFICATION_TRANSPORT}" = native ]; then
+            if [ -n "${CONDUIT_VALUE_NOTIFICATION_SMTP_ADDRESS}" ]; then
+              test -z "${CONDUIT_VALUE_NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME}" || echo '            - {name: notification-smtp, mountPath: /run/notification-smtp, readOnly: true}'
+              test -z "${CONDUIT_VALUE_NOTIFICATION_SMTP_CA_CONFIGMAP_NAME}" || echo '            - {name: notification-smtp-ca, mountPath: /run/notification-smtp-ca, readOnly: true}'
+            fi
+            test -z "${CONDUIT_VALUE_NOTIFICATION_SLACK_TOKEN_SECRET_NAME}" || echo '            - {name: notification-slack, mountPath: /run/notification-slack, readOnly: true}'
+          fi
+          echo '# end operational mounts'
+        description: Derive HUB_OPERATIONAL_MOUNTS from typed operational settings
+        enableTemplating: true
+        setValues:
+        - key: .rendered.HUB_OPERATIONAL_MOUNTS
+          type: string
+      - cmd: |
+          CONDUIT_VALUE_NOTIFICATION_SLACK_TOKEN_KEY="$(printf '%s' '{{ .Values.NOTIFICATION_SLACK_TOKEN_KEY | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_SLACK_TOKEN_KEY
+          CONDUIT_VALUE_NOTIFICATION_SLACK_TOKEN_SECRET_NAME="$(printf '%s' '{{ .Values.NOTIFICATION_SLACK_TOKEN_SECRET_NAME | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_SLACK_TOKEN_SECRET_NAME
+          CONDUIT_VALUE_NOTIFICATION_SMTP_ADDRESS="$(printf '%s' '{{ .Values.NOTIFICATION_SMTP_ADDRESS | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_SMTP_ADDRESS
+          CONDUIT_VALUE_NOTIFICATION_SMTP_CA_CONFIGMAP_NAME="$(printf '%s' '{{ .Values.NOTIFICATION_SMTP_CA_CONFIGMAP_NAME | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_SMTP_CA_CONFIGMAP_NAME
+          CONDUIT_VALUE_NOTIFICATION_SMTP_CA_KEY="$(printf '%s' '{{ .Values.NOTIFICATION_SMTP_CA_KEY | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_SMTP_CA_KEY
+          CONDUIT_VALUE_NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME="$(printf '%s' '{{ .Values.NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME
+          CONDUIT_VALUE_NOTIFICATION_SMTP_PASSWORD_KEY="$(printf '%s' '{{ .Values.NOTIFICATION_SMTP_PASSWORD_KEY | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_SMTP_PASSWORD_KEY
+          CONDUIT_VALUE_NOTIFICATION_SMTP_USERNAME_KEY="$(printf '%s' '{{ .Values.NOTIFICATION_SMTP_USERNAME_KEY | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_SMTP_USERNAME_KEY
+          CONDUIT_VALUE_NOTIFICATION_TRANSPORT="$(printf '%s' '{{ .Values.NOTIFICATION_TRANSPORT | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_NOTIFICATION_TRANSPORT
+          echo '# typed operational settings'
+          if [ "${CONDUIT_VALUE_NOTIFICATION_TRANSPORT}" = native ]; then
+            if [ -n "${CONDUIT_VALUE_NOTIFICATION_SMTP_ADDRESS}" ]; then
+              if [ -n "${CONDUIT_VALUE_NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME}" ]; then
+                printf -- '        - {name: notification-smtp, secret: {secretName: "%s", optional: false, items: [{key: "%s", path: username}, {key: "%s", path: password}]}}\n' "${CONDUIT_VALUE_NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME}" "${CONDUIT_VALUE_NOTIFICATION_SMTP_USERNAME_KEY}" "${CONDUIT_VALUE_NOTIFICATION_SMTP_PASSWORD_KEY}"
+              fi
+              if [ -n "${CONDUIT_VALUE_NOTIFICATION_SMTP_CA_CONFIGMAP_NAME}" ]; then
+                printf -- '        - {name: notification-smtp-ca, configMap: {name: "%s", items: [{key: "%s", path: ca.pem}]}}\n' "${CONDUIT_VALUE_NOTIFICATION_SMTP_CA_CONFIGMAP_NAME}" "${CONDUIT_VALUE_NOTIFICATION_SMTP_CA_KEY}"
+              fi
+            fi
+            if [ -n "${CONDUIT_VALUE_NOTIFICATION_SLACK_TOKEN_SECRET_NAME}" ]; then
+              printf -- '        - {name: notification-slack, secret: {secretName: "%s", optional: false, items: [{key: "%s", path: token}]}}\n' "${CONDUIT_VALUE_NOTIFICATION_SLACK_TOKEN_SECRET_NAME}" "${CONDUIT_VALUE_NOTIFICATION_SLACK_TOKEN_KEY}"
+            fi
+          fi
+          echo '# end operational volumes'
+        description: Derive HUB_OPERATIONAL_VOLUMES from typed operational settings
+        enableTemplating: true
+        setValues:
+        - key: .rendered.HUB_OPERATIONAL_VOLUMES
+          type: string
+      - cmd: |
+          CONDUIT_VALUE_MATERIAL_PREPARER_COMMAND="$(printf '%s' '{{ .Values.MATERIAL_PREPARER_COMMAND | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_MATERIAL_PREPARER_COMMAND
+          echo '# typed operational settings'
+          if [ -n "${CONDUIT_VALUE_MATERIAL_PREPARER_COMMAND}" ]; then
+            case "/${CONDUIT_VALUE_MATERIAL_PREPARER_COMMAND}/" in */../*|*/./*) echo 'material preparer command must be a clean absolute path' >&2; exit 1 ;; esac
+            printf -- '            - {name: EXTERNAL_MATERIAL_PREPARER, value: "%s"}\n' "${CONDUIT_VALUE_MATERIAL_PREPARER_COMMAND}"
+          fi
+          echo '# end material preparer environment'
+        description: Derive SPOKE_OPERATIONAL_ENV from typed operational settings
+        enableTemplating: true
+        setValues:
+        - key: .rendered.SPOKE_OPERATIONAL_ENV
+          type: string
+      - cmd: |
+          CONDUIT_VALUE_MATERIAL_PREPARER_COMMAND="$(printf '%s' '{{ .Values.MATERIAL_PREPARER_COMMAND | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_MATERIAL_PREPARER_COMMAND
+          CONDUIT_VALUE_MATERIAL_PREPARER_TOOLS_MOUNT_PATH="$(printf '%s' '{{ .Values.MATERIAL_PREPARER_TOOLS_MOUNT_PATH | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_MATERIAL_PREPARER_TOOLS_MOUNT_PATH
+          CONDUIT_VALUE_MATERIAL_PREPARER_TOOLS_PVC="$(printf '%s' '{{ .Values.MATERIAL_PREPARER_TOOLS_PVC | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_MATERIAL_PREPARER_TOOLS_PVC
+          echo '# typed operational settings'
+          if [ -n "${CONDUIT_VALUE_MATERIAL_PREPARER_COMMAND}" ] && [ -n "${CONDUIT_VALUE_MATERIAL_PREPARER_TOOLS_PVC}" ]; then
+            printf -- '            - {name: material-preparer-tools, mountPath: "%s", readOnly: true}\n' "${CONDUIT_VALUE_MATERIAL_PREPARER_TOOLS_MOUNT_PATH}"
+          fi
+          echo '# end material preparer mounts'
+        description: Derive SPOKE_OPERATIONAL_MOUNTS from typed operational settings
+        enableTemplating: true
+        setValues:
+        - key: .rendered.SPOKE_OPERATIONAL_MOUNTS
+          type: string
+      - cmd: |
+          CONDUIT_VALUE_MATERIAL_PREPARER_COMMAND="$(printf '%s' '{{ .Values.MATERIAL_PREPARER_COMMAND | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_MATERIAL_PREPARER_COMMAND
+          CONDUIT_VALUE_MATERIAL_PREPARER_TOOLS_PVC="$(printf '%s' '{{ .Values.MATERIAL_PREPARER_TOOLS_PVC | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_MATERIAL_PREPARER_TOOLS_PVC
+          echo '# typed operational settings'
+          if [ -n "${CONDUIT_VALUE_MATERIAL_PREPARER_COMMAND}" ] && [ -n "${CONDUIT_VALUE_MATERIAL_PREPARER_TOOLS_PVC}" ]; then
+            printf -- '        - {name: material-preparer-tools, persistentVolumeClaim: {claimName: "%s", readOnly: true}}\n' "${CONDUIT_VALUE_MATERIAL_PREPARER_TOOLS_PVC}"
+          fi
+          echo '# end material preparer volumes'
+        description: Derive SPOKE_OPERATIONAL_VOLUMES from typed operational settings
+        enableTemplating: true
+        setValues:
+        - key: .rendered.SPOKE_OPERATIONAL_VOLUMES
+          type: string
+      onSuccess:
+      - wait:
+          cluster:
+            kind: Deployment.v1.apps
+            name: platform-delivery
+            namespace: platform-system
+      - wait:
+          cluster:
+            kind: Deployment.v1.apps
+            name: platform-spoke-agent
+            namespace: platform-system
+    onCreate:
+      before:
+      - description: Require immutable packaged runtime images
+        cmd: |
+          HUB_IMAGE="$(printf '%s' '[[ printf "%x" .HUB_IMAGE ]]' | awk 'BEGIN { digits="0123456789abcdef" } { for (i=1;i<=length($0);i+=2) printf "%c", (index(digits,substr($0,i,1))-1)*16+index(digits,substr($0,i+1,1))-1 }')"
+          printf '%s' "$HUB_IMAGE" | grep -Eq '^.+@sha256:[a-f0-9]{64}$' || { echo "HUB_IMAGE must be digest pinned" >&2; exit 1; }
+          SPOKE_AGENT_IMAGE="$(printf '%s' '[[ printf "%x" .SPOKE_AGENT_IMAGE ]]' | awk 'BEGIN { digits="0123456789abcdef" } { for (i=1;i<=length($0);i+=2) printf "%c", (index(digits,substr($0,i,1))-1)*16+index(digits,substr($0,i+1,1))-1 }')"
+          printf '%s' "$SPOKE_AGENT_IMAGE" | grep -Eq '^.+@sha256:[a-f0-9]{64}$' || { echo "SPOKE_AGENT_IMAGE must be digest pinned" >&2; exit 1; }
+- name: packaging-worker
+  description: Optional packaging worker. Temporal Server and PostgreSQL are operator-supplied and are not in this package.
+    Deploy only with --components packaging-worker, REPOSITORY_KIND=postgres, and PACKAGING_TEMPORAL_ADDRESS overridden.
+  optional: true
+  manifests:
+  - name: packaging-worker
+    namespace: platform-system
+    files:
+    - manifests/packaging-worker.yaml
+    enableTemplating: true
+  images:
+  - name: [[ printf "%q" .HUB_IMAGE ]]
+    source: registry
+  actions:
+    onDeploy:
+      before:
+      - cmd: |-
+          CONDUIT_VALUE_REPOSITORY_KIND="$(printf '%s' '{{ .Values.REPOSITORY_KIND | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_REPOSITORY_KIND
+          test "${CONDUIT_VALUE_REPOSITORY_KIND}" = postgres || { echo "packaging-worker requires REPOSITORY_KIND=postgres so the worker and the Hub share one Plan store" >&2; exit 1; }
+        description: Refuse the packaging worker beside a file-backed Hub
+        enableTemplating: true
+      - cmd: |-
+          CONDUIT_VALUE_PACKAGING_TEMPORAL_ADDRESS="$(printf '%s' '{{ .Values.PACKAGING_TEMPORAL_ADDRESS | toString | b64enc }}' | base64 -d)"
+          export CONDUIT_VALUE_PACKAGING_TEMPORAL_ADDRESS
+          test -n "${CONDUIT_VALUE_PACKAGING_TEMPORAL_ADDRESS}" || { echo "packaging-worker requires an explicit PACKAGING_TEMPORAL_ADDRESS" >&2; exit 1; }
+        description: Refuse the packaging worker without an explicit Temporal frontend
+        enableTemplating: true
+      onSuccess:
+      - wait:
+          cluster:
+            kind: Deployment.v1.apps
+            name: platform-packaging-worker
+            namespace: platform-system
+- name: uds
+  description: One optional UDS Package owner. Set UDS_METRICS=true to include its Hub monitor; a plain install selects no
+    UDS component.
+  optional: true
+  manifests:
+  - name: uds-package
+    namespace: platform-system
+    files:
+    - manifests/uds-package.yaml
+    enableTemplating: true
+  actions:
+    onDeploy:
+      before:
+      - description: Refuse a disabled Hub monitor
+        enableTemplating: true
+        cmd: |-
+          if [ '{{ .Values.UDS_METRICS }}' = true ]; then
+            test '{{ .Values.REPOSITORY_KIND | toString | b64enc }}' = cG9zdGdyZXM= && test '{{ .Values.METRICS_ADDRESS | toString | b64enc }}' = OjkwOTA= || { echo "UDS_METRICS requires REPOSITORY_KIND=postgres and METRICS_ADDRESS=:9090" >&2; exit 1; }
+          fi
+- name: uds-observability
+  description: Optional Hub alert rules and dashboard. Requires UDS_METRICS=true and the metrics-enabled UDS Package on the
+    cluster.
+  optional: true
+  manifests:
+  - name: observability
+    namespace: platform-system
+    files:
+    - manifests/observability.yaml
+  actions:
+    onDeploy:
+      before:
+      - description: Require a live Hub monitor for observability assets
+        enableTemplating: true
+        cmd: |-
+          test '{{ .Values.UDS_METRICS }}' = true || { echo "uds-observability requires UDS_METRICS=true" >&2; exit 1; }
+values:
+  files:
+  - values.yaml
+  schema: values.schema.json

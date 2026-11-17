@@ -1,0 +1,448 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "ENVIRONMENT_ID": {
+      "type": "string",
+      "description": "Immutable Environment ID assigned to this Spoke",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "AGENT_ID": {
+      "type": "string",
+      "description": "Unique Agent ID within the Environment",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "BOOTSTRAP_ADMINISTRATORS": {
+      "type": "string",
+      "description": "Comma-separated authenticated subjects allowed to establish initial governance"
+    },
+    "HELM_PLAIN_HTTP": {
+      "description": "Permit plain HTTP only for an explicitly isolated local OCI registry",
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string",
+          "enum": [
+            "true",
+            "false"
+          ]
+        }
+      ]
+    },
+    "HUB_TLS_SECRET": {
+      "type": "string",
+      "description": "Existing Secret containing ca.crt, tls.crt, and tls.key for the Hub"
+    },
+    "AGENT_TLS_SECRET": {
+      "type": "string",
+      "description": "Existing Secret containing ca.crt, tls.crt, and tls.key for the Spoke Agent"
+    },
+    "BUNDLE_SIGNING_SECRET": {
+      "type": "string",
+      "description": "Existing Secret containing bundle-signing-key.pem"
+    },
+    "PACKAGING_TEMPORAL_ADDRESS": {
+      "type": "string",
+      "description": "Plaintext host:port of the operator-supplied Temporal frontend used by the Hub packaging client and optional packaging worker. Leave empty to disable the Hub client; explicitly set with REPOSITORY_KIND=postgres before selecting packaging-worker. No URL or credentials; TLS and API-key configuration are not exposed by this package.",
+      "pattern": "^$|^([\\p{L}\\p{N}\\p{M}_.-]+|\\[[0-9A-Fa-f:.]+(%[A-Za-z0-9_.-]+)?\\]):0*(6553[0-5]|655[0-2][0-9]|65[0-4][0-9]{2}|6[0-4][0-9]{3}|[1-5][0-9]{4}|[1-9][0-9]{0,3})$"
+    },
+    "PACKAGING_TEMPORAL_NAMESPACE": {
+      "type": "string",
+      "description": "Temporal namespace shared by the Hub packaging client and optional packaging worker. Read only when PACKAGING_TEMPORAL_ADDRESS is set; not a Kubernetes namespace.",
+      "pattern": "^[^\"\\\\\\p{Cc}]+$"
+    },
+    "PACKAGING_TEMPORAL_TASK_QUEUE": {
+      "type": "string",
+      "description": "Temporal task queue shared by the Hub packaging client and optional packaging worker. Read only when PACKAGING_TEMPORAL_ADDRESS is set.",
+      "pattern": "^[^\"\\\\\\p{Cc}]+$"
+    },
+    "PACKAGING_POSTGRES_SECRET": {
+      "type": "string",
+      "description": "Existing Secret whose dsn key is the Hub Postgres DSN. Read by the Hub when REPOSITORY_KIND=postgres and by the optional packaging-worker component."
+    },
+    "REPOSITORY_KIND": {
+      "type": "string",
+      "description": "Selects the Hub profile. postgres is the production profile (rolling update, PodDisruptionBudget, DSN from PACKAGING_POSTGRES_SECRET, and two replicas once PLANNING_TEMPORAL_ADDRESS is set) and is required for metrics and the packaging worker. file is a single-replica development and evaluation profile on the package PVC.",
+      "pattern": "^(file|postgres)$"
+    },
+    "METRICS_ADDRESS": {
+      "type": "string",
+      "description": "Hub metrics listener. Leave empty for none. Set to :9090 only together with REPOSITORY_KIND=postgres; the file repository serves no metrics.",
+      "pattern": "^(:9090)?$"
+    },
+    "RATE_LIMIT_OPERATOR_RPS": {
+      "type": "string",
+      "description": "Sustained requests per second the Hub allows one operator. Leave empty for the Hub default (100). The Hub refuses to start on zero or on more than 1000000.",
+      "pattern": "^$|^[0-9]{1,7}(\\.[0-9]{1,3})?$"
+    },
+    "RATE_LIMIT_OPERATOR_BURST": {
+      "type": "string",
+      "description": "Requests the Hub allows one operator at once. Leave empty for the Hub default (600). The Hub refuses to start on more than 1000000.",
+      "pattern": "^$|^[1-9][0-9]{0,6}$"
+    },
+    "RATE_LIMIT_AGENT_RPS": {
+      "type": "string",
+      "description": "Sustained requests per second the Hub allows one Agent. Leave empty for the Hub default (20). The Hub refuses to start on zero or on more than 1000000.",
+      "pattern": "^$|^[0-9]{1,7}(\\.[0-9]{1,3})?$"
+    },
+    "RATE_LIMIT_AGENT_BURST": {
+      "type": "string",
+      "description": "Requests the Hub allows one Agent at once. Leave empty for the Hub default (60). The Hub refuses to start on more than 1000000.",
+      "pattern": "^$|^[1-9][0-9]{0,6}$"
+    },
+    "RATE_LIMIT_ANONYMOUS_RPS": {
+      "type": "string",
+      "description": "Sustained requests per second the Hub allows one remote address. Leave empty for the Hub default (10). The Hub refuses to start on zero or on more than 1000000.",
+      "pattern": "^$|^[0-9]{1,7}(\\.[0-9]{1,3})?$"
+    },
+    "RATE_LIMIT_ANONYMOUS_BURST": {
+      "type": "string",
+      "description": "Requests the Hub allows one remote address at once. Leave empty for the Hub default (60). The Hub refuses to start on more than 1000000.",
+      "pattern": "^$|^[1-9][0-9]{0,6}$"
+    },
+    "NOTIFICATION_TRANSPORT": {
+      "type": "string",
+      "description": "Notification delivery transport. Any enabled transport requires REPOSITORY_KIND=postgres. Credentials are existing object references only.",
+      "pattern": "^(none|webhook|log|native)$"
+    },
+    "NOTIFICATION_WEBHOOK_SECRET_NAME": {
+      "type": "string",
+      "description": "Existing Secret containing the full webhook URL. Required only for webhook transport.",
+      "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "NOTIFICATION_WEBHOOK_SECRET_KEY": {
+      "type": "string",
+      "description": "Key of the webhook URL in NOTIFICATION_WEBHOOK_SECRET_NAME.",
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "NOTIFICATION_WEBHOOK_TIMEOUT": {
+      "type": "string",
+      "description": "Bound on one webhook attempt. Empty keeps the Hub default.",
+      "pattern": "^$|^[1-9][0-9]*(ms|s|m)$"
+    },
+    "NOTIFICATION_NATIVE_TIMEOUT": {
+      "type": "string",
+      "description": "Bound on one SMTP or Slack attempt. Must remain below the delivery lease of 30 seconds.",
+      "pattern": "^$|^[1-9][0-9]*(ms|s)$"
+    },
+    "NOTIFICATION_SMTP_ADDRESS": {
+      "type": "string",
+      "description": "SMTP host:port. Enables the native email channel; requires NOTIFICATION_SMTP_FROM.",
+      "pattern": "^$|^[^:\\p{Cc}\\p{Z}\\x{FFFE}\\x{FFFF}]+:[0-9]{1,5}$|^\\[[0-9A-Fa-f:]+\\]:[0-9]{1,5}$"
+    },
+    "NOTIFICATION_SMTP_FROM": {
+      "type": "string",
+      "description": "Sender mailbox for native email. Unicode display names are preserved; controls and Unicode line separators are refused.",
+      "pattern": "^$|^[^\\p{Cc}\\p{Zl}\\p{Zp}\\x{FFFE}\\x{FFFF}]*[^\\s\\p{Cc}\\p{Zl}\\p{Zp}\\x{FFFE}\\x{FFFF}]+@[^\\s\\p{Cc}\\p{Zl}\\p{Zp}\\x{FFFE}\\x{FFFF}]+$"
+    },
+    "NOTIFICATION_SMTP_TLS_MODE": {
+      "type": "string",
+      "description": "Empty or starttls uses STARTTLS; tls uses implicit TLS. Plaintext is unsupported.",
+      "pattern": "^(|starttls|tls)$"
+    },
+    "NOTIFICATION_SMTP_CREDENTIALS_SECRET_NAME": {
+      "type": "string",
+      "description": "Existing Secret containing SMTP username and password. Empty uses no SMTP authentication.",
+      "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "NOTIFICATION_SMTP_USERNAME_KEY": {
+      "type": "string",
+      "description": "SMTP username key in the credentials Secret.",
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "NOTIFICATION_SMTP_PASSWORD_KEY": {
+      "type": "string",
+      "description": "SMTP password key in the credentials Secret.",
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "NOTIFICATION_SMTP_CA_CONFIGMAP_NAME": {
+      "type": "string",
+      "description": "Existing ConfigMap containing a private SMTP CA. Empty uses system trust roots.",
+      "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "NOTIFICATION_SMTP_CA_KEY": {
+      "type": "string",
+      "description": "CA bundle key in the SMTP ConfigMap.",
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "NOTIFICATION_SLACK_TOKEN_SECRET_NAME": {
+      "type": "string",
+      "description": "Existing Secret containing the Slack token. Enables the native Slack channel.",
+      "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "NOTIFICATION_SLACK_TOKEN_KEY": {
+      "type": "string",
+      "description": "Slack token key in the Secret.",
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "PLAN_ORCHESTRATOR": {
+      "type": "string",
+      "description": "Plan lifecycle driver. temporal requires PLAN_TEMPORAL_ADDRESS; the frontend is operator-supplied, plaintext, and uses Temporal namespace default.",
+      "pattern": "^(native|temporal)$"
+    },
+    "PLAN_TEMPORAL_ADDRESS": {
+      "type": "string",
+      "description": "Explicit host:port of the Plan lifecycle Temporal frontend. Independent of planning sessions and packaging worker settings.",
+      "pattern": "^$|^[^\\p{Cc}\\p{Z}\\x{FFFE}\\x{FFFF}]+:[0-9]{1,5}$"
+    },
+    "MATERIAL_PREPARER_COMMAND": {
+      "type": "string",
+      "description": "Absolute executable path of the external Spoke material preparer. Empty leaves preparation disabled; an existing PVC can supply additional tools.",
+      "pattern": "^$|^(/[A-Za-z0-9._+-]+)+$"
+    },
+    "MATERIAL_PREPARER_TOOLS_PVC": {
+      "type": "string",
+      "description": "Existing PVC containing the operator-supplied preparer. Mounted read-only only when its command is configured.",
+      "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "MATERIAL_PREPARER_TOOLS_MOUNT_PATH": {
+      "type": "string",
+      "description": "Read-only mount path for the preparer tools PVC.",
+      "pattern": "^(/[A-Za-z0-9._+-]+)+$"
+    },
+    "CONSOLE_PUBLIC_URL": {
+      "type": "string",
+      "description": "Browser origin of the Hub console. The Hub builds its sign-in redirect address from it and accepts a session cookie only from it, so it must be the address people actually use. Inert while OPERATOR_OIDC_ISSUER is empty. The optional uds component registers the same address with Keycloak.",
+      "pattern": "^https://[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]{1,5})?$"
+    },
+    "OPERATOR_OIDC_ISSUER": {
+      "type": "string",
+      "description": "OIDC issuer for operator sign-in. Leave empty on a plain Zarf install that has no Keycloak."
+    },
+    "OPERATOR_OIDC_CLIENT_ID": {
+      "type": "string",
+      "description": "OIDC client ID for operator sign-in. Leave empty when OPERATOR_OIDC_ISSUER is empty."
+    },
+    "OPERATOR_OIDC_USERNAME_CLAIM": {
+      "type": "string",
+      "description": "Token claim that carries the operator username. Leave empty when OPERATOR_OIDC_ISSUER is empty."
+    },
+    "OPERATOR_OIDC_GROUPS_CLAIM": {
+      "type": "string",
+      "description": "Token claim that carries operator groups. Leave empty when OPERATOR_OIDC_ISSUER is empty."
+    },
+    "OPERATOR_OIDC_CA_FILE": {
+      "type": "string",
+      "description": "CA bundle used to verify the issuer. Leave empty when OPERATOR_OIDC_ISSUER is empty."
+    },
+    "OPERATOR_OIDC_CLIENT_SECRET": {
+      "type": "string",
+      "description": "Existing Secret whose client-secret key is the OIDC client secret for browser sign-in. The optional uds component has UDS Core create it. Read only when OPERATOR_OIDC_CLIENT_SECRET_FILE is set.",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "OPERATOR_OIDC_CLIENT_SECRET_FILE": {
+      "type": "string",
+      "description": "Set to /run/conduit-sso/client-secret to sign in as the confidential client in OPERATOR_OIDC_CLIENT_SECRET. Leave empty for a public client, which relies on PKCE alone, or when OPERATOR_OIDC_ISSUER is empty.",
+      "pattern": "^(/run/conduit-sso/client-secret)?$"
+    },
+    "OPERATOR_SESSION_MAX_LIFETIME": {
+      "type": "string",
+      "description": "Longest a browser session may last, as a Go duration between 5m and 24h. A session also ends when its ID token expires. Leave empty for the default of 8h, and when OPERATOR_OIDC_ISSUER is empty.",
+      "pattern": "^([0-9]{1,4}h)?([0-9]{1,4}m)?([0-9]{1,5}s)?$"
+    },
+    "POSTGRES_NAMESPACE": {
+      "type": "string",
+      "description": "Namespace of the operator-supplied Postgres. Used only by the optional uds component.",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "POSTGRES_NAME_LABEL": {
+      "type": "string",
+      "description": "app.kubernetes.io/name value on the operator-supplied Postgres pods. Used only by the optional uds component.",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+    },
+    "OIDC_ISSUER_NAMESPACE": {
+      "type": "string",
+      "description": "Namespace of the in-cluster OIDC issuer (Keycloak) Pods. Used only by the optional uds component.",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "OIDC_ISSUER_NAME_LABEL": {
+      "type": "string",
+      "description": "app.kubernetes.io/name value on the in-cluster OIDC issuer Pods. Used only by the optional uds component.",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+    },
+    "CHART_REGISTRY_NAMESPACE": {
+      "type": "string",
+      "description": "Namespace of the in-cluster OCI registry the Spoke pulls charts from. Used only by the optional uds component.",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "CHART_REGISTRY_LABEL_KEY": {
+      "type": "string",
+      "description": "Pod label key that selects the chart registry. Used only by the optional uds component.",
+      "pattern": "^([A-Za-z0-9][A-Za-z0-9.-]{0,252}/)?[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+    },
+    "CHART_REGISTRY_LABEL_VALUE": {
+      "type": "string",
+      "description": "Pod label value that selects the chart registry. Used only by the optional uds component.",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+    },
+    "TEMPORAL_NAMESPACE": {
+      "type": "string",
+      "description": "Kubernetes namespace of the operator-supplied Temporal frontend. Used only by the optional uds component.",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "TEMPORAL_NAME_LABEL": {
+      "type": "string",
+      "description": "app.kubernetes.io/name value on the operator-supplied Temporal frontend Pods. Used only by the optional uds component.",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+    },
+    "PLANNING_TEMPORAL_ADDRESS": {
+      "type": "string",
+      "description": "host:port of the operator-supplied Temporal frontend that holds planning sessions. Required for two Hub replicas - with REPOSITORY_KIND=postgres and this set the Hub runs two replicas that share planning state; left empty the Hub runs one replica with a process-local planning store.",
+      "pattern": "^$|^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?:[0-9]{1,5}$"
+    },
+    "PLANNING_TEMPORAL_NAMESPACE": {
+      "type": "string",
+      "description": "Temporal namespace for planning sessions. Read only when PLANNING_TEMPORAL_ADDRESS is set.",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+    },
+    "PLANNING_TEMPORAL_TASK_QUEUE": {
+      "type": "string",
+      "description": "Temporal task queue for planning sessions. Read only when PLANNING_TEMPORAL_ADDRESS is set.",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+    },
+    "MODEL_BASE_URL": {
+      "type": "string",
+      "description": "Base URL of an OpenAI-compatible model endpoint, for example https://models.example/v1. Leave empty for no model call. No credentials, query, or fragment.",
+      "pattern": "^$|^https?://[^\\s@?#]+$"
+    },
+    "MODEL_NAME": {
+      "type": "string",
+      "description": "Model id sent in each request and recorded as the configured model. Required when MODEL_BASE_URL is set; the Hub refuses to start without it.",
+      "pattern": "^\\S*$"
+    },
+    "ASSISTANT_MODEL_NAME": {
+      "type": "string",
+      "description": "assistant model id on MODEL_BASE_URL. Empty inherits MODEL_NAME.",
+      "pattern": "^\\S*$"
+    },
+    "ASSISTANT_MODEL_TIMEOUT": {
+      "type": "string",
+      "description": "assistant model request deadline. Empty inherits MODEL_TIMEOUT.",
+      "pattern": "^$|^[1-9][0-9]*(ms|s|m)$"
+    },
+    "PLANNING_MODEL_NAME": {
+      "type": "string",
+      "description": "planning model id on MODEL_BASE_URL. Empty inherits MODEL_NAME.",
+      "pattern": "^\\S*$"
+    },
+    "PLANNING_MODEL_TIMEOUT": {
+      "type": "string",
+      "description": "planning model request deadline. Empty inherits MODEL_TIMEOUT.",
+      "pattern": "^$|^[1-9][0-9]*(ms|s|m)$"
+    },
+    "PACKAGING_MODEL_NAME": {
+      "type": "string",
+      "description": "packaging model id on MODEL_BASE_URL. Empty inherits MODEL_NAME.",
+      "pattern": "^\\S*$"
+    },
+    "PACKAGING_MODEL_TIMEOUT": {
+      "type": "string",
+      "description": "packaging model request deadline. Empty inherits MODEL_TIMEOUT.",
+      "pattern": "^$|^[1-9][0-9]*(ms|s|m)$"
+    },
+    "APPGEN_MODEL_NAME": {
+      "type": "string",
+      "description": "appgen model id on MODEL_BASE_URL. Empty inherits MODEL_NAME.",
+      "pattern": "^\\S*$"
+    },
+    "APPGEN_MODEL_TIMEOUT": {
+      "type": "string",
+      "description": "appgen model request deadline. Empty inherits MODEL_TIMEOUT.",
+      "pattern": "^$|^[1-9][0-9]*(ms|s|m)$"
+    },
+    "MODEL_TIMEOUT": {
+      "type": "string",
+      "description": "Bound on one whole model request, for example 90s. Leave empty for the Hub default of 45s.",
+      "pattern": "^$|^[1-9][0-9]*(ms|s|m)$"
+    },
+    "MODEL_API_KEY_SECRET": {
+      "type": "string",
+      "description": "Existing Secret whose api-key key is the model API key. Mounted only as a file. Read only when MODEL_API_KEY_FILE is set.",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "MODEL_API_KEY_FILE": {
+      "type": "string",
+      "description": "Set to /run/conduit-model/api-key to send the key from MODEL_API_KEY_SECRET. Leave empty for a keyless endpoint.",
+      "pattern": "^(/run/conduit-model/api-key)?$"
+    },
+    "MODEL_CA_CONFIGMAP": {
+      "type": "string",
+      "description": "Existing ConfigMap whose ca.pem key is a private CA for the model endpoint. Read only when MODEL_CA_FILE is set.",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "MODEL_CA_FILE": {
+      "type": "string",
+      "description": "Set to /run/conduit-model-ca/ca.pem to trust MODEL_CA_CONFIGMAP in addition to the system roots. Leave empty otherwise.",
+      "pattern": "^(/run/conduit-model-ca/ca.pem)?$"
+    },
+    "MODEL_ALLOW_INSECURE_HTTP": {
+      "description": "Permit a plain http MODEL_BASE_URL. The key and every prompt then cross the cluster network unencrypted unless a service mesh encrypts that hop.",
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string",
+          "enum": [
+            "true",
+            "false"
+          ]
+        }
+      ]
+    },
+    "MODEL_SERVICE_NAMESPACE": {
+      "type": "string",
+      "description": "Namespace of an in-cluster model service the Hub may reach. The default names no namespace, so no egress is granted until it is set. Used only by the optional uds components.",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "MODEL_SERVICE_NAME_LABEL": {
+      "type": "string",
+      "description": "app.kubernetes.io/name value on the in-cluster model service Pods. Used only by the optional uds components.",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+    },
+    "UDS_METRICS": {
+      "type": "boolean",
+      "description": "Enable the Hub monitor in the single optional UDS Package owner. Requires a postgres Hub listening on :9090."
+    },
+    "rendered": {
+      "type": "object",
+      "properties": {
+        "HUB_OPERATIONAL_ENV": {
+          "type": "string"
+        },
+        "HUB_OPERATIONAL_MOUNTS": {
+          "type": "string"
+        },
+        "HUB_OPERATIONAL_VOLUMES": {
+          "type": "string"
+        },
+        "HUB_REPLICAS": {
+          "type": "string"
+        },
+        "HUB_STATE_VOLUME": {
+          "type": "string"
+        },
+        "HUB_STRATEGY": {
+          "type": "string"
+        },
+        "SPOKE_OPERATIONAL_ENV": {
+          "type": "string"
+        },
+        "SPOKE_OPERATIONAL_MOUNTS": {
+          "type": "string"
+        },
+        "SPOKE_OPERATIONAL_VOLUMES": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "ENVIRONMENT_ID",
+    "AGENT_ID"
+  ],
+  "additionalProperties": false
+}

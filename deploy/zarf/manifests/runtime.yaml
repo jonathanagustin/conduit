@@ -41,8 +41,8 @@ spec:
   # Recreate, postgres is two with a surge-one rolling update. The values are
   # deliberately unquoted, because replicas must be an integer and strategy a
   # mapping once Zarf has substituted its text.
-  replicas: ###ZARF_VAR_HUB_REPLICAS###
-  strategy: ###ZARF_VAR_HUB_STRATEGY###
+  replicas: {{ .Values.rendered.HUB_REPLICAS }}
+  strategy: {{ .Values.rendered.HUB_STRATEGY }}
   selector:
     matchLabels:
       app.kubernetes.io/name: platform-delivery
@@ -61,7 +61,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: delivery-control-plane
-          image: "###ZARF_CONST_HUB_IMAGE###"
+          image: {{ index .Pkg.Metadata.Annotations "conduit.dev/hub-image" | toString | toJson }}
           imagePullPolicy: IfNotPresent
           env:
             - { name: AGENT_CLIENT_CA_FILE, value: /run/platform-tls/ca.crt }
@@ -71,70 +71,70 @@ spec:
             # The Hub refuses to start with more than one replica and a
             # process-local planning store, so it is told the count this
             # manifest actually runs: the same derived value as spec.replicas.
-            - { name: HUB_REPLICA_COUNT, value: "###ZARF_VAR_HUB_REPLICAS###" }
+            - { name: HUB_REPLICA_COUNT, value: {{ .Values.rendered.HUB_REPLICAS | toString | toJson }} }
             # Planning sessions. An empty address keeps them in the process,
             # which is why an empty address also derives one replica; the
             # other three are inert without it.
-            - { name: CONDUIT_TEMPORAL_ADDRESS, value: "###ZARF_VAR_PLANNING_TEMPORAL_ADDRESS###" }
-            - { name: CONDUIT_TEMPORAL_NAMESPACE, value: "###ZARF_VAR_PLANNING_TEMPORAL_NAMESPACE###" }
-            - { name: CONDUIT_TEMPORAL_TASK_QUEUE, value: "###ZARF_VAR_PLANNING_TEMPORAL_TASK_QUEUE###" }
+            - { name: CONDUIT_TEMPORAL_ADDRESS, value: {{ .Values.PLANNING_TEMPORAL_ADDRESS | toString | toJson }} }
+            - { name: CONDUIT_TEMPORAL_NAMESPACE, value: {{ .Values.PLANNING_TEMPORAL_NAMESPACE | toString | toJson }} }
+            - { name: CONDUIT_TEMPORAL_TASK_QUEUE, value: {{ .Values.PLANNING_TEMPORAL_TASK_QUEUE | toString | toJson }} }
             - { name: CONDUIT_TEMPORAL_SHARED, value: "true" }
-            - { name: PLATFORM_BOOTSTRAP_ADMINISTRATORS, value: "###ZARF_VAR_BOOTSTRAP_ADMINISTRATORS###" }
-            - { name: OPERATOR_OIDC_ISSUER, value: "###ZARF_VAR_OPERATOR_OIDC_ISSUER###" }
-            - { name: OPERATOR_OIDC_CLIENT_ID, value: "###ZARF_VAR_OPERATOR_OIDC_CLIENT_ID###" }
-            - { name: OPERATOR_OIDC_USERNAME_CLAIM, value: "###ZARF_VAR_OPERATOR_OIDC_USERNAME_CLAIM###" }
-            - { name: OPERATOR_OIDC_GROUPS_CLAIM, value: "###ZARF_VAR_OPERATOR_OIDC_GROUPS_CLAIM###" }
-            - { name: OPERATOR_OIDC_CA_FILE, value: "###ZARF_VAR_OPERATOR_OIDC_CA_FILE###" }
+            - { name: PLATFORM_BOOTSTRAP_ADMINISTRATORS, value: {{ .Values.BOOTSTRAP_ADMINISTRATORS | toString | toJson }} }
+            - { name: OPERATOR_OIDC_ISSUER, value: {{ .Values.OPERATOR_OIDC_ISSUER | toString | toJson }} }
+            - { name: OPERATOR_OIDC_CLIENT_ID, value: {{ .Values.OPERATOR_OIDC_CLIENT_ID | toString | toJson }} }
+            - { name: OPERATOR_OIDC_USERNAME_CLAIM, value: {{ .Values.OPERATOR_OIDC_USERNAME_CLAIM | toString | toJson }} }
+            - { name: OPERATOR_OIDC_GROUPS_CLAIM, value: {{ .Values.OPERATOR_OIDC_GROUPS_CLAIM | toString | toJson }} }
+            - { name: OPERATOR_OIDC_CA_FILE, value: {{ .Values.OPERATOR_OIDC_CA_FILE | toString | toJson }} }
             # Browser sign-in. The Hub runs it only when an issuer is set; with
             # none, the public address is inert and the other two must be
             # empty. The client secret is never a variable: it is read from
             # the optional Secret mounted below. See
             # docs/operations/operator-sign-in.md.
-            - { name: CONSOLE_PUBLIC_URL, value: "###ZARF_VAR_CONSOLE_PUBLIC_URL###" }
-            - { name: OPERATOR_OIDC_CLIENT_SECRET_FILE, value: "###ZARF_VAR_OPERATOR_OIDC_CLIENT_SECRET_FILE###" }
-            - { name: OPERATOR_SESSION_MAX_LIFETIME, value: "###ZARF_VAR_OPERATOR_SESSION_MAX_LIFETIME###" }
+            - { name: CONSOLE_PUBLIC_URL, value: {{ .Values.CONSOLE_PUBLIC_URL | toString | toJson }} }
+            - { name: OPERATOR_OIDC_CLIENT_SECRET_FILE, value: {{ .Values.OPERATOR_OIDC_CLIENT_SECRET_FILE | toString | toJson }} }
+            - { name: OPERATOR_SESSION_MAX_LIFETIME, value: {{ .Values.OPERATOR_SESSION_MAX_LIFETIME | toString | toJson }} }
             # `file` by default, which is the baseline this package ships and
             # ignores POSTGRES_DSN_FILE. `postgres` reads the DSN from the
             # optional Secret mounted below.
-            - { name: REPOSITORY_KIND, value: "###ZARF_VAR_REPOSITORY_KIND###" }
+            - { name: REPOSITORY_KIND, value: {{ .Values.REPOSITORY_KIND | toString | toJson }} }
             - { name: POSTGRES_DSN_FILE, value: /run/conduit-database/dsn }
             # Packaging workflow status and governed controls use the same
             # frontend, namespace and queue as the optional worker. An empty
             # address (the default) leaves the Hub client disabled.
-            - { name: PACKAGING_TEMPORAL_ADDRESS, value: "###ZARF_VAR_PACKAGING_TEMPORAL_ADDRESS###" }
-            - { name: PACKAGING_TEMPORAL_NAMESPACE, value: "###ZARF_VAR_PACKAGING_TEMPORAL_NAMESPACE###" }
-            - { name: PACKAGING_TEMPORAL_TASK_QUEUE, value: "###ZARF_VAR_PACKAGING_TEMPORAL_TASK_QUEUE###" }
+            - { name: PACKAGING_TEMPORAL_ADDRESS, value: {{ .Values.PACKAGING_TEMPORAL_ADDRESS | toString | toJson }} }
+            - { name: PACKAGING_TEMPORAL_NAMESPACE, value: {{ .Values.PACKAGING_TEMPORAL_NAMESPACE | toString | toJson }} }
+            - { name: PACKAGING_TEMPORAL_TASK_QUEUE, value: {{ .Values.PACKAGING_TEMPORAL_TASK_QUEUE | toString | toJson }} }
             # Empty by default: no metrics listener. The Hub serves /metrics
             # only when this is set AND the repository is postgres; with the
             # file repository it logs a warning and opens nothing.
-            - { name: METRICS_ADDRESS, value: "###ZARF_VAR_METRICS_ADDRESS###" }
+            - { name: METRICS_ADDRESS, value: {{ .Values.METRICS_ADDRESS | toString | toJson }} }
             # Request limits. Empty leaves the Hub's built-in limit for that
             # class in force; a limiter always runs.
-            - { name: RATE_LIMIT_OPERATOR_RPS, value: "###ZARF_VAR_RATE_LIMIT_OPERATOR_RPS###" }
-            - { name: RATE_LIMIT_OPERATOR_BURST, value: "###ZARF_VAR_RATE_LIMIT_OPERATOR_BURST###" }
-            - { name: RATE_LIMIT_AGENT_RPS, value: "###ZARF_VAR_RATE_LIMIT_AGENT_RPS###" }
-            - { name: RATE_LIMIT_AGENT_BURST, value: "###ZARF_VAR_RATE_LIMIT_AGENT_BURST###" }
-            - { name: RATE_LIMIT_ANONYMOUS_RPS, value: "###ZARF_VAR_RATE_LIMIT_ANONYMOUS_RPS###" }
-            - { name: RATE_LIMIT_ANONYMOUS_BURST, value: "###ZARF_VAR_RATE_LIMIT_ANONYMOUS_BURST###" }
+            - { name: RATE_LIMIT_OPERATOR_RPS, value: {{ .Values.RATE_LIMIT_OPERATOR_RPS | toString | toJson }} }
+            - { name: RATE_LIMIT_OPERATOR_BURST, value: {{ .Values.RATE_LIMIT_OPERATOR_BURST | toString | toJson }} }
+            - { name: RATE_LIMIT_AGENT_RPS, value: {{ .Values.RATE_LIMIT_AGENT_RPS | toString | toJson }} }
+            - { name: RATE_LIMIT_AGENT_BURST, value: {{ .Values.RATE_LIMIT_AGENT_BURST | toString | toJson }} }
+            - { name: RATE_LIMIT_ANONYMOUS_RPS, value: {{ .Values.RATE_LIMIT_ANONYMOUS_RPS | toString | toJson }} }
+            - { name: RATE_LIMIT_ANONYMOUS_BURST, value: {{ .Values.RATE_LIMIT_ANONYMOUS_BURST | toString | toJson }} }
             # Model provider. Every value is empty or off by default, and an
             # empty CONDUIT_MODEL_BASE_URL makes the rest inert: the Hub makes
             # no model call. The key is never a variable; it is read from the
             # optional Secret mounted below. See docs/operations/model-http.md.
-            - { name: CONDUIT_MODEL_BASE_URL, value: "###ZARF_VAR_MODEL_BASE_URL###" }
-            - { name: CONDUIT_MODEL_NAME, value: "###ZARF_VAR_MODEL_NAME###" }
-            - { name: CONDUIT_ASSISTANT_MODEL_NAME, value: "###ZARF_VAR_ASSISTANT_MODEL_NAME###" }
-            - { name: CONDUIT_ASSISTANT_MODEL_TIMEOUT, value: "###ZARF_VAR_ASSISTANT_MODEL_TIMEOUT###" }
-            - { name: CONDUIT_PLANNING_MODEL_NAME, value: "###ZARF_VAR_PLANNING_MODEL_NAME###" }
-            - { name: CONDUIT_PLANNING_MODEL_TIMEOUT, value: "###ZARF_VAR_PLANNING_MODEL_TIMEOUT###" }
-            - { name: CONDUIT_PACKAGING_MODEL_NAME, value: "###ZARF_VAR_PACKAGING_MODEL_NAME###" }
-            - { name: CONDUIT_PACKAGING_MODEL_TIMEOUT, value: "###ZARF_VAR_PACKAGING_MODEL_TIMEOUT###" }
-            - { name: CONDUIT_APPGEN_MODEL_NAME, value: "###ZARF_VAR_APPGEN_MODEL_NAME###" }
-            - { name: CONDUIT_APPGEN_MODEL_TIMEOUT, value: "###ZARF_VAR_APPGEN_MODEL_TIMEOUT###" }
-            - { name: CONDUIT_MODEL_TIMEOUT, value: "###ZARF_VAR_MODEL_TIMEOUT###" }
-            - { name: CONDUIT_MODEL_API_KEY_FILE, value: "###ZARF_VAR_MODEL_API_KEY_FILE###" }
-            - { name: CONDUIT_MODEL_CA_FILE, value: "###ZARF_VAR_MODEL_CA_FILE###" }
-            - { name: CONDUIT_MODEL_ALLOW_INSECURE_HTTP, value: "###ZARF_VAR_MODEL_ALLOW_INSECURE_HTTP###" }
-###ZARF_VAR_HUB_OPERATIONAL_ENV###
+            - { name: CONDUIT_MODEL_BASE_URL, value: {{ .Values.MODEL_BASE_URL | toString | toJson }} }
+            - { name: CONDUIT_MODEL_NAME, value: {{ .Values.MODEL_NAME | toString | toJson }} }
+            - { name: CONDUIT_ASSISTANT_MODEL_NAME, value: {{ .Values.ASSISTANT_MODEL_NAME | toString | toJson }} }
+            - { name: CONDUIT_ASSISTANT_MODEL_TIMEOUT, value: {{ .Values.ASSISTANT_MODEL_TIMEOUT | toString | toJson }} }
+            - { name: CONDUIT_PLANNING_MODEL_NAME, value: {{ .Values.PLANNING_MODEL_NAME | toString | toJson }} }
+            - { name: CONDUIT_PLANNING_MODEL_TIMEOUT, value: {{ .Values.PLANNING_MODEL_TIMEOUT | toString | toJson }} }
+            - { name: CONDUIT_PACKAGING_MODEL_NAME, value: {{ .Values.PACKAGING_MODEL_NAME | toString | toJson }} }
+            - { name: CONDUIT_PACKAGING_MODEL_TIMEOUT, value: {{ .Values.PACKAGING_MODEL_TIMEOUT | toString | toJson }} }
+            - { name: CONDUIT_APPGEN_MODEL_NAME, value: {{ .Values.APPGEN_MODEL_NAME | toString | toJson }} }
+            - { name: CONDUIT_APPGEN_MODEL_TIMEOUT, value: {{ .Values.APPGEN_MODEL_TIMEOUT | toString | toJson }} }
+            - { name: CONDUIT_MODEL_TIMEOUT, value: {{ .Values.MODEL_TIMEOUT | toString | toJson }} }
+            - { name: CONDUIT_MODEL_API_KEY_FILE, value: {{ .Values.MODEL_API_KEY_FILE | toString | toJson }} }
+            - { name: CONDUIT_MODEL_CA_FILE, value: {{ .Values.MODEL_CA_FILE | toString | toJson }} }
+            - { name: CONDUIT_MODEL_ALLOW_INSECURE_HTTP, value: {{ .Values.MODEL_ALLOW_INSECURE_HTTP | toString | toJson }} }
+{{ .Values.rendered.HUB_OPERATIONAL_ENV }}
           ports:
             - { name: https, containerPort: 8081 }
             # Declared so the Service port has a target when metrics are on.
@@ -165,27 +165,27 @@ spec:
             - { name: operator-sso, mountPath: /run/conduit-sso, readOnly: true }
             - { name: conduit-model, mountPath: /run/conduit-model, readOnly: true }
             - { name: conduit-model-ca, mountPath: /run/conduit-model-ca, readOnly: true }
-###ZARF_VAR_HUB_OPERATIONAL_MOUNTS###
+{{ .Values.rendered.HUB_OPERATIONAL_MOUNTS }}
       volumes:
-###ZARF_VAR_HUB_OPERATIONAL_VOLUMES###
+{{ .Values.rendered.HUB_OPERATIONAL_VOLUMES }}
         # Derived from REPOSITORY_KIND like the replica count. file mounts the
         # retained PVC. postgres mounts a per-Pod emptyDir, because two replicas
         # cannot share a ReadWriteOnce claim and the PostgreSQL Hub stores
         # nothing under DATA_DIRECTORY.
         - name: state
-          ###ZARF_VAR_HUB_STATE_VOLUME###
+          {{ .Values.rendered.HUB_STATE_VOLUME }}
         # Optional so a Hub with no model, or a keyless one, starts without
         # them. With MODEL_API_KEY_FILE or MODEL_CA_FILE set, a missing object
         # is a startup failure that names the file, not a silent fallback.
         - name: conduit-model
           secret:
-            secretName: "###ZARF_VAR_MODEL_API_KEY_SECRET###"
+            secretName: {{ .Values.MODEL_API_KEY_SECRET | toString | toJson }}
             optional: true
             items:
               - { key: api-key, path: api-key }
         - name: conduit-model-ca
           configMap:
-            name: "###ZARF_VAR_MODEL_CA_CONFIGMAP###"
+            name: {{ .Values.MODEL_CA_CONFIGMAP | toString | toJson }}
             optional: true
             items:
               - { key: ca.pem, path: ca.pem }
@@ -194,16 +194,16 @@ spec:
         # names POSTGRES_DSN_FILE, not a silent fallback to the file store.
         - name: database
           secret:
-            secretName: "###ZARF_VAR_PACKAGING_POSTGRES_SECRET###"
+            secretName: {{ .Values.PACKAGING_POSTGRES_SECRET | toString | toJson }}
             optional: true
             items:
               - { key: dsn, path: dsn }
         - name: hub-tls
           secret:
-            secretName: "###ZARF_VAR_HUB_TLS_SECRET###"
+            secretName: {{ .Values.HUB_TLS_SECRET | toString | toJson }}
         - name: bundle-signing
           secret:
-            secretName: "###ZARF_VAR_BUNDLE_SIGNING_SECRET###"
+            secretName: {{ .Values.BUNDLE_SIGNING_SECRET | toString | toJson }}
         - name: oidc-ca
           configMap:
             name: uds-trust-bundle
@@ -214,7 +214,7 @@ spec:
         # public client.
         - name: operator-sso
           secret:
-            secretName: "###ZARF_VAR_OPERATOR_OIDC_CLIENT_SECRET###"
+            secretName: {{ .Values.OPERATOR_OIDC_CLIENT_SECRET | toString | toJson }}
             optional: true
             items:
               - { key: client-secret, path: client-secret }
@@ -275,20 +275,20 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: spoke-agent
-          image: "###ZARF_CONST_SPOKE_AGENT_IMAGE###"
+          image: {{ index .Pkg.Metadata.Annotations "conduit.dev/spoke-agent-image" | toString | toJson }}
           imagePullPolicy: IfNotPresent
           env:
             - { name: CONTROL_PLANE_URL, value: "https://platform-delivery.platform-system.svc.cluster.local:8081" }
             - { name: CONTROL_PLANE_CA_FILE, value: /run/platform-tls/ca.crt }
             - { name: CONTROL_PLANE_CLIENT_CERT_FILE, value: /run/platform-tls/tls.crt }
             - { name: CONTROL_PLANE_CLIENT_KEY_FILE, value: /run/platform-tls/tls.key }
-            - { name: ENVIRONMENT_ID, value: "###ZARF_VAR_ENVIRONMENT_ID###" }
-            - { name: AGENT_ID, value: "###ZARF_VAR_AGENT_ID###" }
+            - { name: ENVIRONMENT_ID, value: {{ .Values.ENVIRONMENT_ID | toString | toJson }} }
+            - { name: AGENT_ID, value: {{ .Values.AGENT_ID | toString | toJson }} }
             - { name: LEASE_DURATION, value: 2m }
             - { name: POLL_INTERVAL, value: 15s }
             - { name: HELM_TIMEOUT, value: 5m }
-            - { name: HELM_PLAIN_HTTP, value: "###ZARF_VAR_HELM_PLAIN_HTTP###" }
-###ZARF_VAR_SPOKE_OPERATIONAL_ENV###
+            - { name: HELM_PLAIN_HTTP, value: {{ .Values.HELM_PLAIN_HTTP | toString | toJson }} }
+{{ .Values.rendered.SPOKE_OPERATIONAL_ENV }}
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits: { cpu: 500m, memory: 256Mi }
@@ -299,11 +299,11 @@ spec:
           volumeMounts:
             - { name: temporary, mountPath: /tmp }
             - { name: agent-tls, mountPath: /run/platform-tls, readOnly: true }
-###ZARF_VAR_SPOKE_OPERATIONAL_MOUNTS###
+{{ .Values.rendered.SPOKE_OPERATIONAL_MOUNTS }}
       volumes:
-###ZARF_VAR_SPOKE_OPERATIONAL_VOLUMES###
+{{ .Values.rendered.SPOKE_OPERATIONAL_VOLUMES }}
         - name: temporary
           emptyDir: {}
         - name: agent-tls
           secret:
-            secretName: "###ZARF_VAR_AGENT_TLS_SECRET###"
+            secretName: {{ .Values.AGENT_TLS_SECRET | toString | toJson }}
