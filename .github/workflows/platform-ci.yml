@@ -365,6 +365,11 @@ jobs:
             --output /tmp/zarf
           echo 'e372002110600a458ca2a9222a34b8cdebc9c0fcd81d7e34febd3d8411d7beaf  /tmp/zarf' | sha256sum --check
           chmod 0755 /tmp/zarf
+      - name: Validate race runtime preflight
+        if: needs.scope.outputs.go == 'true'
+        run: |
+          ./scripts/test-race-runtime-preflight.sh
+          ./scripts/verify-race-runtime.sh
       - name: Test
         if: needs.scope.outputs.go == 'true'
         # Turns the integration test's skip into a failure, so a missing helm is
