@@ -64,13 +64,19 @@ or an out-of-range limit returns `422`.
   does not change the page's returned count or filters.
 - Counts say "Showing N of total in this page", using only the authorized
   server total. No starting row or complete-catalog count is inferred from a
-  seek cursor. Failed reads retain the exact query for retry.
+  seek cursor. Fleet takes its count from the native `summary.total` envelope;
+  the other operational indexes expose `total` directly. Failed reads retain
+  the exact query for retry.
 - Header metrics remain unknown when their inputs are unread, filtered or
   incomplete. A partial page is not reported as a complete Hub count.
 - The Space selector is also retained in the hash as `space`. The Hub's Space
   filter applies to the Environment index. Other indexes use their displayed
   server-side filters: a single Environment page is not used to infer Space
-  membership of unrelated pages. The selector explicitly lists this scope.
+  membership of unrelated pages. Changing Space resets the Environment cursor
+  and selected Environment. The selector explicitly lists this scope.
+- A linked Environment is authorized and loaded before its timeline or blackout
+  reads. If it is unavailable, those dependent reads remain unloaded rather
+  than describing the first Environment in the current page.
 - A route change prevents an older read from publishing into the new view.
   Every refresh still verifies the operator identity before publishing data.
 

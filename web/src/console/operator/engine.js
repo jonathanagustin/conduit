@@ -85,6 +85,7 @@ import {
   routeQuery,
   INDEX_DEFINITIONS,
 } from "./index-pages.js";
+import { changeSpaceSelection } from "./space-scope.js";
 import {
   classifyRenderers,
   screenBadge,
@@ -1438,6 +1439,7 @@ export function mountOperator(host, options) {
   }
 
   function writeIndexLocation({ replace = true } = {}) {
+    changeSpaceSelection(state, state.spaceId);
     const query = new URLSearchParams(state.indexQuery || "");
     const environment = state.releaseEnvironmentId || state.envDetailId || "";
     if (environment !== (query.get("environment") || "")) {

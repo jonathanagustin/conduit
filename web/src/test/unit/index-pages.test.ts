@@ -156,7 +156,7 @@ describe("large native indexes", () => {
       );
       return {
         [isPlan ? "plans" : "installations"]: rows,
-        total: 1000,
+        ...(isPlan ? { total: 1000 } : { summary: { total: 1000 } }),
         hasPrevious: start > 0,
         ...(start > INDEX_LIMIT
           ? { previousCursor: `seek:${start - INDEX_LIMIT}/+?=` }

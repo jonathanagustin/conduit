@@ -126,6 +126,44 @@ function writeSpaceSelection(value, storage = globalThis.localStorage) {
   }
 }
 
+/** A Space change starts a new Environment window and drops its old selection. */
+export function changeSpaceSelection(state, value) {
+  const spaceId = value || "";
+  const query = new URLSearchParams(state.indexQuery || "");
+  if ((query.get("space") || "") !== spaceId) {
+    const environment =
+      state.releaseEnvironmentId ||
+      state.envDetailId ||
+      query.get("environment");
+    query.delete("environments.cursor");
+    query.delete("environment");
+    state.releaseEnvironmentId = "";
+    state.envDetailId = "";
+    // Drop filters derived from that selection; preserve independent filters.
+    for (const index of ["plans", "installations", "changes"]) {
+      if (!environment || query.get(`${index}.environment`) !== environment)
+        continue;
+      query.delete(`${index}.environment`);
+      query.delete(`${index}.cursor`);
+      if (index === "plans") {
+        state.releasePlanId = "";
+        query.delete("plan");
+      }
+      if (index === "changes") {
+        if (state.crReview) {
+          state.crReview.selectedId = "";
+          state.crReview.draft = { decision: "", rationale: "" };
+        }
+        query.delete("change");
+      }
+    }
+  }
+  if (spaceId) query.set("space", spaceId);
+  else query.delete("space");
+  state.spaceId = spaceId;
+  state.indexQuery = query.toString();
+}
+
 /**
  * Paint the selector into the top bar, left of the data badge. The host is
  * created here so the top-bar template itself is untouched.
@@ -141,7 +179,7 @@ export function mountSpaceSelector(doc, state, refresh) {
     host.addEventListener("change", (event) => {
       const target = event.target;
       if (!target || target.id !== "space-selector") return;
-      state.spaceId = target.value;
+      changeSpaceSelection(state, target.value);
       writeSpaceSelection(state.spaceId);
       void refresh();
     });

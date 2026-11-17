@@ -77,7 +77,9 @@ test("1,000-row indexes keep server filters, cursors and linked selections acros
       return {
         json: {
           [isPlan ? "plans" : "installations"]: rows.slice(start, start + 20),
-          total: rows.length,
+          ...(isPlan
+            ? { total: rows.length }
+            : { summary: { total: rows.length } }),
           pageSize: Math.min(20, rows.length),
           limit: 20,
           hasPrevious: start > 0,
@@ -195,4 +197,65 @@ test("1,000-row indexes keep server filters, cursors and linked selections acros
         ?.searchParams.get("cursor"),
     )
     .toBe("seek:20/+=");
+});
+
+test("changing Space starts the Environment index at its first page and clears its old selection", async ({
+  page,
+}) => {
+  const first = `space_${"a".repeat(32)}`,
+    second = `space_${"b".repeat(32)}`;
+  const requests: URL[] = [];
+  await stubHub(page, (_request, url) => {
+    if (url.pathname === "/v1/session") return { json: session() };
+    if (url.pathname === "/v1/spaces")
+      return {
+        json: {
+          spaces: [
+            { id: first, name: "First" },
+            { id: second, name: "Second" },
+          ],
+        },
+      };
+    if (url.pathname === "/v1/environments") {
+      requests.push(url);
+      const prefix = url.searchParams.get("spaceId") === first ? "a" : "b";
+      const rows = Array.from({ length: prefix === "a" ? 41 : 5 }, (_, i) => ({
+        environment: { id: `env-${prefix}-${i}` },
+        reported: { entities: [] },
+      }));
+      const start = url.searchParams.has("cursor") ? 20 : 0;
+      return {
+        json: {
+          environments: rows.slice(start, start + 20),
+          total: rows.length,
+          hasPrevious: start > 0,
+          ...(start + 20 < rows.length ? { nextCursor: "after-20" } : {}),
+        },
+      };
+    }
+    if (url.pathname === "/v1/fleet/installations")
+      return { json: { installations: [], summary: { total: 0 } } };
+    return { json: {} };
+  });
+  await page.goto(
+    `/console/#flt-environments?space=${first}&environments.cursor=after-20&environment=env-a-24`,
+  );
+  const controls = page.locator('[data-index-controls="environments"]');
+  await expect(controls.locator("[data-index-count]")).toHaveText(
+    "Showing 20 of 41 environments in this page.",
+  );
+  await page.locator("#space-selector").selectOption(second);
+  await expect(controls.locator("[data-index-count]")).toHaveText(
+    "Showing 5 of 5 environments in this page.",
+  );
+  const query = new URLSearchParams(new URL(page.url()).hash.split("?")[1]);
+  expect(query.get("space")).toBe(second);
+  expect(query.has("environments.cursor")).toBe(false);
+  expect(query.has("environment")).toBe(false);
+  expect(query.has("installations.environment")).toBe(false);
+  const secondRead = requests.find(
+    (url) => url.searchParams.get("spaceId") === second,
+  );
+  expect(secondRead?.searchParams.has("cursor")).toBe(false);
+  await expect(page.locator('[data-env-open="env-b-0"]')).toBeVisible();
 });

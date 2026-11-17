@@ -704,6 +704,27 @@ export function createLiveHub({
         if (!wants(index)) next[index] = null;
       }
     }
+    async function includeSelection(index, id, identity, path) {
+      if (
+        !id ||
+        !wants(index) ||
+        next[index].some((row) => identity(row) === id)
+      )
+        return;
+      try {
+        const selected = await read(path(id));
+        if (identity(selected) !== id)
+          throw new Error("Linked record mismatch");
+        next[index].push(selected);
+        if (next.indexPages[index])
+          next.indexPages[index].selectedOutside = true;
+      } catch {
+        next[index + "SelectionNote"] =
+          "The linked record is unavailable on this Hub.";
+        if (next.indexPages[index])
+          next.indexPages[index].selectionError = next[index + "SelectionNote"];
+      }
+    }
     try {
       session = await read("/v1/session");
     } catch {
@@ -743,6 +764,13 @@ export function createLiveHub({
           ? "Hub did not return environments for the selected Space."
           : "Hub did not return environments.";
       }
+    if (options.screen)
+      await includeSelection(
+        "environments",
+        state.releaseEnvironmentId || state.envDetailId,
+        (row) => row?.environment?.id,
+        (id) => `/v1/environments/${encodeURIComponent(id)}`,
+      );
     if (wants("installations"))
       try {
         next.installations = await pages(
@@ -781,10 +809,12 @@ export function createLiveHub({
       }
     // The environment these two reads describe comes from what the Hub
     // returned and what the operator selected, never from a fixed id.
-    const scoped = refreshEnvironmentId(next.environments, [
-      state.releaseEnvironmentId,
-      state.envDetailId,
-    ]);
+    const scoped = next.environmentsSelectionNote
+      ? ""
+      : refreshEnvironmentId(next.environments, [
+          state.releaseEnvironmentId,
+          state.envDetailId,
+        ]);
     next.timelineEnvironment = scoped;
     next.timeline = "";
     if (scoped && wants("timeline")) {
@@ -973,48 +1003,18 @@ export function createLiveHub({
         next.bundleNote = "Hub did not return a signed bundle.";
       }
     if (options.screen) {
-      const selections = [
-        [
-          "plans",
-          state.releasePlanId,
-          (row) => row.id,
-          (id) => `/v1/plans/${encodeURIComponent(id)}`,
-        ],
-        [
-          "environments",
-          state.releaseEnvironmentId || state.envDetailId,
-          (row) => row.environment?.id,
-          (id) => `/v1/environments/${encodeURIComponent(id)}`,
-        ],
-        [
-          "changes",
-          state.crReview?.selectedId,
-          (row) => row.id,
-          (id) => `/v1/change-requests/${encodeURIComponent(id)}`,
-        ],
-      ];
-      for (const [index, id, identity, path] of selections) {
-        if (
-          !id ||
-          !wants(index) ||
-          next[index].some((row) => identity(row) === id)
-        )
-          continue;
-        try {
-          const selected = await read(path(id));
-          if (identity(selected) !== id)
-            throw new Error("Linked record mismatch");
-          next[index].push(selected);
-          if (next.indexPages[index])
-            next.indexPages[index].selectedOutside = true;
-        } catch {
-          next[index + "SelectionNote"] =
-            "The linked record is unavailable on this Hub.";
-          if (next.indexPages[index])
-            next.indexPages[index].selectionError =
-              next[index + "SelectionNote"];
-        }
-      }
+      await includeSelection(
+        "plans",
+        state.releasePlanId,
+        (row) => row?.id,
+        (id) => `/v1/plans/${encodeURIComponent(id)}`,
+      );
+      await includeSelection(
+        "changes",
+        state.crReview?.selectedId,
+        (row) => row?.id,
+        (id) => `/v1/change-requests/${encodeURIComponent(id)}`,
+      );
     }
     // Only when the Hub answered the Space-scoped environment read: an
     // unanswered read must not empty every list as if the Space were empty.

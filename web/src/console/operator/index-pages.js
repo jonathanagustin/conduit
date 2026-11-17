@@ -175,11 +175,14 @@ export function indexPage(body, key, url) {
       throw new Error("Invalid Hub cursor");
     return body[key];
   };
+  // FleetProjection keeps its authorized, filtered count in FleetSummary.
+  const reportedTotal =
+    key === "installations" ? body.summary?.total : body.total;
   const total =
-    typeof body.total === "bigint"
-      ? body.total.toString()
-      : Number.isSafeInteger(body.total) && body.total >= 0
-        ? body.total
+    typeof reportedTotal === "bigint" && reportedTotal >= 0n
+      ? reportedTotal.toString()
+      : Number.isSafeInteger(reportedTotal) && reportedTotal >= 0
+        ? reportedTotal
         : null;
   return {
     rows: body[key],
