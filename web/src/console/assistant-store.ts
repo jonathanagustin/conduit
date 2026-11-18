@@ -214,6 +214,22 @@ export class AssistantStore {
     });
   }
 
+  /** Ask for a bounded saved-history summary through the normal read-only turn. */
+  async summarizeThread(): Promise<void> {
+    if (
+      this.state.threads.status !== "ready" ||
+      !this.state.threads.openId ||
+      !this.state.messages.length ||
+      this.state.loading ||
+      this.state.running
+    )
+      return;
+    await this.send(
+      "Summarize the recent saved conversation included in this turn. Use only the history available here; do not assume access to earlier messages. Identify decisions, unresolved questions and next actions, and state any context gaps. Do not execute actions or call tools for this summary.",
+      "explore",
+    );
+  }
+
   /** Snapshot saved messages into an independent conversation, without a turn. */
   async forkThread(): Promise<void> {
     const id = this.state.threads.openId;

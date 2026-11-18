@@ -22,6 +22,7 @@ export function AssistantThreadBar() {
   const threads = useAssistantState((state) => state.threads);
   const running = useAssistantState((state) => state.running);
   const loading = useAssistantState((state) => state.loading);
+  const messageCount = useAssistantState((state) => state.messages.length);
   const error = useAssistantState((state) => state.threadError);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -65,6 +66,20 @@ export function AssistantThreadBar() {
             onClick={() => setOpen((value) => !value)}
           >
             Conversations ({threads.threads.length})
+          </button>
+          <button
+            type="button"
+            className="kit-btn kit-btn-sm"
+            disabled={
+              running ||
+              loading ||
+              threads.openId === null ||
+              messageCount === 0
+            }
+            title="Ask the configured model to summarize the Hub's bounded recent saved history; uses a normal Explore turn"
+            onClick={() => void store.summarizeThread()}
+          >
+            Summarize recent history
           </button>
           <button
             type="button"

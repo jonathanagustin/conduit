@@ -504,4 +504,72 @@ describe("AssistantStore.submitTool", () => {
     expect(store.getState().threads.openId).toBeNull();
     expect(store.getState().messages).toEqual([]);
   });
+  it("requests a saved-history summary in Explore mode even from a write-capable context", async () => {
+    const { api, bodies } = harness({
+      listThreads: vi.fn(async () => [{ id: "ath_source" }]),
+      readThread: vi.fn(async (id) => ({
+        id,
+        messages: [{ role: "user", text: "earlier decision" }],
+      })),
+    });
+    const store = new AssistantStore({
+      api,
+      storage: memory(),
+      context: () => ({ mode: "ontology", chips: [] }),
+    });
+    await store.init();
+    await store.openThread("ath_source");
+    await store.summarizeThread();
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).toMatchObject({
+      mode: "explore",
+      threadId: "ath_source",
+    });
+    expect(bodies[0]?.["message"]).toContain("recent saved conversation");
+    expect(bodies[0]?.["message"]).toContain(
+      "do not assume access to earlier messages",
+    );
+    expect(store.getState().threads.openId).toBe("ath_source");
+    expect(api.postTool).not.toHaveBeenCalled();
+  });
+  it("does not summarize empty or unsaved conversations", async () => {
+    const { store, api } = harness({
+      listThreads: vi.fn(async () => [{ id: "ath_empty" }]),
+    });
+    await store.init();
+    await store.openThread("ath_empty");
+    await store.summarizeThread();
+    store.newThread();
+    await store.summarizeThread();
+    expect(api.streamTurn).not.toHaveBeenCalled();
+  });
+  it("does not duplicate a running summary request", async () => {
+    let release!: () => void;
+    const waiting = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { store, api } = harness(
+      {
+        listThreads: vi.fn(async () => [{ id: "ath_source" }]),
+        readThread: vi.fn(async (id) => ({
+          id,
+          messages: [{ role: "user", text: "history" }],
+        })),
+      },
+      [
+        async (body, _exchange, emit) => {
+          await waiting;
+          for (const event of FINISH(String(body["threadId"]))) emit(event);
+          return null;
+        },
+      ],
+    );
+    await store.init();
+    await store.openThread("ath_source");
+    const first = store.summarizeThread();
+    await store.summarizeThread();
+    expect(api.streamTurn).toHaveBeenCalledTimes(1);
+    release();
+    await first;
+  });
 });
