@@ -258,7 +258,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `POST /v1/products/{product}/retire` | `operator-grant` | No native schema |
 | `POST /v1/promotions/evaluations` | `operator-grant` | No native schema |
 | `POST /v1/resource-grants` | `operator-grant` | No native schema |
-| `POST /v1/rollouts` | `operator-any` | No native schema |
+| `POST /v1/rollouts` | `operator-grant` | No native schema |
 | `POST /v1/sites/check-in` | `operator-any` | No native schema |
 | `POST /v1/spaces` | `operator-grant` | No native schema |
 | `POST /v1/temporary-maintenance-overrides` | `operator-grant` | No native schema |
