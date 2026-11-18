@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "conduit.assistant-grounding/v1",
+  "sources": [
+    {
+      "id": "csrc_03a17677d3a846a0e0cdeb829269a0dcd2caff90010b7bd7af2c45f756074df4",
+      "kind": "operator-documentation",
+      "valueTier": "CONDUIT_NATIVE",
+      "title": "Fixture operator reference",
+      "source": "fixture/operator-reference.md",
+      "quote": "# Fixture operator reference\nUse TLS. \u003cscript\u003euntrusted source text\u003c/script\u003e\n",
+      "excerptSha256": "ab7447422f260dc10cd72a4e4c574d8d9281652bea28e2d2afc578eedaed946a",
+      "documentSha256": "84a2b1348c174faf177ba3da99ef7974239e3caa6ddd7ec17bf3b1f2e2128994",
+      "firstLine": 1,
+      "lastLine": 2,
+      "endByte": 77,
+      "retrievedAt": "2026-11-18T00:00:00.123456789Z",
+      "auditEventId": "aud_fixture_doc"
+    },
+    {
+      "id": "csrc_e12103300223c46706fe50397fad91adc041a8aa0f94a7d4a4416655dbe89104",
+      "kind": "ontology-observation",
+      "valueTier": "CONDUIT_NATIVE",
+      "title": "Development \u003cimg src=x onerror=alert(1)\u003e",
+      "source": "Environment:visible-fixture",
+      "quote": "{\"id\":\"visible-fixture\",\"objectType\":\"Environment\",\"label\":\"Development \\u003cimg src=x onerror=alert(1)\\u003e\"}",
+      "excerptSha256": "9369ced06de3e347bb4f5d71221c52b9e84b1d6d1647893352e6a37d07100c4c",
+      "retrievedAt": "2026-11-18T00:00:00.123456789Z",
+      "auditEventId": "aud_fixture_object"
+    }
+  ],
+  "truncated": false
+}

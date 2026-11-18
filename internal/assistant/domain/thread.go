@@ -55,6 +55,7 @@ type ToolRecord struct {
 
 // Message is one stored conversation message.
 type Message struct {
+	Grounding *Grounding          `json:"grounding,omitempty"`
 	Usage     *ReportedTokenUsage `json:"usage,omitempty"`
 	Role      string              `json:"role"`
 	Text      string              `json:"text"`
@@ -105,6 +106,9 @@ func ThreadTitle(text string) string {
 
 // Validate checks one message against the stored bounds.
 func (message Message) Validate() error {
+	if !message.Grounding.Valid() {
+		return fmt.Errorf("%w: invalid grounding source metadata", ErrThreadInvalid)
+	}
 	if !message.Usage.Valid() {
 		return fmt.Errorf("%w: invalid reported token count", ErrThreadInvalid)
 	}
@@ -122,6 +126,22 @@ func (message Message) Validate() error {
 		return fmt.Errorf("%w: message is over %d bytes", ErrThreadInvalid, MaxMessageBytes)
 	}
 	return nil
+}
+
+// Clone isolates all mutable message payloads from store callers and readers.
+func (message Message) Clone() Message {
+	message.Usage = message.Usage.Clone()
+	message.Grounding = message.Grounding.Clone()
+	if message.ToolCalls != nil {
+		records := make([]ToolRecord, len(message.ToolCalls))
+		for i, record := range message.ToolCalls {
+			record.Arguments = append(json.RawMessage(nil), record.Arguments...)
+			record.Result = append(json.RawMessage(nil), record.Result...)
+			records[i] = record
+		}
+		message.ToolCalls = records
+	}
+	return message
 }
 
 // Bounded returns the message cut to the stored bounds: the text first, then

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAuiState } from "@assistant-ui/react";
 
 import { useAssistantState, useAssistantStore } from "./assistant-runtime";
+import { AssistantSources } from "./AssistantSources";
 import {
   modelLabel,
   usageLabel,
@@ -165,7 +166,8 @@ export function AssistantTurnFooter() {
   if (!meta) return null;
   const model = modelLabel(meta.model);
   const usage = usageLabel(meta.usage);
-  if (!model && !meta.label && !meta.code && !usage) return null;
+  if (!model && !meta.label && !meta.code && !usage && !meta.grounding)
+    return null;
   return (
     <div
       data-assistant-turn-meta
@@ -197,6 +199,7 @@ export function AssistantTurnFooter() {
         </span>
       ) : null}
       {meta.code ? <span data-assistant-error-code>{meta.code}</span> : null}
+      {meta.grounding ? <AssistantSources evidence={meta.grounding} /> : null}
     </div>
   );
 }

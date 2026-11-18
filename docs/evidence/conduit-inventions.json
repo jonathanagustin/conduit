@@ -15,6 +15,13 @@
   ],
   "inventions": [
     {
+      "id": "assistant.GroundedSources",
+      "what": "Bounded native operator-documentation retrieval and authorized ontology snapshots with audited, retained source excerpts rendered by the assistant console.",
+      "why": "Issue #811 requires grounded answers and rendered citations; no adopted upstream contract defines Conduit retrieval or citation metadata. Sources are server-retrieved records, not model-authored citations.",
+      "displacedBy": "An authoritative assistant contract for documentation retrieval, authorized ontology citations and retained source evidence.",
+      "riskIfWrong": "The native schema and selected corpus may require replacement. Retrieved excerpts do not prove every answer statement, live deployment state or model accuracy. Read tools confer no write or approval authority."
+    },
+    {
       "id": "assistant.ReportedTurnUsage",
       "what": "Conduit-native nullable provider token counts on assistant model provenance, multi-round turn totals, stored conversation messages and the console turn footer. A count is unknown if any round omitted it or the sum overflowed; zero is reported and no missing usage is estimated.",
       "why": "Issue #811 requests model and usage display. The existing HTTP adapter already reads provider counts, but no recovered assistant contract defines a per-turn aggregation or display. This shape carries those observed counts without treating them as complete billing or accounting for unreported retry attempts.",

@@ -128,6 +128,8 @@ type Auditor interface {
 
 // Result is one tool execution.
 type Result struct {
+	Sources              []domain.Citation `json:"sources,omitempty"`
+	SourcesTruncated     bool              `json:"sourcesTruncated,omitempty"`
 	Label                string            `json:"label"`
 	Tool                 string            `json:"tool"`
 	OK                   bool              `json:"ok"`
@@ -172,10 +174,11 @@ type Turn struct {
 	Results    []Result          `json:"results"`
 	ToolCalls  []ToolCall        `json:"toolCalls,omitempty"`
 	// Rounds is how many model calls the turn made.
-	Rounds   int                        `json:"rounds"`
-	ThreadID string                     `json:"threadId,omitempty"`
-	Model    *Served                    `json:"model,omitempty"`
-	Usage    *domain.ReportedTokenUsage `json:"usage,omitempty"`
+	Rounds    int                        `json:"rounds"`
+	ThreadID  string                     `json:"threadId,omitempty"`
+	Model     *Served                    `json:"model,omitempty"`
+	Usage     *domain.ReportedTokenUsage `json:"usage,omitempty"`
+	Grounding *domain.Grounding          `json:"grounding,omitempty"`
 }
 
 // ToolCall is one call as the server ran it.
@@ -197,16 +200,17 @@ type Served struct {
 
 // Service executes tools. A nil Model means turns are refused.
 type Service struct {
-	Objects  Objects
-	Governor Governor
-	Changes  Changes
-	Diffs    Diffs
-	Audit    Auditor
-	Model    domain.Model
-	Cases    EvalCases
-	Authors  ChangeAuthor
-	Reviews  Reviews
-	Receipts ExecutionReceipts
+	Documentation Documentation
+	Objects       Objects
+	Governor      Governor
+	Changes       Changes
+	Diffs         Diffs
+	Audit         Auditor
+	Model         domain.Model
+	Cases         EvalCases
+	Authors       ChangeAuthor
+	Reviews       Reviews
+	Receipts      ExecutionReceipts
 	// Threads stores conversations. Nil refuses a turn that names a thread.
 	Threads Threads
 	Now     func() time.Time
@@ -245,6 +249,43 @@ func (service Service) invoke(ctx context.Context, actor Actor, mode string, nam
 	}
 	result := Result{Label: domain.LabelNoModel, Tool: call.Name, OK: true}
 	switch call.Name {
+	case domain.ToolDocumentation:
+		if service.Documentation == nil {
+			result.OK = false
+			result.Error = "native product documentation is not configured"
+			break
+		}
+		page, err := service.Documentation.Search(ctx, call.Documentation.Query)
+		if err != nil {
+			result.OK = false
+			result.Error = "native product documentation could not be read"
+			break
+		}
+		if page.MatchedCount < len(page.Sources) || len(page.Sources) > domain.MaxCitationsPerRead || page.Limited != (page.MatchedCount > len(page.Sources)) {
+			result.OK = false
+			result.Error = "documentation source metadata is invalid"
+			break
+		}
+		valid := true
+		for _, source := range page.Sources {
+			if !source.Valid() || source.Kind != domain.SourceDocumentation {
+				valid = false
+				break
+			}
+		}
+		if !valid {
+			result.OK = false
+			result.Error = "documentation source metadata is invalid"
+			break
+		}
+		result.Sources = append([]domain.Citation{}, page.Sources...)
+		for i := range result.Sources {
+			result.Sources[i].RetrievedAt = service.stamp()
+			result.Sources[i].AuditEventID = ""
+		}
+		result.MatchedCount = page.MatchedCount
+		result.SourcesTruncated = page.Limited
+		result.ReadOps = 1
 	case domain.ToolQuery:
 		if service.Objects == nil {
 			result.OK = false
@@ -599,6 +640,9 @@ func (service Service) finish(ctx context.Context, actor Actor, call domain.Tool
 		return Result{}, err
 	}
 	result.AuditEventID = id
+	for i := range result.Sources {
+		result.Sources[i].AuditEventID = id
+	}
 	if failed != nil {
 		return result, failed
 	}
