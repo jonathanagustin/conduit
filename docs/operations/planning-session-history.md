@@ -32,6 +32,10 @@ rather than return a shortened successful catalog. Repeated continuation tokens,
 invalid execution identity, unavailable state and oversized inventories fail
 closed. This bound is not production capacity qualification; that remains #849.
 
+Direct workflow reads and update validation also require a nonempty caller and
+verified owner. Missing legacy ownership does not grant shared access. There is
+no guessed reassignment or administrator exception.
+
 The development service reads its authenticated owner's process-local store.
 Its history disappears with that Hub process. An unavailable production reader
 does not silently switch to this development store. Unsupported listing returns

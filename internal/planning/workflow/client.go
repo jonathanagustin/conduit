@@ -134,19 +134,23 @@ func (s *ClientService) Get(ctx context.Context, id string) (*domain.Session, er
 	if s.client == nil {
 		return nil, errors.New("planning Temporal client is not configured")
 	}
+	if s.actor == "" {
+		return nil, domain.ErrNotFound
+	}
 	wfID := WorkflowID(id)
-	if s.actor != "" {
-		ownerVal, err := s.client.QueryWorkflow(ctx, wfID, "", QueryOwner)
-		if err != nil {
-			return nil, mapNotFound(err)
-		}
-		var owner string
-		if err := ownerVal.Get(&owner); err != nil {
-			return nil, err
-		}
-		if owner != "" && owner != s.actor {
-			return nil, domain.ErrNotFound
-		}
+	ownerVal, err := s.client.QueryWorkflow(ctx, wfID, "", QueryOwner)
+	if err != nil {
+		return nil, mapNotFound(err)
+	}
+	if ownerVal == nil {
+		return nil, domain.ErrNotFound
+	}
+	var owner string
+	if err := ownerVal.Get(&owner); err != nil {
+		return nil, err
+	}
+	if owner != s.actor {
+		return nil, domain.ErrNotFound
 	}
 	val, err := s.client.QueryWorkflow(ctx, wfID, "", QuerySession)
 	if err != nil {

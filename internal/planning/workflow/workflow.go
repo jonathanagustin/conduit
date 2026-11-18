@@ -638,7 +638,7 @@ func validateAnswers(questions []domain.Question, answers []domain.Answer) error
 func checkActor(owner, caller string) error {
 	owner = strings.TrimSpace(owner)
 	caller = strings.TrimSpace(caller)
-	if owner != "" && caller != "" && owner != caller {
+	if owner == "" || caller == "" || owner != caller {
 		return temporal.NewNonRetryableApplicationError(
 			fmt.Sprintf("session belongs to %q, not %q", owner, caller),
 			ErrTypeForbidden, nil,
