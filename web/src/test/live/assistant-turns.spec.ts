@@ -193,3 +193,42 @@ test("fork copies saved history without another model turn and survives source d
   ).toContainText("Fork of");
   expect(turns).toBe(0);
 });
+
+test("summary uses the saved thread and Explore mode without clearing an unsent draft", async ({
+  page,
+}) => {
+  await page.goto("./");
+  await openAssistant(page);
+  await ask(page, QUESTION);
+  await expect(answers(page)).toContainText(ANSWER);
+  const originalID = await page.evaluate(() =>
+    localStorage.getItem("conduit.console.assistantThread"),
+  );
+  expect(originalID).toMatch(/^ath_[0-9a-f]{32}$/);
+  await page.getByLabel("Message input").fill("Keep this unsent draft");
+  const sent = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/v1/assistant/turns",
+  );
+  await rail(page)
+    .getByRole("button", { name: "Summarize recent history", exact: true })
+    .click();
+  const request = await sent;
+  const body = request.postDataJSON();
+  expect(body.mode).toBe("explore");
+  expect(body.threadId).toBe(originalID);
+  expect(body.message).toContain("recent saved conversation");
+  const response = await request.response();
+  expect(response?.status()).toBe(200);
+  await expect(answers(page)).toHaveCount(2);
+  await expect(answers(page).last()).toContainText(ANSWER);
+  await expect(page.getByLabel("Message input")).toHaveValue(
+    "Keep this unsent draft",
+  );
+  const saved = await page.request.get(
+    new URL(`/v1/assistant/threads/${originalID}`, page.url()).toString(),
+  );
+  expect(saved.status()).toBe(200);
+  expect((await saved.json()).messageCount).toBe(4);
+});

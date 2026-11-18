@@ -80,7 +80,17 @@ retain their historical meaning: copying invokes no model, executes no tool and
 adds no new model usage. It is not a Git branch or durable lineage graph.
 The memory store remains process-local; PostgreSQL copies the complete snapshot
 in one transaction when configured. Late responses cannot replace a different
-conversation selected while the copy is running. Summarize remains unavailable.
+conversation selected while the copy is running.
+
+**Summarize recent history** sends an explicit Explore-mode request through the
+existing streamed turn path for the current saved conversation. It requires a
+configured model and uses normal usage/error reporting. The Hub supplies its
+bounded saved-history window (currently at most 20 messages and 24 KiB), so this
+is not a complete-conversation or answer-correctness guarantee. The request asks
+for decisions, unresolved questions, next actions and context gaps. Explore mode
+excludes proposal and write tools; it does not create a separate approval path.
+An unsent composer draft stays in the composer. Empty, loading, running and
+unsaved conversations cannot submit the summary action.
 
 Confirmed removal
 uses `DELETE /v1/assistant/threads/{threadID}`; another owner's thread and a
