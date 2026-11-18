@@ -90,6 +90,22 @@ Tests cover the Temporal SDK workflow boundary and continued workflow inputs,
 generated HTTP client/server, actual development-store cancellation with a late
 planner result, owner partitioning, browser stream abort, exact-run request and
 requested-versus-terminal rendering, and late owner/session/operation responses.
-They do not establish real Temporal restart/replay behavior, provider termination,
-visibility latency, retention configuration or scale. No source control or test
-result authorizes release, publication or deployment.
+The opt-in `TestCancellationFenceSurvivesTemporalServerRestart` additionally runs
+against the pinned local Temporal CLI 1.10.0 / Server 1.32.2. Independent SDK
+clients exercise wrong-owner refusal and exact-run cancellation while a
+synthetic activity is in flight. A deliberately late result is not applied;
+a server/worker restart on the same SQLite database retains the cancellation
+receipt and rejects reuse without another activity invocation. The test closes
+its isolated workflow only after those assertions and replays the complete
+history. `TestRecordedCancellationHistoryReplays` checks that captured version-1
+history without requiring a server in ordinary CI; its metadata records the
+capture scope and SHA256. This is a bounded local restart/replay qualification,
+not production HA, provider termination, visibility latency, retention or scale.
+No source control or test result authorizes publication or deployment.
+
+To repeat the real-server test, set `CONDUIT_TEMPORAL_CLI` to the verified pinned
+CLI and run `go test ./internal/planning/workflow -count=1 -run
+TestCancellationFenceSurvivesTemporalServerRestart`. An explicit
+`CONDUIT_PLANNING_HISTORY_PATH` captures the synthetic history. Replace the
+committed fixture only from a healthy capture and update its metadata; mutation
+controls must never overwrite that baseline.
