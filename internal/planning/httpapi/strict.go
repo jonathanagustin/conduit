@@ -80,6 +80,9 @@ func checkRequestBody(w http.ResponseWriter, r *http.Request) bool {
 	switch {
 	case r.URL.Path == "/v1/planning-sessions":
 		destination = &api.CreatePlanningSessionJSONRequestBody{}
+	case strings.HasSuffix(r.URL.Path, "/cancel"):
+		destination = &struct{}{}
+		optional = true
 	case strings.HasSuffix(r.URL.Path, "/answers"):
 		destination = &api.AnswerPlanningNeedsInputJSONRequestBody{}
 	case strings.HasSuffix(r.URL.Path, "/turns"):

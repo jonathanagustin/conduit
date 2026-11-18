@@ -22,27 +22,35 @@ import (
 
 // Defines values for ErrorCode.
 const (
-	ALREADYACCEPTED      ErrorCode = "ALREADY_ACCEPTED"
-	COMMITNOTPINNED      ErrorCode = "COMMIT_NOT_PINNED"
-	COMPUTEBEFOREACCEPT  ErrorCode = "COMPUTE_BEFORE_ACCEPT"
-	COMPUTEINPROGRESS    ErrorCode = "COMPUTE_IN_PROGRESS"
-	COMPUTENOTCONFIGURED ErrorCode = "COMPUTE_NOT_CONFIGURED"
-	INVALIDANSWER        ErrorCode = "INVALID_ANSWER"
-	INVALIDINTAKE        ErrorCode = "INVALID_INTAKE"
-	MODELNOTCONFIGURED   ErrorCode = "MODEL_NOT_CONFIGURED"
-	NEEDSINPUTPENDING    ErrorCode = "NEEDS_INPUT_PENDING"
-	NOPENDINGQUESTIONS   ErrorCode = "NO_PENDING_QUESTIONS"
-	NOTACCEPTED          ErrorCode = "NOT_ACCEPTED"
-	PLANREQUIRED         ErrorCode = "PLAN_REQUIRED"
-	SESSIONNOTFOUND      ErrorCode = "SESSION_NOT_FOUND"
-	TURNINPROGRESS       ErrorCode = "TURN_IN_PROGRESS"
-	UNKNOWNQUESTION      ErrorCode = "UNKNOWN_QUESTION"
+	ALREADYACCEPTED            ErrorCode = "ALREADY_ACCEPTED"
+	CANCELLATIONNOTCONFIGURED  ErrorCode = "CANCELLATION_NOT_CONFIGURED"
+	COMMITNOTPINNED            ErrorCode = "COMMIT_NOT_PINNED"
+	COMPUTEBEFOREACCEPT        ErrorCode = "COMPUTE_BEFORE_ACCEPT"
+	COMPUTEINPROGRESS          ErrorCode = "COMPUTE_IN_PROGRESS"
+	COMPUTENOTCONFIGURED       ErrorCode = "COMPUTE_NOT_CONFIGURED"
+	INVALIDANSWER              ErrorCode = "INVALID_ANSWER"
+	INVALIDCANCELLATIONRECEIPT ErrorCode = "INVALID_CANCELLATION_RECEIPT"
+	INVALIDINTAKE              ErrorCode = "INVALID_INTAKE"
+	INVALIDRUNID               ErrorCode = "INVALID_RUN_ID"
+	MODELNOTCONFIGURED         ErrorCode = "MODEL_NOT_CONFIGURED"
+	NEEDSINPUTPENDING          ErrorCode = "NEEDS_INPUT_PENDING"
+	NOPENDINGQUESTIONS         ErrorCode = "NO_PENDING_QUESTIONS"
+	NOTACCEPTED                ErrorCode = "NOT_ACCEPTED"
+	PLANREQUIRED               ErrorCode = "PLAN_REQUIRED"
+	RUNCANCELLED               ErrorCode = "RUN_CANCELLED"
+	RUNCAPACITY                ErrorCode = "RUN_CAPACITY"
+	RUNCONFLICT                ErrorCode = "RUN_CONFLICT"
+	SESSIONNOTFOUND            ErrorCode = "SESSION_NOT_FOUND"
+	TURNINPROGRESS             ErrorCode = "TURN_IN_PROGRESS"
+	UNKNOWNQUESTION            ErrorCode = "UNKNOWN_QUESTION"
 )
 
 // Valid indicates whether the value is a known member of the ErrorCode enum.
 func (e ErrorCode) Valid() bool {
 	switch e {
 	case ALREADYACCEPTED:
+		return true
+	case CANCELLATIONNOTCONFIGURED:
 		return true
 	case COMMITNOTPINNED:
 		return true
@@ -54,7 +62,11 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case INVALIDANSWER:
 		return true
+	case INVALIDCANCELLATIONRECEIPT:
+		return true
 	case INVALIDINTAKE:
+		return true
+	case INVALIDRUNID:
 		return true
 	case MODELNOTCONFIGURED:
 		return true
@@ -65,6 +77,12 @@ func (e ErrorCode) Valid() bool {
 	case NOTACCEPTED:
 		return true
 	case PLANREQUIRED:
+		return true
+	case RUNCANCELLED:
+		return true
+	case RUNCAPACITY:
+		return true
+	case RUNCONFLICT:
 		return true
 	case SESSIONNOTFOUND:
 		return true
@@ -199,13 +217,13 @@ func (e SessionStatus) Valid() bool {
 
 // Defines values for SessionPageValueTier.
 const (
-	CONDUITNATIVE SessionPageValueTier = "CONDUIT_NATIVE"
+	SessionPageValueTierCONDUITNATIVE SessionPageValueTier = "CONDUIT_NATIVE"
 )
 
 // Valid indicates whether the value is a known member of the SessionPageValueTier enum.
 func (e SessionPageValueTier) Valid() bool {
 	switch e {
-	case CONDUITNATIVE:
+	case SessionPageValueTierCONDUITNATIVE:
 		return true
 	default:
 		return false
@@ -224,6 +242,45 @@ func (e CreatePlanningSessionJSONBodyProfile) Valid() bool {
 	case CreatePlanningSessionJSONBodyProfileAppgen:
 		return true
 	case CreatePlanningSessionJSONBodyProfileOnboard:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CancelPlanningTurn200JSONResponseBodyState.
+const (
+	CancellationRequested CancelPlanningTurn200JSONResponseBodyState = "cancellation_requested"
+	Cancelled             CancelPlanningTurn200JSONResponseBodyState = "cancelled"
+	Completed             CancelPlanningTurn200JSONResponseBodyState = "completed"
+	Failed                CancelPlanningTurn200JSONResponseBodyState = "failed"
+)
+
+// Valid indicates whether the value is a known member of the CancelPlanningTurn200JSONResponseBodyState enum.
+func (e CancelPlanningTurn200JSONResponseBodyState) Valid() bool {
+	switch e {
+	case CancellationRequested:
+		return true
+	case Cancelled:
+		return true
+	case Completed:
+		return true
+	case Failed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CancelPlanningTurn200JSONResponseBodyValueTier.
+const (
+	CancelPlanningTurn200JSONResponseBodyValueTierCONDUITNATIVE CancelPlanningTurn200JSONResponseBodyValueTier = "CONDUIT_NATIVE"
+)
+
+// Valid indicates whether the value is a known member of the CancelPlanningTurn200JSONResponseBodyValueTier enum.
+func (e CancelPlanningTurn200JSONResponseBodyValueTier) Valid() bool {
+	switch e {
+	case CancelPlanningTurn200JSONResponseBodyValueTierCONDUITNATIVE:
 		return true
 	default:
 		return false
@@ -440,6 +497,15 @@ type PostPlanningTurnJSONBody struct {
 	Message *string `json:"message,omitempty"`
 }
 
+// CancelPlanningTurnJSONBody defines parameters for CancelPlanningTurn.
+type CancelPlanningTurnJSONBody = map[string]interface{}
+
+// CancelPlanningTurn200JSONResponseBodyState defines parameters for CancelPlanningTurn.
+type CancelPlanningTurn200JSONResponseBodyState string
+
+// CancelPlanningTurn200JSONResponseBodyValueTier defines parameters for CancelPlanningTurn.
+type CancelPlanningTurn200JSONResponseBodyValueTier string
+
 // CreatePlanningSessionJSONRequestBody defines body for CreatePlanningSession for application/json ContentType.
 type CreatePlanningSessionJSONRequestBody CreatePlanningSessionJSONBody
 
@@ -448,6 +514,9 @@ type AnswerPlanningNeedsInputJSONRequestBody AnswerPlanningNeedsInputJSONBody
 
 // PostPlanningTurnJSONRequestBody defines body for PostPlanningTurn for application/json ContentType.
 type PostPlanningTurnJSONRequestBody PostPlanningTurnJSONBody
+
+// CancelPlanningTurnJSONRequestBody defines body for CancelPlanningTurn for application/json ContentType.
+type CancelPlanningTurnJSONRequestBody = CancelPlanningTurnJSONBody
 
 // RequestEditorFn is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -606,6 +675,24 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /v1/planning-sessions/{sessionID}/turns (the `PostPlanningTurn` operationId).
 	PostPlanningTurn(ctx context.Context, sessionID SessionID, body PostPlanningTurnJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CancelPlanningTurnWithBody Fence an exact logical planning turn owned by the caller
+	//
+	// Persists a cancellation fence, including before a turn starts. A cancellation_requested receipt is not a completed cancellation. Terminal receipts describe the durable handler, not external provider termination. Committed answers, plans and acceptances are not rolled back. Unsupported stores return 501 and unavailable acknowledgement returns 502.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /v1/planning-sessions/{sessionID}/turns/{runID}/cancel (the `CancelPlanningTurn` operationId).
+	CancelPlanningTurnWithBody(ctx context.Context, sessionID SessionID, runID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CancelPlanningTurn Fence an exact logical planning turn owned by the caller
+	//
+	// Persists a cancellation fence, including before a turn starts. A cancellation_requested receipt is not a completed cancellation. Terminal receipts describe the durable handler, not external provider termination. Committed answers, plans and acceptances are not rolled back. Unsupported stores return 501 and unavailable acknowledgement returns 502.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /v1/planning-sessions/{sessionID}/turns/{runID}/cancel (the `CancelPlanningTurn` operationId).
+	CancelPlanningTurn(ctx context.Context, sessionID SessionID, runID string, body CancelPlanningTurnJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 // ListPlanningSessions List summaries belonging to the authenticated operator
@@ -802,6 +889,44 @@ func (c *Client) PostPlanningTurnWithBody(ctx context.Context, sessionID Session
 // Corresponds with POST /v1/planning-sessions/{sessionID}/turns (the `PostPlanningTurn` operationId).
 func (c *Client) PostPlanningTurn(ctx context.Context, sessionID SessionID, body PostPlanningTurnJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostPlanningTurnRequest(c.Server, sessionID, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CancelPlanningTurnWithBody Fence an exact logical planning turn owned by the caller
+//
+// Persists a cancellation fence, including before a turn starts. A cancellation_requested receipt is not a completed cancellation. Terminal receipts describe the durable handler, not external provider termination. Committed answers, plans and acceptances are not rolled back. Unsupported stores return 501 and unavailable acknowledgement returns 502.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /v1/planning-sessions/{sessionID}/turns/{runID}/cancel (the `CancelPlanningTurn` operationId).
+func (c *Client) CancelPlanningTurnWithBody(ctx context.Context, sessionID SessionID, runID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCancelPlanningTurnRequestWithBody(c.Server, sessionID, runID, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CancelPlanningTurn Fence an exact logical planning turn owned by the caller
+//
+// Persists a cancellation fence, including before a turn starts. A cancellation_requested receipt is not a completed cancellation. Terminal receipts describe the durable handler, not external provider termination. Committed answers, plans and acceptances are not rolled back. Unsupported stores return 501 and unavailable acknowledgement returns 502.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /v1/planning-sessions/{sessionID}/turns/{runID}/cancel (the `CancelPlanningTurn` operationId).
+func (c *Client) CancelPlanningTurn(ctx context.Context, sessionID SessionID, runID string, body CancelPlanningTurnJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCancelPlanningTurnRequest(c.Server, sessionID, runID, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1182,6 +1307,60 @@ func NewPostPlanningTurnRequestWithBody(server string, sessionID SessionID, cont
 	return req, nil
 }
 
+// NewCancelPlanningTurnRequest calls the generic CancelPlanningTurn builder with application/json body
+func NewCancelPlanningTurnRequest(server string, sessionID SessionID, runID string, body CancelPlanningTurnJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCancelPlanningTurnRequestWithBody(server, sessionID, runID, "application/json", bodyReader)
+}
+
+// NewCancelPlanningTurnRequestWithBody constructs an http.Request for the CancelPlanningTurn method, with any body, and a specified content type
+func NewCancelPlanningTurnRequestWithBody(server string, sessionID SessionID, runID string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "sessionID", sessionID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "runID", runID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/planning-sessions/%s/turns/%s/cancel", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -1321,6 +1500,24 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /v1/planning-sessions/{sessionID}/turns (the `PostPlanningTurn` operationId).
 	PostPlanningTurnWithResponse(ctx context.Context, sessionID SessionID, body PostPlanningTurnJSONRequestBody, reqEditors ...RequestEditorFn) (*PostPlanningTurnResponse, error)
+
+	// CancelPlanningTurnWithBodyWithResponse Fence an exact logical planning turn owned by the caller
+	//
+	// Persists a cancellation fence, including before a turn starts. A cancellation_requested receipt is not a completed cancellation. Terminal receipts describe the durable handler, not external provider termination. Committed answers, plans and acceptances are not rolled back. Unsupported stores return 501 and unavailable acknowledgement returns 502.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/planning-sessions/{sessionID}/turns/{runID}/cancel (the `CancelPlanningTurn` operationId).
+	CancelPlanningTurnWithBodyWithResponse(ctx context.Context, sessionID SessionID, runID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CancelPlanningTurnResponse, error)
+
+	// CancelPlanningTurnWithResponse Fence an exact logical planning turn owned by the caller
+	//
+	// Persists a cancellation fence, including before a turn starts. A cancellation_requested receipt is not a completed cancellation. Terminal receipts describe the durable handler, not external provider termination. Committed answers, plans and acceptances are not rolled back. Unsupported stores return 501 and unavailable acknowledgement returns 502.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/planning-sessions/{sessionID}/turns/{runID}/cancel (the `CancelPlanningTurn` operationId).
+	CancelPlanningTurnWithResponse(ctx context.Context, sessionID SessionID, runID string, body CancelPlanningTurnJSONRequestBody, reqEditors ...RequestEditorFn) (*CancelPlanningTurnResponse, error)
 }
 
 type ListPlanningSessionsResponse struct {
@@ -1948,6 +2145,104 @@ func (r PostPlanningTurnResponse) ContentType() string {
 	return ""
 }
 
+type CancelPlanningTurnResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		RunId     string                                         `json:"runId"`
+		State     CancelPlanningTurn200JSONResponseBodyState     `json:"state"`
+		ValueTier CancelPlanningTurn200JSONResponseBodyValueTier `json:"valueTier"`
+	}
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *Error
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Error
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *Error
+	// JSON501 the response for an HTTP 501 `application/json` response
+	JSON501 *Error
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r CancelPlanningTurnResponse) GetJSON200() *struct {
+	RunId     string                                         `json:"runId"`
+	State     CancelPlanningTurn200JSONResponseBodyState     `json:"state"`
+	ValueTier CancelPlanningTurn200JSONResponseBodyValueTier `json:"valueTier"`
+} {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CancelPlanningTurnResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CancelPlanningTurnResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CancelPlanningTurnResponse) GetJSON404() *Error {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CancelPlanningTurnResponse) GetJSON409() *Error {
+	return r.JSON409
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r CancelPlanningTurnResponse) GetJSON429() *Error {
+	return r.JSON429
+}
+
+// GetJSON501 returns the response for an HTTP 501 `application/json` response
+func (r CancelPlanningTurnResponse) GetJSON501() *Error {
+	return r.JSON501
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r CancelPlanningTurnResponse) GetJSON502() *Error {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r CancelPlanningTurnResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CancelPlanningTurnResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CancelPlanningTurnResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CancelPlanningTurnResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // ListPlanningSessionsWithResponse List summaries belonging to the authenticated operator
 //
 // Authorization selects the owner store before counting or pagination. Summaries exclude prompts, plans and transcript payloads. Production reads retained Temporal visibility, which can lag recent changes and expire old executions; development reads the process-local owner store. Inventories beyond 1000 scanned executions, invalid state or unavailable queries fail rather than returning a successful incomplete catalog. Cursors seek by session id within the caller's currently available inventory.
@@ -2114,6 +2409,36 @@ func (c *ClientWithResponses) PostPlanningTurnWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParsePostPlanningTurnResponse(rsp)
+}
+
+// CancelPlanningTurnWithBodyWithResponse Fence an exact logical planning turn owned by the caller
+//
+// Persists a cancellation fence, including before a turn starts. A cancellation_requested receipt is not a completed cancellation. Terminal receipts describe the durable handler, not external provider termination. Committed answers, plans and acceptances are not rolled back. Unsupported stores return 501 and unavailable acknowledgement returns 502.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/planning-sessions/{sessionID}/turns/{runID}/cancel (the `CancelPlanningTurn` operationId).
+func (c *ClientWithResponses) CancelPlanningTurnWithBodyWithResponse(ctx context.Context, sessionID SessionID, runID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CancelPlanningTurnResponse, error) {
+	rsp, err := c.CancelPlanningTurnWithBody(ctx, sessionID, runID, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCancelPlanningTurnResponse(rsp)
+}
+
+// CancelPlanningTurnWithResponse Fence an exact logical planning turn owned by the caller
+//
+// Persists a cancellation fence, including before a turn starts. A cancellation_requested receipt is not a completed cancellation. Terminal receipts describe the durable handler, not external provider termination. Committed answers, plans and acceptances are not rolled back. Unsupported stores return 501 and unavailable acknowledgement returns 502.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/planning-sessions/{sessionID}/turns/{runID}/cancel (the `CancelPlanningTurn` operationId).
+func (c *ClientWithResponses) CancelPlanningTurnWithResponse(ctx context.Context, sessionID SessionID, runID string, body CancelPlanningTurnJSONRequestBody, reqEditors ...RequestEditorFn) (*CancelPlanningTurnResponse, error) {
+	rsp, err := c.CancelPlanningTurn(ctx, sessionID, runID, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCancelPlanningTurnResponse(rsp)
 }
 
 // ParseListPlanningSessionsResponse parses an HTTP response from a ListPlanningSessionsWithResponse call
@@ -2607,6 +2932,85 @@ func ParsePostPlanningTurnResponse(rsp *http.Response) (*PostPlanningTurnRespons
 	return response, nil
 }
 
+// ParseCancelPlanningTurnResponse parses an HTTP response from a CancelPlanningTurnWithResponse call
+func ParseCancelPlanningTurnResponse(rsp *http.Response) (*CancelPlanningTurnResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CancelPlanningTurnResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			RunId     string                                         `json:"runId"`
+			State     CancelPlanningTurn200JSONResponseBodyState     `json:"state"`
+			ValueTier CancelPlanningTurn200JSONResponseBodyValueTier `json:"valueTier"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// ListPlanningSessions List summaries belonging to the authenticated operator
@@ -2636,6 +3040,9 @@ type ServerInterface interface {
 	// PostPlanningTurn Run one planning turn
 	// (POST /v1/planning-sessions/{sessionID}/turns)
 	PostPlanningTurn(w http.ResponseWriter, r *http.Request, sessionID SessionID)
+	// CancelPlanningTurn Fence an exact logical planning turn owned by the caller
+	// (POST /v1/planning-sessions/{sessionID}/turns/{runID}/cancel)
+	CancelPlanningTurn(w http.ResponseWriter, r *http.Request, sessionID SessionID, runID string)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -2889,6 +3296,41 @@ func (siw *ServerInterfaceWrapper) PostPlanningTurn(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// CancelPlanningTurn operation middleware
+func (siw *ServerInterfaceWrapper) CancelPlanningTurn(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "sessionID" -------------
+	var sessionID SessionID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionID", r.PathValue("sessionID"), &sessionID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionID", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "runID" -------------
+	var runID string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "runID", r.PathValue("runID"), &runID, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "runID", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelPlanningTurn(w, r, sessionID, runID)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -3011,6 +3453,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/planning-sessions", wrapper.ListPlanningSessions)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/planning-sessions", wrapper.CreatePlanningSession)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/planning-sessions/{sessionID}/turns/{runID}/cancel", wrapper.CancelPlanningTurn)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/planning-sessions/{sessionID}", wrapper.GetPlanningSession)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/planning-sessions/{sessionID}/turns", wrapper.PostPlanningTurn)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/planning-sessions/{sessionID}/answers", wrapper.AnswerPlanningNeedsInput)
@@ -3773,6 +4216,132 @@ func (response PostPlanningTurn503JSONResponse) VisitPostPlanningTurnResponse(w 
 	return err
 }
 
+type CancelPlanningTurnRequestObject struct {
+	SessionID SessionID `json:"sessionID"`
+	RunID     string    `json:"runID"`
+	Body      *CancelPlanningTurnJSONRequestBody
+}
+
+type CancelPlanningTurnResponseObject interface {
+	VisitCancelPlanningTurnResponse(w http.ResponseWriter) error
+}
+
+type CancelPlanningTurn200JSONResponse struct {
+	RunId     string                                         `json:"runId"`
+	State     CancelPlanningTurn200JSONResponseBodyState     `json:"state"`
+	ValueTier CancelPlanningTurn200JSONResponseBodyValueTier `json:"valueTier"`
+}
+
+func (response CancelPlanningTurn200JSONResponse) VisitCancelPlanningTurnResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelPlanningTurn400JSONResponse struct{ ErrorJSONResponse }
+
+func (response CancelPlanningTurn400JSONResponse) VisitCancelPlanningTurnResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelPlanningTurn401JSONResponse Error
+
+func (response CancelPlanningTurn401JSONResponse) VisitCancelPlanningTurnResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelPlanningTurn404JSONResponse Error
+
+func (response CancelPlanningTurn404JSONResponse) VisitCancelPlanningTurnResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelPlanningTurn409JSONResponse Error
+
+func (response CancelPlanningTurn409JSONResponse) VisitCancelPlanningTurnResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelPlanningTurn429JSONResponse Error
+
+func (response CancelPlanningTurn429JSONResponse) VisitCancelPlanningTurnResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelPlanningTurn501JSONResponse Error
+
+func (response CancelPlanningTurn501JSONResponse) VisitCancelPlanningTurnResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(501)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelPlanningTurn502JSONResponse Error
+
+func (response CancelPlanningTurn502JSONResponse) VisitCancelPlanningTurnResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(502)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// ListPlanningSessions List summaries belonging to the authenticated operator
@@ -3802,6 +4371,9 @@ type StrictServerInterface interface {
 	// PostPlanningTurn Run one planning turn
 	// (POST /v1/planning-sessions/{sessionID}/turns)
 	PostPlanningTurn(ctx context.Context, request PostPlanningTurnRequestObject) (PostPlanningTurnResponseObject, error)
+	// CancelPlanningTurn Fence an exact logical planning turn owned by the caller
+	// (POST /v1/planning-sessions/{sessionID}/turns/{runID}/cancel)
+	CancelPlanningTurn(ctx context.Context, request CancelPlanningTurnRequestObject) (CancelPlanningTurnResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -4092,6 +4664,43 @@ func (sh *strictHandler) PostPlanningTurn(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PostPlanningTurnResponseObject); ok {
 		if err := validResponse.VisitPostPlanningTurnResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CancelPlanningTurn operation middleware
+func (sh *strictHandler) CancelPlanningTurn(w http.ResponseWriter, r *http.Request, sessionID SessionID, runID string) {
+	var request CancelPlanningTurnRequestObject
+
+	request.SessionID = sessionID
+	request.RunID = runID
+
+	var body CancelPlanningTurnJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CancelPlanningTurn(ctx, request.(CancelPlanningTurnRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CancelPlanningTurn")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CancelPlanningTurnResponseObject); ok {
+		if err := validResponse.VisitCancelPlanningTurnResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

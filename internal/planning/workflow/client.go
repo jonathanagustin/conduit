@@ -185,7 +185,7 @@ func (s *ClientService) Turn(ctx context.Context, id, message string) (*domain.S
 	handle, err := s.client.UpdateWorkflow(ctx, client.UpdateWorkflowOptions{
 		WorkflowID:   WorkflowID(id),
 		UpdateName:   UpdateTurn,
-		Args:         []any{TurnRequest{Actor: s.actor, Message: message}},
+		Args:         []any{TurnRequest{Actor: s.actor, Message: message, RunID: logicalRunID(ctx)}},
 		WaitForStage: client.WorkflowUpdateStageCompleted,
 	})
 	if err != nil {
@@ -216,7 +216,7 @@ func (s *ClientService) Answer(ctx context.Context, id string, answers []domain.
 	handle, err := s.client.UpdateWorkflow(ctx, client.UpdateWorkflowOptions{
 		WorkflowID:   WorkflowID(id),
 		UpdateName:   UpdateAnswer,
-		Args:         []any{AnswerRequest{Actor: s.actor, Answers: answers}},
+		Args:         []any{AnswerRequest{Actor: s.actor, Answers: answers, RunID: logicalRunID(ctx)}},
 		WaitForStage: client.WorkflowUpdateStageCompleted,
 	})
 	if err != nil {
@@ -287,4 +287,40 @@ func mapNotFound(err error) error {
 		return domain.ErrNotFound
 	}
 	return err
+}
+
+// CancelTurn persists an owner-verified fence for one logical planning run.
+func (s *ClientService) CancelTurn(ctx context.Context, id, runID string) (*domain.TurnCancellationReceipt, error) {
+	if s.client == nil {
+		return nil, errors.New("planning Temporal client is not configured")
+	}
+	if s.actor == "" {
+		return nil, domain.ErrNotFound
+	}
+	if err := validateTurnRunID(runID, false); err != nil {
+		return nil, domain.IntakeError{Reason: "invalid planning run id"}
+	}
+	handle, err := s.client.UpdateWorkflow(ctx, client.UpdateWorkflowOptions{
+		WorkflowID: WorkflowID(id), UpdateName: UpdateCancelTurn,
+		Args: []any{CancelTurnRequest{Actor: s.actor, RunID: runID}}, WaitForStage: client.WorkflowUpdateStageCompleted,
+	})
+	if err != nil {
+		return nil, mapNotFound(MapWorkflowError(err))
+	}
+	if handle == nil {
+		return nil, errors.New("planning cancellation acknowledgement unavailable")
+	}
+	var receipt domain.TurnCancellationReceipt
+	if err := handle.Get(ctx, &receipt); err != nil {
+		return nil, mapNotFound(MapWorkflowError(err))
+	}
+	if !receipt.ValidFor(runID) {
+		return nil, errors.New("invalid planning cancellation acknowledgement")
+	}
+	return &receipt, nil
+}
+
+func logicalRunID(ctx context.Context) string {
+	_, id := application.RunIdentifiers(ctx)
+	return id
 }

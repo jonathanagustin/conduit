@@ -823,6 +823,104 @@ Inspects the repository, may ask Needs Input, and may write a plan. Does not sta
 }
 ```
 
+### POST /v1/planning-sessions/{sessionID}/turns/{runID}/cancel
+
+Operation: `cancelPlanningTurn`. Fence an exact logical planning turn owned by the caller
+
+Persists a cancellation fence, including before a turn starts. A cancellation_requested receipt is not a completed cancellation. Terminal receipts describe the durable handler, not external provider termination. Committed answers, plans and acceptances are not rolled back. Unsupported stores return 501 and unavailable acknowledgement returns 502.
+
+```json
+{
+  "operationId": "cancelPlanningTurn",
+  "summary": "Fence an exact logical planning turn owned by the caller",
+  "description": "Persists a cancellation fence, including before a turn starts. A cancellation_requested receipt is not a completed cancellation. Terminal receipts describe the durable handler, not external provider termination. Committed answers, plans and acceptances are not rolled back. Unsupported stores return 501 and unavailable acknowledgement returns 502.",
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/SessionID"
+    },
+    {
+      "in": "path",
+      "name": "runID",
+      "required": true,
+      "schema": {
+        "maxLength": 256,
+        "minLength": 1,
+        "type": "string"
+      }
+    }
+  ],
+  "requestBody": {
+    "content": {
+      "application/json": {
+        "schema": {
+          "additionalProperties": false,
+          "type": "object"
+        }
+      }
+    },
+    "required": false
+  },
+  "responses": {
+    "200": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "properties": {
+              "runId": {
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "cancellation_requested",
+                  "cancelled",
+                  "completed",
+                  "failed"
+                ],
+                "type": "string"
+              },
+              "valueTier": {
+                "enum": [
+                  "CONDUIT_NATIVE"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "runId",
+              "state",
+              "valueTier"
+            ],
+            "type": "object"
+          }
+        }
+      },
+      "description": "Recorded fence or previously terminal turn state."
+    },
+    "400": {
+      "$ref": "#/components/responses/Error"
+    },
+    "401": {
+      "$ref": "#/components/responses/Error"
+    },
+    "404": {
+      "$ref": "#/components/responses/Error"
+    },
+    "409": {
+      "$ref": "#/components/responses/Error"
+    },
+    "429": {
+      "$ref": "#/components/responses/Error"
+    },
+    "501": {
+      "$ref": "#/components/responses/Error"
+    },
+    "502": {
+      "$ref": "#/components/responses/Error"
+    }
+  }
+}
+```
+
 ### Complete source contract
 
 The normalized source below preserves shared schemas, parameters, security and every other top-level or operation field.
@@ -940,6 +1038,12 @@ The normalized source below preserves shared schemas, parameters, security and e
         "properties": {
           "code": {
             "enum": [
+              "RUN_CANCELLED",
+              "RUN_CONFLICT",
+              "RUN_CAPACITY",
+              "INVALID_RUN_ID",
+              "CANCELLATION_NOT_CONFIGURED",
+              "INVALID_CANCELLATION_RECEIPT",
               "INVALID_INTAKE",
               "SESSION_NOT_FOUND",
               "MODEL_NOT_CONFIGURED",
@@ -1821,6 +1925,97 @@ The normalized source below preserves shared schemas, parameters, security and e
           }
         },
         "summary": "Run one planning turn"
+      }
+    },
+    "/v1/planning-sessions/{sessionID}/turns/{runID}/cancel": {
+      "post": {
+        "description": "Persists a cancellation fence, including before a turn starts. A cancellation_requested receipt is not a completed cancellation. Terminal receipts describe the durable handler, not external provider termination. Committed answers, plans and acceptances are not rolled back. Unsupported stores return 501 and unavailable acknowledgement returns 502.",
+        "operationId": "cancelPlanningTurn",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionID"
+          },
+          {
+            "in": "path",
+            "name": "runID",
+            "required": true,
+            "schema": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "enum": [
+                        "cancellation_requested",
+                        "cancelled",
+                        "completed",
+                        "failed"
+                      ],
+                      "type": "string"
+                    },
+                    "valueTier": {
+                      "enum": [
+                        "CONDUIT_NATIVE"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "runId",
+                    "state",
+                    "valueTier"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Recorded fence or previously terminal turn state."
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          },
+          "502": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "Fence an exact logical planning turn owned by the caller"
       }
     }
   }
