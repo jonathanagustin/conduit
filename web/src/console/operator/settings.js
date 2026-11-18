@@ -1,10 +1,11 @@
-/* Settings screens. Directory rows come from the Hub. Tokens and request shapes are examples. */
+/* Settings screens. Directory rows and own AI usage come from the Hub. Tokens and request shapes are examples. */
 import {
   fetchPackagingRuns,
   packagingRunsTransport,
 } from "../../api/packaging-runs.js";
 import { capabilityTableMarkup } from "./session-capabilities.js";
 import { createGovernanceEditor } from "./governance-editor.mjs";
+import { createAIUsagePanel } from "./ai-usage.js";
 import {
   installHubSession,
   signInAvailability,
@@ -218,6 +219,25 @@ export function createSettings(ctx) {
       state.reviewOperatorActor || "",
       state.reviewOperatorIdentities || [],
     ]);
+  const aiUsage = createAIUsagePanel({
+    identityKey: () =>
+      JSON.stringify([state.reviewOperatorName || "", identityKey()]),
+    owner: () => state.reviewOperatorActor || state.reviewOperatorName || "",
+    render: () => {
+      const panel =
+        typeof document === "undefined"
+          ? null
+          : document.querySelector("#main-workspace [data-ai-usage]");
+      if (!panel) return;
+      const focused = panel.contains(document.activeElement);
+      panel.outerHTML = aiUsage.markup();
+      if (focused)
+        document
+          .querySelector("#main-workspace [data-ai-usage] button")
+          ?.focus();
+    },
+    escape: esc,
+  });
   const governanceEditor = createGovernanceEditor({
     identityKey,
     canPerform: (operation, resource) => ctx.canPerform?.(operation, resource),
@@ -499,7 +519,7 @@ export function createSettings(ctx) {
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div class="text-[15px] font-bold text-[var(--text-1)]">Preferences</div>
-            <div class="text-[11.5px] text-[var(--text-2)]">Theme, density, clock, shortcuts, and personal tokens.</div>
+            <div class="text-[11.5px] text-[var(--text-2)]">Theme, density, clock, shortcuts, AI usage, and personal tokens.</div>
           </div>
           ${note(false, "Tokens", !state.prefTokenExamples)}
         </div>
@@ -553,6 +573,7 @@ export function createSettings(ctx) {
             ).join("")}
           </div>
         </div>
+        ${aiUsage.markup()}
         <div class="so-panel p-3.5 space-y-3">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div>
@@ -917,6 +938,7 @@ export function createSettings(ctx) {
       if (!state.settingsLoaded && !state.settingsLoading) load();
     },
     bind(target) {
+      target.refreshAIUsage = () => aiUsage.load();
       target.refreshOrganization = () => {
         state.settingsLoaded = false;
         clearOrganization();

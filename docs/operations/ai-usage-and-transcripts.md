@@ -76,6 +76,23 @@ Usage is kept in `conduit_model_usage_daily`, one row per UTC day, owner, capabi
 
 `days` is 1 to 92 and defaults to 1.
 
+### Console snapshot
+
+Preferences includes **Your AI usage**. **Load AI usage** reads the caller's
+current UTC day from the self-usage route; **Refresh** and **Retry** repeat that
+read. It displays the authenticated actor's account, including during delegated
+resource access. Identity changes discard the previous account's snapshot and
+in-flight results. The panel does not change budget configuration or invoke a
+model, and it does not use the administrator usage route.
+
+Zero remaining allowance is exhausted; a null configured allowance is
+**Unlimited**. Token counts the provider omitted are **Not reported**, and
+partly reported totals are marked incomplete. Token allowance uses reported
+counts only. Call charges retain the historical accounting caveat above. These
+are Hub-metered usage snapshots; standalone worker calls are not included.
+Read failures clear the previous display and offer an explicit retry. A delayed
+read updates only the usage panel, preserving other preference drafts and focus.
+
 ## Budgets
 
 A budget is checked against persisted usage when a request arrives and again after it acquires its owner and global slots, using the current UTC day. The slots stay held through audit and metering, so a queued request cannot reuse a budget decision made before an earlier call spent it. The budget resets at 00:00 UTC. Calls refused by a limit do not count; every call that reached or tried to reach a model does, failures included.
