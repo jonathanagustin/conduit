@@ -870,25 +870,28 @@ test("a link to a session the Hub no longer has says so", async ({ page }) => {
 async function keyboardReach(page: Page, target: Locator) {
   await expect(target).toBeVisible();
   for (let attempt = 0; attempt < 100; attempt++) {
-    if (await target.evaluate((element) => element === document.activeElement))
-      return;
-    // Stay inside the document instead of relying on browser-chrome Tab wrap.
-    // A refreshed view may have changed the browser's previous starting point.
-    const key = await target.evaluate((element) =>
-      (document.activeElement?.compareDocumentPosition(element) ?? 0) &
-      Node.DOCUMENT_POSITION_PRECEDING
-        ? "Shift+Tab"
-        : "Tab",
-    );
-    await page.keyboard.press(key);
-    // Let the key's focus/layout update settle without requiring every key to
-    // move focus (a closing dialog may still be restoring its trigger).
-    await page.evaluate(
-      () =>
-        new Promise<void>((resolve) => {
-          requestAnimationFrame(() => resolve());
+    // Settle dialog restoration and inspect focus in the same browser call.
+    // Keep every movement a real key, without round trips for each DOM read.
+    const key = await target.evaluate(
+      (element) =>
+        new Promise<"Tab" | "Shift+Tab" | null>((resolve) => {
+          requestAnimationFrame(() => {
+            if (element === document.activeElement) {
+              resolve(null);
+              return;
+            }
+            // Stay inside the document instead of browser-chrome Tab wrap.
+            resolve(
+              (document.activeElement?.compareDocumentPosition(element) ?? 0) &
+                Node.DOCUMENT_POSITION_PRECEDING
+                ? "Shift+Tab"
+                : "Tab",
+            );
+          });
         }),
     );
+    if (key === null) return;
+    await page.keyboard.press(key);
   }
   await expect(target).toBeFocused();
 }
