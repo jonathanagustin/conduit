@@ -66,7 +66,8 @@ func Build(ctx context.Context, repository controlplane.Repository, environment 
 }
 
 func forEnvironment(resource, environment string) bool {
-	return resource == "environment/"+environment || strings.Contains(resource, "/"+environment+"/") || strings.HasSuffix(resource, "/"+environment)
+	anchor := "environment/" + environment
+	return resource == anchor || strings.HasPrefix(resource, anchor+"/")
 }
 
 func eventDigest(chain []controlplane.AuthorizationAuditChainEntry, id string) string {

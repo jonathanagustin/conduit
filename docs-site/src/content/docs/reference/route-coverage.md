@@ -57,7 +57,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `GET /v1/auth/callback` | `public` | No native schema |
 | `GET /v1/auth/login` | `public` | No native schema |
 | `GET /v1/authorization-audit` | `operator-grant` | No native schema |
-| `GET /v1/blackouts` | `operator-any` | No native schema |
+| `GET /v1/blackouts` | `operator-grant` | No native schema |
 | `GET /v1/bundle-imports` | `operator-grant` | No native schema |
 | `GET /v1/bundles` | `operator-grant` | No native schema |
 | `GET /v1/bundles/signing-key` | `public` | No native schema |
@@ -93,7 +93,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `GET /v1/environments/{environmentID}/reported-state` | `operator-grant` | No native schema |
 | `GET /v1/environments/{environmentID}/suppressions` | `operator-grant` | No native schema |
 | `GET /v1/environments/{environmentID}/target-hub-versions` | `operator-grant` | No native schema |
-| `GET /v1/environments/{environmentID}/timeline` | `operator-any` | No native schema |
+| `GET /v1/environments/{environmentID}/timeline` | `operator-grant` | No native schema |
 | `GET /v1/events` | `operator-grant` | No native schema |
 | `GET /v1/export-pipelines` | `operator-grant` | No native schema |
 | `GET /v1/export-pipelines/{pipelineID}/schedule-runs` | `operator-grant` | No native schema |
@@ -175,7 +175,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `POST /v1/assistant/tools` | `operator-any` | No native schema |
 | `POST /v1/assistant/turns` | `operator-any` | No native schema |
 | `POST /v1/auth/logout` | `public` | No native schema |
-| `POST /v1/blackouts` | `operator-any` | No native schema |
+| `POST /v1/blackouts` | `operator-grant` | No native schema |
 | `POST /v1/bundle-transfer-confirmations/{confirmationID}/rescind` | `operator-grant` | No native schema |
 | `POST /v1/bundles/import` | `operator-grant` | No native schema |
 | `POST /v1/bundles/preview` | `operator-grant` | No native schema |

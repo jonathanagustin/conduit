@@ -2,13 +2,40 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/delivery/blackout/application"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestBlackoutRefusalsDoNotInvokeEvidenceOrDiscloseDiagnostics(t *testing.T) {
+	for _, tc := range []struct {
+		authorize func(*http.Request) error
+		status    int
+	}{{nil, 401}, {func(*http.Request) error { return errors.New("private credential diagnostic") }, 401}, {func(*http.Request) error { return StatusError{403, "Environment permission required"} }, 403}} {
+		mux := http.NewServeMux()
+		called := false
+		Register(mux, Config{Authorize: tc.authorize, Active: func(string, time.Time) string { called = true; return "private freeze" }, Write: func(*http.Request) (int, any, error) { called = true; return 200, nil, nil }})
+		for _, method := range []string{http.MethodGet, http.MethodPost} {
+			response := httptest.NewRecorder()
+			mux.ServeHTTP(response, httptest.NewRequest(method, "/v1/blackouts?environment=east", nil))
+			if response.Code != tc.status || called || strings.Contains(response.Body.String(), "private") {
+				t.Fatalf("%s: %d called=%v %s", method, response.Code, called, response.Body)
+			}
+		}
+	}
+	mux := http.NewServeMux()
+	Register(mux, Config{Authorize: func(*http.Request) error { return nil }, Write: func(*http.Request) (int, any, error) { return 0, nil, errors.New("private backend diagnostic") }})
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/blackouts", nil))
+	if response.Code != 502 || strings.Contains(response.Body.String(), "private") {
+		t.Fatal(response.Code, response.Body)
+	}
+}
 
 func TestAnonymousBlackoutReadIsRefused(t *testing.T) {
 	mux := http.NewServeMux()
@@ -46,7 +73,7 @@ func TestOptInSnapshotPreservesDefaultResponseAndExplicitEvaluationTime(t *testi
 		t.Fatal("declare", err)
 	}
 	mux := http.NewServeMux()
-	Register(mux, Config{Active: service.Active, Snapshot: service.Snapshot})
+	Register(mux, Config{Authorize: func(*http.Request) error { return nil }, Active: service.Active, Snapshot: service.Snapshot})
 	for _, query := range []string{"", "&includeIntervals=false", "&includeIntervals=true"} {
 		response := httptest.NewRecorder()
 		mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/blackouts?environment=east&at=2026-11-18T12:00:00Z"+query, nil))
@@ -72,7 +99,7 @@ func TestOptInSnapshotPreservesDefaultResponseAndExplicitEvaluationTime(t *testi
 
 func TestIntervalSnapshotRefusesUnavailableOrMalformedRequests(t *testing.T) {
 	mux := http.NewServeMux()
-	Register(mux, Config{})
+	Register(mux, Config{Authorize: func(*http.Request) error { return nil }})
 	for query, status := range map[string]int{"includeIntervals=true": 501, "includeIntervals=maybe": 400, "includeIntervals=true&at=invalid": 400} {
 		response := httptest.NewRecorder()
 		mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/blackouts?environment=east&"+query, nil))
