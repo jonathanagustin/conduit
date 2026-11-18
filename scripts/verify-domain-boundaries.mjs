@@ -30,6 +30,13 @@ for (const path of filesBelow(join(root, "internal"))) {
   }
   const local = relative(root, path).replaceAll("\\", "/");
   const dependencies = imports(path);
+  if (local.includes("/application/")) {
+    for (const dependency of dependencies) {
+      if (dependency.includes("/internal/") && dependency.includes("/adapters/")) {
+        failures.push(`${local}: application imports adapter ${dependency}`);
+      }
+    }
+  }
   if (local.includes("/domain/")) {
     for (const dependency of dependencies) {
       if (dependency.includes("/internal/") || dependency === "net/http" || dependency.includes("k8s.io/")) {

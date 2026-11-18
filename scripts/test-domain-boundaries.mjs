@@ -26,6 +26,8 @@ try {
   if (!run().includes("PASS domain boundaries")) throw new Error("positive fixture did not pass");
 
   const controls = [
+    ["internal/packagingworkflow/application/service.go", 'package application\nimport "example/internal/packagingworkflow/adapters/workspacegit"\n', null],
+    ["internal/catalog/application/service.go", 'package application\nimport (\n  repo "example/internal/catalog/adapters/postgres"\n)\n', null],
     ["cmd/platform-delivery/main.go", 'package main\nfunc main(){ controlplane.NewHandler() }\n', 'package main\nfunc main(){ composition.NewHubHandler() }\n'],
     ["internal/reporting/domain/model.go", 'package domain\nimport "net/http"\n', null],
     ["internal/hub/composition/composition.go", 'package composition\nimport "example/internal/agent"\n', 'package composition\nimport "example/internal/controlplane"\n'],
