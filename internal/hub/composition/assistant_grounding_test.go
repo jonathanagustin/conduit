@@ -12,15 +12,17 @@ import (
 )
 
 func TestAssistantDocumentationIsShippedAuditedAndRequiresAnOperator(t *testing.T) {
-	handler, err := NewHub(controlplane.NewMemoryRepository(), controlplane.HandlerOptions{AllowInsecureOperatorIdentityHeaders: true}, Options{})
+	handler, err := NewHub(controlplane.NewMemoryRepository(), controlplane.HandlerOptions{OperatorIdentityResolver: bearerOperators(nil), BootstrapAdministrators: []string{"ada"}}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, subject := range []string{"", "ada"} {
 		request := httptest.NewRequest(http.MethodPost, "/v1/assistant/tools", strings.NewReader(`{"mode":"explore","tool":"search_product_documentation","arguments":{"query":"CONDUIT_MODEL_BASE_URL"}}`))
 		request.Header.Set("Content-Type", "application/json")
+		// A forged development header cannot authenticate the anonymous request.
+		request.Header.Set("X-Platform-Subject", "ada")
 		if subject != "" {
-			request.Header.Set("X-Platform-Subject", subject)
+			request.Header.Set("Authorization", "Bearer "+subject)
 		}
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, request)
