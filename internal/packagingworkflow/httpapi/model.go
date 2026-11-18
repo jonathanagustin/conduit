@@ -25,21 +25,32 @@ func mountModel(mux *http.ServeMux, cfg Config) {
 			return
 		}
 		runID := request.PathValue("runID")
-		if _, ok := requireRun(cfg, writer, request, runID); !ok {
+		environment, ok := modelRunEnvironment(cfg, writer, request, runID)
+		if !ok {
 			return
 		}
 		if cfg.Model == nil {
 			writeError(writer, http.StatusUnprocessableEntity, domain.ErrModelUnavailable.Error())
 			return
 		}
-		var body struct {
+		body := &struct {
 			// AttachmentSHA256 binds stored intake files as read-only context.
 			AttachmentSHA256 []string `json:"attachmentSha256"`
-		}
+		}{}
 		if request.Body != nil {
-			decoder := json.NewDecoder(io.LimitReader(request.Body, 1<<16))
+			decoder := json.NewDecoder(http.MaxBytesReader(writer, request.Body, 1<<16))
+			decoder.DisallowUnknownFields()
 			if err := decoder.Decode(&body); err != nil && !errors.Is(err, io.EOF) {
 				writeError(writer, http.StatusBadRequest, "request body must be a JSON object")
+				return
+			}
+
+			if body == nil {
+				writeError(writer, http.StatusBadRequest, "request body must be a JSON object")
+				return
+			}
+			if err := decoder.Decode(new(any)); !errors.Is(err, io.EOF) {
+				writeError(writer, http.StatusBadRequest, "request body must contain only one JSON object")
 				return
 			}
 		}
@@ -51,7 +62,7 @@ func mountModel(mux *http.ServeMux, cfg Config) {
 		}
 		result, err := cfg.Model.Propose(request.Context(), domain.PackagingContext{
 			RunID: runID, GateRules: domain.MemoryGateRule, AttachmentSHA256: body.AttachmentSHA256,
-		}, "dev", author)
+		}, environment, author)
 		if err != nil {
 			writeError(writer, http.StatusBadGateway, err.Error())
 			return
@@ -62,4 +73,33 @@ func mountModel(mux *http.ServeMux, cfg Config) {
 		}
 		writeJSON(writer, http.StatusOK, result)
 	})
+}
+
+// One recorded snapshot binds the proposal target. Existence alone cannot
+// authorize substituting a default environment or another run's coordinates.
+func modelRunEnvironment(cfg Config, writer http.ResponseWriter, request *http.Request, runID string) (string, bool) {
+	if cfg.Reader == nil {
+		writeError(writer, http.StatusNotFound, "packaging run not found")
+		return "", false
+	}
+	run, err := cfg.Reader.Read(request.Context(), runID)
+	if errors.Is(err, ErrNotFound) {
+		writeError(writer, http.StatusNotFound, "packaging run not found")
+		return "", false
+	}
+	if err != nil {
+		writeError(writer, http.StatusBadGateway, "packaging run status is unavailable")
+		return "", false
+	}
+	if runID == "" || run.RunID != runID {
+		writeError(writer, http.StatusBadGateway, "packaging run status did not match the requested run")
+		return "", false
+	}
+	environment := domain.EnvironmentOf(run.TargetPlanRef)
+	_, target, _ := strings.Cut(run.TargetPlanRef, "/")
+	if environment == "" || strings.TrimSpace(target) == "" || strings.ContainsAny(run.TargetPlanRef, " \t\r\n") {
+		writeError(writer, http.StatusConflict, "recorded packaging target is unavailable; no proposal was requested")
+		return "", false
+	}
+	return environment, true
 }
