@@ -87,7 +87,7 @@ func TestCancellationRefusesUnsupportedUnavailableAndInvalidAcknowledgement(t *t
 		store Sessions
 		want  int
 	}{
-		{"unsupported", application.NewService(nil), 501},
+		{"unsupported", struct{ Sessions }{application.NewService(nil)}, 501},
 		{"unavailable", &cancellationStore{Service: application.NewService(nil), err: errors.New("backend unavailable")}, 502},
 		{"capacity", &cancellationStore{Service: application.NewService(nil), err: domain.ErrRunCapacity}, 429},
 		{"other-run", &cancellationStore{Service: application.NewService(nil), receipt: &domain.TurnCancellationReceipt{RunID: "other", State: "cancelled", ValueTier: "CONDUIT_NATIVE"}}, 502},
@@ -102,5 +102,53 @@ func TestCancellationRefusesUnsupportedUnavailableAndInvalidAcknowledgement(t *t
 				t.Fatalf("%d %s", got.status, got.raw)
 			}
 		})
+	}
+}
+
+type delayedCancellationPlanner struct {
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (p delayedCancellationPlanner) Turn(context.Context, *domain.Session, string) (*application.TurnResult, error) {
+	close(p.entered)
+	<-p.release
+	return &application.TurnResult{Plan: &domain.Plan{Text: "late result"}}, nil
+}
+
+func TestGeneratedCancellationFencesActualDevelopmentStore(t *testing.T) {
+	planner := delayedCancellationPlanner{entered: make(chan struct{}), release: make(chan struct{})}
+	store := application.NewService(planner)
+	session, err := store.Create(context.Background(), "https://github.com/org/app", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	Register(mux, Config{Service: store, Authorize: func(*http.Request) error { return nil }})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+	client, err := api.NewClientWithResponses(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	ctx := application.WithRunScope(context.Background(), application.RunScope{ThreadID: session.ID, RunID: "active"})
+	go func() { _, err := store.Turn(ctx, session.ID, "inspect"); done <- err }()
+	<-planner.entered
+	response, err := client.CancelPlanningTurnWithResponse(context.Background(), session.ID, "active", api.CancelPlanningTurnJSONRequestBody{})
+	if err != nil || response.JSON200 == nil || response.JSON200.State != api.CancellationRequested {
+		t.Errorf("active acknowledgement: %#v %v", response, err)
+	}
+	close(planner.release)
+	if err := <-done; !errors.Is(err, domain.ErrRunCancelled) {
+		t.Fatalf("late result: %v", err)
+	}
+	response, err = client.CancelPlanningTurnWithResponse(context.Background(), session.ID, "active", api.CancelPlanningTurnJSONRequestBody{})
+	if err != nil || response.JSON200 == nil || response.JSON200.State != api.Cancelled {
+		t.Fatalf("terminal acknowledgement: %#v %v", response, err)
+	}
+	read, err := client.GetPlanningSessionWithResponse(context.Background(), session.ID)
+	if err != nil || read.JSON200 == nil || read.JSON200.Plan != nil || len(read.JSON200.Messages) != 0 {
+		t.Fatalf("late result escaped fence: %#v %v", read, err)
 	}
 }

@@ -1,4 +1,8 @@
 import {
+  planningOwnerKey,
+  requestPlanningCancellation,
+} from "./planning-cancellation.js";
+import {
   sessionIndexMarkup,
   syncSessionIndex,
   loadSessionIndex,
@@ -233,7 +237,7 @@ export function recordedDemoMarkup(result, escape = (value) => String(value)) {
     : "";
 }
 
-/** Busy states that are an agent stream, and so can be stopped. */
+/** Stoppable browser operations; Accept and compute retain their separate gates. */
 export const STOPPABLE = Object.freeze(["turn", "answers", "recover"]);
 
 /** The state after Stop: not busy, no error, and a standing notice. */
@@ -648,6 +652,9 @@ export function emptyPlanning() {
     link: null,
     // stopped: the operator stopped reading a run in this browser.
     stopped: false,
+    stopMode: "",
+    cancellation: null,
+    operation: null,
     // generations: undefined until the first read of GET /v1/app-generations.
     generations: undefined,
     sessions: undefined,
@@ -1112,10 +1119,41 @@ function linkBanner(planning) {
 
 function stoppedBanner(planning) {
   if (!planning.stopped) return "";
-  return `<div class="plan-alert" role="status" data-plan-stopped>Stopped. This browser stopped reading the run. This Hub has no route that cancels a planning run, so the run is not cancelled on the Hub and may still finish there. Recover the agent snapshot, or reload this link, to see what the Hub recorded.</div>`;
+  const cancellation = planning.cancellation;
+  let message =
+    planning.stopMode === "preparing"
+      ? "Stopped before an agent run started. A session creation already sent to the Hub may still be recorded."
+      : planning.stopMode === "snapshot"
+        ? "Stopped reading the recovery snapshot. No model-turn cancellation was requested."
+        : "This browser stopped reading. Cancellation is not confirmed; the run may still finish on the Hub.";
+  let retry = false;
+  if (cancellation?.status === "loading") {
+    message =
+      "Stopped reading. Requesting cancellation of this exact planning turn on the Hub.";
+  } else if (cancellation?.status === "failed") {
+    message = `Stopped reading. Hub cancellation could not be confirmed: ${cancellation.error}`;
+    retry = true;
+  } else if (cancellation?.status === "ready") {
+    const state = cancellation.receipt.state;
+    if (state === "cancellation_requested") {
+      message =
+        "The Hub recorded the cancellation request. The turn has not yet confirmed it is stopped. A late result will not be applied.";
+      retry = true;
+    } else if (state === "cancelled") {
+      message =
+        "The Hub confirmed this planning turn is cancelled. A late result will not be applied. Previously recorded answers or plans were not rolled back.";
+    } else if (state === "completed") {
+      message =
+        "This turn already completed on the Hub. Stop did not undo its recorded result.";
+    } else {
+      message =
+        "The Hub reports this turn failed. Stop did not undo previously recorded state.";
+    }
+  }
+  return `<div class="plan-alert" role="status" data-plan-stopped>${esc(message)} Recover the agent snapshot, or reload this link, to see recorded state.${retry ? '<button type="button" class="kit-btn kit-btn-sm" data-plan-cancel-check>Check cancellation</button>' : ""}</div>`;
 }
 
-/** The caller's app generations, and why there is no session list. */
+/** The caller's recorded app-generation statuses. */
 function generationsPanel(planning) {
   const view = planning.generations;
   const rows = (view?.items || [])
@@ -1181,7 +1219,30 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
   };
   // The stream being read right now. Stop aborts it; nothing else does.
   let reading = null;
-  const fail = (error) => {
+  const currentOperation = (operation) =>
+    store.planning.operation === operation &&
+    planningOwnerKey(store) === operation.owner;
+  const assertOperation = (operation) => {
+    if (!currentOperation(operation) || operation.cancelled)
+      throw new DOMException(
+        "The planning operation was stopped or superseded.",
+        "AbortError",
+      );
+  };
+  const beginOperation = (busy) => {
+    const operation = { owner: planningOwnerKey(store), cancelled: false };
+    set({
+      operation,
+      busy,
+      error: null,
+      stopped: false,
+      stopMode: "",
+      cancellation: null,
+    });
+    return operation;
+  };
+  const fail = (error, operation) => {
+    if (operation && !currentOperation(operation)) return;
     // A stopped run is not a failed one: no error banner, a standing notice.
     if (error?.name === "AbortError") {
       set({ busy: "", error: null, stopped: true });
@@ -1199,12 +1260,14 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
             ),
     });
   };
-  const agentRun = async (options) => {
+  const agentRun = async (options, operation) => {
+    assertOperation(operation);
     const controller = new AbortController();
     reading = controller;
-    store.planning = { ...store.planning, stopped: false };
     try {
-      return await agentExchange(options, controller.signal);
+      return await agentExchange(options, controller.signal, () => {
+        assertOperation(operation);
+      });
     } catch (error) {
       // Whatever a stopped stream threw, the operator stopped it.
       if (controller.signal.aborted)
@@ -1214,7 +1277,7 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       if (reading === controller) reading = null;
     }
   };
-  const agentExchange = async (options, signal) => {
+  const agentExchange = async (options, signal, assertCurrent) => {
     const id = store.planning.session.id;
     let agent = store.planning.agent;
     if (!agent || agent.threadId !== id) {
@@ -1277,6 +1340,8 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       options,
       binding,
       (run, event) => {
+        assertCurrent();
+        signal.throwIfAborted();
         if (event.type === "CUSTOM") {
           for (const surface of run.forms.surfaces.values()) {
             for (const question of run.state.session?.needsInput || []) {
@@ -1322,7 +1387,8 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       },
       signal,
     );
-    // A run that ended after Stop is not painted as a finished exchange.
+    // A run that ended after Stop or a selection change cannot repaint this view.
+    assertCurrent();
     signal.throwIfAborted();
     set({
       session: result.state.session,
@@ -1411,9 +1477,39 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
     }
 
     if (hit("[data-plan-stop]")) {
-      // Abort first: the state change below must not race a late event.
+      if (!STOPPABLE.includes(planning.busy)) return;
+      const active = planning.agent?.activeRun;
+      const selected = active
+        ? { ...active, owner: planningOwnerKey(store) }
+        : null;
+      if (planning.operation) planning.operation.cancelled = true;
       reading?.abort();
-      set(stopPlanning(store.planning));
+      set({
+        ...stopPlanning(store.planning),
+        stopMode: selected?.readOnly
+          ? "snapshot"
+          : selected
+            ? "turn"
+            : "preparing",
+      });
+      if (selected && !selected.readOnly)
+        void requestPlanningCancellation(
+          store,
+          {
+            sessionId: selected.threadId,
+            runId: selected.runId,
+            owner: selected.owner,
+          },
+          fetchImpl,
+          rerender,
+        );
+      return;
+    }
+
+    if (hit("[data-plan-cancel-check]")) {
+      const selection = planning.cancellation;
+      if (selection && selection.status !== "loading")
+        void requestPlanningCancellation(store, selection, fetchImpl, rerender);
       return;
     }
 
@@ -1471,7 +1567,7 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
         });
         return;
       }
-      set({ busy: "turn", error: null });
+      const operation = beginOperation("turn");
       try {
         let session = store.planning.session;
         if (!session) {
@@ -1490,12 +1586,14 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
                 planning.ref.trim(),
                 fetchImpl,
               );
+          assertOperation(operation);
           store.planning = { ...store.planning, session };
         }
-        await agentRun({ message });
+        await agentRun({ message }, operation);
+        assertOperation(operation);
         set({ message: "" });
       } catch (error) {
-        fail(error);
+        fail(error, operation);
       }
       return;
     }
@@ -1520,7 +1618,7 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
         });
         return;
       }
-      set({ busy: "answers", error: null });
+      const operation = beginOperation("answers");
       try {
         let formAction;
         const forms = planning.agent?.forms;
@@ -1540,20 +1638,21 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
           }
           formAction = result.message;
         }
-        await agentRun(formAction ? { formAction } : { answers });
+        await agentRun(formAction ? { formAction } : { answers }, operation);
+        assertOperation(operation);
         set({ busy: "" });
       } catch (error) {
-        fail(error);
+        fail(error, operation);
       }
       return;
     }
 
     if (hit("[data-plan-recover]")) {
-      set({ busy: "recover", error: null });
+      const operation = beginOperation("recover");
       try {
-        await agentRun({ recover: true });
+        await agentRun({ recover: true }, operation);
       } catch (error) {
-        fail(error);
+        fail(error, operation);
       }
       return;
     }

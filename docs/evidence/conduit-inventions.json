@@ -16,10 +16,10 @@
   "inventions": [
     {
       "id": "planning.TurnCancellation",
-      "what": "Native Temporal update fencing for an exact logical planning turn, with bounded retained run ids, cancel-before-start tombstones, separate requested and terminal receipts, and discarded late results.",
+      "what": "Native owner-scoped exact-run planning cancellation through a generated HTTP contract, durable Temporal update fences or an explicit process-local development store, retained run ids, cancel-before-start tombstones, distinct requested/terminal receipts and discarded late results. Browser Stop sends a separate captured-run cancellation request and guards stale responses.",
       "why": "Issue #820 requires Hub-backed Stop. Existing browser abort does not cancel a durable workflow update. No adopted upstream contract defines planning-run cancellation semantics.",
       "displacedBy": "An authoritative planning-run cancellation contract defining identity, durable fencing, acknowledgement and retained run identifiers.",
-      "riskIfWrong": "The native semantics and finite 512-run-per-session limit may require replacement. This backend phase alone does not wire browser Stop, reverse committed answers or plans, cancel accepted compute, prove provider-side termination or qualify real Temporal deployment recovery."
+      "riskIfWrong": "The native semantics and finite 512-run-per-session bound may require replacement. Development state disappears on process restart and never replaces production workflow history. No rollback of committed answers, plans or acceptances, cancellation of accepted compute, provider termination, real Temporal restart/replay or production capacity qualification is claimed."
     },
     {
       "id": "planning.SessionInventory",
