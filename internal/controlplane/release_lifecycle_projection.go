@@ -17,7 +17,9 @@ import (
 // the same unit of work every other read route already pays -- the repository
 // materializes its whole state per operation either way -- and it buys an
 // answer that does not depend on which process the client reached.
-type releaseLifecycleProjectionPort struct{ repository Repository }
+type releaseLifecycleProjectionPort struct {
+	repository environmentProjectionPlanReader
+}
 
 func (port releaseLifecycleProjectionPort) ReleaseLifecycle(ctx context.Context) (environments.ReleaseLifecycle, error) {
 	plans, err := port.repository.ListPlans(ctx, "")

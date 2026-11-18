@@ -90,3 +90,12 @@ This narrows a migration seam; the bridge still uses the legacy retirement value
 and the public compatibility facade still composes it. The complete protocol
 adapter has not moved, and the remaining external-named facade files/identifiers
 keep #428 open. No route, authorization, persistence or wire behavior changes.
+
+The Environment inventory and release-lifecycle projections share a read-only
+`ListPlans` dependency rather than the aggregate repository. Inventory remains
+in `environment_inventory_projection.go` and includes command Plans; lifecycle
+continues to exclude them. Their projection and ordering logic is unchanged.
+A read-only fixture with no write, transaction or approval methods constrains
+both stored dependencies at compile time. These bridges still consume legacy
+PlanRecord snapshots; native source snapshots and the complete protocol adapter
+remain later extraction steps.
