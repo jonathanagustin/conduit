@@ -79,7 +79,7 @@ func Register(mux *http.ServeMux, cfg Config) {
 		}
 		status, payload, err := cfg.Write(r, body)
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "rollout service is unavailable"})
 			return
 		}
 		writeJSON(w, status, payload)
