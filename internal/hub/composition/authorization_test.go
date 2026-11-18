@@ -86,6 +86,9 @@ const (
 // valid request below. Accepting protocol/validation errors instead would not
 // demonstrate an authorization refusal after the resource check was removed.
 func bodyFor(pattern string) string {
+	if pattern == "POST /v1/rollouts" {
+		return `{"action":"create","id":"authorization-probe","product":"` + fixtureProduct + `","version":"1","waves":[{"name":"first","environments":["` + fixtureEnvironment + `"],"gate":"health"}]}`
+	}
 	if pattern == "POST /v1/blackouts" {
 		return `{"action":"declare","environment":"` + fixtureEnvironment + `","reason":"reviewed authorization probe","startsAt":"2026-11-18T12:00:00Z","endsAt":"2026-11-18T13:00:00Z","confirm":true}`
 	}
