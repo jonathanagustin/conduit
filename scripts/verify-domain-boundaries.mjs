@@ -17,8 +17,8 @@ function filesBelow(directory) {
 function imports(path) {
   const source = readFileSync(path, "utf8");
   const blocks = [...source.matchAll(/import\s*\(([^]*?)\)/g)].map((match) => match[1]);
-  const singles = [...source.matchAll(/import\s+"([^"]+)"/g)].map((match) => match[1]);
-  return [...singles, ...blocks.flatMap((block) => [...block.matchAll(/"([^"]+)"/g)].map((match) => match[1]))];
+  const singles = [...source.matchAll(/\bimport\s*(?:(?:[A-Za-z_]\w*|\.)\s+)?(?:"([^"\n]+)"|`([^`]+)`)/g)].map((match) => match[1] ?? match[2]);
+  return [...singles, ...blocks.flatMap((block) => [...block.matchAll(/(?:"([^"\n]+)"|`([^`]+)`)/g)].map((match) => match[1] ?? match[2]))];
 }
 for (const path of filesBelow(join(root, "internal"))) {
   if (path.startsWith(join(root, "internal/apollo/workloadmetadata/"))) {
@@ -30,10 +30,11 @@ for (const path of filesBelow(join(root, "internal"))) {
   }
   const local = relative(root, path).replaceAll("\\", "/");
   const dependencies = imports(path);
-  if (local.includes("/application/")) {
+  const coreKind = local.includes("/application/") ? "application" : local.includes("/ports/") ? "port" : null;
+  if (coreKind) {
     for (const dependency of dependencies) {
-      if (dependency.includes("/internal/") && dependency.includes("/adapters/")) {
-        failures.push(`${local}: application imports adapter ${dependency}`);
+      if (/\/internal\/.*\/adapters(?:\/|$)/.test(dependency)) {
+        failures.push(`${local}: ${coreKind} imports adapter ${dependency}`);
       }
     }
   }
