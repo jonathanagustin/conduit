@@ -26,25 +26,26 @@ const defaultTimeout = 30 * time.Second
 // transport construction. It contains paths to trust material, never material
 // contents, and deliberately has no permissive map-based configuration.
 type ConnectionConfig struct {
-	PlanReadTransport      string
-	PackagingReadTransport string
-	SpaceID                string
-	Server                 string
-	Timeout                time.Duration
-	CAFile                 string
-	ClientCertFile         string
-	ClientKeyFile          string
-	SPIFFEEndpoint         string
-	HubSPIFFEID            string
-	BearerTokenFile        string
-	OIDCIssuer             string
-	OIDCClientID           string
-	OIDCClientSecretFile   string
-	OIDCTokenURL           string
-	OIDCScope              string
-	OIDCCAFile             string
-	DevelopmentSubject     string
-	DevelopmentGroups      []string
+	PlanReadTransport        string
+	EnvironmentReadTransport string
+	PackagingReadTransport   string
+	SpaceID                  string
+	Server                   string
+	Timeout                  time.Duration
+	CAFile                   string
+	ClientCertFile           string
+	ClientKeyFile            string
+	SPIFFEEndpoint           string
+	HubSPIFFEID              string
+	BearerTokenFile          string
+	OIDCIssuer               string
+	OIDCClientID             string
+	OIDCClientSecretFile     string
+	OIDCTokenURL             string
+	OIDCScope                string
+	OIDCCAFile               string
+	DevelopmentSubject       string
+	DevelopmentGroups        []string
 }
 
 type clientConnection struct {
@@ -53,6 +54,9 @@ type clientConnection struct {
 }
 
 func (configuration ConnectionConfig) validate() (*url.URL, error) {
+	if configuration.EnvironmentReadTransport != "" && configuration.EnvironmentReadTransport != "rest" && configuration.EnvironmentReadTransport != "connect" {
+		return nil, errors.New("--read-transport must be rest or connect")
+	}
 	if configuration.PlanReadTransport != "" && configuration.PlanReadTransport != "rest" && configuration.PlanReadTransport != "connect" {
 		return nil, errors.New("--read-transport must be rest or connect")
 	}

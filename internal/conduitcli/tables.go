@@ -16,6 +16,25 @@ type environmentList struct {
 	Environments []controlplane.EnvironmentCatalogRecord `json:"environments"`
 }
 
+type environmentSummaryList struct {
+	operator.EnvironmentSummaryList
+}
+
+func (list environmentSummaryList) MarshalCSV() ([][]string, error) {
+	rows := [][]string{{"id", "generation", "agent", "entities", "observedAt"}}
+	for _, record := range list.Environments {
+		agent, entities, observed := "", "", ""
+		if record.Reported != nil {
+			agent, entities = record.Reported.AgentID, strconv.Itoa(record.Reported.EntityCount)
+			if record.Reported.ObservedAt != nil {
+				observed = formatTableTime(*record.Reported.ObservedAt)
+			}
+		}
+		rows = append(rows, []string{record.Environment.ID, record.Environment.Generation, agent, entities, observed})
+	}
+	return rows, nil
+}
+
 func (list environmentList) MarshalCSV() ([][]string, error) {
 	rows := [][]string{{"id", "generation", "agent", "entities", "observedAt"}}
 	for _, record := range list.Environments {

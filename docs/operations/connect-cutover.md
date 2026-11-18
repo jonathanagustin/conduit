@@ -22,7 +22,7 @@ including reads. A read encoded as POST is not a governed state change.
 | `GET /v1/products?view=summary` | `conduit.catalog.v1.ProductReadService/ListProductSummaries` | Generated legacy name-only summary helper; full-catalog operator reads remain REST |
 | `POST /v1/plans/{planID}/approvals` | `conduit.plans.v1.PlanApprovalService/ApprovePlan` | Generated active operator delivery/approval panels and legacy helper; explicit CLI `plan approve --write-transport connect` returns a versioned receipt; CLI default remains REST, no automatic retry |
 | `GET /v1/plans?view=summary` | `conduit.plans.v1.PlanReadService/ListPlanSummaries` | Explicit CLI `plan list --read-transport connect`; default remains REST |
-| `GET /v1/environments?view=summary` | `conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries` | Available; callers remain REST |
+| `GET /v1/environments?view=summary` | `conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries` | CLI `environment list --view summary --read-transport connect`; full list stays REST |
 | `GET /v1/notifications/events` | `conduit.notifications.v1.NotificationService/ListNotificationEvents` | Generated Audit notification client |
 
 These are Conduit-native contracts. See [overview](connect-reporting-overview.md),
@@ -38,8 +38,9 @@ The map does not imply that all Hub routes have RPC equivalents.
 
 The Environment summary adapter reuses the native Environment/Space query and
 is explicitly registered. [Its contract note](connect-environment-summaries.md)
-records the narrow projection, presence and authority boundaries. No console or
-CLI Environment caller has migrated as a consequence; #394 remains open.
+records the narrow projection, presence and authority boundaries. The CLI's
+explicit summary view can select Connect; console and full Environment callers
+remain REST. #394 stays open for the remaining migration.
 
 Known follow-ons are full environment detail/reported-state, fleet
 installations, full Plan index/detail/cancel, change-request approve/reject,
