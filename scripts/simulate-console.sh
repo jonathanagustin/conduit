@@ -25,6 +25,7 @@
 # request as a second person, and takes assistant turns against the Hub's own
 # turn loop and thread store (assistant-turns.spec.ts) with a stand-in model.
 #   ./scripts/simulate-console.sh                      # embedded assistant shell
+#   ./scripts/simulate-console.sh --with-workspace-git  # local Git history/fork
 #   ./scripts/simulate-console.sh --keep               # leave the Hub running
 set -euo pipefail
 
@@ -32,6 +33,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 keep=0
 simulate_agent=1
 with_packaging=0
+with_workspace_git=0
 # Which desired state to seed, and so which branch of the simulator the Agent
 # takes. Each scenario has its own spec file because their assertions contradict
 # one another by design: a Hub carrying a failed Plan cannot also satisfy
@@ -52,12 +54,18 @@ while [ "$#" -gt 0 ]; do
     # on staleness needs it.
     --no-agent) simulate_agent=0; shift ;;
     --with-packaging) with_packaging=1; shift ;;
+    --with-workspace-git) with_workspace_git=1; shift ;;
     *) break ;;
   esac
 done
 
 if [ "${with_packaging}" -eq 1 ] && [ "${scenario}" != healthy ]; then
   echo "simulate: --with-packaging requires the healthy scenario" >&2
+  exit 2
+fi
+
+if [ "${with_workspace_git}" -eq 1 ] && [ "${scenario}" != healthy ]; then
+  echo "simulate: --with-workspace-git requires the healthy scenario" >&2
   exit 2
 fi
 
@@ -73,6 +81,8 @@ packaging_pid=""
 temporal_pid=""
 packaging_run=""
 evidence_dir="${CONDUIT_SIMULATION_EVIDENCE_DIR:-}"
+workspace_git_root=""
+if [ "${with_workspace_git}" -eq 1 ]; then workspace_git_root="${work}/workspaces"; fi
 
 cleanup() {
   local status=$?
@@ -191,6 +201,7 @@ echo "simulate: starting it on ${hub_url}"
 LISTEN_ADDRESS="127.0.0.1:${port}" \
   RATE_LIMIT_ANONYMOUS_BURST=600 \
   DATA_DIRECTORY="${work}/data" \
+  DEVWORKSPACE_GIT_ROOT="${workspace_git_root}" \
   ALLOW_INSECURE_OPERATOR_IDENTITY_HEADERS=true \
   ALLOW_INSECURE_AGENT_IDENTITY_HEADERS=true \
   ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY=true \
@@ -263,6 +274,9 @@ case "${scenario}" in
   failure|degraded) specs=assistant.spec.ts ;;
   *) echo "simulate: unknown scenario '${scenario}'" >&2; exit 1 ;;
 esac
+if [ "${with_workspace_git}" -eq 1 ]; then
+  specs="${specs/workspace-metadata.spec.ts/workspace-git.spec.ts}"
+fi
 if [ "${with_packaging}" -eq 1 ]; then specs="${specs} packaging-feedback.spec.ts"; fi
 for spec in ${specs}; do
   [ -f "${repo_root}/web/src/test/live/${spec}" ] ||
