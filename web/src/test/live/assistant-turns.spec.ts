@@ -70,9 +70,26 @@ test("a turn is streamed from the Hub with its tool call, result and answer", as
   await expect(answers(page)).toContainText(ANSWER);
   const meta = rail(page).locator("[data-assistant-turn-meta]");
   await expect(meta).toContainText("Live model call");
-  await expect(meta.locator("[data-assistant-model]")).toContainText(
-    "openai-http",
+  await expect(meta.locator("[data-assistant-model]")).toHaveAttribute(
+    "data-assistant-model",
+    "reported",
   );
+  await expect(meta.locator("[data-assistant-model]")).toHaveText(
+    "Model: simulated-model",
+  );
+  // The adapter identity remains in the Hub result; the footer names the
+  // provider-reported model instead of presenting an adapter as a model id.
+  const events = (await response!.text())
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => JSON.parse(line.slice(5)));
+  const result = events.find((event) => event.type === "RUN_FINISHED")?.result;
+  expect(result?.model).toMatchObject({
+    kind: "openai-http",
+    configuredModel: "simulated-model",
+    providerModel: "simulated-model",
+    model: "simulated-model",
+  });
   await expect(rail(page).locator(".aui-message-error-root")).toHaveCount(0);
 
   // The Hub stored the turn in the thread the console opened for it.

@@ -379,11 +379,18 @@ test("the Space selector scopes environments at the Hub", async ({ page }) => {
   await expect(selector.locator(`option[value="${space.id}"]`)).toHaveCount(1);
 
   // An empty Space: the Hub returns no environment for it.
-  const scoped = page.waitForResponse((response) =>
-    response.url().includes(`/v1/environments?spaceId=${space.id}`),
-  );
+  const scoped = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      response.request().method() === "GET" &&
+      url.pathname === "/v1/environments" &&
+      url.searchParams.get("spaceId") === space.id
+    );
+  });
   await selector.selectOption(space.id);
-  expect((await (await scoped).json()).environments).toEqual([]);
+  const scopedResponse = await scoped;
+  expect(scopedResponse.ok()).toBe(true);
+  expect((await scopedResponse.json()).environments).toEqual([]);
   await expect(page.locator("[data-space-scope]")).toBeVisible();
   await openArea(page, "Fleet", "Environments");
   await expect(
