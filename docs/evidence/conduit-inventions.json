@@ -15,6 +15,13 @@
   ],
   "inventions": [
     {
+      "id": "planning.TurnCancellation",
+      "what": "Native Temporal update fencing for an exact logical planning turn, with bounded retained run ids, cancel-before-start tombstones, separate requested and terminal receipts, and discarded late results.",
+      "why": "Issue #820 requires Hub-backed Stop. Existing browser abort does not cancel a durable workflow update. No adopted upstream contract defines planning-run cancellation semantics.",
+      "displacedBy": "An authoritative planning-run cancellation contract defining identity, durable fencing, acknowledgement and retained run identifiers.",
+      "riskIfWrong": "The native semantics and finite 512-run-per-session limit may require replacement. This backend phase alone does not wire browser Stop, reverse committed answers or plans, cancel accepted compute, prove provider-side termination or qualify real Temporal deployment recovery."
+    },
+    {
       "id": "planning.SessionInventory",
       "what": "Native owner-filtered planning-session summary pages with ID seek cursors, exact observed Temporal run ids, a 1000-execution availability bound and explicit CONDUIT_NATIVE tier. Prompts, transcripts, plans and other owners are excluded.",
       "why": "Issue #820 requires discovery of the operator's sessions. No adopted upstream contract defines this index or its pagination, retention and visibility semantics; these are Conduit-owned operational choices over the existing Temporal lifecycle.",

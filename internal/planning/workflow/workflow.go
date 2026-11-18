@@ -56,22 +56,24 @@ const (
 
 // Input starts or continues a durable planning session workflow.
 type Input struct {
-	SessionID                string          `json:"sessionId"`
-	Actor                    string          `json:"actor"`
-	Profile                  string          `json:"profile,omitempty"`
-	RepoURL                  string          `json:"repoUrl"`
-	Ref                      string          `json:"ref"`
-	ProblemStatement         string          `json:"problemStatement,omitempty"`
-	AppName                  string          `json:"appName,omitempty"`
-	ContinueAsNewAfterEvents int             `json:"continueAsNewAfterEvents,omitempty"`
-	CANCount                 int             `json:"canCount,omitempty"`
-	Carry                    *domain.Session `json:"carry,omitempty"`
+	SessionID                string            `json:"sessionId"`
+	Actor                    string            `json:"actor"`
+	Profile                  string            `json:"profile,omitempty"`
+	RepoURL                  string            `json:"repoUrl"`
+	Ref                      string            `json:"ref"`
+	ProblemStatement         string            `json:"problemStatement,omitempty"`
+	AppName                  string            `json:"appName,omitempty"`
+	ContinueAsNewAfterEvents int               `json:"continueAsNewAfterEvents,omitempty"`
+	CANCount                 int               `json:"canCount,omitempty"`
+	Carry                    *domain.Session   `json:"carry,omitempty"`
+	TurnRuns                 map[string]string `json:"turnRuns,omitempty"`
 }
 
 // TurnRequest is the payload for UpdateTurn.
 type TurnRequest struct {
 	Actor   string `json:"actor,omitempty"`
 	Message string `json:"message"`
+	RunID   string `json:"runId,omitempty"`
 }
 
 // AnswerRequest is the payload for UpdateAnswer.
@@ -127,6 +129,10 @@ func SessionWorkflow(ctx workflow.Context, in Input) (*domain.Session, error) {
 	}
 	mutex := workflow.NewMutex(ctx)
 	var canRequested bool
+	runs, err := newTurnRuns(ctx, in.TurnRuns, in.Actor, func() bool { return session.Status == domain.StatusAccepted })
+	if err != nil {
+		return nil, err
+	}
 
 	if err := workflow.SetQueryHandler(ctx, QuerySession, func() (*domain.Session, error) {
 		return domain.CloneSession(session), nil
@@ -157,27 +163,35 @@ func SessionWorkflow(ctx workflow.Context, in Input) (*domain.Session, error) {
 		ctx,
 		UpdateTurn,
 		func(ctx workflow.Context, req TurnRequest) (*domain.Session, error) {
-			if err := mutex.Lock(ctx); err != nil {
-				return nil, err
-			}
-			defer mutex.Unlock()
-			if session.Status == domain.StatusAccepted {
-				return nil, temporal.NewNonRetryableApplicationError(domain.ErrAlreadyAccepted.Error(), ErrTypeAlreadyAccepted, nil)
-			}
-			updated, turnErr := handleTurn(ctx, in, session, req)
-			if turnErr != nil {
-				metrics.WithTags(map[string]string{"outcome": "fail"}).Counter(MetricPlanningTurnsTotal).Inc(1)
-				logger.Warn("planning workflow turn failed", "sessionId", session.ID, "error", turnErr)
-				return nil, turnErr
-			}
-			metrics.WithTags(map[string]string{"outcome": "pass"}).Counter(MetricPlanningTurnsTotal).Inc(1)
-			if shouldContinueAsNew(ctx, in) {
-				canRequested = true
-			}
-			return domain.CloneSession(updated), nil
+			return runs.turn(ctx, req.RunID, func(activityCtx workflow.Context, permitted func() bool) (*domain.Session, error) {
+				if err := mutex.Lock(ctx); err != nil {
+					return nil, err
+				}
+				defer mutex.Unlock()
+				if session.Status == domain.StatusAccepted {
+					return nil, temporal.NewNonRetryableApplicationError(domain.ErrAlreadyAccepted.Error(), ErrTypeAlreadyAccepted, nil)
+				}
+				if !permitted() {
+					return nil, turnRunError(ErrTypeRunCancelled, "planning turn was cancelled")
+				}
+				updated, turnErr := handleTurn(ctx, activityCtx, in, session, req, permitted)
+				if turnErr != nil {
+					metrics.WithTags(map[string]string{"outcome": "fail"}).Counter(MetricPlanningTurnsTotal).Inc(1)
+					logger.Warn("planning workflow turn failed", "sessionId", session.ID, "error", turnErr)
+					return nil, turnErr
+				}
+				metrics.WithTags(map[string]string{"outcome": "pass"}).Counter(MetricPlanningTurnsTotal).Inc(1)
+				if shouldContinueAsNew(ctx, in) {
+					canRequested = true
+				}
+				return domain.CloneSession(updated), nil
+			})
 		},
 		workflow.UpdateHandlerOptions{
 			Validator: func(ctx workflow.Context, req TurnRequest) error {
+				if err := validateTurnRunID(req.RunID, true); err != nil {
+					return err
+				}
 				if err := checkActor(in.Actor, req.Actor); err != nil {
 					return err
 				}
@@ -293,6 +307,7 @@ func SessionWorkflow(ctx workflow.Context, in Input) (*domain.Session, error) {
 		next := in
 		next.CANCount++
 		next.Carry = domain.CloneSession(session)
+		next.TurnRuns = runs.snapshot()
 		return nil, workflow.NewContinueAsNewError(ctx, SessionWorkflow, next)
 	}
 
@@ -339,9 +354,9 @@ func initSession(ctx workflow.Context, in Input) (*domain.Session, error) {
 	}, nil
 }
 
-func handleTurn(ctx workflow.Context, in Input, session *domain.Session, req TurnRequest) (*domain.Session, error) {
+func handleTurn(ctx, activityCtx workflow.Context, in Input, session *domain.Session, req TurnRequest, permitted func() bool) (*domain.Session, error) {
 	info := workflow.GetInfo(ctx)
-	actCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+	actCtx := workflow.WithActivityOptions(activityCtx, workflow.ActivityOptions{
 		StartToCloseTimeout: defaultTurnStartToClose,
 		HeartbeatTimeout:    defaultHeartbeatTimeout,
 		WaitForCancellation: true,
@@ -368,7 +383,13 @@ func handleTurn(ctx workflow.Context, in Input, session *domain.Session, req Tur
 	if err != nil {
 		return nil, err
 	}
+	return applyTurnResult(ctx, session, req, result, permitted)
+}
 
+func applyTurnResult(ctx workflow.Context, session *domain.Session, req TurnRequest, result application.TurnResult, permitted func() bool) (*domain.Session, error) {
+	if !permitted() {
+		return nil, turnRunError(ErrTypeRunCancelled, "planning turn was cancelled")
+	}
 	now := workflow.Now(ctx).UTC()
 	text := strings.TrimSpace(req.Message)
 	if text != "" {
