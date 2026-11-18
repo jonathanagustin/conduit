@@ -52,6 +52,26 @@ Listing, paging and opening a link do not invoke a model, approve a Plan or
 cancel a run. Stop still interrupts browser reading only. Hub-side cancellation
 and durable execution fencing remain unfinished in #820.
 
+The workflow backend now accepts `planning.CancelTurn` for a nonempty logical
+turn `runId` and the verified session owner. This is a native backend primitive;
+the HTTP transport and browser Stop do not yet use it. Existing updates without
+a logical run id retain their behavior and cannot be cancelled by guessing one.
+Cancellation of an unseen id records a tombstone before a turn can begin. A
+running turn returns `cancellation_requested` after its fence is recorded and
+activity cancellation is requested. Its handler later records `cancelled` and
+discards any late result. That state describes the durable turn handler, not
+proof that an external model provider terminated its work. Cancelling a completed
+or failed turn reports that terminal state without undoing recorded session data.
+
+The session retains at most 512 logical turn ids, including tombstones and failed
+turns, across continue-as-new. Reused ids are refused; overflow is an explicit
+error rather than eviction that could let an old turn execute again. This is a
+finite native safety bound, not production capacity qualification. Cancellation
+does not undo committed answers, acceptances, plans or accepted compute. The
+backend tests use the Temporal SDK workflow environment and controlled activity
+results; they do not qualify a live server's restart recovery or provider-side
+termination. Browser-only stopping and full #820 completion remain separate.
+
 The tests cover the Temporal SDK boundary with controlled visibility/query
 responses, owner and run-id checks, the generated HTTP client/server, composed
 Hub ownership and secure-header refusal, browser pagination/deep links, and
