@@ -2003,7 +2003,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			return
 		}
 		if err != nil {
-			writeLifecycleError(w, err)
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "authorization audit is unavailable"})
 			return
 		}
 		writeJSON(w, http.StatusOK, page)
