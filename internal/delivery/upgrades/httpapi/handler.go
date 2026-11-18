@@ -30,9 +30,11 @@ const (
 )
 
 type Config struct {
-	Authorize    func(*http.Request) error
+	Authorize func(*http.Request) error
+	// Select narrows Environment grouping after authentication; it grants no authority.
+	Select       func(http.ResponseWriter, *http.Request) (func(string) bool, bool)
 	Dependencies func(r *http.Request, product, version string) (any, error)
-	Upgrades     func(r *http.Request) (any, error)
+	Upgrades     func(r *http.Request, selected func(string) bool) (any, error)
 }
 
 func Register(mux *http.ServeMux, cfg Config) {
@@ -51,7 +53,15 @@ func Register(mux *http.ServeMux, cfg Config) {
 		if !auth(cfg, w, r) {
 			return
 		}
-		body, err := cfg.Upgrades(r)
+		var selected func(string) bool
+		if cfg.Select != nil {
+			var ok bool
+			selected, ok = cfg.Select(w, r)
+			if !ok {
+				return
+			}
+		}
+		body, err := cfg.Upgrades(r, selected)
 		if err != nil {
 			writeReadError(w, err)
 			return

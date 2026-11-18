@@ -1,3 +1,5 @@
+import { spaceScopedPath } from "./space-scope.js";
+
 const esc = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -83,7 +85,7 @@ export function upgradeLagMarkup(rows, available) {
 export function mountReleaseDependencies(
   root,
   products,
-  { selectedId = "", onSelect = () => {} } = {},
+  { selectedId = "", spaceId = "", onSelect = () => {} } = {},
 ) {
   const token = {};
   mounts.set(root, token);
@@ -168,7 +170,9 @@ export function mountReleaseDependencies(
     workers.push(
       (async () => {
         try {
-          const body = await read("/v1/fleet/upgrades");
+          const body = await read(
+            spaceScopedPath("/v1/fleet/upgrades", spaceId),
+          );
           if (
             !Array.isArray(body.upgrades) ||
             body.upgrades.some((row) => !row || typeof row !== "object")

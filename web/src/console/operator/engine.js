@@ -5131,6 +5131,7 @@ export function mountOperator(host, options) {
       "rel-dependencies": (node) =>
         mountReleaseDependencies(node, state.hub?.products, {
           selectedId: state.releaseDependencyId || "",
+          spaceId: state.spaceId || "",
           onSelect: (id) => {
             state.releaseDependencyId = id;
           },

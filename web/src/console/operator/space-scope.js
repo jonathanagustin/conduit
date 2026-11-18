@@ -8,6 +8,7 @@ export const SPACE_SCOPED = Object.freeze([
   "promotions",
   "bundles",
   "installations",
+  "upgrades",
   "plans",
   "change requests",
 ]);
@@ -16,7 +17,6 @@ export const SPACE_UNSCOPED = Object.freeze([
   "packaging",
   "workspaces",
   "rollouts",
-  "upgrades",
   "audit",
 ]);
 
@@ -39,7 +39,7 @@ export function spaceScopedPath(path, spaceId) {
   if (!spaceId) return path;
   const url = new URL(path, "http://hub.local");
   if (
-    !/^\/v1\/(?:environments(?:\/[^/]+(?:\/entities)?)?|products(?:\/[^/]+\/releases(?:\/[^/]+)?)?|plans(?:\/[^/]+)?|fleet\/installations|change-requests(?:\/[^/]+)?|promotions(?:\/[^/]+)?|bundles(?:\/[^/]+)?)$/.test(
+    !/^\/v1\/(?:environments(?:\/[^/]+(?:\/entities)?)?|products(?:\/[^/]+\/releases(?:\/[^/]+)?)?|plans(?:\/[^/]+)?|fleet\/(?:installations|upgrades)|change-requests(?:\/[^/]+)?|promotions(?:\/[^/]+)?|bundles(?:\/[^/]+)?)$/.test(
       url.pathname,
     )
   )

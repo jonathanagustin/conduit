@@ -1,10 +1,53 @@
-import { expect, it } from "vite-plus/test";
+import { expect, it, vi } from "vite-plus/test";
 import {
   catalogCoordinates,
   potentialDependents,
   dependencyMarkup,
   upgradeLagMarkup,
+  mountReleaseDependencies,
 } from "../../console/operator/release-dependencies.js";
+
+it("retains selected Space for upgrade lag without inferring dependency membership", async () => {
+  const space = `space_${"a".repeat(32)}`;
+  const requests: URL[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (path: string) => {
+      const url = new URL(path, "http://hub.local");
+      requests.push(url);
+      return new Response(
+        JSON.stringify(
+          url.pathname === "/v1/fleet/upgrades"
+            ? { upgrades: [] }
+            : { dependencies: [] },
+        ),
+      );
+    }),
+  );
+  try {
+    const root = { innerHTML: "", isConnected: true, onchange: null };
+    mountReleaseDependencies(
+      root,
+      [{ product: "app", releases: [{ version: "1" }] }],
+      { spaceId: space },
+    );
+    await vi.waitFor(() =>
+      expect(root.innerHTML).not.toContain("Loading bounded"),
+    );
+    expect(
+      requests
+        .find((url) => url.pathname === "/v1/fleet/upgrades")
+        ?.searchParams.getAll("spaceId"),
+    ).toEqual([space]);
+    expect(
+      requests
+        .find((url) => url.pathname.includes("/dependencies/"))
+        ?.searchParams.has("spaceId"),
+    ).toBe(false);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
 it("bounds and deduplicates visible catalog coordinates", () => {
   const result = catalogCoordinates([
     { product: "a", releases: [{ version: "1" }, { version: "1" }] },

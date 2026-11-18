@@ -6,12 +6,42 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	upgradeapp "github.com/jonathanagustin/conduit/internal/delivery/upgrades/application"
 	spacememory "github.com/jonathanagustin/conduit/internal/spaces/adapters/memory"
 )
+
+func TestUpgradeSpaceSelectionNarrowsEnvironmentAuthority(t *testing.T) {
+	f := newSpaceIndexFixture(t, controlplane.NewMemoryRepository(), spacememory.New())
+	for i, environment := range []string{"a-one", "b-two", "c-three", "d-four"} {
+		if _, err := f.repository.PutEnvironmentReport(t.Context(), controlplane.EnvironmentReport{Environment: environment, Entities: []controlplane.ReportedEntity{{InstallationID: "install-" + environment, Product: fmt.Sprintf("com.example:product-%d", i), Namespace: environment, Version: "0.9.0"}}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, tc := range []struct {
+		actor, query  string
+		count, status int
+	}{{"admin", "", 4, 200}, {"admin", "?spaceId=" + f.first, 2, 200}, {"admin", "?spaceId=" + f.second, 2, 200}, {"reader", "?spaceId=" + f.first, 1, 200}, {"reader", "?spaceId=" + f.second, 0, 403}, {"outsider", "?spaceId=" + f.first, 0, 403}, {"admin", "?spaceId=", 0, 400}, {"admin", "?spaceId=invalid", 0, 400}, {"admin", "?spaceId=" + f.first + "&spaceId=" + f.second, 0, 400}} {
+		response := spaceRequest(f.handler, tc.actor, http.MethodGet, "/v1/fleet/upgrades"+tc.query, "")
+		var body struct {
+			Upgrades []upgradeapp.Upgrade `json:"upgrades"`
+		}
+		if response.Code != tc.status || (response.Code == 200 && (json.Unmarshal(response.Body.Bytes(), &body) != nil || len(body.Upgrades) != tc.count)) {
+			t.Errorf("%s %s: status=%d body=%s", tc.actor, tc.query, response.Code, response.Body)
+		}
+		if tc.actor == "reader" && len(body.Upgrades) > 0 && body.Upgrades[0].Environment != "a-one" {
+			t.Error("Product membership or selection conferred Environment read authority")
+		}
+	}
+	f.store.fail = true
+	response := spaceRequest(f.handler, "admin", http.MethodGet, "/v1/fleet/upgrades?spaceId="+f.first, "")
+	if response.Code != 500 || strings.Contains(response.Body.String(), "private-membership-diagnostic") || strings.Contains(response.Body.String(), "install-") {
+		t.Fatalf("failed membership disclosed or widened: %d %s", response.Code, response.Body)
+	}
+}
 
 func TestUpgradeReadsPreserveNativeEnvironmentAndProductAuthority(t *testing.T) {
 	f := newSpaceIndexFixture(t, controlplane.NewMemoryRepository(), spacememory.New())
