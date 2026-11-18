@@ -517,7 +517,7 @@ func HubRouteAuthorization() []RouteAuthorization {
 		{Pattern: "GET /v1/rollouts",
 			Decision: DecisionOperatorFiltered, Detail: "original resolved carrier; Product and every target Environment require native read; omit mixed-visibility aggregates"},
 		{Pattern: "POST /v1/rollouts",
-			Decision: DecisionOperatorGrant, Detail: "original carrier; Create/Pause require Product and every target Environment resource:operate; confirmation and governed start/resume/rollback approval remain"},
+			Decision: DecisionOperatorGrant, Detail: "original carrier; Create/Pause require Product and every target Environment resource:operate; start/resume/rollback require all-target change:propose; per-target native policies and independent approval remain"},
 		{Pattern: "POST /v1/fleet/propose-fix",
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + change:propose on the requested environment; opens a reviewed drift repair and does not apply it"},
 		{Pattern: "POST /v1/fleet/actions",

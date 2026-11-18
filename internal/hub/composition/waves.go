@@ -76,13 +76,37 @@ func mountWaves(legacy http.Handler, repository controlplane.Repository, options
 					result.Rollout = domain.Rollout{}
 				}
 			case "start", "resume", "rollback":
+				var target domain.Rollout
+				for _, stored := range service.List() {
+					if stored.ID == body.ID {
+						target = stored
+						break
+					}
+				}
+				if !rolloutResourcesAllowed(request.Context(), governance, principal, options, target, controlplane.OperationProposeChange) {
+					return http.StatusForbidden, map[string]string{"error": "Product and every target Environment require change:propose"}, nil
+				}
 				result, err = service.Propose(request.Context(), principal, body.ID, body.Action, facts)
+				if !rolloutResourcesAllowed(request.Context(), governance, principal, options, target, controlplane.OperationReadResource) {
+					result.Rollout = domain.Rollout{}
+				}
 			case "approve":
 				result, err = service.Approve(request.Context(), principal, body.ChangeRequestID, body.Rationale)
+				if !rolloutResourcesAllowed(request.Context(), governance, principal, options, result.Rollout, controlplane.OperationReadResource) {
+					result.Rollout = domain.Rollout{}
+					if result.Allowed {
+						result.Reason = "rollout review recorded"
+					} else {
+						result.Reason = "rollout review was not applied"
+					}
+				}
 			default:
 				return http.StatusBadRequest, map[string]string{"error": "unknown rollout action"}, nil
 			}
 			if err != nil {
+				if errors.Is(err, controlplane.ErrForbidden) {
+					return http.StatusForbidden, map[string]string{"error": "rollout review permission is required"}, nil
+				}
 				return 0, nil, err
 			}
 			status := http.StatusOK
