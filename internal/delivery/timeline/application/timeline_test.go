@@ -17,6 +17,9 @@ func TestTimelineCitesTheChainAndSkipsAnotherEnvironment(t *testing.T) {
 	for _, event := range []governance.AuthorizationAuditEvent{
 		governance.NewAuthorizationCheckEvent(early, "ada", "fleet.propose_fix", "environment/east/installation/ledger", governance.DecisionAllow, "drift", nil),
 		governance.NewAuthorizationCheckEvent(later, "bea", "blackout.decision", "environment/west", governance.DecisionDeny, "other", nil),
+		governance.NewAuthorizationCheckEvent(later, "bea", "private-product-policy", "product/east", governance.DecisionDeny, "unrelated Product", nil),
+		governance.NewAuthorizationCheckEvent(later, "bea", "private-installation-policy", "environment/west/installation/east", governance.DecisionDeny, "unrelated Environment", nil),
+		governance.NewAuthorizationCheckEvent(later, "bea", "private-product-release", "product/east/release/1", governance.DecisionDeny, "unrelated Product", nil),
 	} {
 		if _, err := repository.AppendAuthorizationAudit(ctx, event); err != nil {
 			t.Fatal(err)

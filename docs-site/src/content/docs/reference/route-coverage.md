@@ -93,7 +93,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `GET /v1/environments/{environmentID}/reported-state` | `operator-grant` | No native schema |
 | `GET /v1/environments/{environmentID}/suppressions` | `operator-grant` | No native schema |
 | `GET /v1/environments/{environmentID}/target-hub-versions` | `operator-grant` | No native schema |
-| `GET /v1/environments/{environmentID}/timeline` | `operator-any` | No native schema |
+| `GET /v1/environments/{environmentID}/timeline` | `operator-grant` | No native schema |
 | `GET /v1/events` | `operator-grant` | No native schema |
 | `GET /v1/export-pipelines` | `operator-grant` | No native schema |
 | `GET /v1/export-pipelines/{pipelineID}/schedule-runs` | `operator-grant` | No native schema |
