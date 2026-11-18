@@ -9,10 +9,11 @@ import (
 
 const MaximumSnapshotIntervals = 64
 
-// CONDUIT-INVENTED: blackout.IntervalSnapshot
-// Displaced-by: An authoritative blackout interval-list and calendar contract.
 // Snapshot is one bounded, process-local view; the decision uses the complete
 // stored set, including intervals omitted by the display bound.
+//
+// CONDUIT-INVENTED: blackout.IntervalSnapshot
+// Displaced-by: An authoritative blackout interval-list and calendar contract.
 type Snapshot struct {
 	Environment string            `json:"environment"`
 	EvaluatedAt time.Time         `json:"evaluatedAt"`
