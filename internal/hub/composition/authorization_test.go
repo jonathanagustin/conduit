@@ -27,6 +27,9 @@ import (
 var wildcard = regexp.MustCompile(`\{[^}]*\}`)
 
 func pathFor(pattern string) (string, string) {
+	if pattern == "GET /v1/blackouts" {
+		return http.MethodGet, "/v1/blackouts?environment=" + fixtureEnvironment
+	}
 	method, path, found := strings.Cut(pattern, " ")
 	if strings.Contains(path, "/v1/debug-session-requests/") {
 		path = strings.ReplaceAll(path, "{requestID}", fixtureDebugRequestID)
@@ -83,6 +86,9 @@ const (
 // valid request below. Accepting protocol/validation errors instead would not
 // demonstrate an authorization refusal after the resource check was removed.
 func bodyFor(pattern string) string {
+	if pattern == "POST /v1/blackouts" {
+		return `{"action":"declare","environment":"` + fixtureEnvironment + `","reason":"reviewed authorization probe","startsAt":"2026-11-18T12:00:00Z","endsAt":"2026-11-18T13:00:00Z","confirm":true}`
+	}
 	if pattern == "POST /conduit.plans.v1.PlanApprovalService/ApprovePlan" {
 		return `{"planId":"approval-authorization-probe","rationale":"reviewed fixture"}`
 	}

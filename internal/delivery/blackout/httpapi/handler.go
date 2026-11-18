@@ -3,11 +3,20 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/delivery/blackout/application"
 )
+
+// StatusError is a composition-owned public refusal.
+type StatusError struct {
+	Status  int
+	Message string
+}
+
+func (err StatusError) Error() string { return err.Message }
 
 const (
 	ReadRoute  = "GET /v1/blackouts"
@@ -68,7 +77,12 @@ func Register(mux *http.ServeMux, cfg Config) {
 		}
 		status, payload, err := cfg.Write(r)
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			status, message := http.StatusBadGateway, "blackout service is unavailable"
+			var public StatusError
+			if errors.As(err, &public) && public.Status >= 400 && public.Status <= 599 {
+				status, message = public.Status, public.Message
+			}
+			writeJSON(w, status, map[string]string{"error": message})
 			return
 		}
 		writeJSON(w, status, payload)
@@ -76,8 +90,17 @@ func Register(mux *http.ServeMux, cfg Config) {
 }
 
 func auth(cfg Config, w http.ResponseWriter, r *http.Request) bool {
-	if cfg.Authorize != nil && cfg.Authorize(r) != nil {
+	if cfg.Authorize == nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return false
+	}
+	if err := cfg.Authorize(r); err != nil {
+		status, message := http.StatusUnauthorized, "unauthorized"
+		var public StatusError
+		if errors.As(err, &public) && public.Status >= 400 && public.Status <= 599 {
+			status, message = public.Status, public.Message
+		}
+		writeJSON(w, status, map[string]string{"error": message})
 		return false
 	}
 	return true
