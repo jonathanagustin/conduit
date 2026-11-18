@@ -35,6 +35,8 @@ export function workspaceScope(item, identity) {
     item?.sourceDigest,
     item?.status,
     item?.artifactDigest,
+    item?.branch,
+    item?.headCommit,
   ]);
 }
 export function currentWorkspaceDiff(diff, item) {
@@ -44,6 +46,39 @@ export function currentWorkspaceDiff(diff, item) {
     diff.workspaceId === item?.workspaceId &&
     diff.proposalRevision === item?.proposalRevision &&
     diff.sourceDigest === item?.sourceDigest,
+  );
+}
+export function currentWorkspaceHistory(history, item) {
+  const hash = (value) =>
+    typeof value === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(value);
+  return Boolean(
+    history &&
+    history.current === true &&
+    history.valueTier === "CONDUIT_NATIVE" &&
+    history.workspaceId === item?.workspaceId &&
+    history.branch === item?.branch &&
+    Boolean(history.branch) &&
+    history.proposalRevision === item?.proposalRevision &&
+    history.sourceDigest === item?.sourceDigest &&
+    history.headCommit === item?.headCommit &&
+    hash(history.headCommit) &&
+    typeof history.truncated === "boolean" &&
+    Array.isArray(history.entries) &&
+    history.entries.length > 0 &&
+    history.entries.length <= 20 &&
+    history.entries[0]?.commit === history.headCommit &&
+    new Set(history.entries.map((row) => row?.commit)).size ===
+      history.entries.length &&
+    history.entries.every(
+      (row) =>
+        row &&
+        hash(row.commit) &&
+        typeof row.subject === "string" &&
+        row.subject.length <= 4096 &&
+        typeof row.committedAt === "string" &&
+        Number.isFinite(Date.parse(row.committedAt)) &&
+        !row.committedAt.startsWith("0001-"),
+    ),
   );
 }
 export function safeWorkspaceDownload(path, id) {
@@ -83,6 +118,8 @@ export function createDevWorkspaces({
     prefix: "",
     file: null,
     diff: null,
+    history: null,
+    historyLoading: false,
     runtime: null,
     logs: null,
     error: "",
@@ -93,6 +130,7 @@ export function createDevWorkspaces({
       tree: false,
       source: false,
       diff: false,
+      history: false,
       runtime: false,
       lifecycle: false,
     },
@@ -113,6 +151,8 @@ export function createDevWorkspaces({
     state.prefix = "";
     state.file = null;
     state.diff = null;
+    state.history = null;
+    state.historyLoading = false;
     state.runtime = null;
     state.logs = null;
     state.draft = "";
@@ -140,6 +180,16 @@ export function createDevWorkspaces({
     host?.isConnected;
   const owner = (item) =>
     Boolean(getIdentity()?.actor) && item?.owner === getIdentity().actor;
+  function historyMarkup(item) {
+    if (!item?.headCommit || !item?.branch)
+      return '<p class="ws-muted">Recorded Git history is unavailable for this workspace.</p>';
+    if (state.historyLoading)
+      return '<p role="status">Reading recorded Git history…</p>';
+    const history = state.history;
+    if (!currentWorkspaceHistory(history, item))
+      return '<p class="ws-muted">No matching commit history snapshot is displayed. Reopen this panel to retry.</p>';
+    return `<p class="ws-meta code-id">Branch ${esc(history.branch)} · recorded head ${esc(history.headCommit)}</p><p class="ws-muted">Read-only local Git snapshot; working-tree changes are excluded. Remote or complete repository history is not established.</p>${history.truncated ? `<p role="status">First ${history.entries.length} reachable commits shown; more commits were omitted.</p>` : '<p class="ws-muted">Up to 20 reachable commits are shown; shallow repository boundaries can still limit this view.</p>'}<ol data-ws-commits>${history.entries.map((row) => `<li class="ws-studio-card"><p class="code-id">${esc(row.commit)} · ${esc(row.committedAt)}</p><p>${esc(row.subject)}</p></li>`).join("")}</ol>`;
+  }
   function section(id, title, body) {
     return `<section class="so-panel ws-section"><button type="button" class="so-btn ws-section-toggle" data-ws-action="toggle" data-panel="${id}" aria-expanded="${Boolean(state.open[id])}"><span>${title}</span><span class="ws-section-icon" aria-hidden="true">${state.open[id] ? "−" : "+"}</span></button>${state.open[id] ? `<div class="ws-section-body">${body}</div>` : ""}</section>`;
   }
@@ -189,7 +239,7 @@ export function createDevWorkspaces({
     const item = selected();
     onSelection(item);
     const canWrite = owner(item) && !state.busy;
-    host.innerHTML = `<div data-workspace-studio data-value-tier="CONDUIT_NATIVE" class="ws-studio"><section class="so-panel ws-studio-card"><div class="ws-studio-head"><div><h2 class="ws-studio-title">Developer workspaces</h2><p class="ws-studio-desc">Hub records and authorized file views. ${esc(WORKSPACE_ISOLATION_NOTICE)}. Governed workspace commands run as a non-root container with default-deny egress and no cluster credentials. ${esc(WORKSPACE_HOST_PREVIEW_NOTICE)} Source is read only here; a branch-backed editor and coding-agent bridge are separate features. No commit history is inferred.</p></div><div class="ws-btn-row ws-studio-toolbar"><button type="button" class="so-btn" data-ws-action="refresh"${state.busy || !getReady() ? " disabled" : ""}>Refresh workspaces</button><button type="button" class="so-btn so-btn-blue" data-engineer-studio-entry data-onclick="toggleEngineerWorkspace('studio')">Open engineer workspace</button></div></div>${state.error ? `<p class="ws-alert" role="alert">${esc(state.error)}</p>` : ""}${state.message ? `<p class="ws-status" role="status">${esc(state.message)}</p>` : ""}${
+    host.innerHTML = `<div data-workspace-studio data-value-tier="CONDUIT_NATIVE" class="ws-studio"><section class="so-panel ws-studio-card"><div class="ws-studio-head"><div><h2 class="ws-studio-title">Developer workspaces</h2><p class="ws-studio-desc">Hub records and authorized file views. ${esc(WORKSPACE_ISOLATION_NOTICE)}. Governed workspace commands run as a non-root container with default-deny egress and no cluster credentials. ${esc(WORKSPACE_HOST_PREVIEW_NOTICE)} Source is read only here; a branch-backed editor and coding-agent bridge are separate features. Git history uses recorded commits when the Git adapter is configured.</p></div><div class="ws-btn-row ws-studio-toolbar"><button type="button" class="so-btn" data-ws-action="refresh"${state.busy || !getReady() ? " disabled" : ""}>Refresh workspaces</button><button type="button" class="so-btn so-btn-blue" data-engineer-studio-entry data-onclick="toggleEngineerWorkspace('studio')">Open engineer workspace</button></div></div>${state.error ? `<p class="ws-alert" role="alert">${esc(state.error)}</p>` : ""}${state.message ? `<p class="ws-status" role="status">${esc(state.message)}</p>` : ""}${
       state.items.length
         ? `<ul class="ws-studio-list">${state.items
             .slice(0, 256)
@@ -203,7 +253,7 @@ export function createDevWorkspaces({
         : '<p class="ws-muted ws-empty">No visible workspace snapshot is available.</p>'
     }</section>${
       item
-        ? `<section class="so-panel ws-studio-detail" data-workspace-detail><div class="ws-detail-head"><h3 class="ws-detail-title">${esc(item.title || item.workspaceId)}</h3><span class="kit-badge kit-badge-info code-id">${esc(item.status || "unknown")}</span></div><p class="ws-meta code-id">${esc(item.workspaceId)} · owner ${esc(item.owner || "unavailable")} · ${esc(item.status || "unknown")}</p><p class="ws-meta code-id">Revision ${esc(item.proposalRevision || "unavailable")} · source ${esc(item.sourceDigest || "unavailable")}</p></section>${section("tree", "Repository tree", `<div class="ws-tree-bar"><span class="ws-meta code-id">Directory ${esc(state.prefix || "root")}</span>${state.prefix ? '<button type="button" class="so-btn so-btn-sm" data-ws-action="root">Repository root</button>' : ""}</div>${state.tree.length ? `<ul class="ws-tree-list">${state.tree.map((entry) => `<li><button type="button" class="so-btn ws-tree-item code-id" data-ws-action="${["directory", "dir"].includes(entry.kind) ? "directory" : "file"}" data-path="${esc(entry.path)}" data-digest="${esc(entry.digest || "")}">${esc(entry.path)} · ${esc(entry.kind)}</button></li>`).join("")}</ul>` : '<p class="ws-muted">No directory entries are displayed.</p>'}${state.treeTruncated ? '<p class="ws-muted">First 256 directory entries shown; this is not a complete repository inventory.</p>' : ""}${state.cursor ? '<div class="ws-btn-row"><button type="button" class="so-btn" data-ws-action="more">Load next directory page</button></div>' : ""}`)}${section("source", "Source", fileMarkup())}${section("diff", "Workspace diff", diffMarkup(item))}${section("runtime", "Preview and logs", `<p class="ws-muted">Returned runtime status: <span class="code-id">${esc(state.runtime?.status || "unavailable")}</span> · origin: <span class="code-id">${esc(state.runtime?.origin || "unavailable")}</span>. A local preview is not a deployment or lease. Returned revision <span class="code-id">${esc(state.runtime?.proposalRevision || "unavailable")}</span> · artifact <span class="code-id">${esc(state.runtime?.artifactDigest || "unavailable")}</span>.</p><div class="ws-btn-row"><button type="button" class="so-btn" data-ws-action="start"${canWrite ? "" : " disabled"}>Stage preview start</button><button type="button" class="so-btn" data-ws-action="stop"${canWrite ? "" : " disabled"}>Stage preview stop</button><button type="button" class="so-btn" data-ws-action="logs">Refresh logs</button><button type="button" class="so-btn" data-ws-action="clear-logs"${canWrite ? "" : " disabled"}>Stage log clear</button></div><p class="ws-meta code-id">Log origin ${esc(state.logs?.origin || "unavailable")} · status ${esc(state.logs?.status || "unavailable")}</p><pre class="whitespace-pre-wrap code-id ws-code-block">${esc((state.logs?.lines || []).slice(0, 256).join("\n").slice(0, 65536))}</pre><p class="ws-muted">Bounded snapshot: up to 256 returned lines and 65,536 characters; not a continuous stream.</p>`)}${section(
+        ? `<section class="so-panel ws-studio-detail" data-workspace-detail><div class="ws-detail-head"><h3 class="ws-detail-title">${esc(item.title || item.workspaceId)}</h3><span class="kit-badge kit-badge-info code-id">${esc(item.status || "unknown")}</span></div><p class="ws-meta code-id">${esc(item.workspaceId)} · owner ${esc(item.owner || "unavailable")} · ${esc(item.status || "unknown")}</p><p class="ws-meta code-id">Revision ${esc(item.proposalRevision || "unavailable")} · source ${esc(item.sourceDigest || "unavailable")}</p></section>${section("tree", "Repository tree", `<div class="ws-tree-bar"><span class="ws-meta code-id">Directory ${esc(state.prefix || "root")}</span>${state.prefix ? '<button type="button" class="so-btn so-btn-sm" data-ws-action="root">Repository root</button>' : ""}</div>${state.tree.length ? `<ul class="ws-tree-list">${state.tree.map((entry) => `<li><button type="button" class="so-btn ws-tree-item code-id" data-ws-action="${["directory", "dir"].includes(entry.kind) ? "directory" : "file"}" data-path="${esc(entry.path)}" data-digest="${esc(entry.digest || "")}">${esc(entry.path)} · ${esc(entry.kind)}</button></li>`).join("")}</ul>` : '<p class="ws-muted">No directory entries are displayed.</p>'}${state.treeTruncated ? '<p class="ws-muted">First 256 directory entries shown; this is not a complete repository inventory.</p>' : ""}${state.cursor ? '<div class="ws-btn-row"><button type="button" class="so-btn" data-ws-action="more">Load next directory page</button></div>' : ""}`)}${section("source", "Source", fileMarkup())}${section("history", "Commit history", historyMarkup(item))}${section("diff", "Workspace diff", diffMarkup(item))}${section("runtime", "Preview and logs", `<p class="ws-muted">Returned runtime status: <span class="code-id">${esc(state.runtime?.status || "unavailable")}</span> · origin: <span class="code-id">${esc(state.runtime?.origin || "unavailable")}</span>. A local preview is not a deployment or lease. Returned revision <span class="code-id">${esc(state.runtime?.proposalRevision || "unavailable")}</span> · artifact <span class="code-id">${esc(state.runtime?.artifactDigest || "unavailable")}</span>.</p><div class="ws-btn-row"><button type="button" class="so-btn" data-ws-action="start"${canWrite ? "" : " disabled"}>Stage preview start</button><button type="button" class="so-btn" data-ws-action="stop"${canWrite ? "" : " disabled"}>Stage preview stop</button><button type="button" class="so-btn" data-ws-action="logs">Refresh logs</button><button type="button" class="so-btn" data-ws-action="clear-logs"${canWrite ? "" : " disabled"}>Stage log clear</button></div><p class="ws-meta code-id">Log origin ${esc(state.logs?.origin || "unavailable")} · status ${esc(state.logs?.status || "unavailable")}</p><pre class="whitespace-pre-wrap code-id ws-code-block">${esc((state.logs?.lines || []).slice(0, 256).join("\n").slice(0, 65536))}</pre><p class="ws-muted">Bounded snapshot: up to 256 returned lines and 65,536 characters; not a continuous stream.</p>`)}${section(
             "lifecycle",
             "Review and lifecycle",
             `<p class="ws-muted">Signature status <span class="code-id">${esc(item.signatureStatus || "unavailable")}</span>; a download is not signature verification.</p><div class="ws-btn-row">${[
@@ -295,6 +345,28 @@ export function createDevWorkspaces({
       if (!currentWorkspaceDiff(diff, item))
         throw new Error("Diff did not match the selected workspace revision.");
       state.diff = diff;
+    }
+    if (name === "history") {
+      state.history = null;
+      if (!item.headCommit || !item.branch)
+        throw new Error(
+          "Recorded Git history is unavailable for this workspace.",
+        );
+      state.historyLoading = true;
+      paint();
+      try {
+        const history = await json(
+          `/v1/dev-workspaces/${encodeURIComponent(token.id)}/history?revision=${encodeURIComponent(item.proposalRevision || "")}&head=${encodeURIComponent(item.headCommit)}`,
+        );
+        if (!current(token)) return;
+        if (!currentWorkspaceHistory(history, item))
+          throw new Error(
+            "History did not match the selected workspace head and source context.",
+          );
+        state.history = history;
+      } finally {
+        if (current(token)) state.historyLoading = false;
+      }
     }
     if (name === "runtime") {
       const runtime = await json(

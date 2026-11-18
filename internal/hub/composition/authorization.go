@@ -236,6 +236,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal; owner or environment read, else not found; lists scoped ACP sessions"},
 		{Pattern: "GET /v1/dev-workspaces/{workspaceID}/diff",
 			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal; proposal diff is display data and records no approval"},
+		{Pattern: "GET /v1/dev-workspaces/{workspaceID}/history",
+			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal; Service.Get requires owner or resource:read; exact recorded head and revision bind the bounded history"},
 		{Pattern: "GET /v1/dev-workspaces/{workspaceID}/download",
 			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal; signature status is reported and is not assumed valid"},
 		{Pattern: "GET /v1/dev-workspaces/{workspaceID}/file",

@@ -266,3 +266,146 @@ test("workspace studio drops stale reads and confirms real metadata coordinates"
     "/v1/dev-workspaces/workspace-b/runtime/stop",
   ]);
 });
+
+test("workspace history pins recorded commits and rejects late selection and failed reads", async ({
+  page,
+}, testInfo) => {
+  const a = {
+    workspaceId: "history-a",
+    title: "History A",
+    owner: "alice",
+    environmentId: "east",
+    status: "STOPPED",
+    proposalRevision: "rev-a",
+    sourceDigest: "sha256:a",
+    branch: "workspace/alice/a",
+    headCommit: "a".repeat(40),
+  };
+  let b = {
+    ...a,
+    workspaceId: "history-b",
+    title: "History B",
+    proposalRevision: "rev-b",
+    sourceDigest: "sha256:b",
+    branch: "workspace/alice/b",
+    headCommit: "b".repeat(40),
+  };
+  let releaseA!: () => void;
+  const gateA = new Promise<void>((resolve) => {
+    releaseA = resolve;
+  });
+  let aStarted = false,
+    refused = false;
+  const writes: string[] = [];
+  await page.route("**/v1/**", async (route) => {
+    const url = new URL(route.request().url()),
+      path = url.pathname;
+    if (
+      path.startsWith("/v1/dev-workspaces") &&
+      route.request().method() !== "GET"
+    )
+      writes.push(path);
+    if (path === "/v1/session")
+      return route.fulfill({
+        json: {
+          actor: { username: "alice" },
+          effective: { username: "alice" },
+        },
+      });
+    if (path === "/v1/operator-identity")
+      return route.fulfill({ json: { enabled: false, providers: [] } });
+    if (path === "/v1/dev-workspaces")
+      return route.fulfill({ json: { items: [a, b] } });
+    if (path.endsWith("/tree")) return route.fulfill({ json: { entries: [] } });
+    if (path.endsWith("/history")) {
+      const item = path.includes("history-a/") ? a : b;
+      expect(url.searchParams.get("revision")).toBe(item.proposalRevision);
+      expect(url.searchParams.get("head")).toBe(item.headCommit);
+      if (item.workspaceId === a.workspaceId) {
+        aStarted = true;
+        await gateA;
+      }
+      if (refused)
+        return route.fulfill({
+          status: 503,
+          json: { error: "history unavailable" },
+        });
+      return route.fulfill({
+        json: {
+          ...item,
+          current: true,
+          valueTier: "CONDUIT_NATIVE",
+          truncated: true,
+          entries: [
+            {
+              commit: item.headCommit,
+              committedAt: "2026-11-18T12:00:00Z",
+              subject:
+                item.workspaceId === a.workspaceId
+                  ? "foreign late A"
+                  : "fix: reviewed <script>literal</script>",
+            },
+          ],
+        },
+      });
+    }
+    return route.fulfill({ json: {} });
+  });
+  await hydrate(page);
+  await page.goto("/console/#s09-source");
+  await page
+    .getByRole("button", { name: "History A · STOPPED", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Commit history", exact: true })
+    .click();
+  await expect.poll(() => aStarted).toBe(true);
+  await page
+    .getByRole("button", { name: "History B · STOPPED", exact: true })
+    .click();
+  const toggle = page.getByRole("button", {
+    name: "Commit history",
+    exact: true,
+  });
+  await toggle.click();
+  await toggle.click();
+  const commits = page.locator("[data-ws-commits]");
+  await expect(commits).toContainText(b.headCommit);
+  await expect(commits).toContainText("fix: reviewed <script>literal</script>");
+  await expect(commits.locator("script")).toHaveCount(0);
+  await expect(commits.locator("..")).toContainText(
+    "more commits were omitted",
+  );
+  await testInfo.attach("recorded-workspace-history", {
+    body: await commits.locator("..").screenshot(),
+    contentType: "image/png",
+  });
+  const stale = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname ===
+      "/v1/dev-workspaces/history-a/history",
+  );
+  releaseA();
+  await (await stale).finished();
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  await expect(commits).not.toContainText("foreign late A");
+  await expect(commits).toContainText(b.headCommit);
+  b = { ...b, headCommit: "c".repeat(40) };
+  refused = true;
+  await page
+    .getByRole("button", { name: "Refresh workspaces", exact: true })
+    .click();
+  await expect(commits).toHaveCount(0);
+  await toggle.click();
+  await toggle.click();
+  await expect(page.locator("[data-workspace-studio]")).toContainText(
+    "history unavailable",
+  );
+  await expect(commits).toHaveCount(0);
+  expect(writes).toEqual([]);
+});

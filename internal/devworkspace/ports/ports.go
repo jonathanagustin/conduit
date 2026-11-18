@@ -69,3 +69,8 @@ type VolumeExpiryAudit interface {
 	BeforeExpire(ctx context.Context, workspace domain.Workspace) error
 	AfterExpire(ctx context.Context, workspace domain.Workspace, removalErr error) error
 }
+
+// History is optional: metadata-only files must not fabricate a Git history.
+type History interface {
+	History(ctx context.Context, workspaceID, headCommit string) (domain.CommitHistory, error)
+}
