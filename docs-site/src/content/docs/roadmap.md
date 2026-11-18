@@ -6,11 +6,11 @@ sidebar:
   order: 5
 ---
 
-Generated from the same reviewed issue evidence as [Readiness](/conduit/readiness/), observed at `2026-11-17T18:31:30Z`. GitHub issues are the current tracker; this is a dated index, not a project board or a release promise.
+Generated from the same reviewed issue evidence as [Readiness](/conduit/readiness/), observed at `2026-11-18T07:12:39Z`. GitHub issues are the current tracker; this is a dated index, not a project board or a release promise.
 
 ## AI execution and assurance
 
-[#807](https://github.com/jonathanagustin/conduit/issues/807), [#810](https://github.com/jonathanagustin/conduit/issues/810), [#813](https://github.com/jonathanagustin/conduit/issues/813), [#814](https://github.com/jonathanagustin/conduit/issues/814), [#815](https://github.com/jonathanagustin/conduit/issues/815), [#817](https://github.com/jonathanagustin/conduit/issues/817), [#917](https://github.com/jonathanagustin/conduit/issues/917), [#930](https://github.com/jonathanagustin/conduit/issues/930).
+[#807](https://github.com/jonathanagustin/conduit/issues/807), [#810](https://github.com/jonathanagustin/conduit/issues/810), [#813](https://github.com/jonathanagustin/conduit/issues/813), [#814](https://github.com/jonathanagustin/conduit/issues/814), [#817](https://github.com/jonathanagustin/conduit/issues/817), [#917](https://github.com/jonathanagustin/conduit/issues/917), [#930](https://github.com/jonathanagustin/conduit/issues/930).
 
 ## Operator identity and console completeness
 
@@ -22,12 +22,12 @@ Generated from the same reviewed issue evidence as [Readiness](/conduit/readines
 
 ## Typed contract migration
 
-[#391](https://github.com/jonathanagustin/conduit/issues/391), [#392](https://github.com/jonathanagustin/conduit/issues/392), [#393](https://github.com/jonathanagustin/conduit/issues/393), [#394](https://github.com/jonathanagustin/conduit/issues/394).
+[#391](https://github.com/jonathanagustin/conduit/issues/391), [#392](https://github.com/jonathanagustin/conduit/issues/392), [#394](https://github.com/jonathanagustin/conduit/issues/394).
 
 ## Decisions and deployment evidence
 
 - Notification delivery: No implementation tracker.
-- Observability: [#839](https://github.com/jonathanagustin/conduit/issues/839).
+- Observability: [#838](https://github.com/jonathanagustin/conduit/issues/838), [#849](https://github.com/jonathanagustin/conduit/issues/849).
 - Migrations and version-skew evidence: [#843](https://github.com/jonathanagustin/conduit/issues/843), [#849](https://github.com/jonathanagustin/conduit/issues/849).
 - Backup, audit custody and retention: [#841](https://github.com/jonathanagustin/conduit/issues/841), [#865](https://github.com/jonathanagustin/conduit/issues/865).
 - Disconnected recall propagation: [#126](https://github.com/jonathanagustin/conduit/issues/126).

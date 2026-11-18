@@ -498,6 +498,53 @@ test("a turn streams its tool call, its result and the answer", async ({
   ).toBeVisible();
 });
 
+test("a completed answer settles when reveal animation frames stop", async ({
+  page,
+  hub,
+}) => {
+  await openAssistant(page);
+  await expect(
+    rail(page).locator('[data-assistant-threads="ready"]'),
+  ).toBeVisible();
+  await send(page, "which environments exist?");
+  const turn = await hub.nextTurn();
+  turn.send({ type: "RUN_STARTED", threadId: "ath_1", runId: "arun_1" });
+  turn.send({
+    type: "TEXT_MESSAGE_START",
+    messageId: "answer",
+    role: "assistant",
+  });
+  turn.send({
+    type: "TEXT_MESSAGE_CONTENT",
+    messageId: "answer",
+    delta: "One",
+  });
+  await expect(answers(page).locator(".aui-md")).toHaveText("One");
+
+  // Model a throttled background window after a prefix is already visible.
+  // Stream delivery and React tasks still run; only reveal frames are withheld.
+  await page.evaluate(() => {
+    window.requestAnimationFrame = () => 0;
+  });
+  turn.send({
+    type: "TEXT_MESSAGE_CONTENT",
+    messageId: "answer",
+    delta: " environment: zeta.",
+  });
+  turn.send({ type: "TEXT_MESSAGE_END", messageId: "answer" });
+  turn.send({
+    type: "RUN_FINISHED",
+    threadId: "ath_1",
+    runId: "arun_1",
+    result: turnDocument({ threadId: "ath_1", results: [], toolCalls: [] }),
+  });
+  turn.end();
+  await expect(answers(page).locator(".aui-md")).toHaveText("One environment: zeta.");
+  await expect(
+    page.getByRole("button", { name: "Stop generating", exact: true }),
+  ).toHaveCount(0);
+});
+
 test("a reported model is shown without a caution", async ({ page, hub }) => {
   await openAssistant(page);
   await send(page, "which environments exist?");
