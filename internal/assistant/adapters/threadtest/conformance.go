@@ -32,6 +32,93 @@ func message(role, text string, minute int) domain.Message {
 
 // Run exercises one adapter. open returns an empty store each time.
 func Run(t *testing.T, open func(t *testing.T) application.Threads) {
+	t.Run("fork is an independent owner-scoped snapshot", func(t *testing.T) {
+		store, ctx := open(t), context.Background()
+		source := thread("ada", 1)
+		source.Title = "Original"
+		if err := store.Create(ctx, source); err != nil {
+			t.Fatal(err)
+		}
+		answer := message(domain.RoleAssistant, "saved answer", 2)
+		answer.ToolCalls = []domain.ToolRecord{{ID: "call", Name: domain.ToolQuery, Arguments: json.RawMessage(`{"objectType":"Environment"}`), Result: json.RawMessage(`{"ok":true}`)}}
+		if err := store.Append(ctx, "ada", id(1), []domain.Message{message(domain.RoleUser, "question", 1), answer}, ""); err != nil {
+			t.Fatal(err)
+		}
+		fork, err := store.Fork(ctx, "ada", id(1), thread("ada", 2))
+		if err != nil || fork.ID != id(2) || fork.Owner != "ada" || fork.Title != "Fork of Original" || fork.MessageCount != 2 || len(fork.Messages) != 2 || fork.Messages[1].Text != "saved answer" {
+			t.Fatal("incomplete fork", fork, err)
+		}
+		fork.Messages[1].ToolCalls[0].Result[0] = '['
+		for _, target := range []string{id(1), id(2)} {
+			saved, err := store.Get(ctx, "ada", target)
+			if err != nil || len(saved.Messages) != 2 || string(saved.Messages[1].ToolCalls[0].Result) != `{"ok":true}` {
+				t.Fatal("fork aliases source or returned data", saved, err)
+			}
+		}
+		if err := store.Append(ctx, "ada", id(2), []domain.Message{message(domain.RoleUser, "fork only", 3)}, ""); err != nil {
+			t.Fatal(err)
+		}
+		original, err := store.Get(ctx, "ada", id(1))
+		if err != nil || len(original.Messages) != 2 || original.Title != "Original" {
+			t.Fatal("fork append changed original", original, err)
+		}
+		if err := store.Delete(ctx, "ada", id(1)); err != nil {
+			t.Fatal(err)
+		}
+		saved, err := store.Get(ctx, "ada", id(2))
+		if err != nil || len(saved.Messages) != 3 {
+			t.Fatal("fork depends on source lifetime", saved, err)
+		}
+	})
+	t.Run("foreign and missing fork sources stay hidden without a target", func(t *testing.T) {
+		store, ctx := open(t), context.Background()
+		if err := store.Create(ctx, thread("ada", 1)); err != nil {
+			t.Fatal(err)
+		}
+		for _, source := range []string{id(1), id(9)} {
+			if _, err := store.Fork(ctx, "grace", source, thread("grace", 2)); !errors.Is(err, domain.ErrThreadNotFound) {
+				t.Fatal("source existence disclosed", err)
+			}
+		}
+		if rows, err := store.List(ctx, "grace"); err != nil || len(rows) != 0 {
+			t.Fatal("failed fork created target", rows, err)
+		}
+		if _, err := store.Fork(ctx, "ada", id(1), thread("grace", 3)); !errors.Is(err, domain.ErrThreadInvalid) {
+			t.Fatal("owner changed", err)
+		}
+	})
+	t.Run("concurrent forks respect the atomic owner limit", func(t *testing.T) {
+		store, ctx := open(t), context.Background()
+		for n := 1; n < domain.MaxThreadsPerOwner; n++ {
+			if err := store.Create(ctx, thread("ada", n)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		results := make(chan error, 4)
+		var workers sync.WaitGroup
+		for n := 100; n < 104; n++ {
+			workers.Add(1)
+			go func(n int) {
+				defer workers.Done()
+				_, err := store.Fork(ctx, "ada", id(1), thread("ada", n))
+				results <- err
+			}(n)
+		}
+		workers.Wait()
+		close(results)
+		successes := 0
+		for err := range results {
+			if err == nil {
+				successes++
+			} else if !errors.Is(err, domain.ErrThreadLimit) {
+				t.Fatal(err)
+			}
+		}
+		rows, err := store.List(ctx, "ada")
+		if err != nil || successes != 1 || len(rows) != domain.MaxThreadsPerOwner {
+			t.Fatal("fork limit was not atomic", successes, len(rows), err)
+		}
+	})
 	t.Run("grounding and tool payloads retain independent source snapshots", func(t *testing.T) {
 		store, ctx := open(t), context.Background()
 		if err := store.Create(ctx, thread("ada", 1)); err != nil {

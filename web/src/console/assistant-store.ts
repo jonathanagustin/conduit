@@ -44,6 +44,7 @@ export type AssistantApi = {
   createThread: (title?: string, options?: RequestOptions) => Promise<unknown>;
   readThread: (id: string, options?: RequestOptions) => Promise<unknown>;
   deleteThread: (id: string, options?: RequestOptions) => Promise<unknown>;
+  forkThread: (id: string, options?: RequestOptions) => Promise<unknown>;
   postTool: (body: {
     mode: string;
     tool: string;
@@ -213,6 +214,40 @@ export class AssistantStore {
     });
   }
 
+  /** Snapshot saved messages into an independent conversation, without a turn. */
+  async forkThread(): Promise<void> {
+    const id = this.state.threads.openId;
+    if (
+      this.state.running ||
+      this.state.loading ||
+      this.state.threads.status !== "ready" ||
+      !id
+    )
+      return;
+    const mine = ++this.generation;
+    this.set({ loading: true, threadError: "" });
+    try {
+      const thread = await this.api.forkThread(id);
+      if (mine !== this.generation) return;
+      const threads = threadOpened(this.state.threads, thread);
+      if (!threads.openId || threads.openId === id)
+        throw new Error("The Hub did not return a new conversation.");
+      this.remember(threads.openId);
+      this.set({
+        threads,
+        messages: messagesFromThread(thread),
+        loading: false,
+      });
+    } catch (error) {
+      if (mine !== this.generation) return;
+      const { code, message } = turnErrorFrom(error);
+      this.set({
+        loading: false,
+        threadError: `The conversation was not forked: ${message || code}`,
+      });
+    }
+  }
+
   async deleteThread(id: string): Promise<void> {
     if (this.state.running) return;
     try {
@@ -255,7 +290,7 @@ export class AssistantStore {
   /** Send one message as a streamed turn. */
   async send(text: string, mode?: string): Promise<void> {
     const message = text.trim();
-    if (!message || this.state.running) return;
+    if (!message || this.state.running || this.state.loading) return;
     const context = this.context();
     const turnMode = mode || context.mode || "explore";
     const mine = this.generation;

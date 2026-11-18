@@ -194,3 +194,21 @@ func clip(text string, limit int) string {
 	}
 	return text[:limit]
 }
+
+// ForkSnapshot copies saved records as history, retaining their original
+// timestamps and evidence. It grants no tool execution or new usage authority.
+func ForkSnapshot(source, target Thread) (Thread, error) {
+	if !ValidOwner(target.Owner) || target.Owner != source.Owner || !ValidThreadID(target.ID) || target.ID == source.ID || len(source.Messages) > MaxMessagesPerThread {
+		return Thread{}, ErrThreadInvalid
+	}
+	target.Title = ThreadTitle("Fork of " + source.Title)
+	target.MessageCount = len(source.Messages)
+	target.Messages = make([]Message, len(source.Messages))
+	for i, message := range source.Messages {
+		if err := message.Validate(); err != nil {
+			return Thread{}, err
+		}
+		target.Messages[i] = message.Clone()
+	}
+	return target, nil
+}

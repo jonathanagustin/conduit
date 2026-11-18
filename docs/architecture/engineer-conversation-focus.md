@@ -71,7 +71,18 @@ cost is not estimated. Preferences separately exposes the operator's own daily
 Hub usage and allowance as an explicit snapshot, with the limitations in
 [AI usage and transcripts](../operations/ai-usage-and-transcripts.md).
 
-There is no dedicated Hub operation for Summarize or Fork. Confirmed removal
+The existing conversation bar offers **Fork conversation** for a saved thread.
+`POST /v1/assistant/threads/{threadID}/fork` copies only the caller's saved
+messages into a fresh owned conversation, with the existing per-owner thread
+and per-thread message limits. The source is unchanged, and a copy remains
+readable after its source is removed. Tool records, evidence and reported usage
+retain their historical meaning: copying invokes no model, executes no tool and
+adds no new model usage. It is not a Git branch or durable lineage graph.
+The memory store remains process-local; PostgreSQL copies the complete snapshot
+in one transaction when configured. Late responses cannot replace a different
+conversation selected while the copy is running. Summarize remains unavailable.
+
+Confirmed removal
 uses `DELETE /v1/assistant/threads/{threadID}`; another owner's thread and a
 missing thread produce the same not-found response. Removal is a local Hub
 conversation operation, not identity-provider logout or transcript-store

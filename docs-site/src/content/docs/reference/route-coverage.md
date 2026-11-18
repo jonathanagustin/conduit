@@ -5,7 +5,7 @@ description: The shipped route and authorization register, including explicit na
 
 Generated from `internal/hub/composition/authorization.go`; this is a route and access-decision inventory, not a substitute for request/response schemas. Compatibility adapter paths are listed by their shipped names; this does not claim a private upstream protocol. The [native API reference](/conduit/reference/native-api/) renders the available schemas. [#391](https://github.com/jonathanagustin/conduit/issues/391) owns the uncontracted remainder.
 
-266 registered patterns; 28 match a native OpenAPI operation. These counts are generated, and include method-not-allowed fallback patterns. Protobuf methods are documented separately and are not counted as additional REST schemas.
+267 registered patterns; 28 match a native OpenAPI operation. These counts are generated, and include method-not-allowed fallback patterns. Protobuf methods are documented separately and are not counted as additional REST schemas.
 
 | Registered route | Access decision | Native OpenAPI contract |
 | --- | --- | --- |
@@ -172,6 +172,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `POST /v1/artifact-scans` | `operator-grant` | No native schema |
 | `POST /v1/artifacts/blobs` | `operator-grant` | No native schema |
 | `POST /v1/assistant/threads` | `operator-self` | No native schema |
+| `POST /v1/assistant/threads/{threadID}/fork` | `operator-self` | No native schema |
 | `POST /v1/assistant/tools` | `operator-any` | No native schema |
 | `POST /v1/assistant/turns` | `operator-any` | No native schema |
 | `POST /v1/auth/logout` | `public` | No native schema |

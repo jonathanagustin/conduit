@@ -561,6 +561,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorSelf, Detail: "requireOperatorPrincipal; opens an empty thread owned by the caller, up to a per-owner limit"},
 		{Pattern: "GET /v1/assistant/threads/{threadID}",
 			Decision: DecisionOperatorSelf, Detail: "requireOperatorPrincipal; returns the caller's thread, or 404 when the id is missing or belongs to someone else"},
+		{Pattern: "POST /v1/assistant/threads/{threadID}/fork",
+			Decision: DecisionOperatorSelf, Detail: "requireOperatorPrincipal; atomically copies only the caller's saved conversation to a new owned thread under existing limits; missing/foreign source is 404; no model or tool execution"},
 		{Pattern: "DELETE /v1/assistant/threads/{threadID}",
 			Decision: DecisionOperatorSelf, Detail: "requireOperatorPrincipal; deletes the caller's thread, or 404 when the id is missing or belongs to someone else"},
 		{Pattern: "GET /v1/intelligence/logic",

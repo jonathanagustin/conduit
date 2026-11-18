@@ -123,3 +123,36 @@ func (store *Store) Delete(_ context.Context, owner, id string) error {
 	delete(store.threads, at)
 	return nil
 }
+
+// Fork publishes a complete independent snapshot under the same owner lock.
+func (store *Store) Fork(_ context.Context, owner, sourceID string, target domain.Thread) (domain.Thread, error) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	source, ok := store.threads[key{owner, sourceID}]
+	if !ok {
+		return domain.Thread{}, domain.ErrThreadNotFound
+	}
+	fork, err := domain.ForkSnapshot(source, target)
+	if err != nil {
+		return domain.Thread{}, err
+	}
+	owned := 0
+	for at := range store.threads {
+		if at.owner == owner {
+			owned++
+		}
+	}
+	if owned >= domain.MaxThreadsPerOwner {
+		return domain.Thread{}, domain.ErrThreadLimit
+	}
+	at := key{owner, fork.ID}
+	if _, exists := store.threads[at]; exists {
+		return domain.Thread{}, domain.ErrThreadInvalid
+	}
+	store.threads[at] = fork
+	fork.Messages = append([]domain.Message{}, fork.Messages...)
+	for i := range fork.Messages {
+		fork.Messages[i] = fork.Messages[i].Clone()
+	}
+	return fork, nil
+}

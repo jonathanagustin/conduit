@@ -225,3 +225,72 @@ func (store *Store) Delete(ctx context.Context, owner, id string) error {
 	}
 	return nil
 }
+
+// Fork locks one owner's creates and the source header, then inserts the header
+// and exact saved documents in one transaction. Concurrent appends cannot split
+// the source snapshot; a failure rolls the whole copy back.
+func (store *Store) Fork(ctx context.Context, owner, sourceID string, target domain.Thread) (domain.Thread, error) {
+	tx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.Thread{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('conduit-assistant-threads:' || $1, 0))`, owner); err != nil {
+		return domain.Thread{}, err
+	}
+	source := domain.Thread{Owner: owner, ID: sourceID}
+	if err := tx.QueryRowContext(ctx, `SELECT title FROM conduit_assistant_threads WHERE owner=$1 AND thread_id=$2 FOR SHARE`, owner, sourceID).Scan(&source.Title); errors.Is(err, sql.ErrNoRows) {
+		return domain.Thread{}, domain.ErrThreadNotFound
+	} else if err != nil {
+		return domain.Thread{}, err
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT document FROM conduit_assistant_thread_messages WHERE owner=$1 AND thread_id=$2 ORDER BY position`, owner, sourceID)
+	if err != nil {
+		return domain.Thread{}, err
+	}
+	for rows.Next() {
+		var document []byte
+		if err := rows.Scan(&document); err != nil {
+			rows.Close()
+			return domain.Thread{}, err
+		}
+		var message domain.Message
+		if err := json.Unmarshal(document, &message); err != nil {
+			rows.Close()
+			return domain.Thread{}, err
+		}
+		source.Messages = append(source.Messages, message)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return domain.Thread{}, err
+	}
+	rows.Close()
+	fork, err := domain.ForkSnapshot(source, target)
+	if err != nil {
+		return domain.Thread{}, err
+	}
+	var owned int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM conduit_assistant_threads WHERE owner=$1`, owner).Scan(&owned); err != nil {
+		return domain.Thread{}, err
+	}
+	if owned >= domain.MaxThreadsPerOwner {
+		return domain.Thread{}, domain.ErrThreadLimit
+	}
+	result, err := tx.ExecContext(ctx, `INSERT INTO conduit_assistant_threads (owner,thread_id,title,created_at,updated_at,message_count) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (owner,thread_id) DO NOTHING`, owner, fork.ID, fork.Title, fork.CreatedAt.UTC(), fork.UpdatedAt.UTC(), fork.MessageCount)
+	if err != nil {
+		return domain.Thread{}, err
+	}
+	if n, err := result.RowsAffected(); err != nil {
+		return domain.Thread{}, err
+	} else if n != 1 {
+		return domain.Thread{}, domain.ErrThreadInvalid
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO conduit_assistant_thread_messages (owner,thread_id,position,document) SELECT owner,$3,position,document FROM conduit_assistant_thread_messages WHERE owner=$1 AND thread_id=$2`, owner, sourceID, fork.ID); err != nil {
+		return domain.Thread{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.Thread{}, err
+	}
+	return fork, nil
+}
