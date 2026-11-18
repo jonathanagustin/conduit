@@ -11,7 +11,7 @@ import {
 } from "@assistant-ui/react-markdown";
 import remarkGfm from "remark-gfm";
 import { type FC, memo, useMemo, useState } from "react";
-import type { TextMessagePartProps } from "@assistant-ui/react";
+import { type TextMessagePartProps, useAuiState } from "@assistant-ui/react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 
 import { TooltipIconButton } from "@/components/assistant-ui/elements/tooltip-icon-button";
@@ -47,6 +47,9 @@ const MarkdownTextImpl: FC<MarkdownTextProps> = ({
   components,
   componentsByLanguage,
 }) => {
+  const streaming = useAuiState(
+    (s) => s.optional.part?.status.type === "running",
+  );
   const stableComponents = useShallowStable(components);
   const stableComponentsByLanguage = useShallowStable(componentsByLanguage);
   const markdownComponents = useMemo(() => {
@@ -59,6 +62,8 @@ const MarkdownTextImpl: FC<MarkdownTextProps> = ({
 
   return (
     <MarkdownTextPrimitive
+      // A terminal answer must not depend on another animation frame.
+      smooth={streaming}
       remarkPlugins={[remarkGfm]}
       className="aui-md"
       components={markdownComponents}
