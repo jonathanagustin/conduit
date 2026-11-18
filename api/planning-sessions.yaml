@@ -13,6 +13,39 @@ info:
   version: "1"
 paths:
   /v1/planning-sessions:
+    get:
+      operationId: listPlanningSessions
+      summary: List summaries belonging to the authenticated operator
+      description: >-
+        Authorization selects the owner store before counting or pagination.
+        Summaries exclude prompts, plans and transcript payloads. Production reads
+        retained Temporal visibility, which can lag recent changes and expire old
+        executions; development reads the process-local owner store. Inventories
+        beyond 1000 scanned executions, invalid state or unavailable queries fail
+        rather than returning a successful incomplete catalog. Cursors seek by
+        session id within the caller's currently available inventory.
+      parameters:
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 200, default: 100}
+        - name: cursor
+          in: query
+          schema: {type: string, maxLength: 2048}
+      responses:
+        "200":
+          description: Owner-filtered summary page from the available inventory.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionPage"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "501":
+          $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
     post:
       operationId: createPlanningSession
       summary: Start a planning session from a repository URL and ref or a problem statement
@@ -250,6 +283,37 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
   schemas:
+    SessionSummary:
+      type: object
+      required: [id, status, profile, createdAt, updatedAt]
+      properties:
+        id: {type: string}
+        status: {type: string}
+        profile:
+          $ref: "#/components/schemas/Profile"
+        repoUrl: {type: string}
+        ref: {type: string}
+        appName: {type: string}
+        workflowRunId:
+          type: string
+          description: Exact retained execution observed by the Temporal reader.
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    SessionPage:
+      type: object
+      required: [items, total, pageSize, limit, hasPrevious, valueTier]
+      properties:
+        valueTier: {type: string, enum: [CONDUIT_NATIVE]}
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionSummary"
+        total: {type: integer}
+        pageSize: {type: integer}
+        limit: {type: integer}
+        nextCursor: {type: string}
+        previousCursor: {type: string}
+        hasPrevious: {type: boolean}
     Error:
       type: object
       required: [error]

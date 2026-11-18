@@ -20,7 +20,7 @@ func TestPlanningRoutesRequireAnOperator(t *testing.T) {
 	mux := http.NewServeMux()
 	Register(mux, Config{Service: application.NewService(nil)})
 	for _, route := range []string{
-		CreateRoute, GetRoute, TurnRoute, AnswerRoute, AcceptRoute, BindingRoute, EventsRoute, ComputeRoute,
+		ListRoute, CreateRoute, GetRoute, TurnRoute, AnswerRoute, AcceptRoute, BindingRoute, EventsRoute, ComputeRoute,
 	} {
 		method, path, _ := strings.Cut(route, " ")
 		path = strings.ReplaceAll(path, "{sessionID}", "ps_missing")

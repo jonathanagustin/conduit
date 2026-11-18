@@ -340,6 +340,65 @@ The normalized source below preserves shared schemas, parameters, security and e
 
 Source: [api/planning-sessions.yaml](https://github.com/jonathanagustin/conduit/blob/main/api/planning-sessions.yaml).
 
+### GET /v1/planning-sessions
+
+Operation: `listPlanningSessions`. List summaries belonging to the authenticated operator
+
+Authorization selects the owner store before counting or pagination. Summaries exclude prompts, plans and transcript payloads. Production reads retained Temporal visibility, which can lag recent changes and expire old executions; development reads the process-local owner store. Inventories beyond 1000 scanned executions, invalid state or unavailable queries fail rather than returning a successful incomplete catalog. Cursors seek by session id within the caller's currently available inventory.
+
+```json
+{
+  "operationId": "listPlanningSessions",
+  "summary": "List summaries belonging to the authenticated operator",
+  "description": "Authorization selects the owner store before counting or pagination. Summaries exclude prompts, plans and transcript payloads. Production reads retained Temporal visibility, which can lag recent changes and expire old executions; development reads the process-local owner store. Inventories beyond 1000 scanned executions, invalid state or unavailable queries fail rather than returning a successful incomplete catalog. Cursors seek by session id within the caller's currently available inventory.",
+  "parameters": [
+    {
+      "in": "query",
+      "name": "limit",
+      "schema": {
+        "default": 100,
+        "maximum": 200,
+        "minimum": 1,
+        "type": "integer"
+      }
+    },
+    {
+      "in": "query",
+      "name": "cursor",
+      "schema": {
+        "maxLength": 2048,
+        "type": "string"
+      }
+    }
+  ],
+  "requestBody": null,
+  "responses": {
+    "200": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/SessionPage"
+          }
+        }
+      },
+      "description": "Owner-filtered summary page from the available inventory."
+    },
+    "400": {
+      "$ref": "#/components/responses/Error"
+    },
+    "401": {
+      "$ref": "#/components/responses/Error"
+    },
+    "501": {
+      "$ref": "#/components/responses/Error"
+    },
+    "502": {
+      "$ref": "#/components/responses/Error"
+    }
+  }
+}
+```
+
 ### POST /v1/planning-sessions
 
 Operation: `createPlanningSession`. Start a planning session from a repository URL and ref or a problem statement
@@ -1255,6 +1314,91 @@ The normalized source below preserves shared schemas, parameters, security and e
           "updatedAt"
         ],
         "type": "object"
+      },
+      "SessionPage": {
+        "properties": {
+          "hasPrevious": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SessionSummary"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "pageSize": {
+            "type": "integer"
+          },
+          "previousCursor": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "valueTier": {
+            "enum": [
+              "CONDUIT_NATIVE"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "pageSize",
+          "limit",
+          "hasPrevious",
+          "valueTier"
+        ],
+        "type": "object"
+      },
+      "SessionSummary": {
+        "properties": {
+          "appName": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/Profile"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "repoUrl": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "workflowRunId": {
+            "description": "Exact retained execution observed by the Temporal reader.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "profile",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
       }
     }
   },
@@ -1265,6 +1409,55 @@ The normalized source below preserves shared schemas, parameters, security and e
   "openapi": "3.0.3",
   "paths": {
     "/v1/planning-sessions": {
+      "get": {
+        "description": "Authorization selects the owner store before counting or pagination. Summaries exclude prompts, plans and transcript payloads. Production reads retained Temporal visibility, which can lag recent changes and expire old executions; development reads the process-local owner store. Inventories beyond 1000 scanned executions, invalid state or unavailable queries fail rather than returning a successful incomplete catalog. Cursors seek by session id within the caller's currently available inventory.",
+        "operationId": "listPlanningSessions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "maxLength": 2048,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPage"
+                }
+              }
+            },
+            "description": "Owner-filtered summary page from the available inventory."
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "501": {
+            "$ref": "#/components/responses/Error"
+          },
+          "502": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "summary": "List summaries belonging to the authenticated operator"
+      },
       "post": {
         "operationId": "createPlanningSession",
         "requestBody": {

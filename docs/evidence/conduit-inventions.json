@@ -15,6 +15,13 @@
   ],
   "inventions": [
     {
+      "id": "planning.SessionInventory",
+      "what": "Native owner-filtered planning-session summary pages with ID seek cursors, exact observed Temporal run ids, a 1000-execution availability bound and explicit CONDUIT_NATIVE tier. Prompts, transcripts, plans and other owners are excluded.",
+      "why": "Issue #820 requires discovery of the operator's sessions. No adopted upstream contract defines this index or its pagination, retention and visibility semantics; these are Conduit-owned operational choices over the existing Temporal lifecycle.",
+      "displacedBy": "An authoritative planning-session discovery contract defining owner isolation, summary fields, pagination and retained execution visibility.",
+      "riskIfWrong": "The native wire shape and bounded indexing strategy may need replacement. Temporal visibility can lag and expire history; this does not establish linearizable inventory, production scale, Hub cancellation, approval or execution authority."
+    },
+    {
       "id": "assistant.GroundedSources",
       "what": "Bounded native operator-documentation retrieval and authorized ontology snapshots with audited, retained source excerpts rendered by the assistant console.",
       "why": "Issue #811 requires grounded answers and rendered citations; no adopted upstream contract defines Conduit retrieval or citation metadata. Sources are server-retrieved records, not model-authored citations.",

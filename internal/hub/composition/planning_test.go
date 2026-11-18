@@ -69,6 +69,25 @@ func TestPlanningOwnershipAndAcceptanceAudit(t *testing.T) {
 	if response.Code != 201 || json.Unmarshal(response.Body.Bytes(), &session) != nil || session.ID == "" {
 		t.Fatalf("create: %d %s", response.Code, response.Body.String())
 	}
+	for _, actor := range []string{"alice", "bob"} {
+		index := planningRequest(t, handler, actor, "GET", "/v1/planning-sessions?limit=1", "")
+		var page struct {
+			Items []planningdomain.SessionSummary `json:"items"`
+			Total int                             `json:"total"`
+		}
+		if index.Code != 200 || json.Unmarshal(index.Body.Bytes(), &page) != nil {
+			t.Fatalf("list %s: %d %s", actor, index.Code, index.Body.String())
+		}
+		if actor == "alice" && (page.Total != 1 || len(page.Items) != 1 || page.Items[0].ID != session.ID) {
+			t.Fatalf("owner index: %s", index.Body.String())
+		}
+		if actor == "bob" && (page.Total != 0 || len(page.Items) != 0 || strings.Contains(index.Body.String(), session.ID)) {
+			t.Fatalf("administrator saw another owner's inventory: %s", index.Body.String())
+		}
+	}
+	if index := planningRequest(t, secure, "alice", "GET", "/v1/planning-sessions", ""); index.Code != 401 {
+		t.Fatalf("forged identity header listed sessions: %d %s", index.Code, index.Body.String())
+	}
 	path := "/v1/planning-sessions/" + session.ID
 	for _, route := range []struct{ method, suffix, body string }{{"GET", "", ""}, {"GET", "/binding", ""}, {"GET", "/events", ""}, {"POST", "/turns", `{}`}, {"POST", "/answers", `{"answers":[]}`}, {"POST", "/accept", `{}`}, {"POST", "/compute", `{}`}} {
 		response = planningRequest(t, handler, "bob", route.method, path+route.suffix, route.body)

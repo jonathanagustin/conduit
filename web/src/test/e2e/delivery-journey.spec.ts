@@ -745,6 +745,29 @@ const planningSession = {
 };
 
 async function stubPlanning(page: Page, found: boolean) {
+  await page.route("**/v1/planning-sessions?*", (route) =>
+    route.fulfill({
+      json: {
+        items: found
+          ? [
+              {
+                id: "ps_linked",
+                status: "ready",
+                profile: { name: "onboard" },
+                repoUrl: "https://example.test/org/app",
+                createdAt: "2026-01-01T00:00:00Z",
+                updatedAt: "2026-01-01T00:00:00Z",
+              },
+            ]
+          : [],
+        total: found ? 1 : 0,
+        pageSize: found ? 1 : 0,
+        limit: 100,
+        valueTier: "CONDUIT_NATIVE",
+        hasPrevious: false,
+      },
+    }),
+  );
   await page.route("**/v1/app-generations", (route) =>
     route.fulfill({
       json: {
@@ -809,12 +832,15 @@ test("a planning deep link rehydrates the session, and Stop aborts the stream", 
   await expect(flow).toContainText("Inspected the repository.");
   await expect(page.getByLabel("Repository URL")).toBeDisabled();
   await expect(page).toHaveURL(/#s01-intake\/ps_linked$/);
-  // The caller's generations, and no pretence of a session list.
+  // Both inventories come from owner-scoped native reads.
   await expect(flow.locator('[data-plan-generation="gen_1"]')).toContainText(
     "gates passed",
   );
+  await expect(flow.locator('[data-plan-session="ps_linked"]')).toContainText(
+    "ready",
+  );
   await expect(flow.locator("[data-plan-sessions-note]")).toContainText(
-    "no endpoint that lists them",
+    "history retention follows Hub configuration",
   );
 
   const aborted = page.waitForEvent("requestfailed", (request) =>
@@ -842,6 +868,78 @@ test("a planning deep link rehydrates the session, and Stop aborts the stream", 
     (Reflect.get(window, "switchScreen") as (id: string) => void)("s01-intake"),
   );
   await expect(page).toHaveURL(/#s01-intake\/ps_linked$/);
+});
+
+test("planning history pages native summaries and opens the selected session", async ({
+  page,
+}) => {
+  await hydrate(page);
+  await stubHub(page, {
+    operator: "alice",
+    plans: [],
+    changes: [],
+    promotions: [],
+    writes: [],
+    answer: () => null,
+  });
+  await stubPlanning(page, true);
+  const rows = Array.from({ length: 101 }, (_, index) => ({
+    id: `ps_${String(index).padStart(3, "0")}`,
+    status: "ready",
+    profile: { name: "onboard" },
+    repoUrl: "https://example.test/org/app",
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  }));
+  const writes: string[] = [];
+  page.on("request", (request) => {
+    if (
+      request.method() !== "GET" &&
+      new URL(request.url()).pathname.startsWith("/v1/planning-sessions")
+    )
+      writes.push(request.method());
+  });
+  await page.route("**/v1/planning-sessions?*", (route) => {
+    const query = new URL(route.request().url()).searchParams;
+    expect(query.get("limit")).toBe("100");
+    expect(query.has("owner")).toBe(false);
+    const second = query.get("cursor") === "cHNfMDk5";
+    return route.fulfill({
+      json: {
+        items: second ? rows.slice(100) : rows.slice(0, 100),
+        total: 101,
+        pageSize: second ? 1 : 100,
+        limit: 100,
+        valueTier: "CONDUIT_NATIVE",
+        hasPrevious: second,
+        ...(second ? {} : { nextCursor: "cHNfMDk5" }),
+      },
+    });
+  });
+  await page.route("**/v1/planning-sessions/ps_100", (route) =>
+    route.fulfill({ json: { ...planningSession, id: "ps_100" } }),
+  );
+  await page.goto("/console/#s01-intake");
+  const flow = page.locator("#main-workspace [data-plan-flow]");
+  const list = flow.locator("[data-plan-sessions]");
+  await expect(list.locator("[data-plan-session]")).toHaveCount(100);
+  await expect(list).toContainText("100 shown · 101 available");
+  await expect(
+    list.getByRole("button", { name: "Previous", exact: true }),
+  ).toBeDisabled();
+  await list.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(list.locator("[data-plan-session]")).toHaveCount(1);
+  await expect(list.locator('[data-plan-session="ps_100"]')).toBeVisible();
+  await expect(
+    list.getByRole("button", { name: "Next", exact: true }),
+  ).toBeDisabled();
+  await list.getByRole("button", { name: "Previous", exact: true }).click();
+  await expect(list.locator("[data-plan-session]")).toHaveCount(100);
+  await list.getByRole("button", { name: "Next", exact: true }).click();
+  await list.locator('[data-plan-session="ps_100"] a').click();
+  await expect(page).toHaveURL(/#s01-intake\/ps_100$/);
+  await expect(flow.locator("[data-plan-composer]")).toContainText("ps_100");
+  expect(writes).toEqual([]);
 });
 
 test("a link to a session the Hub no longer has says so", async ({ page }) => {
