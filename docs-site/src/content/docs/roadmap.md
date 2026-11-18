@@ -6,7 +6,7 @@ sidebar:
   order: 5
 ---
 
-Generated from the same reviewed issue evidence as [Readiness](/conduit/readiness/), observed at `2026-11-18T07:12:39Z`. GitHub issues are the current tracker; this is a dated index, not a project board or a release promise.
+Generated from the same reviewed issue evidence as [Readiness](/conduit/readiness/), observed at `2026-11-18T12:03:52Z`. GitHub issues are the current tracker; this is a dated index, not a project board or a release promise.
 
 ## AI execution and assurance
 
@@ -14,7 +14,7 @@ Generated from the same reviewed issue evidence as [Readiness](/conduit/readines
 
 ## Operator identity and console completeness
 
-[#818](https://github.com/jonathanagustin/conduit/issues/818), [#820](https://github.com/jonathanagustin/conduit/issues/820), [#823](https://github.com/jonathanagustin/conduit/issues/823), [#827](https://github.com/jonathanagustin/conduit/issues/827).
+[#818](https://github.com/jonathanagustin/conduit/issues/818), [#823](https://github.com/jonathanagustin/conduit/issues/823), [#827](https://github.com/jonathanagustin/conduit/issues/827).
 
 ## Packaging and cluster acceptance
 
