@@ -197,6 +197,21 @@ func (e SessionStatus) Valid() bool {
 	}
 }
 
+// Defines values for SessionPageValueTier.
+const (
+	CONDUITNATIVE SessionPageValueTier = "CONDUIT_NATIVE"
+)
+
+// Valid indicates whether the value is a known member of the SessionPageValueTier enum.
+func (e SessionPageValueTier) Valid() bool {
+	switch e {
+	case CONDUITNATIVE:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreatePlanningSessionJSONBodyProfile.
 const (
 	CreatePlanningSessionJSONBodyProfileAppgen  CreatePlanningSessionJSONBodyProfile = "appgen"
@@ -364,8 +379,44 @@ type Session struct {
 // SessionStatus defines model for Session.Status.
 type SessionStatus string
 
+// SessionPage defines model for SessionPage.
+type SessionPage struct {
+	HasPrevious    bool                 `json:"hasPrevious"`
+	Items          []SessionSummary     `json:"items"`
+	Limit          int                  `json:"limit"`
+	NextCursor     *string              `json:"nextCursor,omitempty"`
+	PageSize       int                  `json:"pageSize"`
+	PreviousCursor *string              `json:"previousCursor,omitempty"`
+	Total          int                  `json:"total"`
+	ValueTier      SessionPageValueTier `json:"valueTier"`
+}
+
+// SessionPageValueTier defines model for SessionPage.ValueTier.
+type SessionPageValueTier string
+
+// SessionSummary defines model for SessionSummary.
+type SessionSummary struct {
+	AppName   *string   `json:"appName,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+	Id        string    `json:"id"`
+	Profile   Profile   `json:"profile"`
+	Ref       *string   `json:"ref,omitempty"`
+	RepoUrl   *string   `json:"repoUrl,omitempty"`
+	Status    string    `json:"status"`
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// WorkflowRunId Exact retained execution observed by the Temporal reader.
+	WorkflowRunId *string `json:"workflowRunId,omitempty"`
+}
+
 // SessionID defines model for SessionID.
 type SessionID = string
+
+// ListPlanningSessionsParams defines parameters for ListPlanningSessions.
+type ListPlanningSessionsParams struct {
+	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
 
 // CreatePlanningSessionJSONBody defines parameters for CreatePlanningSession.
 type CreatePlanningSessionJSONBody struct {
@@ -472,6 +523,13 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 // The interface specification for the client above.
 type ClientInterface interface {
 
+	// ListPlanningSessions List summaries belonging to the authenticated operator
+	//
+	// Authorization selects the owner store before counting or pagination. Summaries exclude prompts, plans and transcript payloads. Production reads retained Temporal visibility, which can lag recent changes and expire old executions; development reads the process-local owner store. Inventories beyond 1000 scanned executions, invalid state or unavailable queries fail rather than returning a successful incomplete catalog. Cursors seek by session id within the caller's currently available inventory.
+	//
+	// Corresponds with GET /v1/planning-sessions (the `ListPlanningSessions` operationId).
+	ListPlanningSessions(ctx context.Context, params *ListPlanningSessionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CreatePlanningSessionWithBody Start a planning session from a repository URL and ref or a problem statement
 	//
 	// Takes any type of body and a specified content type.
@@ -548,6 +606,23 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /v1/planning-sessions/{sessionID}/turns (the `PostPlanningTurn` operationId).
 	PostPlanningTurn(ctx context.Context, sessionID SessionID, body PostPlanningTurnJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+// ListPlanningSessions List summaries belonging to the authenticated operator
+//
+// Authorization selects the owner store before counting or pagination. Summaries exclude prompts, plans and transcript payloads. Production reads retained Temporal visibility, which can lag recent changes and expire old executions; development reads the process-local owner store. Inventories beyond 1000 scanned executions, invalid state or unavailable queries fail rather than returning a successful incomplete catalog. Cursors seek by session id within the caller's currently available inventory.
+//
+// Corresponds with GET /v1/planning-sessions (the `ListPlanningSessions` operationId).
+func (c *Client) ListPlanningSessions(ctx context.Context, params *ListPlanningSessionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListPlanningSessionsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 // CreatePlanningSessionWithBody Start a planning session from a repository URL and ref or a problem statement
@@ -735,6 +810,72 @@ func (c *Client) PostPlanningTurn(ctx context.Context, sessionID SessionID, body
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewListPlanningSessionsRequest constructs an http.Request for the ListPlanningSessions method
+func NewListPlanningSessionsRequest(server string, params *ListPlanningSessionsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/planning-sessions")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }
 
 // NewCreatePlanningSessionRequest calls the generic CreatePlanningSession builder with application/json body
@@ -1085,6 +1226,15 @@ func WithBaseURL(baseURL string) ClientOption {
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
 
+	// ListPlanningSessionsWithResponse List summaries belonging to the authenticated operator
+	//
+	// Authorization selects the owner store before counting or pagination. Summaries exclude prompts, plans and transcript payloads. Production reads retained Temporal visibility, which can lag recent changes and expire old executions; development reads the process-local owner store. Inventories beyond 1000 scanned executions, invalid state or unavailable queries fail rather than returning a successful incomplete catalog. Cursors seek by session id within the caller's currently available inventory.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/planning-sessions (the `ListPlanningSessions` operationId).
+	ListPlanningSessionsWithResponse(ctx context.Context, params *ListPlanningSessionsParams, reqEditors ...RequestEditorFn) (*ListPlanningSessionsResponse, error)
+
 	// CreatePlanningSessionWithBodyWithResponse Start a planning session from a repository URL and ref or a problem statement
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -1171,6 +1321,75 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /v1/planning-sessions/{sessionID}/turns (the `PostPlanningTurn` operationId).
 	PostPlanningTurnWithResponse(ctx context.Context, sessionID SessionID, body PostPlanningTurnJSONRequestBody, reqEditors ...RequestEditorFn) (*PostPlanningTurnResponse, error)
+}
+
+type ListPlanningSessionsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *SessionPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *Error
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Error
+	// JSON501 the response for an HTTP 501 `application/json` response
+	JSON501 *Error
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListPlanningSessionsResponse) GetJSON200() *SessionPage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListPlanningSessionsResponse) GetJSON400() *Error {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListPlanningSessionsResponse) GetJSON401() *Error {
+	return r.JSON401
+}
+
+// GetJSON501 returns the response for an HTTP 501 `application/json` response
+func (r ListPlanningSessionsResponse) GetJSON501() *Error {
+	return r.JSON501
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r ListPlanningSessionsResponse) GetJSON502() *Error {
+	return r.JSON502
+}
+
+// GetBody returns the raw response body bytes
+func (r ListPlanningSessionsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListPlanningSessionsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListPlanningSessionsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListPlanningSessionsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
 }
 
 type CreatePlanningSessionResponse struct {
@@ -1729,6 +1948,21 @@ func (r PostPlanningTurnResponse) ContentType() string {
 	return ""
 }
 
+// ListPlanningSessionsWithResponse List summaries belonging to the authenticated operator
+//
+// Authorization selects the owner store before counting or pagination. Summaries exclude prompts, plans and transcript payloads. Production reads retained Temporal visibility, which can lag recent changes and expire old executions; development reads the process-local owner store. Inventories beyond 1000 scanned executions, invalid state or unavailable queries fail rather than returning a successful incomplete catalog. Cursors seek by session id within the caller's currently available inventory.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/planning-sessions (the `ListPlanningSessions` operationId).
+func (c *ClientWithResponses) ListPlanningSessionsWithResponse(ctx context.Context, params *ListPlanningSessionsParams, reqEditors ...RequestEditorFn) (*ListPlanningSessionsResponse, error) {
+	rsp, err := c.ListPlanningSessions(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListPlanningSessionsResponse(rsp)
+}
+
 // CreatePlanningSessionWithBodyWithResponse Start a planning session from a repository URL and ref or a problem statement
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -1880,6 +2114,60 @@ func (c *ClientWithResponses) PostPlanningTurnWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParsePostPlanningTurnResponse(rsp)
+}
+
+// ParseListPlanningSessionsResponse parses an HTTP response from a ListPlanningSessionsWithResponse call
+func ParseListPlanningSessionsResponse(rsp *http.Response) (*ListPlanningSessionsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListPlanningSessionsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SessionPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseCreatePlanningSessionResponse parses an HTTP response from a CreatePlanningSessionWithResponse call
@@ -2321,6 +2609,9 @@ func ParsePostPlanningTurnResponse(rsp *http.Response) (*PostPlanningTurnRespons
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// ListPlanningSessions List summaries belonging to the authenticated operator
+	// (GET /v1/planning-sessions)
+	ListPlanningSessions(w http.ResponseWriter, r *http.Request, params ListPlanningSessionsParams)
 	// CreatePlanningSession Start a planning session from a repository URL and ref or a problem statement
 	// (POST /v1/planning-sessions)
 	CreatePlanningSession(w http.ResponseWriter, r *http.Request)
@@ -2355,6 +2646,52 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ListPlanningSessions operation middleware
+func (siw *ServerInterfaceWrapper) ListPlanningSessions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListPlanningSessionsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListPlanningSessions(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // CreatePlanningSession operation middleware
 func (siw *ServerInterfaceWrapper) CreatePlanningSession(w http.ResponseWriter, r *http.Request) {
@@ -2672,6 +3009,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/planning-sessions", wrapper.ListPlanningSessions)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/planning-sessions", wrapper.CreatePlanningSession)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/planning-sessions/{sessionID}", wrapper.GetPlanningSession)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/planning-sessions/{sessionID}/turns", wrapper.PostPlanningTurn)
@@ -2685,6 +3023,84 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 }
 
 type ErrorJSONResponse Error
+
+type ListPlanningSessionsRequestObject struct {
+	Params ListPlanningSessionsParams
+}
+
+type ListPlanningSessionsResponseObject interface {
+	VisitListPlanningSessionsResponse(w http.ResponseWriter) error
+}
+
+type ListPlanningSessions200JSONResponse SessionPage
+
+func (response ListPlanningSessions200JSONResponse) VisitListPlanningSessionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPlanningSessions400JSONResponse struct{ ErrorJSONResponse }
+
+func (response ListPlanningSessions400JSONResponse) VisitListPlanningSessionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPlanningSessions401JSONResponse Error
+
+func (response ListPlanningSessions401JSONResponse) VisitListPlanningSessionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPlanningSessions501JSONResponse Error
+
+func (response ListPlanningSessions501JSONResponse) VisitListPlanningSessionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(501)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPlanningSessions502JSONResponse Error
+
+func (response ListPlanningSessions502JSONResponse) VisitListPlanningSessionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(502)
+	_, err := buf.WriteTo(w)
+	return err
+}
 
 type CreatePlanningSessionRequestObject struct {
 	Body *CreatePlanningSessionJSONRequestBody
@@ -3359,6 +3775,9 @@ func (response PostPlanningTurn503JSONResponse) VisitPostPlanningTurnResponse(w 
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// ListPlanningSessions List summaries belonging to the authenticated operator
+	// (GET /v1/planning-sessions)
+	ListPlanningSessions(ctx context.Context, request ListPlanningSessionsRequestObject) (ListPlanningSessionsResponseObject, error)
 	// CreatePlanningSession Start a planning session from a repository URL and ref or a problem statement
 	// (POST /v1/planning-sessions)
 	CreatePlanningSession(ctx context.Context, request CreatePlanningSessionRequestObject) (CreatePlanningSessionResponseObject, error)
@@ -3422,6 +3841,32 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// ListPlanningSessions operation middleware
+func (sh *strictHandler) ListPlanningSessions(w http.ResponseWriter, r *http.Request, params ListPlanningSessionsParams) {
+	var request ListPlanningSessionsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListPlanningSessions(ctx, request.(ListPlanningSessionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListPlanningSessions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListPlanningSessionsResponseObject); ok {
+		if err := validResponse.VisitListPlanningSessionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // CreatePlanningSession operation middleware

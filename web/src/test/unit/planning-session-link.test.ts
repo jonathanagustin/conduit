@@ -382,13 +382,13 @@ describe("app generations", () => {
     expect(html).toContain("no Dockerfile");
   });
 
-  it("does not fake a session list the Hub cannot produce", () => {
+  it("does not invent a session list before the Hub responds", () => {
     const html = planningMarkup({
       ...emptyPlanning(),
       generations: { status: "ready", items: [] },
     });
     expect(html).toContain("data-plan-generations-empty");
-    expect(html).toContain("no endpoint that lists them");
+    expect(html).toContain("Reading your planning sessions");
   });
 
   it("reads the list once per paint cycle and reports a refusal", async () => {
@@ -400,8 +400,10 @@ describe("app generations", () => {
     syncPlanningScreen(store, () => {}, asFetch(fetchImpl), asWindow(window));
     syncPlanningScreen(store, () => {}, asFetch(fetchImpl), asWindow(window));
     await settle();
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
-    expect(fetchImpl.mock.calls[0][0]).toBe("/v1/app-generations");
+    expect(fetchImpl.mock.calls.map((call) => call[0])).toEqual([
+      "/v1/app-generations",
+      "/v1/planning-sessions?limit=100",
+    ]);
     expect(store.planning.generations).toMatchObject({
       status: "failed",
       reason: "unauthorized",

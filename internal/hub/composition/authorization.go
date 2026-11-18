@@ -328,6 +328,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal + AuthorizeResourceOperation(read) on the run target environment, else 404; read-only step history with no approval"},
 		{Pattern: "GET /v1/packaging-runs/{runID}/feedback",
 			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; review notes on a packaging run, with no approval"},
+		{Pattern: "GET /v1/planning-sessions",
+			Decision: DecisionOperatorSelf, Detail: "operatorPrincipal; owner-scoped planning summaries, filtered before counts and pagination; unavailable authoritative state fails closed"},
 		{Pattern: "GET /v1/planning-sessions/{sessionID}",
 			Decision: DecisionOperatorSelf, Detail: "requireOperatorPrincipal; reads only the credential owner's planning session, including Needs Input, the plan, and the Accept binding, and does not approve"},
 		{Pattern: "GET /v1/planning-sessions/{sessionID}/binding",

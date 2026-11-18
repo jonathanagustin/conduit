@@ -1,3 +1,8 @@
+import {
+  sessionIndexMarkup,
+  syncSessionIndex,
+  loadSessionIndex,
+} from "./planning-session-index.js";
 import { PlanningAgent, mergeAgentMessages } from "./planning-agent.js";
 import {
   parseScreenHash,
@@ -278,6 +283,8 @@ export function syncPlanningScreen(
     store.planning = {
       ...emptyPlanning(),
       generations: store.planning.generations,
+      sessions: store.planning.sessions,
+      sessionIndexOwner: store.planning.sessionIndexOwner,
       link: { id: next.id, status: "loading" },
     };
     void rehydrateSession(next.id, fetchImpl).then(
@@ -308,6 +315,7 @@ export function syncPlanningScreen(
   }
   if (store.planning.generations === undefined)
     loadGenerations(store, fetchImpl, win);
+  syncSessionIndex(store, fetchImpl, win);
 }
 
 /**
@@ -642,6 +650,8 @@ export function emptyPlanning() {
     stopped: false,
     // generations: undefined until the first read of GET /v1/app-generations.
     generations: undefined,
+    sessions: undefined,
+    sessionIndexOwner: undefined,
   };
 }
 
@@ -1131,13 +1141,12 @@ function generationsPanel(planning) {
     <div class="kit-section">Your app generations</div>
     ${body}
     <div class="plan-actions"><button type="button" class="kit-btn kit-btn-sm" data-plan-generations-refresh>Refresh</button></div>
-    <p class="kit-muted" data-plan-sessions-note>Planning sessions are not listed: this Hub has no endpoint that lists them. A session is reachable by its link, which this page keeps in the address bar.</p>
   </section>`;
 }
 
 export function planningMarkup(planning) {
   if (planning.link && planning.link.status !== "ready")
-    return `<div class="plan-flow" data-plan-flow>${linkBanner(planning)}${generationsPanel(planning)}</div>`;
+    return `<div class="plan-flow" data-plan-flow>${linkBanner(planning)}${sessionIndexMarkup(planning)}${generationsPanel(planning)}</div>`;
   return `<div class="plan-flow" data-plan-flow>
     ${errorBanner(planning.error)}
     ${stoppedBanner(planning)}
@@ -1155,6 +1164,7 @@ export function planningMarkup(planning) {
       </div>
     </div>
     ${acceptBar(planning)}
+    ${sessionIndexMarkup(planning)}
     ${generationsPanel(planning)}
   </div>`;
 }
@@ -1415,6 +1425,25 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
 
     if (hit("[data-plan-link-retry]")) {
       set({ link: null });
+      return;
+    }
+
+    if (hit("[data-plan-sessions-refresh]")) {
+      void loadSessionIndex(store, fetchImpl);
+      return;
+    }
+    const nextSessionPage = hit("[data-plan-sessions-next]");
+    const previousSessionPage = hit("[data-plan-sessions-previous]");
+    if (nextSessionPage || previousSessionPage) {
+      if (
+        (nextSessionPage || previousSessionPage).disabled ||
+        planning.sessions?.status !== "ready"
+      )
+        return;
+      const cursor = nextSessionPage
+        ? planning.sessions.nextCursor
+        : planning.sessions.previousCursor || "";
+      void loadSessionIndex(store, fetchImpl, globalThis, cursor);
       return;
     }
 

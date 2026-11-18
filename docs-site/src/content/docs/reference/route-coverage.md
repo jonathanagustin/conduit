@@ -5,7 +5,7 @@ description: The shipped route and authorization register, including explicit na
 
 Generated from `internal/hub/composition/authorization.go`; this is a route and access-decision inventory, not a substitute for request/response schemas. Compatibility adapter paths are listed by their shipped names; this does not claim a private upstream protocol. The [native API reference](/conduit/reference/native-api/) renders the available schemas. [#391](https://github.com/jonathanagustin/conduit/issues/391) owns the uncontracted remainder.
 
-262 registered patterns; 26 match a native OpenAPI operation. These counts are generated, and include method-not-allowed fallback patterns. Protobuf methods are documented separately and are not counted as additional REST schemas.
+263 registered patterns; 27 match a native OpenAPI operation. These counts are generated, and include method-not-allowed fallback patterns. Protobuf methods are documented separately and are not counted as additional REST schemas.
 
 | Registered route | Access decision | Native OpenAPI contract |
 | --- | --- | --- |
@@ -120,6 +120,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `GET /v1/packaging-runs/{runID}` | `operator-any` | [docs/operations/packaging-runs.openapi.yaml](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/packaging-runs.openapi.yaml) |
 | `GET /v1/packaging-runs/{runID}/events` | `operator-filtered` | [docs/operations/packaging-runs.openapi.yaml](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/packaging-runs.openapi.yaml) |
 | `GET /v1/packaging-runs/{runID}/feedback` | `operator-any` | No native schema |
+| `GET /v1/planning-sessions` | `operator-self` | [api/planning-sessions.yaml](https://github.com/jonathanagustin/conduit/blob/main/api/planning-sessions.yaml) |
 | `GET /v1/planning-sessions/{sessionID}` | `operator-self` | [api/planning-sessions.yaml](https://github.com/jonathanagustin/conduit/blob/main/api/planning-sessions.yaml) |
 | `GET /v1/planning-sessions/{sessionID}/binding` | `operator-self` | [api/planning-sessions.yaml](https://github.com/jonathanagustin/conduit/blob/main/api/planning-sessions.yaml) |
 | `GET /v1/planning-sessions/{sessionID}/events` | `operator-self` | [api/planning-sessions.yaml](https://github.com/jonathanagustin/conduit/blob/main/api/planning-sessions.yaml) |

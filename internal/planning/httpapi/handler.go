@@ -20,6 +20,7 @@ import (
 const TurnWriteWindow = 30 * time.Minute
 
 const (
+	ListRoute    = "GET /v1/planning-sessions"
 	CreateRoute  = "POST /v1/planning-sessions"
 	GetRoute     = "GET /v1/planning-sessions/{sessionID}"
 	TurnRoute    = "POST /v1/planning-sessions/{sessionID}/turns"
