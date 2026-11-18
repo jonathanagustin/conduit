@@ -29,7 +29,7 @@ func newApolloPublicAPI(repository Repository, governance *GovernanceService, co
 		publicationCatalogPort{repository: repository},
 		apolloReportingPort{repository: repository},
 		releaseLifecycleProjectionPort{repository: repository},
-		apolloEnvironmentInventoryPort{repository: repository},
+		environmentInventoryProjectionPort{repository: repository},
 	)
 	if err != nil {
 		api.initializationError = err
@@ -176,7 +176,7 @@ func (api *apolloPublicAPI) syncDesiredState(ctx context.Context, state DesiredS
 	// that accepted the desired state, so the other replica -- and every replica
 	// after a restart -- served all three EMPTY, which a client cannot tell
 	// apart from a Hub that governs nothing. releaseLifecycleProjectionPort and
-	// apolloEnvironmentInventoryPort read the same facts from the Plans, which
+	// environmentInventoryProjectionPort read the same facts from the Plans, which
 	// both replicas share.
 	//
 	// This function is kept for the recall openings above; it is deliberately no
