@@ -574,21 +574,10 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !selected {
 			return
 		}
-		records, err := ListEnvironmentCatalog(request.Context(), repository)
+		visible, err := listAuthorizedEnvironmentCatalogInSpace(request.Context(), repository, governance, principal, configuration, space)
 		if err != nil {
 			writeLifecycleError(w, err)
 			return
-		}
-		visible := make([]EnvironmentCatalogRecord, 0, len(records))
-		administrator := isGovernanceAdministrator(request.Context(), governance, principal, configuration)
-		for _, record := range records {
-			if administrator ||
-				governance.AuthorizeResourceOperation(request.Context(), principal, configuration, environmentRID(record.Environment.ID), OperationReadResource) {
-				if !space.environment(record.Environment.ID) {
-					continue
-				}
-				visible = append(visible, record)
-			}
 		}
 		view := request.URL.Query().Get("view")
 		if view != "" && view != "full" && view != "summary" {
