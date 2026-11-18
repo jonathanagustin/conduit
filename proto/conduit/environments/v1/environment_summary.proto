@@ -1,0 +1,69 @@
+syntax = "proto3";
+package conduit.environments.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/jonathanagustin/conduit/gen/go/conduit/environments/v1;environmentsv1";
+
+// EnvironmentReadService declares native reads, not execution authority.
+// A generated service is not registered or served until its authorized adapter
+// is explicitly mounted. REST remains the supported Environment transport.
+service EnvironmentReadService {
+  // ListEnvironmentSummaries projects GET /v1/environments?view=summary.
+  // It omits Environment configuration/policy collections and Entity bodies.
+  rpc ListEnvironmentSummaries(ListEnvironmentSummariesRequest) returns (ListEnvironmentSummariesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message ListEnvironmentSummariesRequest {
+  // Absent uses native summary default 100; explicit values must be 1..200.
+  optional int32 limit = 1;
+  // Native opaque continuation, bound to normalized search and selected Space.
+  string cursor = 2;
+  // Native case-insensitive Environment ID substring search.
+  string search = 3;
+  // Empty means no Space selection, never an authorization bypass.
+  string space_id = 4;
+}
+
+// EnvironmentIdentity contains existing native identity, not configuration.
+// Generation is an opaque string and must not be parsed as a numeric revision.
+message EnvironmentIdentity {
+  string id = 1;
+  string generation = 2;
+}
+
+// EnvironmentReportSummary is reported evidence, never desired state.
+message EnvironmentReportSummary {
+  string environment = 1;
+  string agent_id = 2;
+  google.protobuf.Timestamp observed_at = 3;
+  int64 entity_count = 4;
+}
+
+// SpokeLiveness preserves open native state vocabulary and observation time.
+// Absence of an observation must not be replaced by the current time.
+message SpokeLiveness {
+  string agent_id = 1;
+  string state = 2;
+  google.protobuf.Timestamp observed_at = 3;
+}
+
+message EnvironmentSummary {
+  EnvironmentIdentity environment = 1;
+  // Message presence distinguishes no report from an observed empty report.
+  EnvironmentReportSummary reported = 2;
+  SpokeLiveness spoke = 3;
+}
+
+message ListEnvironmentSummariesResponse {
+  repeated EnvironmentSummary environments = 1;
+  // Total counts only authorized, Space-selected and search-filtered records.
+  int64 total = 2;
+  int32 page_size = 3;
+  int32 limit = 4;
+  string next_cursor = 5;
+  string previous_cursor = 6;
+  bool has_previous = 7;
+}
