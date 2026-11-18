@@ -18,6 +18,36 @@ func TestAnonymousUpgradeReadIsRefused(t *testing.T) {
 	}
 }
 
+func TestUpgradeSelectionRefusalPrecedesEvidenceRead(t *testing.T) {
+	for _, authorize := range []bool{false, true} {
+		selected, read := false, false
+		mux := http.NewServeMux()
+		Register(mux, Config{
+			Authorize: func(*http.Request) error {
+				if !authorize {
+					return http.ErrNoCookie
+				}
+				return nil
+			},
+			Select: func(w http.ResponseWriter, _ *http.Request) (func(string) bool, bool) {
+				selected = true
+				w.WriteHeader(http.StatusForbidden)
+				return nil, false
+			},
+			Upgrades: func(*http.Request, func(string) bool) (any, error) { read = true; return nil, nil },
+		})
+		response := httptest.NewRecorder()
+		mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/fleet/upgrades", nil))
+		want := http.StatusUnauthorized
+		if authorize {
+			want = http.StatusForbidden
+		}
+		if response.Code != want || selected != authorize || read {
+			t.Fatalf("authorization=%v selection=%v evidenceRead=%v status=%d", authorize, selected, read, response.Code)
+		}
+	}
+}
+
 func TestUpgradeReadRefusalsDoNotDiscloseBackendErrors(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
@@ -37,7 +67,7 @@ func TestUpgradeReadRefusalsDoNotDiscloseBackendErrors(t *testing.T) {
 				called := false
 				read := func() (any, error) { called = true; return nil, errors.New("private backend diagnostic") }
 				mux := http.NewServeMux()
-				Register(mux, Config{Authorize: tc.authorize, Upgrades: func(*http.Request) (any, error) { return read() }, Dependencies: func(*http.Request, string, string) (any, error) { return read() }})
+				Register(mux, Config{Authorize: tc.authorize, Upgrades: func(*http.Request, func(string) bool) (any, error) { return read() }, Dependencies: func(*http.Request, string, string) (any, error) { return read() }})
 				response := httptest.NewRecorder()
 				mux.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
 				if response.Code != tc.status || called != tc.backend || strings.Contains(response.Body.String(), "private") {

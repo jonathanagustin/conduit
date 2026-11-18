@@ -17,6 +17,7 @@ describe("server Space scope", () => {
     "/v1/products",
     "/v1/plans",
     "/v1/fleet/installations",
+    "/v1/fleet/upgrades",
     "/v1/change-requests",
     "/v1/promotions",
     "/v1/bundles",
@@ -48,7 +49,6 @@ describe("server Space scope", () => {
     "/v1/packaging-runs",
     "/v1/rollouts",
     "/v1/dev-workspaces",
-    "/v1/fleet/upgrades",
     "/v1/authorization-audit",
     "/v1/environments/dev/timeline",
   ])("leaves explicit unscoped context %s alone", (path) => {
@@ -90,7 +90,7 @@ describe("server Space scope", () => {
       "Scoped by the Hub: environments, products, promotions, bundles",
     );
     expect(html).toContain(
-      "Not Space-scoped: channels, packaging, workspaces, rollouts, upgrades, audit",
+      "Not Space-scoped: channels, packaging, workspaces, rollouts, audit",
     );
   });
 
@@ -197,6 +197,21 @@ describe("Space-scoped refresh", () => {
     );
     return requests;
   }
+
+  it("carries selected Space on the live upgrade refresh", async () => {
+    const requests = install();
+    const state: any = {
+      spaceId: SPACE,
+      screen: "s17-spokes-audit",
+      indexQuery: `space=${SPACE}`,
+    };
+    await createLiveHub({ state, render: () => {} }).refresh();
+    expect(
+      requests
+        .find((url) => url.pathname === "/v1/fleet/upgrades")
+        ?.searchParams.getAll("spaceId"),
+    ).toEqual([SPACE]);
+  });
 
   it("asks the server for selected indexes without post-filtering a loaded page", async () => {
     const requests = install();

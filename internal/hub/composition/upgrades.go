@@ -18,6 +18,14 @@ func mountUpgrades(legacy http.Handler, repository controlplane.Repository, opti
 			_, err := operatorFrom(request.Context())
 			return upgradeIdentityError(err)
 		},
+		Select: func(w http.ResponseWriter, request *http.Request) (func(string) bool, bool) {
+			principal, err := operatorFrom(request.Context())
+			if err != nil {
+				http.Error(w, "operator identity could not be established", http.StatusUnauthorized)
+				return nil, false
+			}
+			return controlplane.ResolveSpaceEnvironmentFilter(w, request, principal, options)
+		},
 		Dependencies: func(request *http.Request, product, version string) (any, error) {
 			principal, err := operatorFrom(request.Context())
 			if err != nil {
@@ -28,7 +36,7 @@ func mountUpgrades(legacy http.Handler, repository controlplane.Repository, opti
 			}
 			return upgradeapp.Dependencies(request.Context(), repository, product, version)
 		},
-		Upgrades: func(request *http.Request) (any, error) {
+		Upgrades: func(request *http.Request, selected func(string) bool) (any, error) {
 			principal, err := operatorFrom(request.Context())
 			if err != nil {
 				return nil, upgradeIdentityError(err)
@@ -39,6 +47,9 @@ func mountUpgrades(legacy http.Handler, repository controlplane.Repository, opti
 			}
 			visible := make([]upgradeapp.Upgrade, 0, len(rows))
 			for _, row := range rows {
+				if selected != nil && !selected(row.Environment) {
+					continue
+				}
 				if governance.AuthorizeResourceOperation(request.Context(), principal, options, "environment/"+row.Environment, controlplane.OperationReadResource) {
 					visible = append(visible, row)
 				}
