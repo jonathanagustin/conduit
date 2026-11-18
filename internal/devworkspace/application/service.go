@@ -463,6 +463,9 @@ func (service *Service) Fork(ctx context.Context, caller domain.Caller, id, titl
 	child := parent
 	child.ID = newID()
 	child.ParentID = parent.ID
+	child.Branch = ""
+	child.VolumePreserved = false
+	child.PreservedUntil = time.Time{}
 	child.Owner = caller.Username
 	child.ApprovalID = ""
 	child.ValidationOutcome = ""
@@ -473,7 +476,13 @@ func (service *Service) Fork(ctx context.Context, caller domain.Caller, id, titl
 	child.CreatedAt = now
 	child.UpdatedAt = now
 	child.LastUsed = now
-	if err := service.files.Copy(ctx, parent.ID, child.ID); err != nil {
+
+	if copier, ok := service.files.(ports.SnapshotCopier); ok {
+		err = copier.CopyAt(ctx, parent.ID, child.ID, parent.HeadCommit)
+	} else {
+		err = service.files.Copy(ctx, parent.ID, child.ID)
+	}
+	if err != nil {
 		return domain.Workspace{}, err
 	}
 	if err := service.records.Save(ctx, child); err != nil {
@@ -482,7 +491,7 @@ func (service *Service) Fork(ctx context.Context, caller domain.Caller, id, titl
 	if err := service.record(ctx, caller, "workspace.forked", child.ID, "ALLOW", "forked from "+parent.ID); err != nil {
 		return domain.Workspace{}, err
 	}
-	return child, nil
+	return service.Get(ctx, caller, child.ID, nil)
 }
 
 // Records lists every workspace for a server-side catalog projection.

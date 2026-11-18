@@ -764,22 +764,62 @@ func (store *Store) Diff(ctx context.Context, id string) (domain.Diff, error) {
 
 // Copy clones a workspace's committed Git state into a new workspace checkout.
 func (store *Store) Copy(ctx context.Context, fromID, toID string) error {
+	return store.CopyAt(ctx, fromID, toID, "")
+}
+
+// CopyAt clones the recorded source commit onto a distinct child branch and
+// preserves the actual upstream, not the local parent checkout used for cloning.
+func (store *Store) CopyAt(ctx context.Context, fromID, toID, headCommit string) error {
+	if !validWorkspaceID.MatchString(fromID) || !validWorkspaceID.MatchString(toID) || fromID == toID {
+		return domain.ErrInvalid
+	}
 	store.mu.Lock()
+	store.refreshCatalogLocked()
 	fromWS, ok := store.rows[fromID]
 	store.mu.Unlock()
 	if !ok {
 		return domain.ErrNotFound
 	}
-	fromRepo := store.RepoDir(fromID)
-	toRepo := store.RepoDir(toID)
+	if !domain.ValidCommitID(fromWS.HeadCommit) || (headCommit != "" && headCommit != fromWS.HeadCommit) {
+		return domain.ErrStale
+	}
+	fromRepo, toRepo := store.RepoDir(fromID), store.RepoDir(toID)
+	remotes, err := gitOut(ctx, fromRepo, "remote")
+	if err != nil {
+		return err
+	}
+	upstream := ""
+	for _, remote := range strings.Fields(remotes) {
+		if remote != "origin" {
+			continue
+		}
+		upstream, err = gitOut(ctx, fromRepo, "remote", "get-url", "origin")
+		if err != nil {
+			return err
+		}
+		upstream = strings.TrimSpace(upstream)
+		if upstream == "" {
+			return domain.ErrInvalid
+		}
+	}
 	if err := os.MkdirAll(filepath.Dir(toRepo), 0o755); err != nil {
 		return err
 	}
-	if err := runGit(ctx, "", "clone", "--no-recurse-submodules", fromRepo, toRepo); err != nil {
+	if err := runGit(ctx, "", "clone", "--no-recurse-submodules", "--no-hardlinks", fromRepo, toRepo); err != nil {
 		return err
 	}
 	branch := fmt.Sprintf("workspace/%s/%s", sanitizeBranchSegment(fromWS.Owner), toID)
-	return runGit(ctx, toRepo, "checkout", "-B", branch)
+	if err := runGit(ctx, toRepo, "checkout", "-B", branch, fromWS.HeadCommit); err != nil {
+		return err
+	}
+	if upstream == "" {
+		return runGit(ctx, toRepo, "remote", "remove", "origin")
+	}
+	return runGit(ctx, toRepo, "remote", "set-url", "origin", upstream)
+}
+
+func (t treeAdapter) CopyAt(ctx context.Context, fromID, toID, headCommit string) error {
+	return t.store.CopyAt(ctx, fromID, toID, headCommit)
 }
 
 // treeAdapter disambiguates Catalog.List from Files.List when Store is used as ports.Files.

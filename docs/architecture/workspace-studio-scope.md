@@ -40,3 +40,20 @@ also checks workspace, branch, head, proposal revision, source digest and native
 tier, and discards late selection/identity/read results. A changed context or
 failed read clears the old history. Text is escaped and this section sends no
 write, sync, approval, publication or runtime request.
+
+
+## Fork source and branch identity
+
+Git-backed forks start from the parent's recorded commit, even when its local
+checkout has a newer unrecorded commit. The child receives its own recorded
+branch and fresh preservation state. Its origin retains the parent's actual
+upstream; a parent without an origin produces a child without one. Cloning
+copies Git objects without hard links and does not fetch from or push to the
+upstream. Later preservation uses the existing lifecycle policy, including
+retaining the volume when no upstream push can be confirmed.
+
+The optional snapshot-copy port rejects a changed recorded head before copying.
+These checks do not provide a cross-process transaction. Metadata-only adapters
+keep their existing copy contract. Local bare-repository tests qualify branch,
+commit, origin and preservation metadata; they do not qualify cluster volume
+cleanup or a live external upstream.
