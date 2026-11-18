@@ -27,9 +27,8 @@ test("Git workspace history and confirmed fork retain authoritative branch and s
   expect(created.status()).toBe(201);
   const receipt = await created.json();
   const path = `/v1/dev-workspaces/${receipt.workspaceId}`;
-  // Creation currently returns pre-adapter metadata. Assert the authoritative
-  // persisted Git coordinates explicitly rather than fabricating them locally.
   const parent = (await read(page, path)) as Workspace;
+  expect(receipt).toEqual(parent);
   expect(parent).toMatchObject({
     workspaceId: receipt.workspaceId,
     owner: "operator",

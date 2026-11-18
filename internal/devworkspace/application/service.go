@@ -115,6 +115,10 @@ func (service *Service) Create(ctx context.Context, caller domain.Caller, profil
 	if err := service.records.Save(ctx, workspace); err != nil {
 		return domain.Workspace{}, err
 	}
+	workspace, err := service.Get(ctx, caller, workspace.ID, nil)
+	if err != nil {
+		return domain.Workspace{}, err
+	}
 	if err := service.record(ctx, caller, "workspace.created", workspace.ID, "ALLOW", "workspace created"); err != nil {
 		return domain.Workspace{}, err
 	}
