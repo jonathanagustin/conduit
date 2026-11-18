@@ -716,3 +716,91 @@ test("inspector keeps the newest descending audit events within its 20-row bound
   for (const omitted of [21, 22, 23, 24, 25])
     await expect(inspector).not.toContainText(`inspector-action-${omitted}`);
 });
+
+test("Windows shows only stored blackout coordinates and clears them on failed evidence", async ({
+  page,
+}, testInfo) => {
+  let refused = false;
+  await page.route("**/v1/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/v1/session")
+      return route.fulfill({ json: { applications: APPLICATIONS } });
+    if (url.pathname === "/v1/environments")
+      return route.fulfill({
+        json: {
+          environments: [
+            { environment: { id: "blackout-native", maintenance: {} } },
+          ],
+        },
+      });
+    if (url.pathname === "/v1/blackouts") {
+      expect(url.searchParams.get("environment")).toBe("blackout-native");
+      // Other existing refreshes may request the legacy decision. Only the
+      // calendar asks for authoritative interval coordinates.
+      if (url.searchParams.get("includeIntervals") !== "true")
+        return route.fulfill({
+          json: {
+            environment: "blackout-native",
+            blocked: true,
+            reason: "freeze",
+          },
+        });
+      if (refused)
+        return route.fulfill({ status: 503, json: { error: "unavailable" } });
+      return route.fulfill({
+        json: {
+          environment: "blackout-native",
+          blocked: true,
+          reason: "freeze",
+          evaluatedAt: "2026-11-18T12:00:00Z",
+          valueTier: "CONDUIT_NATIVE",
+          persistence: "process-local",
+          truncated: true,
+          intervals: [
+            {
+              environment: "blackout-native",
+              author: "native-reviewer",
+              reason: "Freeze <script>literal</script>",
+              startsAt: "2026-11-18T11:00:00Z",
+              endsAt: "2026-11-18T13:00:00Z",
+            },
+          ],
+        },
+      });
+    }
+    if (url.pathname.endsWith("/timeline"))
+      return route.fulfill({ json: { timeline: [] } });
+    return route.fulfill({ json: {} });
+  });
+  await hydrate(page);
+  await page.goto("/console/");
+  await page
+    .getByRole("button", { name: "Releases", exact: true })
+    .first()
+    .click();
+  await page.locator('[data-area-tab="windows"]').click();
+  const calendar = page.locator("[data-release-calendar]");
+  await expect(
+    calendar.getByRole("img", {
+      name: "Recorded blackout interval",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(calendar.locator("[data-blackout-interval]")).toContainText(
+    "2026-11-18T11:00:00Z → 2026-11-18T13:00:00Z",
+  );
+  await expect(calendar).toContainText("Freeze <script>literal</script>");
+  await expect(calendar.locator("script")).toHaveCount(0);
+  await expect(calendar).toContainText("omitted intervals can still block");
+  await testInfo.attach("stored-blackout-calendar", {
+    body: await calendar.screenshot(),
+    contentType: "image/png",
+  });
+  refused = true;
+  await page.locator('[data-area-tab="convergence"]').click();
+  await page.locator('[data-area-tab="windows"]').click();
+  await expect(calendar).toContainText(
+    "Blackout interval evidence is unavailable",
+  );
+  await expect(calendar.locator("[data-blackout-interval]")).toHaveCount(0);
+});

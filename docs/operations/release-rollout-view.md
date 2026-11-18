@@ -60,3 +60,27 @@ shared wave reads, unknown observations, Product denial, Environment filtering,
 mixed-visibility rollout omission, anonymous localhost requests, request input
 rejection, single identity resolution, source failures, bounds and detached
 output slices. Complete local CI and targeted negative controls gate promotion.
+
+## Stored blackout intervals in Windows
+
+The existing Environment/Windows calendar requests
+`GET /v1/blackouts?environment=<id>&includeIntervals=true`. The default request
+still returns only the evaluated `environment`, `blocked` and `reason` fields.
+The opt-in native snapshot adds the evaluation timestamp and up to 64 stored
+intervals for exactly that environment, ordered by start. `truncated: true`
+means more exist; the blocked decision still evaluates the complete stored set.
+The route retains its authenticated operator-any read contract. A deployment
+without the snapshot adapter returns 501 rather than an empty list.
+
+The calendar uses exact stored start/end coordinates, reason and declaring
+operator, with hatching for blackout intervals. It labels `CONDUIT_NATIVE`
+process-local custody and truncation: the service's declarations disappear on
+Hub restart, and this display does not establish durable scheduling. A legacy
+decision-only response, wrong-environment interval, malformed coordinates or
+failed read produces an unavailable-evidence label and no blackout span. An
+explicit empty native snapshot is distinguished from unavailable evidence.
+
+This adds no declaration, clearing, approval or execution control. Blackout
+spans remain distinct from recorded maintenance overrides, weekly rules,
+rollout appointments and resolved dependency timing. The latter two are not
+inferred from wave order or the current blocked reason.

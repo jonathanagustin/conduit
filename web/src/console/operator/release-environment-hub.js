@@ -72,7 +72,7 @@ export function environmentHubMarkup(
       )
       .join(
         "",
-      )}${maintenanceMarkup(selected.environment.maintenance)}${timelineMarkup(timeline)}${releaseCalendarMarkup(selected.environment.maintenance?.overrides)}</div>`;
+      )}${maintenanceMarkup(selected.environment.maintenance)}${timelineMarkup(timeline)}${releaseCalendarMarkup(selected.environment.maintenance?.overrides, blackout)}</div>`;
 }
 export function mountEnvironmentHub(
   root,
@@ -104,7 +104,9 @@ export function mountEnvironmentHub(
     };
     const results = await Promise.allSettled([
       read(`/v1/environments/${encodeURIComponent(env)}/timeline`),
-      read(`/v1/blackouts?environment=${encodeURIComponent(env)}`),
+      read(
+        `/v1/blackouts?environment=${encodeURIComponent(env)}&includeIntervals=true`,
+      ),
     ]);
     if (!current() || controller !== request) return;
     const timeline =

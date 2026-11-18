@@ -507,7 +507,7 @@ func HubRouteAuthorization() []RouteAuthorization {
 		{Pattern: "POST /v1/sites/check-in",
 			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; records a site check-in or queues a change"},
 		{Pattern: "GET /v1/blackouts",
-			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; returns the blackout reason when a change is blocked"},
+			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; evaluates the blackout reason and optionally returns a bounded process-local interval snapshot for the requested environment"},
 		{Pattern: "POST /v1/blackouts",
 			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; declare confirms, clear opens a change request"},
 		{Pattern: "GET /v1/rollouts",
