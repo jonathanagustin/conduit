@@ -32,6 +32,32 @@ func message(role, text string, minute int) domain.Message {
 
 // Run exercises one adapter. open returns an empty store each time.
 func Run(t *testing.T, open func(t *testing.T) application.Threads) {
+	t.Run("reported usage survives storage without aliasing callers or readers", func(t *testing.T) {
+		store, ctx := open(t), context.Background()
+		if err := store.Create(ctx, thread("ada", 1)); err != nil {
+			t.Fatal(err)
+		}
+		zero, reported := int64(0), int64(7)
+		answer := message(domain.RoleAssistant, "done", 1)
+		answer.Usage = &domain.ReportedTokenUsage{PromptTokens: &zero, CompletionTokens: &reported}
+		if err := store.Append(ctx, "ada", id(1), []domain.Message{answer}, "done"); err != nil {
+			t.Fatal(err)
+		}
+		reported = 99
+		got, err := store.Get(ctx, "ada", id(1))
+		if err != nil {
+			t.Fatal(err)
+		}
+		usage := got.Messages[0].Usage
+		if usage == nil || usage.PromptTokens == nil || *usage.PromptTokens != 0 || usage.CompletionTokens == nil || *usage.CompletionTokens != 7 {
+			t.Fatalf("stored usage=%+v", usage)
+		}
+		*usage.CompletionTokens = 101
+		again, err := store.Get(ctx, "ada", id(1))
+		if err != nil || *again.Messages[0].Usage.CompletionTokens != 7 {
+			t.Fatalf("reader changed stored usage: %+v %v", again, err)
+		}
+	})
 	t.Run("a thread round-trips its messages in order", func(t *testing.T) {
 		store, ctx := open(t), context.Background()
 		if err := store.Create(ctx, thread("ada", 1)); err != nil {

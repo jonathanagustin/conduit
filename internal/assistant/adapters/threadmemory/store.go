@@ -75,6 +75,9 @@ func (store *Store) Get(_ context.Context, owner, id string) (domain.Thread, err
 		return domain.Thread{}, domain.ErrThreadNotFound
 	}
 	thread.Messages = append([]domain.Message{}, thread.Messages...)
+	for i := range thread.Messages {
+		thread.Messages[i].Usage = thread.Messages[i].Usage.Clone()
+	}
 	return thread, nil
 }
 
@@ -98,6 +101,9 @@ func (store *Store) Append(_ context.Context, owner, id string, messages []domai
 		return domain.ErrThreadFull
 	}
 	thread.Messages = append(append([]domain.Message{}, thread.Messages...), messages...)
+	for i := range thread.Messages {
+		thread.Messages[i].Usage = thread.Messages[i].Usage.Clone()
+	}
 	thread.MessageCount = len(thread.Messages)
 	thread.UpdatedAt = messages[len(messages)-1].CreatedAt
 	if thread.Title == "" {

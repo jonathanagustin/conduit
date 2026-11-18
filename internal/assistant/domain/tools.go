@@ -142,8 +142,9 @@ type RawToolCall struct {
 
 // Provenance records the command name and the exchange digests.
 type Provenance struct {
-	ConfiguredModel string `json:"configuredModel,omitempty"`
-	ProviderModel   string `json:"providerModel,omitempty"`
+	Usage           *ReportedTokenUsage `json:"usage,omitempty"`
+	ConfiguredModel string              `json:"configuredModel,omitempty"`
+	ProviderModel   string              `json:"providerModel,omitempty"`
 	Adapter         string
 	PromptSHA256    string
 	ResponseSHA256  string

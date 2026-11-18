@@ -55,10 +55,11 @@ type ToolRecord struct {
 
 // Message is one stored conversation message.
 type Message struct {
-	Role      string       `json:"role"`
-	Text      string       `json:"text"`
-	Mode      string       `json:"mode,omitempty"`
-	ToolCalls []ToolRecord `json:"toolCalls,omitempty"`
+	Usage     *ReportedTokenUsage `json:"usage,omitempty"`
+	Role      string              `json:"role"`
+	Text      string              `json:"text"`
+	Mode      string              `json:"mode,omitempty"`
+	ToolCalls []ToolRecord        `json:"toolCalls,omitempty"`
 	// ErrorCode is set on an assistant message whose turn did not finish.
 	ErrorCode string    `json:"errorCode,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
@@ -104,6 +105,9 @@ func ThreadTitle(text string) string {
 
 // Validate checks one message against the stored bounds.
 func (message Message) Validate() error {
+	if !message.Usage.Valid() {
+		return fmt.Errorf("%w: invalid reported token count", ErrThreadInvalid)
+	}
 	if message.Role != RoleUser && message.Role != RoleAssistant {
 		return fmt.Errorf("%w: unknown role", ErrThreadInvalid)
 	}

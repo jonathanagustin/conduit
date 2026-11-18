@@ -172,9 +172,10 @@ type Turn struct {
 	Results    []Result          `json:"results"`
 	ToolCalls  []ToolCall        `json:"toolCalls,omitempty"`
 	// Rounds is how many model calls the turn made.
-	Rounds   int     `json:"rounds"`
-	ThreadID string  `json:"threadId,omitempty"`
-	Model    *Served `json:"model,omitempty"`
+	Rounds   int                        `json:"rounds"`
+	ThreadID string                     `json:"threadId,omitempty"`
+	Model    *Served                    `json:"model,omitempty"`
+	Usage    *domain.ReportedTokenUsage `json:"usage,omitempty"`
 }
 
 // ToolCall is one call as the server ran it.

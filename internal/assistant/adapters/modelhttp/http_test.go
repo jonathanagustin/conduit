@@ -90,6 +90,25 @@ func TestCompleteReturnsTheTextAndProvenance(t *testing.T) {
 	}
 }
 
+func TestCompleteCopiesReportedUsageWithoutInventingTheMissingSide(t *testing.T) {
+	for _, body := range []string{`{"prompt_tokens":0,"completion_tokens":7}`, `{"prompt_tokens":0}`} {
+		adapter := Adapter{Client: client(t, func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = fmt.Fprintf(w, `{"model":"served","choices":[{"message":{"content":"{\"text\":\"hi\"}"}}],"usage":%s}`, body)
+		}, time.Second)}
+		_, provenance, err := adapter.Complete(t.Context(), "prompt")
+		if err != nil || provenance.Usage == nil || provenance.Usage.PromptTokens == nil || *provenance.Usage.PromptTokens != 0 {
+			t.Fatalf("reported zero lost: %+v %v", provenance, err)
+		}
+		if body == `{"prompt_tokens":0}` {
+			if provenance.Usage.CompletionTokens != nil {
+				t.Fatal("missing completion count became reported")
+			}
+		} else if provenance.Usage.CompletionTokens == nil || *provenance.Usage.CompletionTokens != 7 {
+			t.Fatal("reported completion count lost")
+		}
+	}
+}
+
 func TestCompleteMapsFailuresOntoThePortErrors(t *testing.T) {
 	if _, _, err := (Adapter{}).Complete(context.Background(), "p"); !errors.Is(err, domain.ErrModelUnavailable) {
 		t.Fatalf("no client: %v", err)

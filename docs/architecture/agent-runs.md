@@ -231,6 +231,28 @@ cannot replace its result or advance its revision. An acknowledgement that
 arrives after a competing failure can still record success for the same exact
 bound operation. Failures cannot overwrite a newer attempt's receipt.
 
+### Reported turn usage
+
+Optional `usage` metadata on a turn or stored assistant message is
+`{"promptTokens": 12, "completionTokens": 0}`. Each side is either a
+nonnegative provider-reported count or `null` (unknown). A turn sums a side
+only when every model round reports it; missing counts, negative counts or
+integer overflow leave that side unknown. Reported zero remains zero.
+These totals describe the model responses returned to the assistant, including
+partial failed turns when counts were available. They do not estimate missing
+counts, account for unreported retry attempts, or establish provider billing.
+
+JSON turn responses and AG-UI terminal result documents carry the same metadata.
+A failed stream sends the standard AG-UI `CUSTOM` event named
+`conduit.assistant.turn-result` with the partial turn as `value`, then
+`RUN_ERROR`; the snapshot never declares success. Older clients may ignore it.
+The console displays reported input/output counts alongside model identity and
+labels unknown sides explicitly. Thread storage retains the counts with the
+assistant message, so a reload can display what the Hub actually retained.
+Older documents without usage metadata remain valid and display no invented
+counts. JavaScript-unsafe counts are shown as unknown. This display does not
+change the governor's authoritative usage/budget accounting or issue model calls.
+
 ### The turn
 
 Request: `{"mode", "message", "context"?, "threadId"?}`. `threadId` is the
@@ -320,8 +342,9 @@ The store is a port with two adapters that run one conformance suite.
 `0001-assistant-threads`) is the durable one. `threadmemory` is what the Hub
 uses when `composition.Options.AssistantThreads` is nil: threads then live in
 one process, are lost on restart and are not shared between replicas.
-`cmd/platform-delivery` does not yet open the PostgreSQL adapter, so that is
-the current state of a deployed Hub.
+`cmd/platform-delivery` opens the PostgreSQL thread adapter alongside its
+configured notification store. Without that store the process-local fallback
+remains in effect.
 
 ### Streaming
 
