@@ -20,9 +20,12 @@ respects reduced-motion preferences.
 Source, Diff and Preview links return to the existing Studio. File/command
 authority and confirmation/change-request paths are unchanged. Focus does not
 establish an isolated coding workspace or a live ACP editor connection. Those
-remain the runtime/editor issues. Summarize, Remove and Fork remain follow-on UI
-work; no unsupported actions are presented as working controls. This slice does
-not close #558.
+remain the runtime/editor issues. Summarize and Fork remain follow-on work.
+Removal already uses the existing saved-conversation bar: select Delete, then
+confirm Delete conversation. This sends the owner-scoped Hub deletion request;
+it is not a second focus-only deletion path. A running turn disables deletion,
+and a Hub refusal remains visible rather than removing the conversation locally.
+This slice does not close #558.
 
 The read-only Capabilities/Skills/Docs tray uses native disclosure controls in
 focus view. Capabilities describes only tools already shown by the selected
@@ -35,9 +38,13 @@ Opening or closing disclosures sends no request and owns no conversation state.
 
 ## What the Hub serves behind the conversation
 
-The console still posts one message per turn and keeps its thread in the
-browser. The Hub side of #811 is in place for it to move onto; the contract is
-in [`agent-runs.md`](agent-runs.md#assistant-turns-and-threads). In short:
+The console posts one message per turn through the existing streamed assistant
+route. Its saved-conversation bar creates, lists, reopens and deletes the
+operator's Hub-backed threads. The browser remembers the selected thread id;
+it reads the messages back from the Hub after reload. PostgreSQL provides
+durable thread storage when configured; the memory adapter remains process-local
+and loses threads on restart. The route, ownership and storage contract is in
+[`agent-runs.md`](agent-runs.md#assistant-turns-and-threads):
 
 - A turn is a bounded tool loop. Tool results go back to the model until it
   answers in text, for at most four model calls and eight tool calls.
@@ -49,10 +56,26 @@ in [`agent-runs.md`](agent-runs.md#assistant-turns-and-threads). In short:
   call.
 - A failure carries a stable `code` beside its message.
 
-Not done on the Hub: grounding over documentation with citations, and token
-or cost figures. The turn names the adapter that served it, and the model id
-when the adapter reports one. Summarize, Remove and Fork still have no Hub
-operation behind them.
+Retrieved-source evidence is also supported. The native documentation tool
+searches five embedded references, and permission-filtered ontology reads can
+retain excerpts. The console renders audited source coordinates, quoted text,
+digests and retrieval metadata in disclosures; unavailable, empty and truncated
+evidence remain distinct. These records establish what was retrieved, not that
+every answer statement is supported. They do not search arbitrary repository
+files or make an answer correct. See the
+[retrieved-excerpt contract](agent-runs.md#retrieved-source-excerpts).
+
+Turn metadata names the provider-reported model when available and labels
+provider-reported input/output tokens. Missing token counts remain unknown;
+cost is not estimated. Preferences separately exposes the operator's own daily
+Hub usage and allowance as an explicit snapshot, with the limitations in
+[AI usage and transcripts](../operations/ai-usage-and-transcripts.md).
+
+There is no dedicated Hub operation for Summarize or Fork. Confirmed removal
+uses `DELETE /v1/assistant/threads/{threadID}`; another owner's thread and a
+missing thread produce the same not-found response. Removal is a local Hub
+conversation operation, not identity-provider logout or transcript-store
+retention/deletion authority.
 
 Verification includes the same mount/composer identity, preservation of unsent
 drafts and in-flight requests, real turn counts and outline focus, Escape/return,
