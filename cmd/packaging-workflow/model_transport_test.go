@@ -9,12 +9,62 @@ import (
 	"testing"
 
 	"github.com/jonathanagustin/conduit/internal/localcmd"
+	"github.com/jonathanagustin/conduit/internal/modelgovernor"
 	packagingmodelhttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/planning/adapters/planner"
 )
 
 func envMap(values map[string]string) func(string) string {
 	return func(name string) string { return values[name] }
+}
+
+func TestWorkerRefusesUnsupportedModelPolicies(t *testing.T) {
+	policies := []struct {
+		name   string
+		values map[string]string
+	}{
+		{"call budget", map[string]string{modelgovernor.EnvDailyCallBudget: "123457"}},
+		{"token budget", map[string]string{modelgovernor.EnvDailyTokenBudget: "987653"}},
+		{"transcripts", map[string]string{modelgovernor.EnvTranscripts: "on", modelgovernor.EnvTranscriptRetention: "37h"}},
+		{"combined", map[string]string{modelgovernor.EnvDailyCallBudget: "123457", modelgovernor.EnvDailyTokenBudget: "987653", modelgovernor.EnvTranscripts: "on", modelgovernor.EnvTranscriptRetention: "37h"}},
+	}
+	for _, policy := range policies {
+		for _, endpoint := range []string{"", "https://model.example/v1"} {
+			t.Run(policy.name+"/"+endpoint, func(t *testing.T) {
+				values := map[string]string{"CONDUIT_MODEL_BASE_URL": endpoint, "CONDUIT_MODEL_NAME": "fixture"}
+				for key, value := range policy.values {
+					values[key] = value
+				}
+				transport, err := resolveModelTransport(envMap(values))
+				if !errors.Is(err, modelgovernor.ErrInvalidConfig) || transport.configured() || transport.governor != nil {
+					t.Fatalf("unsupported policy returned usable transport: configured=%v governor=%v err=%v", transport.configured(), transport.governor != nil, err)
+				}
+				if !strings.Contains(err.Error(), "standalone packaging worker cannot enforce") {
+					t.Fatalf("missing actionable worker refusal: %v", err)
+				}
+				for _, privateValue := range []string{"123457", "987653", "37h"} {
+					if strings.Contains(err.Error(), privateValue) {
+						t.Fatalf("refusal exposed configuration value: %v", err)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestWorkerAcceptsSupportedModelPolicies(t *testing.T) {
+	for _, values := range []map[string]string{
+		nil,
+		{modelgovernor.EnvGlobalConcurrency: "2", modelgovernor.EnvOwnerConcurrency: "1", modelgovernor.EnvMaxAttempts: "3", modelgovernor.EnvQueueWait: "25ms", modelgovernor.EnvTranscripts: "off", modelgovernor.EnvTranscriptRetention: "37h"},
+	} {
+		governor, err := workerGovernor(envMap(values))
+		if err != nil || governor == nil {
+			t.Fatalf("supported worker configuration refused: %v", err)
+		}
+	}
+	if governor, err := workerGovernor(envMap(map[string]string{modelgovernor.EnvGlobalConcurrency: "invalid-sensitive-value"})); !errors.Is(err, modelgovernor.ErrInvalidConfig) || governor != nil {
+		t.Fatalf("invalid supported configuration accepted: %v", err)
+	}
 }
 func clearModelConfiguration(t *testing.T) {
 	t.Helper()

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/jonathanagustin/conduit/internal/modelgovernor"
 	"github.com/jonathanagustin/conduit/internal/modelhttp"
 	packagingmodelhttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelhttp"
@@ -18,15 +20,17 @@ type modelTransport struct {
 // workerGovernor builds the governor of a worker process. A worker has no
 // audit log, no usage store and no operator: it applies the concurrency
 // limits and the retry policy and counts calls in process, and nothing else.
-// Budgets, per-call audit events and transcripts are the Hub's; the settings
-// for them are read and deliberately not applied, so a worker never refuses
-// a call for want of a store it was never given.
+// Budgets, per-call audit events and transcripts are the Hub's. Requested
+// budgets or transcript retention are refused here: clearing those settings
+// would let the worker call a model without enforcing the requested policy.
 func workerGovernor(getenv func(string) string) (*modelgovernor.Governor, error) {
 	config, err := modelgovernor.FromEnv(getenv)
 	if err != nil {
 		return nil, err
 	}
-	config.DailyTokenBudget, config.DailyCallBudget, config.Transcripts = 0, 0, false
+	if config.DailyTokenBudget > 0 || config.DailyCallBudget > 0 || config.Transcripts {
+		return nil, fmt.Errorf("%w: standalone packaging worker cannot enforce daily model budgets or retain transcripts; use Hub-governed model execution for these policies", modelgovernor.ErrInvalidConfig)
+	}
 	return modelgovernor.New(config, modelgovernor.Dependencies{}), nil
 }
 
