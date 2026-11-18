@@ -76,3 +76,17 @@ The migration keeps temporary legacy bridges explicit instead of building a
 second policy implementation. Public compatibility routes can remain available
 while native internals evolve. No wire rename, REST deprecation, new execution
 authority, publication or deployment follows from this decision.
+
+## Publication catalog port prerequisite
+
+The legacy publication catalog bridge now accepts only three native repository
+methods: listing and creating Product publications and reading a retirement.
+`internal/controlplane/catalog_publication_projection.go` owns that bridge and
+its native error classification; it cannot access Plans, approvals or delivery
+execution through its stored dependency. Adapter imports into this bridge are
+rejected by the domain boundary check.
+
+This narrows a migration seam; the bridge still uses the legacy retirement value
+and the public compatibility facade still composes it. The complete protocol
+adapter has not moved, and the remaining external-named facade files/identifiers
+keep #428 open. No route, authorization, persistence or wire behavior changes.

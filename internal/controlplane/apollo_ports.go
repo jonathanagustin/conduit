@@ -2,37 +2,10 @@ package controlplane
 
 import (
 	"context"
-	"errors"
 	"sort"
 
-	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 	environments "github.com/jonathanagustin/conduit/internal/environments/domain"
 )
-
-// apolloCatalogPort is an anti-corruption adapter. It is the only place the
-// Apollo application can reach the legacy aggregate repository, and it maps
-// control-plane error identity into neutral results.
-type apolloCatalogPort struct{ repository Repository }
-
-func (port apolloCatalogPort) ListPublications(ctx context.Context, product string) ([]catalog.Publication, error) {
-	return port.repository.ListProductPublications(ctx, product)
-}
-
-func (port apolloCatalogPort) CreatePublication(ctx context.Context, publication catalog.Publication) (catalog.Publication, bool, error) {
-	stored, err := port.repository.CreateProductPublication(ctx, publication)
-	if errors.Is(err, ErrConflict) {
-		return catalog.Publication{}, true, nil
-	}
-	return stored, false, err
-}
-
-func (port apolloCatalogPort) CoordinateRetired(ctx context.Context, product, version string) (bool, error) {
-	_, err := port.repository.GetCatalogRetirement(ctx, product, version)
-	if errors.Is(err, ErrNotFound) {
-		return false, nil
-	}
-	return err == nil, err
-}
 
 // apolloEnvironmentInventoryPort answers which Environments this Hub governs,
 // what is installed in them and which Namespaces they target, from the Plans
