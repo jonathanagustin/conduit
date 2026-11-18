@@ -17,6 +17,22 @@ spec.loader.exec_module(module)
 
 
 class HostedArchiveTests(unittest.TestCase):
+    def test_hosted_archive_mirrorlist_retains_security_and_trust(self):
+        original = "Types: deb\nURIs: mirror+file:/etc/apt/apt-mirrors.txt\nSuites: resolute resolute-updates resolute-backports\nArchitectures: amd64v3\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n\nTypes: deb\nURIs: mirror+file:/etc/apt/apt-security-mirrors.txt\nSuites: resolute-security\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n"
+        expected = original.replace("mirror+file:/etc/apt/apt-mirrors.txt", "https://archive.ubuntu.com/ubuntu")
+        self.assertEqual(module.rewrite_sources(original), expected)
+        self.assertEqual(module.rewrite_sources(expected), expected)
+        classic = "deb [arch=amd64v3 signed-by=/keyring] mirror+file:/etc/apt/apt-mirrors.txt resolute main\n"
+        self.assertEqual(module.rewrite_sources(classic), classic.replace("mirror+file:/etc/apt/apt-mirrors.txt", module.CANONICAL))
+
+    def test_mirrorlist_is_an_exact_uri_token_only(self):
+        for uri in ["https://example.invalid/mirror+file:/etc/apt/apt-mirrors.txt", "mirror+file:/etc/apt/apt-mirrors.txt.extra", "mirror+file:/etc/apt/apt-mirrors.txt?query=1", "mirror+file:/etc/apt/custom-mirrors.txt"]:
+            text = "URIs: " + uri + "\n"
+            self.assertEqual(module.rewrite_sources(text), text)
+        for field in ["# URIs:", "Description:", "Signed-By:"]:
+            text = field + " mirror+file:/etc/apt/apt-mirrors.txt\n"
+            self.assertEqual(module.rewrite_sources(text), text)
+
     def test_deb822_preserves_signed_distribution_and_architectures(self):
         original = "Types: deb\nURIs: http://us-east-2.ec2.archive.ubuntu.com/ubuntu/\nSuites: resolute resolute-updates resolute-backports\nComponents: main restricted universe multiverse\nArchitectures: amd64 amd64v3\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n"
         expected = original.replace("http://us-east-2.ec2.archive.ubuntu.com", "https://archive.ubuntu.com")
