@@ -51,7 +51,7 @@ These issue groups are additional prerequisites, not assertions that the origina
 
 ## Contract coverage
 
-The generated reference contains 178 shipped CLI parser commands, 28 native OpenAPI operations and 6 protobuf source files. Only 28 of 265 registered Hub route patterns match a committed native OpenAPI operation. The rest are explicitly uncontracted in the generated route register; schema completion depends on [#391](https://github.com/jonathanagustin/conduit/issues/391). No request/response type is invented to fill that count. Protobuf sources are a separate bounded migration surface, not schemas for every REST route.
+The generated reference contains 178 shipped CLI parser commands, 28 native OpenAPI operations and 7 protobuf source files. Only 28 of 265 registered Hub route patterns match a committed native OpenAPI operation. The rest are explicitly uncontracted in the generated route register; schema completion depends on [#391](https://github.com/jonathanagustin/conduit/issues/391). No request/response type is invented to fill that count. Protobuf sources are a separate bounded migration surface, not schemas for every REST route.
 
 ## Test types
 
