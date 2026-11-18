@@ -178,12 +178,44 @@ is asked to sign in. `--token id` (the default) stores the ID token, which is
 what the Hub's generic policy verifies; `--token access` stores the access
 token. `--login-timeout` bounds the wait, five minutes by default.
 
-`conduit logout` removes the file. It does not revoke the token at the issuer.
+For explicit refresh, opt in when signing in:
+
+```sh
+conduit login --store-refresh-token --oidc-issuer https://sso.example.test/realms/uds --oidc-client-id conduit-cli
+conduit login --refresh --oidc-issuer https://sso.example.test/realms/uds --oidc-client-id conduit-cli
+```
+
+The first command adds `offline_access` to the requested scope. The issuer must
+permit that scope and return a refresh token plus an ID token bound to this
+issuer/client. Opt-in credentials use a versioned JSON bundle in the same
+mode-`0600` bearer file, so a rotated refresh token and its bearer are replaced
+in one rename. The CLI reads both that bundle and existing plain bearer files;
+external tools expecting a plain token must not consume the bundle directly.
+Neither credential appears in command output.
+
+Refresh requires the configured issuer and client to match the stored grant,
+keeps the selected ID/access token kind, and refuses an ID token with a changed
+subject or audience. The issuer must return an ID token on refresh too; the
+Hub remains responsible for token signature, expiry and authorization checks.
+An omitted replacement refresh token retains the previous grant. Issuer refusal
+or an invalid response leaves the file unchanged; a consumed rotated grant
+cannot be recovered after a failed local commit, so sign in again in that case.
+There is no automatic refresh or replay of API requests, including writes.
+
+Login, refresh and logout serialize writers with an exclusive `.lock` file.
+A killed writer can leave that lock: inspect that no writer is still running
+before removing it, then sign in again if the issuer may have consumed a grant.
+On Windows, mode bits do not establish ACL protection; use a credential directory
+restricted to the current user. Credentials are stored locally, not encrypted
+or held in an operating-system keychain.
+
+`conduit logout` removes the entire local credential file, including any retained
+refresh token. It does not revoke either token at the issuer.
 
 ## Limits
 
-- No refresh token is kept by the Hub or the CLI. An expired session or token
-  means signing in again.
+- The Hub keeps no refresh token. CLI refresh retention is opt-in; without it,
+  an expired session or token means signing in again.
 - Sign-out ends the Hub session. It does not revoke the ID token, and it ends
   the identity provider's own session only if the issuer advertises an
   end-session endpoint and the person follows it.

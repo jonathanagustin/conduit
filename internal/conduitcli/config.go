@@ -206,7 +206,7 @@ func (configuration ConnectionConfig) connect(ctx context.Context) (clientConnec
 const maximumBearerTokenBytes = 64 * 1024
 
 func readBearerTokenFile(path string) (string, error) {
-	return readPrivateFile(path, privateFileLabels{
+	contents, err := readPrivateContents(path, privateFileLabels{
 		inspect: "inspect bearer token file",
 		open:    "open bearer token file",
 		read:    "read bearer token file",
@@ -215,6 +215,20 @@ func readBearerTokenFile(path string) (string, error) {
 		empty:   "bearer token file must contain exactly one non-empty token",
 		tooLong: "bearer token exceeds %d bytes",
 	})
+	if err != nil {
+		return "", err
+	}
+	if strings.HasPrefix(contents, "{") {
+		grant, err := decodeRefreshGrant(contents)
+		if err != nil {
+			return "", err
+		}
+		return grant.Token, nil
+	}
+	if contents == "" || strings.ContainsAny(contents, " \t\r\n,") {
+		return "", errors.New("bearer token file must contain exactly one non-empty token")
+	}
+	return contents, nil
 }
 
 func readOIDCClientSecret(path string) (string, error) {
@@ -240,6 +254,17 @@ type privateFileLabels struct {
 }
 
 func readPrivateFile(path string, labels privateFileLabels) (string, error) {
+	token, err := readPrivateContents(path, labels)
+	if err != nil {
+		return "", err
+	}
+	if token == "" || strings.ContainsAny(token, " \t\r\n,") {
+		return "", errors.New(labels.empty)
+	}
+	return token, nil
+}
+
+func readPrivateContents(path string, labels privateFileLabels) (string, error) {
 	path = strings.TrimSpace(path)
 	info, err := os.Stat(path)
 	if err != nil {
@@ -263,11 +288,7 @@ func readPrivateFile(path string, labels privateFileLabels) (string, error) {
 	if len(contents) > maximumBearerTokenBytes {
 		return "", fmt.Errorf(labels.tooLong, maximumBearerTokenBytes)
 	}
-	token := strings.TrimSpace(string(contents))
-	if token == "" || strings.ContainsAny(token, " \t\r\n,") {
-		return "", errors.New(labels.empty)
-	}
-	return token, nil
+	return strings.TrimSpace(string(contents)), nil
 }
 
 func (configuration ConnectionConfig) oidcRequested() bool {

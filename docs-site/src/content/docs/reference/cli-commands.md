@@ -841,6 +841,8 @@ conduit login [flags]
 | --- | --- | --- | --- |
 | `--flow` | `string` | `auto` | auto, device, or loopback |
 | `--login-timeout` | `duration` | `5m0s` | how long to wait for the sign-in to finish |
+| `--refresh` | `bool` | `false` | renew a stored refresh grant without interactive sign-in |
+| `--store-refresh-token` | `bool` | `false` | retain the refresh grant in the private credential file |
 | `--token` | `string` | `id` | which token to store: id (what the Hub's default policy verifies) or access |
 
 ## conduit logout
