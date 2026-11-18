@@ -11,6 +11,9 @@ CANONICAL = "https://archive.ubuntu.com/ubuntu"
 REGIONAL_ARCHIVE = re.compile(
     r"https?://[a-z]{2}(?:-[a-z]+)+-[0-9]+\.ec2\.archive\.ubuntu\.com/ubuntu(/?)(?=\s|$)"
 )
+HOSTED_ARCHIVE_MIRRORLIST = re.compile(
+    r"(?<!\S)mirror\+file:/etc/apt/apt-mirrors\.txt(?=\s|$)"
+)
 
 
 def rewrite_sources(text):
@@ -28,6 +31,7 @@ def rewrite_sources(text):
             uri_field = False
         if uri_field or re.match(r"^\s*deb(?:-src)?\s", line):
             line = REGIONAL_ARCHIVE.sub(lambda match: CANONICAL + match.group(1), line)
+            line = HOSTED_ARCHIVE_MIRRORLIST.sub(CANONICAL, line)
         result.append(line)
     return "".join(result)
 
