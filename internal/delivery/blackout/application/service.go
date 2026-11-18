@@ -72,14 +72,16 @@ func (service *Service) Declare(ctx context.Context, actor, environment, reason 
 	if err != nil {
 		return Result{}, err
 	}
-	service.mu.Lock()
-	service.blackouts = append(service.blackouts, blackout)
-	copyOf := append([]domain.Blackout(nil), service.blackouts...)
-	service.mu.Unlock()
+	// A refused audit must leave the active blackout set unchanged. Publish the
+	// in-process declaration only after its decision receipt has been recorded.
 	auditID, err := service.audit(ctx, actor, environment, governance.DecisionAllow, blackout.Reason)
 	if err != nil {
 		return Result{}, err
 	}
+	service.mu.Lock()
+	service.blackouts = append(service.blackouts, blackout)
+	copyOf := append([]domain.Blackout(nil), service.blackouts...)
+	service.mu.Unlock()
 	return Result{Allowed: true, Reason: blackout.Reason, Blackouts: copyOf, AuditID: auditID}, nil
 }
 
