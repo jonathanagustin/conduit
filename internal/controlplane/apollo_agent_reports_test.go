@@ -40,7 +40,7 @@ func assertApolloSharedAgentReports(t *testing.T, repository Repository, reopen 
 	t.Helper()
 	ctx := context.Background()
 	state := environmentInventoryFixture(t, repository)
-	plan, err := (apolloReportingPort{repository: repository}).LatestPlan(ctx, state.Environment.ID)
+	plan, err := (environmentReportingProjectionPort{repository: repository}).LatestPlan(ctx, state.Environment.ID)
 	if err != nil || len(plan.Steps) == 0 {
 		t.Fatalf("plan = %#v, error = %v", plan, err)
 	}
@@ -113,19 +113,19 @@ func TestApolloAgentReportStorageAtomicUpdates(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			repository, reopen := agentReportRepository(t, mode)
 			ctx := context.Background()
-			port := apolloReportingPort{repository: repository}
+			port := environmentReportingProjectionPort{repository: repository}
 			info := []apollo.EntityInfo{{Id: "entity", ProductGroup: "group", ProductName: "product", EntityType: "SERVICE"}}
 			health := []apollo.EntityHealth{{NodeId: "node", ProductGroup: "group", ProductName: "product", ProductVersion: "1"}}
 			// No Plan yet: save inputs without inventing a native report.
 			var wait sync.WaitGroup
 			errs := make(chan error, 2)
-			ports := []apolloReportingPort{port, port}
+			ports := []environmentReportingProjectionPort{port, port}
 			if mode == "postgres" {
-				ports[1] = apolloReportingPort{repository: reopen()}
+				ports[1] = environmentReportingProjectionPort{repository: reopen()}
 			}
 			for index, patch := range []apolloapp.AgentReportPatch{{Info: &info}, {Health: &health}} {
 				wait.Add(1)
-				go func(port apolloReportingPort, patch apolloapp.AgentReportPatch) {
+				go func(port environmentReportingProjectionPort, patch apolloapp.AgentReportPatch) {
 					defer wait.Done()
 					errs <- port.UpdateAgentReports(ctx, "pending", patch, func(snapshot apolloapp.AgentReportSnapshot) (*environments.Report, error) { return nil, nil })
 				}(ports[index], patch)
@@ -150,7 +150,7 @@ func TestApolloAgentReportStorageAtomicUpdates(t *testing.T) {
 				}
 			}
 			repository = reopen()
-			port = apolloReportingPort{repository: repository}
+			port = environmentReportingProjectionPort{repository: repository}
 			verify := func(snapshot apolloapp.AgentReportSnapshot) (*environments.Report, error) {
 				if !reflect.DeepEqual(snapshot.Inputs.Info, info) || !reflect.DeepEqual(snapshot.Inputs.Health, health) {
 					t.Fatalf("lost concurrent/restarted inputs: %#v", snapshot.Inputs)
@@ -246,7 +246,7 @@ func TestPostgresApolloProjectionRollsBackWhenRawWriteFails(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = postgres.database.Exec(`DROP TRIGGER IF EXISTS reject_apollo_report ON conduit_apollo_agent_reports; DROP FUNCTION IF EXISTS reject_apollo_report()`)
 	})
-	port := apolloReportingPort{repository: repository}
+	port := environmentReportingProjectionPort{repository: repository}
 	err := port.UpdateAgentReports(ctx, "rollback", apolloapp.AgentReportPatch{}, func(apolloapp.AgentReportSnapshot) (*environments.Report, error) {
 		return &environments.Report{Environment: "rollback", AgentID: "must-not-commit"}, nil
 	})

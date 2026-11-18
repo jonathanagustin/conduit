@@ -15,7 +15,8 @@ UDS/Zarf and Flux are other external ecosystems with their own contracts.
 The legacy `internal/controlplane` facade still mixes native composition,
 repository bridging and compatibility adapters. For example,
 `apollo_openapi_adapter.go` serves a generated compatibility surface, while
-`apollo_ports.go` adapts the legacy repository into extracted application ports.
+the native projection bridge files adapt narrowed legacy repository ports into
+extracted application ports. The earlier mixed `apollo_ports.go` is removed.
 Moving those files mechanically would create import cycles or move policy into
 an adapter. A filename change alone would not establish a boundary.
 
@@ -99,3 +100,12 @@ A read-only fixture with no write, transaction or approval methods constrains
 both stored dependencies at compile time. These bridges still consume legacy
 PlanRecord snapshots; native source snapshots and the complete protocol adapter
 remain later extraction steps.
+
+
+The Environment reporting bridge stores only ListPlans, GetEnvironmentReport
+and PutEnvironmentReport capabilities. Its raw compatibility report update still
+requires the original optional atomic-store interface; unsupported stores remain
+unavailable rather than receiving a non-atomic fallback. Native projection
+methods live in `environment_reporting_projection.go`, with adapter imports
+rejected. Raw compatibility snapshots and their legacy persistence remain a
+separate extraction step, and the protocol facade still composes these bridges.
