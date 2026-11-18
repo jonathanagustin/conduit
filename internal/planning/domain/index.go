@@ -13,7 +13,7 @@ var ErrIndexTooLarge = errors.New("planning session inventory exceeds 1000 execu
 
 // CONDUIT-INVENTED: planning.SessionInventory
 // Displaced-by: An authoritative planning-session discovery contract defining owner isolation, summary fields, pagination and retained execution visibility.
-//
+
 // SessionSummary omits prompts, messages, plans, answers and event payloads.
 // WorkflowRunID identifies the exact execution observed by the durable reader.
 type SessionSummary struct {
