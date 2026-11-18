@@ -20,15 +20,16 @@ import (
 const TurnWriteWindow = 30 * time.Minute
 
 const (
-	ListRoute    = "GET /v1/planning-sessions"
-	CreateRoute  = "POST /v1/planning-sessions"
-	GetRoute     = "GET /v1/planning-sessions/{sessionID}"
-	TurnRoute    = "POST /v1/planning-sessions/{sessionID}/turns"
-	AnswerRoute  = "POST /v1/planning-sessions/{sessionID}/answers"
-	AcceptRoute  = "POST /v1/planning-sessions/{sessionID}/accept"
-	BindingRoute = "GET /v1/planning-sessions/{sessionID}/binding"
-	EventsRoute  = "GET /v1/planning-sessions/{sessionID}/events"
-	ComputeRoute = "POST /v1/planning-sessions/{sessionID}/compute"
+	CancelTurnRoute = "POST /v1/planning-sessions/{sessionID}/turns/{runID}/cancel"
+	ListRoute       = "GET /v1/planning-sessions"
+	CreateRoute     = "POST /v1/planning-sessions"
+	GetRoute        = "GET /v1/planning-sessions/{sessionID}"
+	TurnRoute       = "POST /v1/planning-sessions/{sessionID}/turns"
+	AnswerRoute     = "POST /v1/planning-sessions/{sessionID}/answers"
+	AcceptRoute     = "POST /v1/planning-sessions/{sessionID}/accept"
+	BindingRoute    = "GET /v1/planning-sessions/{sessionID}/binding"
+	EventsRoute     = "GET /v1/planning-sessions/{sessionID}/events"
+	ComputeRoute    = "POST /v1/planning-sessions/{sessionID}/compute"
 )
 
 const maxBody = 1 << 20
@@ -59,6 +60,12 @@ func writeDomainError(writer http.ResponseWriter, err error) {
 		return
 	}
 	switch {
+	case errors.Is(err, domain.ErrRunCancelled):
+		writeError(writer, http.StatusConflict, "RUN_CANCELLED", err.Error())
+	case errors.Is(err, domain.ErrRunConflict):
+		writeError(writer, http.StatusConflict, "RUN_CONFLICT", err.Error())
+	case errors.Is(err, domain.ErrRunCapacity):
+		writeError(writer, http.StatusTooManyRequests, "RUN_CAPACITY", err.Error())
 	case errors.Is(err, domain.ErrNotFound):
 		writeError(writer, http.StatusNotFound, domain.CodeSessionNotFound, err.Error())
 	case errors.Is(err, domain.ErrModelNotConfigured):

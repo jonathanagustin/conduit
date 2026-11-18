@@ -583,6 +583,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorSelf, Detail: "requireOperatorPrincipal; records answers to Needs Input questions on a planning session and does not approve"},
 		{Pattern: "POST /v1/planning-sessions/{sessionID}/compute",
 			Decision: DecisionOperatorSelf, Detail: "requireOperatorPrincipal; checks the owner's Accept gate; package compute remains unconfigured, and does not approve"},
+		{Pattern: "POST /v1/planning-sessions/{sessionID}/turns/{runID}/cancel",
+			Decision: DecisionOperatorSelf, Detail: "requireOperatorPrincipal; owner-verified exact logical turn fence; does not undo recorded state, cancel accepted compute or approve"},
 		{Pattern: "POST /v1/planning-sessions/{sessionID}/turns",
 			Decision: DecisionOperatorSelf, Detail: "requireOperatorPrincipal; runs one planning turn to inspect the repository, ask Needs Input, or write a plan, and does not start compute or approve"},
 		{Pattern: "POST /v1/plans",

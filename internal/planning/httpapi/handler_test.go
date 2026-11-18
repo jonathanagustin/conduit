@@ -20,10 +20,11 @@ func TestPlanningRoutesRequireAnOperator(t *testing.T) {
 	mux := http.NewServeMux()
 	Register(mux, Config{Service: application.NewService(nil)})
 	for _, route := range []string{
-		ListRoute, CreateRoute, GetRoute, TurnRoute, AnswerRoute, AcceptRoute, BindingRoute, EventsRoute, ComputeRoute,
+		ListRoute, CreateRoute, GetRoute, TurnRoute, AnswerRoute, AcceptRoute, BindingRoute, EventsRoute, ComputeRoute, CancelTurnRoute,
 	} {
 		method, path, _ := strings.Cut(route, " ")
 		path = strings.ReplaceAll(path, "{sessionID}", "ps_missing")
+		path = strings.ReplaceAll(path, "{runID}", "run_missing")
 		response := httptest.NewRecorder()
 		mux.ServeHTTP(response, httptest.NewRequest(method, path, nil))
 		if response.Code != http.StatusUnauthorized {

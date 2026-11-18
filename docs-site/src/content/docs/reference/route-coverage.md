@@ -5,7 +5,7 @@ description: The shipped route and authorization register, including explicit na
 
 Generated from `internal/hub/composition/authorization.go`; this is a route and access-decision inventory, not a substitute for request/response schemas. Compatibility adapter paths are listed by their shipped names; this does not claim a private upstream protocol. The [native API reference](/conduit/reference/native-api/) renders the available schemas. [#391](https://github.com/jonathanagustin/conduit/issues/391) owns the uncontracted remainder.
 
-263 registered patterns; 27 match a native OpenAPI operation. These counts are generated, and include method-not-allowed fallback patterns. Protobuf methods are documented separately and are not counted as additional REST schemas.
+264 registered patterns; 28 match a native OpenAPI operation. These counts are generated, and include method-not-allowed fallback patterns. Protobuf methods are documented separately and are not counted as additional REST schemas.
 
 | Registered route | Access decision | Native OpenAPI contract |
 | --- | --- | --- |
@@ -238,6 +238,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `POST /v1/planning-sessions/{sessionID}/answers` | `operator-self` | [api/planning-sessions.yaml](https://github.com/jonathanagustin/conduit/blob/main/api/planning-sessions.yaml) |
 | `POST /v1/planning-sessions/{sessionID}/compute` | `operator-self` | [api/planning-sessions.yaml](https://github.com/jonathanagustin/conduit/blob/main/api/planning-sessions.yaml) |
 | `POST /v1/planning-sessions/{sessionID}/turns` | `operator-self` | [api/planning-sessions.yaml](https://github.com/jonathanagustin/conduit/blob/main/api/planning-sessions.yaml) |
+| `POST /v1/planning-sessions/{sessionID}/turns/{runID}/cancel` | `operator-self` | [api/planning-sessions.yaml](https://github.com/jonathanagustin/conduit/blob/main/api/planning-sessions.yaml) |
 | `POST /v1/plans` | `operator-grant` | No native schema |
 | `POST /v1/plans/{planID}/approvals` | `operator-grant` | No native schema |
 | `POST /v1/plans/{planID}/cancel` | `operator-grant` | No native schema |

@@ -49,12 +49,18 @@ explicit unavailable state.
 ## Cancellation and evidence boundary
 
 Listing, paging and opening a link do not invoke a model, approve a Plan or
-cancel a run. Stop still interrupts browser reading only. Hub-side cancellation
-and durable execution fencing remain unfinished in #820.
+cancel a run. Stop still interrupts browser reading only. Browser integration and development
+store cancellation remain unfinished in #820.
 
 The workflow backend now accepts `planning.CancelTurn` for a nonempty logical
 turn `runId` and the verified session owner. This is a native backend primitive;
-the HTTP transport and browser Stop do not yet use it. Existing updates without
+`POST /v1/planning-sessions/{sessionID}/turns/{runID}/cancel` now exposes it
+through the generated contract and owner-scoped production workflow service. The
+agent stream binds its logical run id to turns and answers; cancellation before
+an answer prevents that write, while an already committed answer is retained.
+The request has no owner selector and refuses nonempty unknown body fields.
+Unsupported development stores return 501; unavailable or invalid/mismatched
+acknowledgements return 502. Browser Stop does not yet call this route. Existing updates without
 a logical run id retain their behavior and cannot be cancelled by guessing one.
 Cancellation of an unseen id records a tombstone before a turn can begin. A
 running turn returns `cancellation_requested` after its fence is recorded and

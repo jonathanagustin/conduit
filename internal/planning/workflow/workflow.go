@@ -80,6 +80,7 @@ type TurnRequest struct {
 type AnswerRequest struct {
 	Actor   string          `json:"actor,omitempty"`
 	Answers []domain.Answer `json:"answers"`
+	RunID   string          `json:"runId,omitempty"`
 }
 
 // AcceptRequest is the payload for UpdateAccept.
@@ -213,6 +214,14 @@ func SessionWorkflow(ctx workflow.Context, in Input) (*domain.Session, error) {
 				return nil, err
 			}
 			defer mutex.Unlock()
+			if req.RunID != "" {
+				if state := runs.states[req.RunID]; state != "" {
+					if state == "cancelled" || state == "cancellation_requested" {
+						return nil, turnRunError(ErrTypeRunCancelled, domain.ErrRunCancelled.Error())
+					}
+					return nil, turnRunError(ErrTypeRunConflict, domain.ErrRunConflict.Error())
+				}
+			}
 			updated, ansErr := handleAnswer(ctx, session, req)
 			if ansErr != nil {
 				return nil, ansErr
@@ -224,6 +233,9 @@ func SessionWorkflow(ctx workflow.Context, in Input) (*domain.Session, error) {
 		},
 		workflow.UpdateHandlerOptions{
 			Validator: func(ctx workflow.Context, req AnswerRequest) error {
+				if err := validateTurnRunID(req.RunID, true); err != nil {
+					return err
+				}
 				if err := checkActor(in.Actor, req.Actor); err != nil {
 					return err
 				}
@@ -709,6 +721,12 @@ func MapWorkflowError(err error) error {
 			return domain.ErrAlreadyAccepted
 		case ErrTypeAuditFailed:
 			return fmt.Errorf("record the planning.accept audit event: %s", appErr.Message())
+		case ErrTypeRunCancelled:
+			return domain.ErrRunCancelled
+		case ErrTypeRunConflict:
+			return domain.ErrRunConflict
+		case ErrTypeRunCapacity:
+			return domain.ErrRunCapacity
 		case ErrTypeForbidden:
 			return domain.ErrNotFound
 		case ErrTypeBadInput:

@@ -1,8 +1,6 @@
 package workflow
 
 import (
-	"strings"
-
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 
@@ -28,11 +26,7 @@ type CancelTurnRequest struct {
 
 // CancelTurnReceipt distinguishes a persisted fence from a finished turn handler.
 // Cancellation does not undo a previously committed turn, answer or acceptance.
-type CancelTurnReceipt struct {
-	RunID     string `json:"runId"`
-	State     string `json:"state"`
-	ValueTier string `json:"valueTier"`
-}
+type CancelTurnReceipt = domain.TurnCancellationReceipt
 
 type turnRuns struct {
 	states map[string]string
@@ -134,7 +128,7 @@ func validateTurnRunID(id string, legacy bool) error {
 	if legacy && id == "" {
 		return nil
 	}
-	if id == "" || id != strings.TrimSpace(id) || len(id) > 256 || strings.ContainsAny(id, "\r\n\x00") {
+	if !domain.ValidTurnRunID(id) {
 		return turnRunError(ErrTypeBadInput, "invalid planning run id")
 	}
 	return nil
