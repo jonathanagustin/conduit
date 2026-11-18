@@ -192,3 +192,152 @@ test("evaluation runs retain audit identity and separate recorded gate results f
     decision: "ALLOW",
   });
 });
+
+test("course selection binds a reviewed visible target and refuses ungranted callers", async ({
+  page,
+  browser,
+}) => {
+  await page.goto("./#ai04-courses");
+  const form = page.locator("[data-intel-stage]");
+  await expect(form).toBeVisible();
+  const target = form.locator('[name="target"]');
+  await expect(target.locator("option")).not.toHaveCount(0);
+  const [environment, installationId, productId] = JSON.parse(
+    await target.inputValue(),
+  ) as string[];
+  expect(environment).not.toBe("");
+  expect(installationId).not.toBe("");
+  expect(productId).not.toBe("");
+  const value = form.locator('[name="value"]');
+  await expect(value.locator('option[value="coa-8gi"]')).toBeDisabled();
+  await value.selectOption("coa-1gi");
+  const confirm = form.locator("[data-intel-confirm]");
+  const create = form.locator("[data-intel-create]");
+  await expect(create).toBeDisabled();
+  const readRequests = async () => {
+    const response = await page.request.get(
+      new URL("/v1/change-requests?limit=200", page.url()).toString(),
+    );
+    expect(response.ok()).toBe(true);
+    const body = await response.json();
+    expect(Array.isArray(body.changeRequests)).toBe(true);
+    return body.changeRequests.map((row: { id: string }) => row.id).sort();
+  };
+  const before = await readRequests();
+  const writes: unknown[] = [];
+  page.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/v1/intelligence/courses/select"
+    )
+      writes.push(request.postDataJSON());
+  });
+  await form.evaluate((node) =>
+    node.dispatchEvent(
+      new Event("submit", { bubbles: true, cancelable: true }),
+    ),
+  );
+  expect(await readRequests()).toEqual(before);
+  expect(writes).toHaveLength(0);
+  const endpoint = new URL(
+    "/v1/intelligence/courses/select",
+    page.url(),
+  ).toString();
+  const blocked = await page.request.post(endpoint, {
+    headers: { "X-Conduit-CSRF": "1" },
+    data: {
+      Value: "8Gi",
+      Environment: environment,
+      InstallationID: installationId,
+      ProductID: productId,
+    },
+  });
+  expect(blocked.status()).toBe(422);
+  expect(await readRequests()).toEqual(before);
+  await confirm.check();
+  await expect(create).toBeEnabled();
+  await value.selectOption("coa-512");
+  await expect(confirm).not.toBeChecked();
+  await expect(create).toBeDisabled();
+  await value.selectOption("coa-1gi");
+  await confirm.check();
+  const completed = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/v1/intelligence/courses/select",
+  );
+  await create.click();
+  const response = await completed;
+  expect(response.status()).toBe(200);
+  const receipt = await response.json();
+  expect(receipt).toMatchObject({
+    valueTier: "CONDUIT_NATIVE",
+    label: "No model call",
+    environment,
+    installationId,
+    productId,
+    value: "1Gi",
+    status: "PENDING_APPROVALS",
+  });
+  expect(receipt.changeRequestId).toMatch(/^crq_[0-9a-f]+$/);
+  expect(writes).toEqual([
+    {
+      Value: "1Gi",
+      Environment: environment,
+      InstallationID: installationId,
+      ProductID: productId,
+    },
+  ]);
+  const storedResponse = await page.request.get(
+    new URL(
+      `/v1/change-requests/${receipt.changeRequestId}`,
+      page.url(),
+    ).toString(),
+  );
+  expect(storedResponse.ok()).toBe(true);
+  const stored = await storedResponse.json();
+  expect(stored).toMatchObject({
+    author: { username: "operator" },
+    environment,
+    targetKind: "CONDUIT_NATIVE_INTELLIGENCE_COURSE",
+    status: "PENDING_APPROVALS",
+  });
+  expect(stored.changes).toHaveLength(1);
+  expect(stored.changes[0]).toMatchObject({
+    installationId,
+    type: "UPDATE_ENTITY",
+    request: { memory: "1Gi" },
+    diff: { "limits.memory": { after: "1Gi" } },
+  });
+  expect(await readRequests()).toEqual(
+    [...before, receipt.changeRequestId].sort(),
+  );
+  await expect(form.locator("[data-intel-note]")).toContainText(
+    receipt.changeRequestId,
+  );
+  await expect(form.locator("[data-intel-note]")).toContainText(
+    "applied no workload change",
+  );
+  await expect(confirm).not.toBeChecked();
+  await expect(create).toBeDisabled();
+  const outsider = await browser.newContext({
+    extraHTTPHeaders: { "X-Platform-Subject": "ungranted-course-caller" },
+  });
+  try {
+    const refused = await outsider.request.post(endpoint, {
+      headers: { "X-Conduit-CSRF": "1" },
+      data: {
+        Value: "1Gi",
+        Environment: environment,
+        InstallationID: installationId,
+        ProductID: productId,
+      },
+    });
+    expect(refused.status()).toBe(403);
+    expect(await readRequests()).toEqual(
+      [...before, receipt.changeRequestId].sort(),
+    );
+  } finally {
+    await outsider.close();
+  }
+});
