@@ -125,15 +125,34 @@ func (service *Service) Propose(ctx context.Context, actor controlplane.Principa
 		service.pending = map[string]pending{}
 	}
 	governanceService := service.governance()
-	request, err := governanceService.ProposeHumanChange(ctx, "ROLLOUT", id, rollout.Waves[0].Environments[0], []controlplane.EntityChange{{
-		ID: action, Type: controlplane.ChangeTypeUpdateEntity, InstallationID: id,
-		Request: map[string]any{"action": action, "rollout": id},
-		ReferencedResources: map[string]controlplane.ReferencedResource{
-			"environment":  {RID: "environment/" + rollout.Waves[0].Environments[0], Name: rollout.Waves[0].Environments[0]},
-			"installation": {RID: "installation/" + id, Name: id},
-			"product":      {RID: "product/" + rollout.Product, Name: rollout.Product},
-		},
-	}}, actor, "Rollout "+action+" "+id, action+" "+rollout.Product+" "+rollout.Version)
+	// The request Environment remains an index anchor. Policies evaluate a
+	// distinct native change for every affected Environment.
+	changes := make([]controlplane.EntityChange, 0)
+	seen := map[string]bool{}
+	for _, wave := range rollout.Waves {
+		for _, environment := range wave.Environments {
+			if environment == "" {
+				return Result{}, fmt.Errorf("rollout contains an empty Environment")
+			}
+			if seen[environment] {
+				continue
+			}
+			seen[environment] = true
+			changes = append(changes, controlplane.EntityChange{
+				ID: action + ":" + environment, Type: controlplane.ChangeTypeUpdateEntity, InstallationID: id,
+				Request: map[string]any{"action": action, "rollout": id},
+				ReferencedResources: map[string]controlplane.ReferencedResource{
+					"environment":  {RID: "environment/" + environment, Name: environment},
+					"installation": {RID: "installation/" + id, Name: id},
+					"product":      {RID: "product/" + rollout.Product, Name: rollout.Product},
+				},
+			})
+		}
+	}
+	if len(changes) == 0 {
+		return Result{}, fmt.Errorf("rollout has no target Environments")
+	}
+	request, err := governanceService.ProposeHumanChange(ctx, "ROLLOUT", id, changes[0].ReferencedResources["environment"].Name, changes, actor, "Rollout "+action+" "+id, action+" "+rollout.Product+" "+rollout.Version)
 	if err != nil {
 		return Result{}, err
 	}
@@ -164,10 +183,14 @@ func (service *Service) Approve(ctx context.Context, approver controlplane.Princ
 		return Result{Reason: "the author cannot approve their own change request", AuditID: auditID}, nil
 	}
 	governanceService := service.governance()
-	if _, _, err := governanceService.Approve(ctx, changeID, approver, rationale); err != nil {
+	request, _, err := governanceService.Approve(ctx, changeID, approver, rationale)
+	if err != nil {
 		return Result{}, err
 	}
 	rollout := service.rollouts[item.rolloutID]
+	if request.Status != controlplane.ChangeApproved || !request.RequirementsSatisfied {
+		return Result{Reason: "rollout review recorded; native approval requirements remain pending", Status: rollout.Status, Rollout: rollout, ChangeRequestID: changeID}, nil
+	}
 	var reason string
 	switch item.action {
 	case "start", "resume":
