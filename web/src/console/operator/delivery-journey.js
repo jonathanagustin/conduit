@@ -599,7 +599,7 @@ export function promotionMarkup(hub, panel) {
         version,
       )}</select></label>
     </div>
-    <p class="kit-muted" data-dj-evidence>${evidence.length ? `${evidence.length} reported installation(s) at this version will be submitted as health evidence.` : "No loaded installation reports this version, so no health evidence will be submitted."} Healthy-since times are not in the fleet index and are not sent.</p>
+    <p class="kit-muted" data-dj-evidence>${evidence.length ? `${evidence.length} reported installation(s) at this version will be submitted as health evidence.` : "No loaded installation reports this version, so no health evidence will be submitted."} Only the reported observation instant is credited; no earlier healthy duration is inferred.</p>
     ${releases.length ? "" : `<p role="status" data-dj-no-release>The Hub's catalog lists no release for ${esc(stage.product)}.</p>`}
     ${capabilityNote(gate, esc)}
     ${off ? "" : `<div class="so-actions"><button type="button" class="so-btn so-btn-primary" data-dj-review="promote"${dis(!releases.length || capabilityBlocks(gate))}${capabilityTitle(gate, esc)}>Review evaluation</button></div>`}

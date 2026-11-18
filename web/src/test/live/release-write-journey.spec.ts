@@ -365,6 +365,126 @@ test("a promotion the Hub blocks is shown as blocked, with its reasons", async (
   expect(after.every((row) => row.status === "BLOCKED")).toBe(true);
 });
 
+test("a reviewed promotion passes on actual reported healthy installations", async ({
+  page,
+}) => {
+  await openWorkbench(page);
+  const catalog = await read<{
+    products: { product: string; releases: any[] }[];
+  }>(page, "/v1/products?limit=20");
+  const releases = catalog.products.find(
+    (row) => row.product === API_PRODUCT,
+  )!.releases;
+  let healthy: any;
+  await expect
+    .poll(
+      async () => {
+        const fleet = await read<{ installations: any[] }>(
+          page,
+          "/v1/fleet/installations?limit=200",
+        );
+        healthy = fleet.installations.find(
+          (row) =>
+            row.product === API_PRODUCT &&
+            row.health === "HEALTHY" &&
+            releases.some((release) => release.version === row.observedVersion),
+        );
+        return healthy?.observedVersion || "";
+      },
+      {
+        message: "the simulated Agent must report a real healthy installation",
+      },
+    )
+    .not.toBe("");
+  const release = releases.find(
+    (row) => row.version === healthy.observedVersion,
+  )!;
+  const toChannel = `LIVE_${stamp.toUpperCase()}`;
+  const policy = {
+    minimumHealthyEntities: 1,
+    maximumUnhealthyEntities: 0,
+    minimumHealthyDurationSeconds: 0,
+  };
+  // Policy setup is deliberately BLOCKED: no successful promotion is seeded.
+  const seeded = await send(
+    page.request,
+    hubURL(page, "/v1/promotions/evaluations"),
+    "POST",
+    "operator",
+    { release, fromChannel: "DEV", toChannel, policy, evidence: [] },
+  );
+  expect(seeded.status).toBe("BLOCKED");
+  const recorded = async () =>
+    (
+      await read<{ promotions: any[] }>(page, "/v1/promotions")
+    ).promotions.filter(
+      (row) => row.product === API_PRODUCT && row.toChannel === toChannel,
+    );
+  const before = await recorded();
+  expect(before).toHaveLength(1);
+  expect(before[0].status).toBe("BLOCKED");
+  await page.reload();
+  await expect(page.locator("#left-nav")).toBeVisible();
+  await openArea(page, "Releases", "Promotion");
+  const panel = page.locator('#main-workspace [data-dj-panel="promote"]');
+  await panel
+    .locator('[data-dj-field="stage"]')
+    .selectOption(`${API_PRODUCT}\nDEV\n${toChannel}`);
+  await panel
+    .locator('[data-dj-field="version"]')
+    .selectOption(release.version);
+  await expect(panel.locator("[data-dj-evidence]")).toContainText(
+    "reported installation(s)",
+  );
+  expect((await recorded()).map((row) => row.id)).toEqual(
+    before.map((row) => row.id),
+  );
+  await panel.locator("[data-dj-review]").click();
+  await expect(panel.locator("[data-dj-request]")).toContainText(
+    "POST /v1/promotions/evaluations",
+  );
+  expect((await recorded()).map((row) => row.id)).toEqual(
+    before.map((row) => row.id),
+  );
+  const submitted = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/v1/promotions/evaluations",
+  );
+  await panel.locator("[data-dj-confirm]").click();
+  const body = (await submitted).postDataJSON();
+  expect(body.release.product).toBe(API_PRODUCT);
+  expect(body.release.version).toBe(release.version);
+  expect(body.fromChannel).toBe("DEV");
+  expect(body.toChannel).toBe(toChannel);
+  expect(body.policy).toEqual(policy);
+  expect(body.evidence).toContainEqual(
+    expect.objectContaining({
+      environment: healthy.environment,
+      installationId: healthy.installationId,
+      health: "HEALTHY",
+    }),
+  );
+  const outcome = panel.locator("[data-dj-outcome]");
+  await expect(outcome).toHaveAttribute("data-dj-outcome", "ok");
+  await expect(outcome).toContainText("PASSED");
+  const after = await recorded();
+  const passed = after.find((row) => row.status === "PASSED");
+  expect(passed).toBeDefined();
+  expect(passed.version).toBe(release.version);
+  expect(passed.fromChannel).toBe("DEV");
+  expect(passed.toChannel).toBe(toChannel);
+  expect(passed.policy).toEqual(policy);
+  expect(passed.evidence).toHaveLength(body.evidence.length);
+  expect(passed.evidence).toEqual(
+    expect.arrayContaining(
+      body.evidence.map((entry: any) => expect.objectContaining(entry)),
+    ),
+  );
+  expect(passed.id).not.toBe(seeded.id);
+  await expect(outcome).toContainText(passed.id);
+});
+
 test("the Space selector scopes environments at the Hub", async ({ page }) => {
   await openWorkbench(page);
   const space = (await send(

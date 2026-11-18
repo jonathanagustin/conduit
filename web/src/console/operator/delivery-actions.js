@@ -552,8 +552,9 @@ export function promotionStages(plans, promotions) {
 
 /**
  * Health evidence for one release: the reported installations running that
- * exact version. healthySince is not in the fleet index, so it is not sent;
- * a stage that needs a healthy duration is blocked by the Hub, not guessed.
+ * exact version. The fleet index proves health at observedAt only. A healthy
+ * report therefore carries a zero-length held interval: healthySince equals
+ * observedAt. No earlier health or positive soak duration is inferred.
  */
 export function promotionEvidence(installations, release) {
   return list(installations)
@@ -569,6 +570,9 @@ export function promotionEvidence(installations, release) {
       installationId: row.installationId,
       health: row.health,
       ...(text(row.observedAt) ? { observedAt: row.observedAt } : {}),
+      ...(row.health === "HEALTHY" && text(row.observedAt)
+        ? { healthySince: row.observedAt }
+        : {}),
     }));
 }
 
