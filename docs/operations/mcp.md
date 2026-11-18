@@ -10,12 +10,13 @@ Conduit has two Model Context Protocol servers. Both are read-only.
 Both are built on `github.com/modelcontextprotocol/go-sdk` v1.8.0, which the
 repository already depended on. No dependency was added.
 
-**Client compatibility.** The servers have been driven by two clients, both
-in this repository's tests: a hand-written JSON-RPC test client, and the Go
-SDK's own client. No third-party MCP client (an IDE, a desktop assistant, an
-agent framework) has been run against either server. The configuration
-examples below follow the common client configuration shape and are
-**unverified** against any specific product.
+**Client compatibility.** The local packaging stdio server has also been driven
+by the official MCP Inspector CLI **2.15.0**, outside this repository's test
+clients; see the [recorded Inspector session](#recorded-inspector-stdio-session).
+The Hub HTTP endpoint is covered by the repository's JSON-RPC and Go SDK test
+clients. Inspector against the Hub, IDEs, desktop assistants and external agent
+frameworks remain unqualified. The generic product configuration examples below
+are **unverified** against any specific product.
 
 ## Hub endpoint
 
@@ -250,6 +251,33 @@ Generic stdio client configuration, unverified against any specific client:
 
 The stdio behavior above is tested against a real child process over its
 standard input and output in `cmd/packaging-mcp/main_test.go`.
+
+## Recorded Inspector stdio session
+
+The [November 18 record](../evidence/mcp/inspector-2.15.0-stdio-2026-11-18/receipt.json)
+pins the official `@modelcontextprotocol/inspector` 2.15.0 archive integrity,
+dependency lock, server source/tree and binary digest. It retains exact CLI
+arguments, stdout, stderr and exit codes. The server was compiled locally from
+`48bb0bf6e49b9919bcba07ce105c8bbacb1f4a9c`; that commit changes only CI relative
+to main `e6cd1c07`, with identical packaging server source. No binary is committed.
+
+Inspector listed all six tools with a bound disposable fixture and four without
+a repository, omitting `inspect_repo` and `read_file` when unbound. A `read_file`
+call returned the synthetic README and its independently checked SHA-256.
+Traversal and symlink escape requests both returned `isError: true`, no outside
+content and CLI exit code 5. The successful list/read calls exited 0.
+
+Inspector's strict schema check exited 0 with **zero errors and nine portability
+warnings**: nullable array types in four output schemas are legal JSON Schema
+but may need adaptation for a client's model-provider schema dialect. Those
+warnings are retained, not suppressed; this session does not establish Gemini
+or any other model-provider compatibility.
+
+Run Inspector with `MCP_INSPECTOR_SECRET_STORE=memory` and a read-only `--config`
+file naming the local binary and its `--repo` argument. The record's README
+contains the commands. No credentials were supplied, no model or image-registry
+tool was called, and no Hub HTTP endpoint, issuer, mesh or deployed workload was
+involved. This qualifies the local stdio client/transport pair only.
 
 ## What is not here
 
