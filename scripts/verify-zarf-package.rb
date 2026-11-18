@@ -33,6 +33,10 @@ end
 # They are test sentinels, not legacy package variables. Native parity separately
 # compares real Zarf output; unsupported template expressions fail this helper.
 symbols = variables.to_h { |item| [item.fetch("name"), "###ZARF_VAR_#{item.fetch('name')}###"] }
+# A UDS network port is a typed integer, not a quoted symbolic placeholder.
+# Namespace/selector bindings remain distinct and the native parity gate tests
+# the operator-provided port and sampling types.
+symbols["TRACING_COLLECTOR_PORT"] = 4318
 properties.fetch("rendered").fetch("properties").each_key { |name| symbols[name] = "###ZARF_VAR_#{name}###" }
 image_symbols = bindings.to_h { |name, _| [name, "###ZARF_CONST_#{name}###"] }
 render = ->(text, metrics = false) { ConduitZarfRuntimeValues.render(text, symbols.merge("UDS_METRICS" => metrics), image_symbols) }

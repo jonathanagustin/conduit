@@ -76,3 +76,11 @@ MODEL_SERVICE_NAMESPACE: conduit-model-unconfigured
 MODEL_SERVICE_NAME_LABEL: conduit-model-unconfigured
 UDS_METRICS: false
 rendered: {}
+
+# Opt-in HTTPS collector; no endpoint leaves both binaries and egress inert.
+TRACING_OTLP_HTTP_ENDPOINT: ''
+TRACING_SAMPLE_RATIO: 0.01
+TRACING_CA_CONFIGMAP: ''
+TRACING_COLLECTOR_NAMESPACE: ''
+TRACING_COLLECTOR_NAME_LABEL: ''
+TRACING_COLLECTOR_PORT: 4318

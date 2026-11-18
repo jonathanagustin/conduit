@@ -13,10 +13,12 @@ import (
 	"github.com/jonathanagustin/conduit/internal/hub/ratelimit"
 	metricsapplication "github.com/jonathanagustin/conduit/internal/observability/application"
 	observability "github.com/jonathanagustin/conduit/internal/observability/domain"
+	traceports "github.com/jonathanagustin/conduit/internal/observability/ports"
 )
 
 // RequestObservation is what ObserveRequests records into.
 type RequestObservation struct {
+	Tracer traceports.Tracer
 	// Recorder holds the request counters. Build it with NewRequestRecorder so
 	// it knows the Hub's routes and no others.
 	Recorder *metricsapplication.HTTPRecorder
@@ -128,7 +130,8 @@ func ObserveRequests(hub http.Handler, options controlplane.HandlerOptions, obse
 
 		// The caller's trace when it sent a well-formed one, otherwise a new
 		// one. Either way this request is a span of its own within it.
-		trace, inherited := observability.ParseTraceparent(request.Header.Get(observability.TraceparentHeader))
+		parentTrace, inherited := observability.ParseTraceparent(request.Header.Get(observability.TraceparentHeader))
+		trace := parentTrace
 		if inherited {
 			trace = trace.Child()
 		} else {
@@ -144,6 +147,12 @@ func ObserveRequests(hub http.Handler, options controlplane.HandlerOptions, obse
 
 		caller := &callerClassNote{}
 		ctx := observability.ContextWithTrace(request.Context(), trace)
+		var span traceports.Span
+		if observation.Tracer != nil {
+			ctx, span = observation.Tracer.Start(request.Context(), traceports.HubRequest, parentTrace)
+			trace, _ = observability.TraceFromContext(ctx)
+		}
+
 		ctx = context.WithValue(ctx, callerClassKey{}, caller)
 		request = request.WithContext(ctx)
 
@@ -189,6 +198,10 @@ func ObserveRequests(hub http.Handler, options controlplane.HandlerOptions, obse
 			default:
 				recorder.Finish(route, request.Method, observed.statusOrDefault(), duration)
 				line("request", accessLogLevel(route, observed.statusOrDefault()), duration)
+			}
+			if span != nil {
+				span.HTTP(route, request.Method, observed.statusOrDefault())
+				span.End(failure != nil || observed.statusOrDefault() >= 500)
 			}
 			if failure != nil {
 				panic(failure)

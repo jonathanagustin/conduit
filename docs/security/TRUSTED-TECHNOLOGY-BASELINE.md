@@ -13,6 +13,7 @@ reconciler.
 | Vulnerability evidence | Provider-neutral normalized assessment; optional Grype adapter | Scanner engine, database freshness, credentials, exceptions, and scheduling |
 | Kubernetes delivery | Helm execution by the outbound Spoke; Flux and Zarf distribution assets | Cluster bootstrap, operators, namespaces, credentials, and admission policy |
 | Secrets | Opaque provider references and bounded external material-preparer calls | Secret values, provider authentication, KMS policy, and materialization |
+| Distributed tracing | Optional official OpenTelemetry Go SDK with OTLP/HTTP behind a tenant-free export allowlist; [ADR 0018](../decisions/0018-tracing.md) | Collector endpoint, TLS roots, network policy, retention, access control and sampling |
 
 Repository presence proves an integration surface, not production enablement.
 Before relying on one of these controls, verify its pinned version or digest,

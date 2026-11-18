@@ -573,6 +573,13 @@
       "why": "The generic assistant PLAN intent records had no executor and could not safely authorize a later worker mutation. Existing Conduit packaging controls establish the implementation and audit boundary; no Apollo assistant execution contract is present. Unsupported actions are removed from the assistant schema rather than advertised as inert writes.",
       "displacedBy": "a published or authorized sanitized assistant action execution contract covering run binding, approval, command receipts and recovery.",
       "riskIfWrong": "Moderate within Conduit: clients must adapt to the smaller action allowlist and unsupported writes now return TOOL_INVALID. Unattended dispatch requires current server-owned membership and refuses delegated or group-only author authority. Repeated cancellation requests are idempotent worker requests, not a claim of exactly-once external effects or completed termination."
+    },
+    {
+      "id": "observability.PlanDecisionTrace",
+      "what": "Optional native PlanRecord decisionTraceparent, lease-span links and Agent execution parentage outside Plan identity.",
+      "why": "W3C trace context and OTLP define telemetry transport, not Conduit Plan persistence or asynchronous polling linkage. The maintainer selected this opt-in native design in ADR 0018.",
+      "displacedBy": "A published or sanitized protocol defining persisted Plan decision trace context and asynchronous lease linkage.",
+      "riskIfWrong": "A different downstream trace-link contract would need a versioned diagnostic metadata adaptation; tracing must never change Plan identity or authority."
     }
   ],
   "displaced": [

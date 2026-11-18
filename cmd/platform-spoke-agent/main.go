@@ -15,6 +15,8 @@ import (
 
 	"github.com/jonathanagustin/conduit/internal/agent"
 	"github.com/jonathanagustin/conduit/internal/buildinfo"
+	tracinghttp "github.com/jonathanagustin/conduit/internal/observability/adapters/otlphttp"
+	traceports "github.com/jonathanagustin/conduit/internal/observability/ports"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 )
 
@@ -35,6 +37,15 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	traceRecorder, traceErr := tracinghttp.New(ctx, os.Getenv, "conduit-agent", nil)
+	if traceErr != nil {
+		slog.Error("configure tracing", "error", traceErr)
+		os.Exit(1)
+	}
+	defer func() { _ = traceRecorder.Shutdown() }()
+	if traceRecorder != nil {
+		ctx = traceports.ContextWithTracer(ctx, traceRecorder)
+	}
 	slog.Info("starting platform Spoke agent", "version", buildinfo.Version, "commit", buildinfo.Commit)
 	controlPlaneURL := requiredEnvironment("CONTROL_PLANE_URL")
 	environment := requiredEnvironment("ENVIRONMENT_ID")
@@ -111,6 +122,9 @@ func main() {
 		ControlPlane: client,
 		Executor:     executor,
 		Environment:  environment, AgentID: agentID, LeaseDuration: leaseDuration,
+	}
+	if traceRecorder != nil {
+		worker.Tracer = traceRecorder
 	}
 	attachMaterialPreparer(&executor, &worker, materialPreparer)
 	// Helm stays the executor for every step that names no artifact kind, as

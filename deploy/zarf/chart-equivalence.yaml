@@ -145,6 +145,22 @@ profiles:
 # No new allowlist: these settings must agree with the corresponding typed
 # chart values exactly. Fixture object names are not deployment defaults.
 operationalProfiles:
+  file-tracing:
+    baseProfile: file
+    zarfVariables:
+      TRACING_OTLP_HTTP_ENDPOINT: https://collector.observability.svc:4318/v1/traces
+      TRACING_SAMPLE_RATIO: 0.25
+      TRACING_CA_CONFIGMAP: collector-ca
+      TRACING_COLLECTOR_NAMESPACE: observability
+      TRACING_COLLECTOR_NAME_LABEL: collector
+      TRACING_COLLECTOR_PORT: 4318
+    hubValues:
+      tracing: &tracing-values
+        endpoint: https://collector.observability.svc:4318/v1/traces
+        sampleRatio: 0.25
+        caConfigMap: {name: collector-ca, key: ca.pem}
+    spokeValues:
+      tracing: *tracing-values
   postgres-webhook:
     baseProfile: postgres
     zarfVariables:

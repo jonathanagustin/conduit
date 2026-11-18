@@ -512,6 +512,44 @@
           "then": {"properties": {"baseURL": {"pattern": "^http://"}}}
         }
       ]
+    },
+    "tracing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "endpoint",
+        "sampleRatio",
+        "caConfigMap"
+      ],
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "pattern": "^$|^https://[^/?#@\\s]+(?:/[^?#\\s]*)?$",
+          "maxLength": 2048
+        },
+        "sampleRatio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "caConfigMap": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "key"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
     }
   },
   "allOf": [

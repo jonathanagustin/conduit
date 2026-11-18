@@ -169,6 +169,24 @@ spec:
         remoteNamespace: {{ .Values.MODEL_SERVICE_NAMESPACE | toString | toJson }}
         remoteSelector:
           app.kubernetes.io/name: {{ .Values.MODEL_SERVICE_NAME_LABEL | toString | toJson }}
+      {{ if .Values.TRACING_OTLP_HTTP_ENDPOINT }}
+      - description: Hub to the configured trace collector
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-delivery
+        remoteNamespace: {{ .Values.TRACING_COLLECTOR_NAMESPACE | toString | toJson }}
+        remoteSelector:
+          app.kubernetes.io/name: {{ .Values.TRACING_COLLECTOR_NAME_LABEL | toString | toJson }}
+        port: {{ .Values.TRACING_COLLECTOR_PORT }}
+      - description: Spoke to the configured trace collector
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-spoke-agent
+        remoteNamespace: {{ .Values.TRACING_COLLECTOR_NAMESPACE | toString | toJson }}
+        remoteSelector:
+          app.kubernetes.io/name: {{ .Values.TRACING_COLLECTOR_NAME_LABEL | toString | toJson }}
+        port: {{ .Values.TRACING_COLLECTOR_PORT }}
+      {{ end }}
       - description: Spoke to the Kubernetes API
         direction: Egress
         selector:
@@ -403,6 +421,24 @@ spec:
         remoteNamespace: {{ .Values.MODEL_SERVICE_NAMESPACE | toString | toJson }}
         remoteSelector:
           app.kubernetes.io/name: {{ .Values.MODEL_SERVICE_NAME_LABEL | toString | toJson }}
+      {{ if .Values.TRACING_OTLP_HTTP_ENDPOINT }}
+      - description: Hub to the configured trace collector
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-delivery
+        remoteNamespace: {{ .Values.TRACING_COLLECTOR_NAMESPACE | toString | toJson }}
+        remoteSelector:
+          app.kubernetes.io/name: {{ .Values.TRACING_COLLECTOR_NAME_LABEL | toString | toJson }}
+        port: {{ .Values.TRACING_COLLECTOR_PORT }}
+      - description: Spoke to the configured trace collector
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-spoke-agent
+        remoteNamespace: {{ .Values.TRACING_COLLECTOR_NAMESPACE | toString | toJson }}
+        remoteSelector:
+          app.kubernetes.io/name: {{ .Values.TRACING_COLLECTOR_NAME_LABEL | toString | toJson }}
+        port: {{ .Values.TRACING_COLLECTOR_PORT }}
+      {{ end }}
       - description: Spoke to the Kubernetes API
         direction: Egress
         selector:
