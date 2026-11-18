@@ -348,6 +348,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requireResourceOperation"},
 		{Pattern: "POST /conduit.catalog.v1.ProductReadService/ListProductSummaries",
 			Decision: DecisionOperatorFiltered, Detail: "native operatorClaims + ResolvePrincipal; shared Product visibility before filtering/counting and native summary seek pagination; no write or approval"},
+		{Pattern: "POST /conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries",
+			Decision: DecisionOperatorFiltered, Detail: "native operatorClaims + ResolvePrincipal; shared Environment resource authorization and readable Space membership before pagination/counting; no write or execution"},
 		{Pattern: "GET /v1/products",
 			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal + governance.Authorize(read) per Product row"},
 		{Pattern: "GET /v1/products/{productID}/download-releases",
