@@ -10,6 +10,7 @@ import (
 
 	"github.com/jonathanagustin/conduit/internal/apollographql/adapters/authorizedprojection"
 	"github.com/jonathanagustin/conduit/internal/apollographql/adapters/httpgraphql"
+	"github.com/jonathanagustin/conduit/internal/apollographql/adapters/nativegrouping"
 	graphqlapp "github.com/jonathanagustin/conduit/internal/apollographql/application"
 	graphqlports "github.com/jonathanagustin/conduit/internal/apollographql/ports"
 )
@@ -67,9 +68,29 @@ func registerApolloGraphQL(
 			writeLifecycleError(writer, ErrForbidden)
 			return graphqlports.Sources{}, false
 		}
+		var lookupSpaceID func(context.Context, string, string) (string, error)
+		if configuration.SpaceIDLookup != nil {
+			lookupSpaceID = func(ctx context.Context, kind, id string) (string, error) {
+				return configuration.SpaceIDLookup(ctx, principal, kind, id)
+			}
+		}
 		return graphqlports.Sources{
 			CurrentUser: &graphqlports.CurrentUser{ID: principal.Username},
-			Grouping:    nativeGraphQLGrouping{principal: principal, configuration: configuration, repository: repository, reads: reads},
+			Grouping: nativegrouping.Source{
+				LookupSpaceID: lookupSpaceID,
+				CanReadRoot:   func() bool { return reads("platform/root") },
+				ReadBundleIDs: func(ctx context.Context) ([]string, error) {
+					bundles, err := repository.ListBundles(ctx, "")
+					if err != nil {
+						return nil, err
+					}
+					ids := make([]string, 0, len(bundles))
+					for _, bundle := range bundles {
+						ids = append(ids, bundle.Manifest.ID)
+					}
+					return ids, nil
+				},
+			},
 			// The Apollo projection is nil when its initialization failed. A nil
 			// source refuses its half of the interface rather than taking the
 			// process down, which is the same choice the REST surface makes.
