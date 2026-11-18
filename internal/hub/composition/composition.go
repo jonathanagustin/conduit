@@ -170,6 +170,7 @@ func NewHub(
 	handler = mountPlanSummaryConnect(handler, repository, options)
 	handler = mountPlanApprovalConnect(handler, repository, options)
 	handler = mountProductSummaryConnect(handler, repository, options)
+	handler = mountEnvironmentSummaryConnect(handler, repository, options)
 	handler = mountAdminStatus(handler, repository, options, hubOptions)
 	handler = mountAttachments(handler, repository, options, hubOptions.Attachments)
 	handler = mountAppGenerationWithService(handler, repository, options, appgenService)

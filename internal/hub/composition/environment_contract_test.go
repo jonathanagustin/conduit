@@ -10,8 +10,8 @@ import (
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 )
 
-func TestDeclaredEnvironmentSummaryContractIsNotServed(t *testing.T) {
-	procedure := environmentsconnect.EnvironmentReadServiceListEnvironmentSummariesProcedure
+func TestUnknownEnvironmentSummaryMethodIsNotServed(t *testing.T) {
+	procedure := environmentsconnect.EnvironmentReadServiceListEnvironmentSummariesProcedure + "Unknown"
 	for _, route := range HubRouteAuthorization() {
 		if strings.Contains(route.Pattern, procedure) {
 			t.Fatalf("contract-only method entered authorization register: %s", route.Pattern)

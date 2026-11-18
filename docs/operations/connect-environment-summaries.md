@@ -1,10 +1,12 @@
-# Declared native Environment summary contract
+# Native Environment summary read
 
-Status: contract and generated stubs only. The Hub does not register
-`conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries` yet.
-A generated client or handler constructor does not establish a served RPC or
-an authorization decision. Use REST until #392 supplies an authorized adapter
-and #394 qualifies caller migration. No REST deprecation or fallback is enabled.
+The Hub explicitly registers the POST method
+`conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries` as
+an operator-filtered read. It authenticates before protobuf decoding and uses
+the original resolved principal with the native Environment visibility query.
+Readable Space selection and membership narrow that query; neither grants
+Environment authority. REST remains enabled. #394 owns caller migration;
+no REST deprecation or automatic transport fallback is enabled.
 
 ## Native source and bounded projection
 
@@ -38,15 +40,16 @@ empty pages and missing report evidence. No request body principal may replace
 transport identity. Existing native HTTP statuses must map to typed RPC errors
 without an automatic retry through another transport.
 
-Before registration, #392 needs parity tests over authorized fields, caller
+The adapter's parity tests cover authorized fields and totals, caller
 filtering, Space selection, pagination and refusals, including proof that an
-unregistered method is not served. #394 owns any explicit generated caller and
+unknown method is not served. #394 owns any explicit generated caller and
 REST rollback mode. No Plan, approval, lease, Agent or packaging authority is
 introduced by this read contract.
 
 ## Verification
 
 Pinned buf lint and FILE breaking checks, generated Go/TypeScript drift checks,
-and native reference generation qualify the declaration only. They do not
-qualify an Environment RPC handler, deployed identity, live caller, or runtime
-readiness. Keep that distinction in issue acceptance and release notes.
+and native reference generation qualify the declaration. Actual Hub REST/RPC
+parity tests additionally exercise the registered adapter. Neither establishes
+deployed identity, live caller migration or runtime readiness. Keep that
+distinction in issue acceptance and release notes.

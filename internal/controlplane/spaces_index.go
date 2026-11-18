@@ -1,6 +1,30 @@
 package controlplane
 
-import "net/http"
+import (
+	"context"
+	"errors"
+	"net/http"
+)
+
+var (
+	ErrSpaceMembershipUnavailable = errors.New("native Space index selection is not configured")
+	ErrSpaceMembershipRead        = errors.New("native Space membership could not be read")
+)
+
+// Selection authorization must precede this private membership read.
+func loadIndexSpaceMembership(ctx context.Context, principal Principal, options HandlerOptions, id string) (indexSpace, error) {
+	if id == "" {
+		return indexSpace{}, nil
+	}
+	if options.LoadSpaceIndexMembership == nil {
+		return indexSpace{}, ErrSpaceMembershipUnavailable
+	}
+	membership, err := options.LoadSpaceIndexMembership(ctx, principal, id)
+	if err != nil {
+		return indexSpace{}, ErrSpaceMembershipRead
+	}
+	return indexSpace{id: id, environments: stringSet(membership.EnvironmentIDs), products: stringSet(membership.ProductIDs), bundles: stringSet(membership.BundleIDs)}, nil
+}
 
 // SpaceIndexMembership is private grouping data supplied by trusted composition
 // after the selected Space is readable. It grants no access to any listed ID.
@@ -24,16 +48,16 @@ func selectedIndexSpace(w http.ResponseWriter, r *http.Request, principal Princi
 	if !ok || id == "" {
 		return indexSpace{}, ok
 	}
-	if options.LoadSpaceIndexMembership == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "native Space index selection is not configured"})
-		return indexSpace{}, false
-	}
-	membership, err := options.LoadSpaceIndexMembership(r.Context(), principal, id)
+	space, err := loadIndexSpaceMembership(r.Context(), principal, options, id)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "native Space membership could not be read"})
+		status := http.StatusInternalServerError
+		if errors.Is(err, ErrSpaceMembershipUnavailable) {
+			status = http.StatusServiceUnavailable
+		}
+		writeJSON(w, status, map[string]string{"error": err.Error()})
 		return indexSpace{}, false
 	}
-	return indexSpace{id: id, environments: stringSet(membership.EnvironmentIDs), products: stringSet(membership.ProductIDs), bundles: stringSet(membership.BundleIDs)}, true
+	return space, true
 }
 
 func (space indexSpace) environment(id string) bool {

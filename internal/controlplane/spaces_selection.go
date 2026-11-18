@@ -1,10 +1,31 @@
 package controlplane
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"regexp"
 )
+
+// These errors preserve native input/configuration outcomes for typed adapters.
+var (
+	ErrInvalidSpaceSelection     = errors.New("spaceId must name one native Space identity")
+	ErrSpaceSelectionUnavailable = errors.New("native Space selection is not configured")
+)
+
+func authorizeIndexSpaceSelection(ctx context.Context, principal Principal, options HandlerOptions, id string) error {
+	if id == "" {
+		return nil
+	}
+	if !nativeSpaceSelectionID.MatchString(id) {
+		return ErrInvalidSpaceSelection
+	}
+	if options.RequireSpaceSelection == nil || options.SpaceIDLookup == nil {
+		return ErrSpaceSelectionUnavailable
+	}
+	return options.RequireSpaceSelection(ctx, principal, id)
+}
 
 // CONDUIT-INVENTED: spaces.SelectionPublication
 // Displaced-by: a published or sanitized Apollo Space selection and publication contract establishing transport, caller access, grouping reservation and failure behavior.
@@ -26,11 +47,11 @@ func selectedSpace(w http.ResponseWriter, r *http.Request, principal Principal, 
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "spaceId must name one native Space identity"})
 		return "", false
 	}
-	if options.RequireSpaceSelection == nil || options.SpaceIDLookup == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "native Space selection is not configured"})
-		return "", false
-	}
-	if err := options.RequireSpaceSelection(r.Context(), principal, values[0]); err != nil {
+	if err := authorizeIndexSpaceSelection(r.Context(), principal, options, values[0]); err != nil {
+		if errors.Is(err, ErrSpaceSelectionUnavailable) {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
+			return "", false
+		}
 		writeLifecycleError(w, err)
 		return "", false
 	}
