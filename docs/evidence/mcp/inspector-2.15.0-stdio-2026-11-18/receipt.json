@@ -1,0 +1,55 @@
+{
+  "result": "PASS",
+  "client": "@modelcontextprotocol/inspector",
+  "client_version": "2.15.0",
+  "client_archive_integrity": "sha512-TWdX2oJNVTan3B0/0YLpVJWbeuuii3cgDnc7uIwAiCQ9q7QMvZuQrapkQXOC2MKsmyNWj0tplWjza3IolBU+wA==",
+  "client_dependency_lock_sha256": "b07a2985f1483c3808f3f19340340ff95b06c862511b4f8642e6efbf270b7ffa",
+  "server_build_commit": "48bb0bf6e49b9919bcba07ce105c8bbacb1f4a9c",
+  "server_build_tree": "db783827144427ed2abd8a00fdf6ca3d26875a1a",
+  "server_binary_sha256": "4b60bcc231631b359a4257336609795c05c67e3a4d08a0bcb792352490ab97c3",
+  "bound_tools": [
+    "dry_run_gates",
+    "inspect_image",
+    "inspect_repo",
+    "read_file",
+    "validate_dockerfile",
+    "validate_manifests"
+  ],
+  "unbound_tools": [
+    "dry_run_gates",
+    "inspect_image",
+    "validate_dockerfile",
+    "validate_manifests"
+  ],
+  "fixture_sha256": "47c28ccd1a764c5bd59b615d3a1808b01cb3b1e646eb4f76f490533ac9526cbb",
+  "transport": "stdio",
+  "credentials": "none supplied; inspector secret store memory",
+  "scope": "local packaging MCP only; no HTTP Hub/OIDC/mTLS/deployment qualification",
+  "files": {
+    "inspector-package-lock.json": "b07a2985f1483c3808f3f19340340ff95b06c862511b4f8642e6efbf270b7ffa",
+    "commands.json": "e527739984ca0a67fe15b1b47ef01c193fd5cad17885b7923788cfe9539b7e8d",
+    "session-config.json": "2d5cda08bd12ad747f5be490cd9c9a94e43f8f572b8eb15a03d2bb1b4f97f15e",
+    "strict-list.stdout.json": "8d16085ca686dfae8b38dcc8fed320cfb5fd2d03739128b934c2d2f3b7ee2dea",
+    "unbound-list.stdout.json": "9cc79528b09d0361d1fb68ffda4073379e297c9826850e5f3de45d9a7b655b2e",
+    "tools-list.stdout.json": "b753a91ad2b68992d3a42950290afd0b15c241d2e20bea0962c667e2d252feb1",
+    "read-file.stdout.json": "ed300e1f0a52257d53db239b0b359d21ce322f01124bf5ea778e524d10a2ab94",
+    "tools-list.stderr.log": "5d1bbbf56cdac785be602a4c4dd4c536c4466b5512c9498f48f52c1c3bacea73",
+    "symlink-refusal.stdout.json": "8c29948e27cb35e5bfb3877710b20da9e9dd6d05afd045d07ddeecbec4f3cd64",
+    "read-file.stderr.log": "8a66c5bed716528a7ff65f46e895f665399d91e4677c39ff7158f9c998605d5c",
+    "unbound-list.stderr.log": "1bc3a53266b72dcedc1d1ca60c770aee5d53fefb13ecdc604a6a2cf468535b85",
+    "traversal-refusal.stderr.log": "64f08858bc409ec2112c50f2366a2a7e6a777fc3a6bc39aafdd834f19cbc75df",
+    "strict-list.stderr.log": "6a6cc9f712acd4fd0ba77b6311387e536f33130f0daaf149d8a026c8b5261b27",
+    "traversal-refusal.stdout.json": "8c29948e27cb35e5bfb3877710b20da9e9dd6d05afd045d07ddeecbec4f3cd64",
+    "symlink-refusal.stderr.log": "64f08858bc409ec2112c50f2366a2a7e6a777fc3a6bc39aafdd834f19cbc75df"
+  },
+  "client_environment": {
+    "MCP_INSPECTOR_SECRET_STORE": "memory",
+    "PATH": "pinned Node 26.13.1 and system executables; other caller environment removed"
+  },
+  "strict_schema": {
+    "errors": 0,
+    "warnings": 9,
+    "exit": 0,
+    "scope": "legal JSON Schema nullable arrays; model-provider dialect compatibility unqualified"
+  }
+}

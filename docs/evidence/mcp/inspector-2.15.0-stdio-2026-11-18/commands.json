@@ -1,0 +1,117 @@
+[
+  {
+    "case": "tools-list",
+    "argv": [
+      "node",
+      "/workspace/scratch/issue815-inspector/package/clients/launcher/build/index.js",
+      "--cli",
+      "--config",
+      "/workspace/scratch/issue815-inspector/session-config.json",
+      "--format",
+      "json",
+      "--server",
+      "packaging",
+      "--method",
+      "tools/list"
+    ],
+    "exit": 0
+  },
+  {
+    "case": "unbound-list",
+    "argv": [
+      "node",
+      "/workspace/scratch/issue815-inspector/package/clients/launcher/build/index.js",
+      "--cli",
+      "--config",
+      "/workspace/scratch/issue815-inspector/session-config.json",
+      "--format",
+      "json",
+      "--server",
+      "unbound",
+      "--method",
+      "tools/list"
+    ],
+    "exit": 0
+  },
+  {
+    "case": "read-file",
+    "argv": [
+      "node",
+      "/workspace/scratch/issue815-inspector/package/clients/launcher/build/index.js",
+      "--cli",
+      "--config",
+      "/workspace/scratch/issue815-inspector/session-config.json",
+      "--format",
+      "json",
+      "--server",
+      "packaging",
+      "--method",
+      "tools/call",
+      "--tool-name",
+      "read_file",
+      "--tool-arg",
+      "path=README.md"
+    ],
+    "exit": 0
+  },
+  {
+    "case": "traversal-refusal",
+    "argv": [
+      "node",
+      "/workspace/scratch/issue815-inspector/package/clients/launcher/build/index.js",
+      "--cli",
+      "--config",
+      "/workspace/scratch/issue815-inspector/session-config.json",
+      "--format",
+      "json",
+      "--server",
+      "packaging",
+      "--method",
+      "tools/call",
+      "--tool-name",
+      "read_file",
+      "--tool-arg",
+      "path=../outside-marker.txt"
+    ],
+    "exit": 5
+  },
+  {
+    "case": "symlink-refusal",
+    "argv": [
+      "node",
+      "/workspace/scratch/issue815-inspector/package/clients/launcher/build/index.js",
+      "--cli",
+      "--config",
+      "/workspace/scratch/issue815-inspector/session-config.json",
+      "--format",
+      "json",
+      "--server",
+      "packaging",
+      "--method",
+      "tools/call",
+      "--tool-name",
+      "read_file",
+      "--tool-arg",
+      "path=escape.txt"
+    ],
+    "exit": 5
+  },
+  {
+    "case": "strict-list",
+    "argv": [
+      "node",
+      "/workspace/scratch/issue815-inspector/package/clients/launcher/build/index.js",
+      "--cli",
+      "--config",
+      "/workspace/scratch/issue815-inspector/session-config.json",
+      "--format",
+      "json",
+      "--server",
+      "packaging",
+      "--method",
+      "tools/list",
+      "--strict"
+    ],
+    "exit": 0
+  }
+]

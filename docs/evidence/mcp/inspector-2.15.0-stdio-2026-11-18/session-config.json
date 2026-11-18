@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "packaging": {
+      "command": "/workspace/scratch/issue815-inspector/packaging-mcp",
+      "args": [
+        "--repo",
+        "/workspace/scratch/issue815-inspector/fixture"
+      ]
+    },
+    "unbound": {
+      "command": "/workspace/scratch/issue815-inspector/packaging-mcp"
+    }
+  }
+}
