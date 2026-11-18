@@ -3,8 +3,26 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 )
+
+// StatusError carries only a composition-owned public refusal.
+type StatusError struct {
+	Status  int
+	Message string
+}
+
+func (err StatusError) Error() string { return err.Message }
+
+func writeReadError(w http.ResponseWriter, err error) {
+	status, message := http.StatusBadGateway, "upgrade evidence is unavailable"
+	var public StatusError
+	if errors.As(err, &public) && public.Status >= 400 && public.Status <= 599 {
+		status, message = public.Status, public.Message
+	}
+	writeJSON(w, status, map[string]string{"error": message})
+}
 
 const (
 	DependencyRoute = "GET /v1/products/{product}/dependencies/{version}"
@@ -24,7 +42,7 @@ func Register(mux *http.ServeMux, cfg Config) {
 		}
 		body, err := cfg.Dependencies(r, r.PathValue("product"), r.PathValue("version"))
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			writeReadError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"dependencies": body})
@@ -35,7 +53,7 @@ func Register(mux *http.ServeMux, cfg Config) {
 		}
 		body, err := cfg.Upgrades(r)
 		if err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			writeReadError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"upgrades": body})
@@ -43,8 +61,17 @@ func Register(mux *http.ServeMux, cfg Config) {
 }
 
 func auth(cfg Config, w http.ResponseWriter, r *http.Request) bool {
-	if cfg.Authorize != nil && cfg.Authorize(r) != nil {
+	if cfg.Authorize == nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return false
+	}
+	if err := cfg.Authorize(r); err != nil {
+		var public StatusError
+		if errors.As(err, &public) {
+			writeReadError(w, err)
+		} else {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		}
 		return false
 	}
 	return true
