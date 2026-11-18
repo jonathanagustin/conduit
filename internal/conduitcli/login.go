@@ -30,9 +30,8 @@ import (
 // loopback redirect (RFC 8252). Either way the token is written to the bearer
 // token file with mode 0600 and is never printed.
 //
-// What is deliberately absent: no refresh token is stored, so when the token
-// expires the person logs in again; and no token is revoked at the issuer on
-// logout, which only removes the local file.
+// Refresh retention is explicit and opt-in. Logout removes the local credential
+// file; it does not revoke tokens at the issuer.
 
 const (
 	deviceGrantType = "urn:ietf:params:oauth:grant-type:device_code"
@@ -53,9 +52,11 @@ type oidcEndpoints struct {
 }
 
 type loginRequest struct {
-	flow      string
-	tokenKind string
-	deadline  time.Duration
+	storeRefresh bool
+	refresh      bool
+	flow         string
+	tokenKind    string
+	deadline     time.Duration
 }
 
 type loginResult struct {
@@ -71,8 +72,8 @@ func loginCommand(state *commandState) *cobra.Command {
 		Short: "Sign in as a person and store the token in the bearer token file",
 		Long: "Sign in at the OIDC issuer and store the resulting token, mode 0600, in the bearer token file.\n\n" +
 			"The device authorization grant is used when the issuer advertises it; otherwise the authorization\n" +
-			"code grant with PKCE and a loopback redirect on 127.0.0.1. The token is never printed. No refresh\n" +
-			"token is stored: when the token expires, run login again.",
+			"code grant with PKCE and a loopback redirect on 127.0.0.1. Credentials are never printed.\n" +
+			"Use --store-refresh-token to retain a refresh grant, then --refresh to renew it explicitly.",
 		Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			if err := state.applySelectedProfile(command); err != nil {
@@ -89,6 +90,11 @@ func loginCommand(state *commandState) *cobra.Command {
 	command.Flags().StringVar(&request.tokenKind, "token", "id",
 		"which token to store: id (what the Hub's default policy verifies) or access")
 	command.Flags().DurationVar(&request.deadline, "login-timeout", defaultLoginDeadline, "how long to wait for the sign-in to finish")
+	command.Flags().BoolVar(&request.storeRefresh, "store-refresh-token", false, "retain the refresh grant in the private credential file")
+	command.Flags().BoolVar(&request.refresh, "refresh", false, "renew a stored refresh grant without interactive sign-in")
+	command.MarkFlagsMutuallyExclusive("refresh", "store-refresh-token")
+	command.MarkFlagsMutuallyExclusive("refresh", "flow")
+	command.MarkFlagsMutuallyExclusive("refresh", "token")
 	return command
 }
 
@@ -107,6 +113,11 @@ func logoutCommand(state *commandState) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			unlock, err := lockCredentialFile(path)
+			if err != nil {
+				return err
+			}
+			defer unlock()
 			removed, err := removeTokenFile(path)
 			if err != nil {
 				return err
@@ -156,6 +167,21 @@ func (state *commandState) login(ctx context.Context, request loginRequest) (log
 	if err := checkTokenDestination(path); err != nil {
 		return loginResult{}, err
 	}
+	unlock, err := lockCredentialFile(path)
+	if err != nil {
+		return loginResult{}, err
+	}
+	defer unlock()
+	var grant refreshGrant
+	if request.refresh {
+		grant, err = readRefreshGrant(path)
+		if err != nil {
+			return loginResult{}, err
+		}
+		if grant.Issuer != issuer || grant.ClientID != clientID {
+			return loginResult{}, errors.New("stored refresh grant does not match the configured issuer and client")
+		}
+	}
 	if configuration.Timeout <= 0 {
 		configuration.Timeout = defaultTimeout
 	}
@@ -168,12 +194,18 @@ func (state *commandState) login(ctx context.Context, request loginRequest) (log
 	if err != nil {
 		return loginResult{}, err
 	}
+	if request.refresh {
+		return refreshStoredGrant(ctx, client, endpoints, grant, path, request.deadline)
+	}
 	scope := strings.TrimSpace(configuration.OIDCScope)
 	if scope == "" {
 		scope = defaultLoginScope
 	}
 	if !strings.Contains(" "+scope+" ", " openid ") {
 		scope = "openid " + scope
+	}
+	if request.storeRefresh && !strings.Contains(" "+scope+" ", " offline_access ") {
+		scope += " offline_access"
 	}
 	flow := request.flow
 	switch flow {
@@ -192,9 +224,10 @@ func (state *commandState) login(ctx context.Context, request loginRequest) (log
 	}
 	ctx, cancel := context.WithTimeout(ctx, request.deadline)
 	defer cancel()
+	var response tokenResponse
 	login := personLogin{
 		client: client, endpoints: endpoints, clientID: clientID, scope: scope,
-		tokenKind: request.tokenKind, prompt: state.runtime.Stderr, sleep: state.runtime.Sleep,
+		tokens: &response, tokenKind: request.tokenKind, prompt: state.runtime.Stderr, sleep: state.runtime.Sleep,
 	}
 	var token string
 	if flow == "device" {
@@ -205,6 +238,16 @@ func (state *commandState) login(ctx context.Context, request loginRequest) (log
 	if err != nil {
 		return loginResult{}, err
 	}
+	if request.storeRefresh {
+		grant, err := newRefreshGrant(issuer, clientID, request.tokenKind, token, response)
+		if err != nil {
+			return loginResult{}, err
+		}
+		token, err = encodeRefreshGrant(grant)
+		if err != nil {
+			return loginResult{}, err
+		}
+	}
 	if err := writeTokenFile(path, token); err != nil {
 		return loginResult{}, err
 	}
@@ -212,6 +255,7 @@ func (state *commandState) login(ctx context.Context, request loginRequest) (log
 }
 
 type personLogin struct {
+	tokens    *tokenResponse
 	client    *http.Client
 	endpoints oidcEndpoints
 	clientID  string
@@ -274,10 +318,11 @@ func (login personLogin) postOIDCForm(ctx context.Context, endpoint string, form
 }
 
 type tokenResponse struct {
-	IDToken     string `json:"id_token"`
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	Error       string `json:"error"`
+	RefreshToken string `json:"refresh_token"`
+	IDToken      string `json:"id_token"`
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	Error        string `json:"error"`
 }
 
 // usableToken picks the requested token out of a successful response. Nothing
@@ -293,6 +338,9 @@ func (login personLogin) usableToken(response tokenResponse) (string, error) {
 	token = strings.TrimSpace(token)
 	if token == "" || strings.ContainsAny(token, " \t\r\n") || len(token) > maximumOIDCTokenBytes {
 		return "", fmt.Errorf("the issuer returned no usable %s token", login.tokenKind)
+	}
+	if login.tokens != nil {
+		*login.tokens = response
 	}
 	return token, nil
 }
