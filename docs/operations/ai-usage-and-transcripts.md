@@ -12,7 +12,7 @@ Every model call the Hub makes passes through one governor (`internal/modelgover
 | `intelligence` (live evals) | yes | yes |
 | `packaging` (proposals and the package writer, in the Hub) | yes | yes |
 
-The separate `packaging-workflow` worker process applies the concurrency limits and the retry policy to its planning and packaging calls and counts them in process. It has no audit log, no usage store and no operator, so it enforces no budget, writes no per-call audit event and keeps no transcript. Its calls do not appear in the usage routes.
+The separate `packaging-workflow` worker process applies the concurrency limits and the retry policy to its planning and packaging calls and counts them in process. It has no audit log, no usage store and no operator, so it enforces no budget, writes no per-call audit event and keeps no transcript. Its calls do not appear in the usage routes. It refuses a configured daily call/token budget or `CONDUIT_AI_TRANSCRIPTS=on` before model execution; it cannot silently discard those requested policies. Keep those policies on Hub-governed execution until the standalone worker has durable usage and transcript custody. With transcripts off, a retention duration alone does not enable recording.
 
 A call made on an operator's request is attributed to that operator. A call with no operator, such as a planning turn run by the workflow worker, is attributed to `system:unattributed`.
 
