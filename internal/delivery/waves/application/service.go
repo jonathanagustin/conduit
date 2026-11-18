@@ -124,6 +124,13 @@ func (service *Service) Propose(ctx context.Context, actor controlplane.Principa
 	if service.pending == nil {
 		service.pending = map[string]pending{}
 	}
+	// A native proposal is the review authority for one pending action. Do not
+	// replace its local action or facts while that proposal is still pending.
+	for _, existing := range service.pending {
+		if existing.rolloutID == id {
+			return Result{Reason: "rollout already has a pending change request"}, nil
+		}
+	}
 	governanceService := service.governance()
 	// The request Environment remains an index anchor. Policies evaluate a
 	// distinct native change for every affected Environment.
