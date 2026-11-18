@@ -138,7 +138,16 @@ func (service *Service) ApproveClear(ctx context.Context, approver controlplane.
 	}
 	environment := service.blackouts[index].Environment
 	service.blackouts = append(service.blackouts[:index], service.blackouts[index+1:]...)
-	delete(service.pending, changeID)
+	// Removing a slice element shifts later targets. Keep every pending request
+	// bound to its original blackout and retire all requests for the removed one.
+	for requestID, target := range service.pending {
+		switch {
+		case target == index:
+			delete(service.pending, requestID)
+		case target > index:
+			service.pending[requestID] = target - 1
+		}
+	}
 	auditID, err := service.audit(ctx, approver.Username, environment, governance.DecisionAllow, "blackout cleared")
 	if err != nil {
 		return Result{}, err
