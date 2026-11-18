@@ -14,6 +14,7 @@ import (
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/operator"
+	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 )
 
 type fakeService struct {
@@ -1084,4 +1085,8 @@ func TestReleaseChannelDiffNarrowsToDifferingFieldsUnlessAll(t *testing.T) {
 	if len(identical.Source) != 0 || len(identical.Target) != 0 {
 		t.Errorf("identical channels reported differences: %v / %v", identical.Source, identical.Target)
 	}
+}
+
+func (*fakeService) GetPackagingRun(context.Context, string) (packagingdomain.RunStatus, error) {
+	return packagingdomain.RunStatus{}, nil
 }

@@ -9,6 +9,7 @@ import (
 	"io"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
+	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 )
 
 // ControlPlane is the outbound port used by operator workflows. Transports
@@ -50,6 +51,7 @@ type ControlPlane interface {
 	GetPlan(context.Context, string) (controlplane.PlanRecord, error)
 	ListPlans(context.Context, PlanListQuery) (PlanListResult, error)
 	ListPackagingRuns(context.Context, PackagingRunQuery) (PackagingRunList, error)
+	GetPackagingRun(context.Context, string) (packagingdomain.RunStatus, error)
 	GetReportedState(context.Context, string) (controlplane.EnvironmentReport, error)
 	ListSuppressions(context.Context, string) ([]controlplane.SuppressionRecord, error)
 	RemoveSuppression(context.Context, string) (controlplane.SuppressionRecord, error)
@@ -238,4 +240,8 @@ func (service Service) ListSuppressions(ctx context.Context, environment string)
 
 func (service Service) RemoveSuppression(ctx context.Context, id string) (controlplane.SuppressionRecord, error) {
 	return service.controlPlane.RemoveSuppression(ctx, id)
+}
+
+func (service Service) GetPackagingRun(ctx context.Context, id string) (packagingdomain.RunStatus, error) {
+	return service.controlPlane.GetPackagingRun(ctx, id)
 }

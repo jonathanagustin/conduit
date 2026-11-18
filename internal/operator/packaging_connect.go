@@ -11,7 +11,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 )
 
-// SetPackagingReadTransport selects only the packaging index read. There is no
+// SetPackagingReadTransport selects packaging index and detail reads. There is no
 // automatic replay through another transport on failure.
 func (adapter *HTTPControlPlane) SetPackagingReadTransport(mode string) error {
 	if mode != "" && mode != "rest" && mode != "connect" {

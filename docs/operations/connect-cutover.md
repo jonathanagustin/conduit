@@ -17,7 +17,7 @@ including reads. A read encoded as POST is not a governed state change.
 | --- | --- | --- |
 | `GET /v1/overview` | `conduit.reporting.v1.ReportingService/GetOverview` | Generated overview client |
 | `GET /v1/packaging-runs` | `conduit.packaging.v1.PackagingRunService/ListPackagingRuns` | Generated list for initial, manual and live refreshes |
-| `GET /v1/packaging-runs/{runID}` | `conduit.packaging.v1.PackagingRunService/GetPackagingRun` | Generated detail client |
+| `GET /v1/packaging-runs/{runID}` | `conduit.packaging.v1.PackagingRunService/GetPackagingRun` | Generated detail client; CLI `run get RUN_ID --read-transport connect` (REST default) |
 | `GET /v1/packaging-runs/{runID}/events` | `conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents` | Generated history client for operator refresh |
 | `GET /v1/products?view=summary` | `conduit.catalog.v1.ProductReadService/ListProductSummaries` | Generated legacy name-only summary helper; full-catalog operator reads remain REST |
 | `POST /v1/plans/{planID}/approvals` | `conduit.plans.v1.PlanApprovalService/ApprovePlan` | Generated active operator delivery/approval panels and legacy helper; explicit CLI `plan approve --write-transport connect` returns a versioned receipt; CLI default remains REST, no automatic retry |
@@ -110,6 +110,26 @@ authority fields, and refuses totals outside the local integer range. Responses
 retain the existing one-MiB per-message bound. A permission refusal, unavailable
 procedure, timeout or canceled read fails on the selected transport; it never
 silently replays through REST. Other reads and governed commands remain REST.
+
+### CLI packaging detail
+
+`conduit run get RUN_ID` reads the existing native packaging status; its default
+and explicit `--read-transport rest` modes use the REST detail route. Explicit
+`--read-transport connect` calls the existing generated `GetPackagingRun` method.
+Both retain the configured identity, TLS trust, timeout and one-MiB response
+bound. The returned run id must match the requested id; malformed or mismatched
+authority fields and negative duplicate-review counts are refused. An
+unconfigured worker retains its native `configured: false` response and empty
+run coordinates rather than inventing a run.
+
+JSON/YAML keep the native status fields and attachment/source/revision evidence;
+table/CSV show the run id, configured flag, phase, outcome, Plan reference and
+target. Unknown phase/outcome vocabulary is retained. Plan and approval
+authorities remain distinct: a packaging status is not a Plan approval or
+execution receipt. Refusals, malformed/oversized responses, timeout and
+cancellation fail on the selected transport without automatic fallback or retry.
+This is a new CLI read over already dual-served routes, not a REST deprecation
+or completion of the remaining environment/Plan/cancellation migration.
 
 ### CLI Plan summary index
 

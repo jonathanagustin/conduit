@@ -33,5 +33,19 @@ func runCommand(state *commandState) *cobra.Command {
 	list.Flags().StringVar(&planID, "plan-id", "", "Plan id the run is aimed at")
 	list.Flags().StringVar(&search, "search", "", "case-insensitive search applied by the Hub")
 	command.AddCommand(list)
+	get := &cobra.Command{
+		Use: "get RUN_ID", Short: "Read native packaging-run status (not Plan approval)", Args: cobra.ExactArgs(1),
+		RunE: func(command *cobra.Command, args []string) error {
+			return state.execute(command, func(service Service) (any, error) {
+				row, err := service.GetPackagingRun(command.Context(), args[0])
+				if err != nil {
+					return nil, err
+				}
+				return packagingRunDetail{RunStatus: row}, nil
+			})
+		},
+	}
+	get.Flags().StringVar(&state.config.PackagingReadTransport, "read-transport", "rest", "packaging detail transport: rest or connect; failures are never replayed")
+	command.AddCommand(get)
 	return command
 }
