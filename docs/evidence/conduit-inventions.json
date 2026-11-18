@@ -15,6 +15,13 @@
   ],
   "inventions": [
     {
+      "id": "assistant.ReportedTurnUsage",
+      "what": "Conduit-native nullable provider token counts on assistant model provenance, multi-round turn totals, stored conversation messages and the console turn footer. A count is unknown if any round omitted it or the sum overflowed; zero is reported and no missing usage is estimated.",
+      "why": "Issue #811 requests model and usage display. The existing HTTP adapter already reads provider counts, but no recovered assistant contract defines a per-turn aggregation or display. This shape carries those observed counts without treating them as complete billing or accounting for unreported retry attempts.",
+      "displacedBy": "An authoritative assistant contract for reported per-turn token usage and incomplete multi-round counts.",
+      "riskIfWrong": "The optional metadata shape and presentation may need replacement. It adds no model call, cost estimate, budget policy, permission or transcript text; older turn/thread documents remain valid without it."
+    },
+    {
       "id": "console.GovernanceEditors",
       "what": "Conduit-native Organization editors for existing approval-policy and resource-grant APIs, with typed policy variables, revision-bound confirmation and identity-bound request/response handling.",
       "why": "Issue #823 requests confirmed administration through the mounted console. Native Hub contracts already define authority, CEL validation and revision conflicts; no recovered Apollo source establishes a corresponding editing workflow. These controls retain the Hub's decisions and never confer approval themselves.",

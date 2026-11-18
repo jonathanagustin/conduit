@@ -459,6 +459,7 @@ test("a turn streams its tool call, its result and the answer", async ({
         kind: "model-cli",
         configuredModel: "cli-model",
       },
+      usage: { promptTokens: 13, completionTokens: 0 },
     }),
   );
   await expect(card).toHaveAttribute("data-tool-state", "ok");
@@ -469,6 +470,12 @@ test("a turn streams its tool call, its result and the answer", async ({
 
   // Explicit configured-only provenance cannot establish the provider id.
   const meta = rail(page).locator("[data-assistant-turn-meta]");
+  await expect(meta.locator("[data-assistant-usage]")).toHaveText(
+    "Reported tokens: 13 input · 0 output",
+  );
+  await meta.screenshot({
+    path: test.info().outputPath("reported-turn-usage.png"),
+  });
   await expect(meta.locator("[data-assistant-model]")).toContainText(
     "Model: cli-model (operator configured; provider id unavailable)",
   );
@@ -493,13 +500,21 @@ test("a reported model is shown without a caution", async ({ page, hub }) => {
   await openAssistant(page);
   await send(page, "which environments exist?");
   const turn = await hub.nextTurn();
-  openToolCall(turn, "ath_1");
-  finishToolCall(turn, "ath_1", turnDocument({ threadId: "ath_1" }));
+  turn.json(
+    200,
+    turnDocument({
+      threadId: "ath_1",
+      usage: { promptTokens: null, completionTokens: 0 },
+    }),
+  );
   const meta = rail(page).locator("[data-assistant-turn-meta]");
   await expect(meta.locator('[data-assistant-model="reported"]')).toHaveText(
     "Model: gpt-test",
   );
   await expect(meta.locator("[data-assistant-model-caution]")).toHaveCount(0);
+  await expect(meta.locator("[data-assistant-usage]")).toHaveText(
+    "Reported tokens: unknown input · 0 output",
+  );
 });
 
 test("Stop closes the request mid-stream and the turn ends cancelled", async ({
@@ -631,6 +646,11 @@ test("a run that ends in RUN_ERROR keeps its tool call and offers Retry", async 
   });
   turn.send({ type: "STEP_FINISHED", stepName: "round-1" });
   turn.send({
+    type: "CUSTOM",
+    name: "conduit.assistant.turn-result",
+    value: { usage: { promptTokens: 8, completionTokens: null }, rounds: 1 },
+  });
+  turn.send({
     type: "RUN_ERROR",
     code: "ROUND_CAP",
     message: "the model was still calling tools in its last round",
@@ -639,6 +659,9 @@ test("a run that ends in RUN_ERROR keeps its tool call and offers Retry", async 
 
   const error = rail(page).locator(".aui-message-error-root");
   await expect(error).toContainText("last allowed round");
+  await expect(rail(page).locator("[data-assistant-usage]")).toHaveText(
+    "Reported tokens: 8 input · unknown output",
+  );
   await expect(rail(page).locator("[data-assistant-error-code]")).toHaveText(
     "ROUND_CAP",
   );
@@ -673,9 +696,13 @@ test("the open thread is restored from the Hub after a reload", async ({
   await send(page, "which environments exist?");
   const turn = await hub.nextTurn();
   openToolCall(turn, "ath_1");
-  const document = turnDocument({ threadId: "ath_1" });
+  const document = turnDocument({
+    threadId: "ath_1",
+    usage: { promptTokens: 12, completionTokens: 3 },
+  });
   hub.remember("ath_1", "which environments exist?", {
     text: document["text"],
+    usage: document["usage"],
     toolCalls: [
       {
         id: "call_1_1",
@@ -712,6 +739,9 @@ test("the open thread is restored from the Hub after a reload", async ({
   await expect(card.locator("[data-tool-args]")).toContainText("Environment");
   await expect(card.locator("[data-tool-outcome]")).toHaveText("1 matched");
   expect(reads).toContain("/v1/assistant/threads/ath_1");
+  await expect(rail(page).locator("[data-assistant-usage]")).toHaveText(
+    "Reported tokens: 12 input · 3 output",
+  );
   const writesBefore = hub.writes.length;
 
   // The next message continues the same thread; no second thread is created.

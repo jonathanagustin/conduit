@@ -218,5 +218,8 @@ func streamTurn(tools Tools, caller application.Actor, turn application.TurnRequ
 		return
 	}
 	// Results that ran were already sent as TOOL_CALL_RESULT events.
+	// Preserve the authoritative partial result without declaring success.
+	// Older consumers can ignore this standard AG-UI custom event.
+	_ = out.send(map[string]any{"type": "CUSTOM", "name": "conduit.assistant.turn-result", "value": answered})
 	_ = out.send(map[string]any{"type": "RUN_ERROR", "code": application.ErrorCode(err), "message": err.Error()})
 }

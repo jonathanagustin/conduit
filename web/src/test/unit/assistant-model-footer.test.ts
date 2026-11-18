@@ -44,6 +44,25 @@ afterEach(() => {
 });
 
 describe("assistant message model footer", () => {
+  it("renders reported zeroes and unknown token counts, including restored messages without model metadata", () => {
+    const reported = footer(null, {
+      label: "",
+      rounds: 0,
+      usage: { promptTokens: 0, completionTokens: 7 },
+    });
+    expect(reported).toContain("Reported tokens: 0 input · 7 output");
+    expect(reported).toContain("not billing");
+    expect(reported).not.toContain("data-assistant-model=");
+    expect(
+      footer(null, { usage: { promptTokens: null, completionTokens: 0 } }),
+    ).toContain("unknown input · 0 output");
+    expect(
+      footer(null, { usage: { promptTokens: null, completionTokens: null } }),
+    ).toContain("Token usage not reported");
+    expect(footer(null, { label: "", rounds: 0 })).not.toContain(
+      "data-assistant-usage",
+    );
+  });
   it("renders configured and provider identities with exactly one prefix", () => {
     const html = footer({
       kind: "http",

@@ -23,6 +23,9 @@ func (adapter Adapter) Complete(ctx context.Context, prompt string) (string, dom
 	}
 	provenance := domain.Provenance{Adapter: modelhttp.AdapterName, ConfiguredModel: adapter.Client.RequestedModel(), PromptSHA256: domain.Digest([]byte(prompt))}
 	completion, err := adapter.Client.Complete(ctx, prompt)
+	if completion.PromptTokens != nil || completion.CompletionTokens != nil {
+		provenance.Usage = (&domain.ReportedTokenUsage{PromptTokens: completion.PromptTokens, CompletionTokens: completion.CompletionTokens}).Clone()
+	}
 	provenance.ProviderModel = completion.Model
 	provenance.ResponseSHA256 = domain.Digest([]byte(completion.Text))
 	if err != nil {

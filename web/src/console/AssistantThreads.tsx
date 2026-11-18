@@ -4,7 +4,12 @@ import { useState } from "react";
 import { useAuiState } from "@assistant-ui/react";
 
 import { useAssistantState, useAssistantStore } from "./assistant-runtime";
-import { modelLabel, threadTitle, type TurnMeta } from "./assistant-turn";
+import {
+  modelLabel,
+  usageLabel,
+  threadTitle,
+  type TurnMeta,
+} from "./assistant-turn";
 
 /**
  * The conversations the Hub stores for this operator: open one, start a new
@@ -159,7 +164,8 @@ export function AssistantTurnFooter() {
   );
   if (!meta) return null;
   const model = modelLabel(meta.model);
-  if (!model && !meta.label && !meta.code) return null;
+  const usage = usageLabel(meta.usage);
+  if (!model && !meta.label && !meta.code && !usage) return null;
   return (
     <div
       data-assistant-turn-meta
@@ -182,6 +188,14 @@ export function AssistantTurnFooter() {
         </span>
       ) : null}
       {meta.rounds > 1 ? <span>{meta.rounds} model calls</span> : null}
+      {usage ? (
+        <span
+          data-assistant-usage
+          title="Provider-reported tokens across this turn's model responses. A side is unknown if any round omitted it. Excludes unreported retry attempts; this is not billing."
+        >
+          {usage}
+        </span>
+      ) : null}
       {meta.code ? <span data-assistant-error-code>{meta.code}</span> : null}
     </div>
   );

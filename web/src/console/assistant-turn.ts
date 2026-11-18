@@ -19,6 +19,35 @@ export type ServedModel = {
   providerModel?: string;
 };
 
+export type ReportedTokenUsage = {
+  promptTokens: number | null;
+  completionTokens: number | null;
+};
+
+/** Missing, invalid and unsafe counts remain unknown; zero is reported. */
+export function reportedTokenUsage(value: unknown): ReportedTokenUsage | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value))
+    return null;
+  const fields = value as Record<string, unknown>;
+  const count = (raw: unknown): number | null =>
+    typeof raw === "number" && Number.isSafeInteger(raw) && raw >= 0
+      ? raw
+      : null;
+  return {
+    promptTokens: count(fields["promptTokens"]),
+    completionTokens: count(fields["completionTokens"]),
+  };
+}
+
+export function usageLabel(
+  usage: ReportedTokenUsage | null | undefined,
+): string | null {
+  if (!usage) return null;
+  if (usage.promptTokens === null && usage.completionTokens === null)
+    return "Token usage not reported";
+  return `Reported tokens: ${usage.promptTokens ?? "unknown"} input · ${usage.completionTokens ?? "unknown"} output`;
+}
+
 /** One tool call of a turn, with what the Hub ran and what it returned. */
 export type ToolRow = {
   id: string;
@@ -54,6 +83,7 @@ export type AssistantTurn = {
   text: string;
   label: string;
   model: ServedModel | null;
+  usage?: ReportedTokenUsage | null;
   error: TurnError | null;
 };
 
@@ -99,6 +129,7 @@ export function newTurn(): AssistantTurn {
     text: "",
     label: "",
     model: null,
+    usage: null,
     error: null,
   };
 }
@@ -176,6 +207,7 @@ export function applyTurnDocument(
       typeof fields["rounds"] === "number" ? fields["rounds"] : turn.round,
     threadId: text(fields["threadId"]) || turn.threadId,
     model: servedModel(fields["model"]) ?? turn.model,
+    usage: reportedTokenUsage(fields["usage"]),
   };
 }
 
@@ -231,6 +263,10 @@ export function reduceTurn(turn: AssistantTurn, event: unknown): AssistantTurn {
         ...applyTurnDocument(turn, fields["result"]),
         status: "complete",
       };
+    case "CUSTOM":
+      return fields["name"] === "conduit.assistant.turn-result"
+        ? applyTurnDocument(turn, fields["value"])
+        : turn;
     case "RUN_ERROR":
       return {
         ...turn,
@@ -619,6 +655,7 @@ export function messagesFromThread(thread: unknown): ChatMessage[] {
         threadId,
         tools,
         text: text(message["text"]),
+        usage: reportedTokenUsage(message["usage"]),
         status:
           code === "CANCELLED" ? "cancelled" : code ? "error" : "complete",
         error: code && code !== "CANCELLED" ? { code, message: "" } : null,
@@ -636,6 +673,7 @@ export type TurnMeta = {
   label: string;
   rounds: number;
   model: ServedModel | null;
+  usage?: ReportedTokenUsage | null;
   code: string;
 };
 
@@ -719,6 +757,7 @@ export function toThreadMessage(message: ChatMessage): ThreadMessageShape {
           label: turn.label,
           rounds: turn.rounds,
           model: turn.model,
+          usage: turn.usage ?? null,
           code: turn.error?.code ?? "",
         },
       },

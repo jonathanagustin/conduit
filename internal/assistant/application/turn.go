@@ -87,6 +87,7 @@ func (service Service) rounds(ctx context.Context, actor Actor, request TurnRequ
 		conversation.Final = round == domain.MaxRounds
 		prompt := domain.ConversationPrompt(conversation)
 		raw, provenance, err := service.Model.Complete(ctx, prompt)
+		turn.Usage = domain.IncludeReportedUsage(turn.Usage, provenance.Usage)
 		turn.Rounds = round
 		turn.Provenance = provenance
 		turn.Model = served(provenance)
@@ -193,7 +194,7 @@ func (service Service) remember(ctx context.Context, actor Actor, request TurnRe
 	if service.Threads == nil {
 		return domain.ErrThreadsUnavailable
 	}
-	answer := domain.Message{Role: domain.RoleAssistant, Text: turn.Text, Mode: request.Mode, CreatedAt: service.stamp()}
+	answer := domain.Message{Role: domain.RoleAssistant, Text: turn.Text, Mode: request.Mode, CreatedAt: service.stamp(), Usage: turn.Usage.Clone()}
 	if failure != nil {
 		answer.ErrorCode = ErrorCode(failure)
 	}
