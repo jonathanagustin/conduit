@@ -139,7 +139,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `GET /v1/promotions` | `operator-grant` | No native schema |
 | `GET /v1/promotions/{promotionID}` | `operator-grant` | No native schema |
 | `GET /v1/resource-grants` | `operator-any` | No native schema |
-| `GET /v1/rollouts` | `operator-any` | No native schema |
+| `GET /v1/rollouts` | `operator-filtered` | No native schema |
 | `GET /v1/session` | `operator-self` | No native schema |
 | `GET /v1/spaces` | `operator-filtered` | No native schema |
 | `GET /v1/spaces/{spaceID}` | `operator-grant` | No native schema |
