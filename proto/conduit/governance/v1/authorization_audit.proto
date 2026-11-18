@@ -1,0 +1,58 @@
+syntax = "proto3";
+package conduit.governance.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/jonathanagustin/conduit/gen/go/conduit/governance/v1;governancev1";
+
+// AuthorizationAuditReadService serves native administrator-only event reads.
+// It does not grant audit-chain export, mutation, pruning or archive authority.
+service AuthorizationAuditReadService {
+  // ListAuthorizationAuditEvents projects the events view of the native audit
+  // route. REST remains supported; this method changes no caller transport.
+  rpc ListAuthorizationAuditEvents(ListAuthorizationAuditEventsRequest) returns (ListAuthorizationAuditEventsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message ListAuthorizationAuditEventsRequest {
+  // Absent uses 100; explicit limits must be 1..200.
+  optional int32 limit = 1;
+  // Native opaque continuation bound to resource, time bounds and order.
+  string cursor = 2;
+  string resource_rid = 3;
+  // Inclusive lower and exclusive upper bound; absent leaves a side open.
+  google.protobuf.Timestamp since = 4;
+  google.protobuf.Timestamp until = 5;
+  bool descending = 6;
+}
+
+message AuthorizationAuditEvent {
+  string id = 1;
+  string schema_version = 2;
+  repeated string categories = 3;
+  string trace_id = 4;
+  string subject = 5;
+  string action = 6;
+  string resource_rid = 7;
+  string decision = 8;
+  string reason = 9;
+  // Native JSON encoded as UTF-8 bytes, not protobuf Struct: metadata numbers
+  // must not be rounded through protobuf's floating-point Value representation.
+  bytes request_fields_json = 10;
+  bytes result_fields_json = 11;
+  // Empty means the native optional context was absent/empty.
+  bytes context_json = 12;
+  // Missing means no recorded timestamp; never filled with the current time.
+  google.protobuf.Timestamp created_at = 13;
+}
+
+message ListAuthorizationAuditEventsResponse {
+  repeated AuthorizationAuditEvent events = 1;
+  int64 total = 2;
+  int32 page_size = 3;
+  int32 limit = 4;
+  string next_cursor = 5;
+  // Forward seek only. No previous cursor is issued.
+  bool has_previous = 6;
+}
