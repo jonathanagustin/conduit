@@ -111,3 +111,19 @@ test('scheduled verification requires live evidence and Pages publication stays 
   assert.ok(docs.includes('name: Upload Pages artifact\n        if: '+manual));
   assert.ok(docs.includes('  deploy:\n    timeout-minutes: 10\n    if: '+manual));
 });
+
+// A resolved allocation incident is historical evidence, not a fabricated live blocker.
+test('hosted blocker may be explicitly absent, but malformed or closed declarations fail', async t => {
+  const {root,record,save}=await fixture(t);
+  record.hostedBlocker=null;save();
+  await verifyReadiness({root,today,write:true});
+  assert.match(await verifyReadiness({root,today}),/PASS readiness/);
+  for (const invalid of [undefined,0,-1,'858',false]) {
+    record.hostedBlocker=invalid;save();
+    await assert.rejects(verifyReadiness({root,today}),/hostedBlocker must be an explicit null or positive issue number/);
+  }
+  record.hostedBlocker=858;
+  record.issues=record.issues.filter(issue=>issue.number!==858);
+  record.issues.push({number:858,state:'closed',observedAt:record.issueSnapshotAt});save();
+  await assert.rejects(verifyReadiness({root,today}),/active tracker #858 is absent or closed/);
+});

@@ -28,10 +28,10 @@ export function renderReadiness(record, coverage, site = false) {
   out += `${record.verification}\n\n`;
   out += `${record.baselineSummary || "See the reviewed merged baseline and scoped evidence below."}\n\n`;
   out += `${record.hostedVerification || "Hosted verification status requires its own current receipt; a queued or unallocated job is not a PASS."}\n\n`;
-  out += '## Verified by gates\n\nThe repository contains the following executable controls. Their presence and prior bounded evidence do not establish a complete PASS at the reviewed baseline.\n\n';
+  out += '## Verified by gates\n\nThe repository contains the following executable controls. Their presence alone does not establish a PASS; the exact receipts and remaining limits are recorded above.\n\n';
   out += `| Area | Existing control and limit | Source |\n| --- | --- | --- |\n`;
   for (const [area, claim, paths] of [
-    ['Correctness', 'Complete local verifier reconciles its gate list with Trunk; no complete baseline receipt is asserted.', ['scripts/verify-local.sh', '.github/workflows/platform-ci.yml']],
+    ['Correctness', 'Complete local verifier reconciles its gate list with Trunk; native receipts and local-verification limits are recorded above.', ['scripts/verify-local.sh', '.github/workflows/platform-ci.yml']],
     ['Replica durability', 'Transactional PostgreSQL stores, leases and crash/restore tests exist; load, infrastructure-failure and capacity qualification remain bounded by gap 3.', ['scripts/test-postgres-repository.sh']],
     ['Identity and authority', 'OIDC and Agent mTLS/SPIFFE, explicit insecure opt-ins, fail-closed route register and negative authorization tests, browser sign-in and CLI device-flow implementations; real-issuer and deployment qualification remain open.', ['internal/hub/composition/authorization.go', 'docs/operations/route-authorization.md']],
     ['Release and supply chain', 'Digest-addressed artifacts, signature policy and release evidence tooling exist; successful publication and target installation are separate evidence.', ['.github/workflows/platform-images.yml', 'docs/architecture/artifacts-and-releases.md']],
@@ -100,7 +100,8 @@ export async function verifyReadiness({ root = ROOT, mainRef = 'HEAD', today = n
     if (issue.observedAt !== record.issueSnapshotAt) failures.push(`issue #${issue.number} has a different observation time`);
     states.set(issue.number, issue);
   }
-  const tracked = new Set([record.hostedBlocker, record.contractPrerequisite, ...record.gaps.flatMap(gap => gap.issues), ...record.relatedGroups.flatMap(group => group.issues)]);
+  if (record.hostedBlocker !== null && (!Number.isInteger(record.hostedBlocker) || record.hostedBlocker < 1)) failures.push('hostedBlocker must be an explicit null or positive issue number');
+  const tracked = new Set([...(record.hostedBlocker === null ? [] : [record.hostedBlocker]), record.contractPrerequisite, ...record.gaps.flatMap(gap => gap.issues), ...record.relatedGroups.flatMap(group => group.issues)]);
   for (const number of tracked) if (states.get(number)?.state !== 'open') failures.push(`active tracker #${number} is absent or closed in the committed snapshot`);
   for (const gap of record.gaps) for (const path of gap.sources) if (path.includes('..') || !existsSync(resolve(root, path))) failures.push(`gap ${gap.number} has missing evidence source ${path}`);
   const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore','pipe','pipe'] }).trim();
