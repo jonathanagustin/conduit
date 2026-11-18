@@ -1,0 +1,22 @@
+{
+  "claimClass": "Corroborating evidence",
+  "capturedAt": "2026-11-18",
+  "implementationCommit": "c1ccb294b598e46bb8988dbced6cf503dc69a72b",
+  "workflowVersion": 1,
+  "temporalCLI": "1.10.0",
+  "temporalServer": "1.32.2",
+  "cliArchiveSha256": "521f461f3d108902763bb71e85cd0fd382dc9357b59604ae03da6ae734d16890",
+  "historySha256": "2755509effc90cb5d6ff1b84808b6a9c9d32444ff72217467f7f9e3def981d9f",
+  "captureTest": "TestCancellationFenceSurvivesTemporalServerRestart",
+  "historyEvents": 38,
+  "observed": [
+    "Independent SDK clients; wrong-owner cancellation refused",
+    "Exact logical-run cancellation requested while an activity remained in flight",
+    "Synthetic activity observed cancellation and returned a deliberately late plan; session stayed unchanged",
+    "Server and worker restarted against the same local SQLite database",
+    "Cancelled receipt and refused run-ID reuse retained after restart; one activity invocation total",
+    "Isolated synthetic session closed only after logical-run assertions, giving complete replay history"
+  ],
+  "scope": "Loopback development Temporal, controlled synthetic activity and caller identities. No model/provider call, tenant operation, accepted compute, external provider termination, HA/failover, production database, scale or latency SLO qualification.",
+  "regeneration": "Run the opt-in capture test with the repository-pinned CONDUIT_TEMPORAL_CLI and explicit CONDUIT_PLANNING_HISTORY_PATH. Replace the fixture only from a healthy run and update this record; never capture a mutation control as the baseline."
+}
