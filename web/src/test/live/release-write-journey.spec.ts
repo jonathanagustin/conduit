@@ -416,3 +416,91 @@ test("the Space selector scopes environments at the Hub", async ({ page }) => {
   await page.locator("#space-selector").selectOption("");
   await expect(page.locator("[data-space-scope]")).toHaveCount(0);
 });
+
+test("maintenance review previews without persistence and submits only the confirmed interval", async ({
+  page,
+}) => {
+  await openWorkbench(page);
+  await openArea(page, "Releases", "Windows");
+  const form = page.locator("[data-window-scheduler]");
+  await expect(form.locator('[name="entity"]')).toBeVisible();
+  const entity = await form.locator('[name="entity"]').inputValue();
+  expect(entity).not.toBe("");
+  const start = new Date(Date.now() + 2 * 3600000).toISOString().slice(0, 16);
+  await form.locator('[name="start"]').fill(start);
+  await form.locator('[name="minutes"]').fill("45");
+  await form
+    .locator('[name="reason"]')
+    .fill("Reviewed live harness maintenance");
+  const save = form.locator("[data-save-window]");
+  await expect(save).toBeDisabled();
+  const responseFor = (dryRun: boolean) =>
+    page.waitForResponse((response) => {
+      const request = response.request();
+      return (
+        request.method() === "POST" &&
+        new URL(response.url()).pathname ===
+          "/v1/temporary-maintenance-overrides" &&
+        request.postDataJSON()?.dryRun === dryRun
+      );
+    });
+  const previewResponse = responseFor(true);
+  await form.locator("[data-preview-window]").click();
+  const previewed = await previewResponse;
+  expect(previewed.status()).toBe(200);
+  const preview = await previewed.json();
+  expect(preview).toMatchObject({ valueTier: "CONDUIT_NATIVE", dryRun: true });
+  expect(preview.requests).toHaveLength(1);
+  const receipt = preview.requests[0];
+  expect(receipt).toMatchObject({
+    environment: ENVIRONMENT,
+    entity,
+    type: "NO_DOWNTIME",
+  });
+  expect(Date.parse(receipt.startsAt)).toBe(Date.parse(start + ":00Z"));
+  expect(Date.parse(receipt.endsAt) - Date.parse(receipt.startsAt)).toBe(
+    45 * 60000,
+  );
+  const persistedBefore = await page.request.get(
+    hubURL(page, `/v1/change-requests/${receipt.changeRequestId}`),
+  );
+  expect(persistedBefore.status()).toBe(404);
+  await expect(save).toBeDisabled();
+  await form.locator("[data-confirm-window]").check();
+  await expect(save).toBeEnabled();
+  const submittedResponse = responseFor(false);
+  await save.click();
+  const submitted = await submittedResponse;
+  expect(submitted.status()).toBe(201);
+  expect(submitted.request().postDataJSON()).toMatchObject({
+    expectedChangeRequestId: receipt.changeRequestId,
+    dryRun: false,
+    entities: [{ environment: ENVIRONMENT, entity }],
+    duration: "45m",
+    startsAt: new Date(start + ":00Z").toISOString(),
+  });
+  const storedReceipt = await submitted.json();
+  expect(storedReceipt.requests).toHaveLength(1);
+  expect(storedReceipt.requests[0]).toMatchObject(receipt);
+  const stored = await read<any>(
+    page,
+    `/v1/change-requests/${receipt.changeRequestId}`,
+  );
+  expect(stored.author.username).toBe("operator");
+  expect(stored.environment).toBe(ENVIRONMENT);
+  expect(stored.changes).toHaveLength(1);
+  expect(stored.changes[0]).toMatchObject({
+    type: "CREATE_ENTITY_MAINTENANCE_WINDOW_OVERRIDE",
+    request: { entity, type: "NO_DOWNTIME" },
+  });
+  expect(Date.parse(stored.changes[0].request.startTime)).toBe(
+    Date.parse(receipt.startsAt),
+  );
+  expect(Date.parse(stored.changes[0].request.endTime)).toBe(
+    Date.parse(receipt.endsAt),
+  );
+  await expect(form.locator("[data-window-message]")).toContainText(
+    `Change request ${receipt.changeRequestId}`,
+  );
+  await expect(save).toBeDisabled();
+});
