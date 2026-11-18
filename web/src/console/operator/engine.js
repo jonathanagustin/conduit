@@ -1,3 +1,4 @@
+import { observeGlobe } from "./globe-observers.js";
 function canvasPaint(value) {
   if (typeof value !== "string") return value;
   const style = getComputedStyle(
@@ -134,6 +135,8 @@ import {
 } from "./kit.js";
 
 export function mountOperator(host, options) {
+  let disposed = false;
+  let disposeGlobe = () => {};
   const notifyOperator = () => {
     const mount = host.querySelector("#assistant-thread-mount");
     options.onAssistantMount(state.chatCollapsed ? null : mount);
@@ -2507,6 +2510,8 @@ export function mountOperator(host, options) {
   let conduitGlobeRot = [96, -37, 0];
 
   function initConduitGlobe() {
+    if (disposed) return;
+    disposeGlobe();
     const wrap = document.getElementById("conduit-globe-wrap");
     const canvas = document.getElementById("conduit-globe-canvas");
     if (!wrap || !canvas) return;
@@ -3071,40 +3076,23 @@ export function mountOperator(host, options) {
 
     draw();
 
-    if (window._conduitGlobeRO) window._conduitGlobeRO.disconnect();
-    if (typeof ResizeObserver !== "undefined") {
-      let roRaf = 0;
-      window._conduitGlobeRO = new ResizeObserver(() => {
-        cancelAnimationFrame(roRaf);
-        roRaf = requestAnimationFrame(() => {
-          const nw = wrap.clientWidth,
-            nh = wrap.clientHeight;
-          if (
-            nw > 40 &&
-            nh > 40 &&
-            (Math.abs(nw - width) > 2 || Math.abs(nh - height) > 2)
-          ) {
-            initConduitGlobe();
-          }
-        });
-      });
-      window._conduitGlobeRO.observe(wrap);
-    }
-
-    // Redraw with the other texture when the theme flips.
-    if (window._conduitGlobeMO) window._conduitGlobeMO.disconnect();
-    // The operator root may not exist yet on first paint, so watch the body.
-    const themeRoot = document.body;
-    if (themeRoot && typeof MutationObserver !== "undefined") {
-      window._conduitGlobeMO = new MutationObserver(() => {
+    disposeGlobe = observeGlobe({
+      wrap,
+      themeRoot: document.body,
+      onResize: () => {
+        const nw = wrap.clientWidth,
+          nh = wrap.clientHeight;
+        if (
+          nw > 40 &&
+          nh > 40 &&
+          (Math.abs(nw - width) > 2 || Math.abs(nh - height) > 2)
+        )
+          initConduitGlobe();
+      },
+      onTheme: () => {
         if (document.getElementById("conduit-globe-canvas")) initConduitGlobe();
-      });
-      window._conduitGlobeMO.observe(themeRoot, {
-        attributes: true,
-        attributeFilter: ["data-theme"],
-        subtree: true,
-      });
-    }
+      },
+    });
 
     let dragging = false,
       startPt = null,
@@ -4875,6 +4863,7 @@ export function mountOperator(host, options) {
 
   let previousScreen = "";
   function renderMainWorkspace() {
+    disposeGlobe();
     const focusedAreaTab = document.activeElement
       ?.closest("#main-workspace [data-area-tab]")
       ?.getAttribute("data-area-tab");
@@ -5363,6 +5352,8 @@ export function mountOperator(host, options) {
   settingsDialog.restore();
   renderApp();
   return () => {
+    disposed = true;
+    disposeGlobe();
     engineerFocus.dispose();
     notifications.dispose();
     liveHub.stop();
