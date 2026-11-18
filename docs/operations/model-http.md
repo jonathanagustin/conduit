@@ -214,3 +214,19 @@ CONDUIT_MODEL_NAME=my-served-model
 CONDUIT_MODEL_API_KEY_FILE=/var/run/secrets/model/api-key
 CONDUIT_MODEL_CA_FILE=/etc/conduit/model-ca.pem
 ```
+
+### Packaging proposal target binding
+
+`POST /v1/packaging-runs/{runID}/model-proposal` reads one recorded run snapshot
+and derives the proposal environment from its `targetPlanRef`. A missing worker
+or run returns 404; unavailable or mismatched run status returns 502; absent or
+malformed target coordinates return 409. These refusals invoke no model and do
+not substitute a default environment. The authenticated operator supplies the
+author identity. The request accepts only an optional `attachmentSha256` array
+in one bounded JSON object; caller environment/author overrides and additional
+bodies are refused with 400.
+
+This keeps the existing operator-any route access and downstream governance
+checks. It does not approve a change or establish live-model quality. The
+pending-change opener's native run-ID/installation/product mapping convention
+is separate from this environment binding and is not tenant identity evidence.
