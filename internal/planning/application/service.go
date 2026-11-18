@@ -100,6 +100,7 @@ type Service struct {
 	mu                sync.Mutex
 	sessions          map[string]*domain.Session
 	activeTurns       map[string]bool
+	turnRuns          map[string]map[string]*localTurnRun
 }
 
 // NewService returns an empty in-memory store. A nil planner leaves turns
@@ -111,6 +112,7 @@ func NewService(planner Planner) *Service {
 		now:               func() time.Time { return time.Now().UTC() },
 		sessions:          map[string]*domain.Session{},
 		activeTurns:       map[string]bool{},
+		turnRuns:          map[string]map[string]*localTurnRun{},
 	}
 }
 
@@ -167,7 +169,7 @@ func (service *Service) Get(_ context.Context, id string) (*domain.Session, erro
 
 // Turn records an optional operator message and asks the planner to
 // inspect, elicit, or write a plan. It does not start package compute.
-func (service *Service) Turn(ctx context.Context, id, message string) (*domain.Session, error) {
+func (service *Service) Turn(ctx context.Context, id, message string) (returned *domain.Session, turnErr error) {
 	service.mu.Lock()
 	session, err := service.mutable(id)
 	if err != nil {
@@ -187,15 +189,16 @@ func (service *Service) Turn(ctx context.Context, id, message string) (*domain.S
 		service.mu.Unlock()
 		return nil, domain.ErrTurnInProgress
 	}
+	ctx, run, err := service.beginTurnLocked(ctx, id)
+	if err != nil {
+		service.mu.Unlock()
+		return nil, err
+	}
 	service.activeTurns[id] = true
 	snapshot := domain.CloneSession(session)
 	skillSource := service.appgenSkillSource
 	service.mu.Unlock()
-	defer func() {
-		service.mu.Lock()
-		delete(service.activeTurns, id)
-		service.mu.Unlock()
-	}()
+	defer service.finishTurn(id, run, &turnErr)
 
 	var result *TurnResult
 	if isAppgen && (service.planner == nil || domain.PendingRequired(snapshot.NeedsInput, snapshot.Answers)) {
@@ -223,6 +226,12 @@ func (service *Service) Turn(ctx context.Context, id, message string) (*domain.S
 
 	service.mu.Lock()
 	defer service.mu.Unlock()
+	if run != nil && run.state != "running" {
+		return nil, domain.ErrRunCancelled
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	session, err = service.mutable(id)
 	if err != nil {
 		return nil, err
@@ -287,16 +296,31 @@ func (service *Service) Turn(ctx context.Context, id, message string) (*domain.S
 	session.Status = statusAfterTurn(session)
 	session.UpdatedAt = service.now()
 	service.recordTurnEvents(session, message, result)
+	if run != nil {
+		run.state = "completed"
+	}
 	return domain.CloneSession(session), nil
 }
 
 // Answer records responses to outstanding Needs Input questions.
-func (service *Service) Answer(_ context.Context, id string, answers []domain.Answer) (*domain.Session, error) {
+func (service *Service) Answer(ctx context.Context, id string, answers []domain.Answer) (*domain.Session, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	service.mu.Lock()
 	defer service.mu.Unlock()
 	session, err := service.mutable(id)
 	if err != nil {
 		return nil, err
+	}
+	_, runID := RunIdentifiers(ctx)
+	if runID != "" {
+		if !domain.ValidTurnRunID(runID) {
+			return nil, domain.IntakeError{Reason: "invalid planning run id"}
+		}
+		if err := localRunError(service.turnRuns[id][runID]); err != nil {
+			return nil, err
+		}
 	}
 	if service.activeTurns[id] {
 		return nil, domain.ErrTurnInProgress

@@ -823,9 +823,31 @@ test("a planning deep link rehydrates the session, and Stop aborts the stream", 
   await stubPlanning(page, true);
   // A run that never finishes, so Stop has a stream to abort.
   let runs = 0;
-  await page.route("**/v1/agent-runs", () => {
+  let activeRun = "";
+  let cancellations = 0;
+  await page.route("**/v1/agent-runs", (route) => {
     runs += 1;
+    activeRun = route.request().postDataJSON().runId;
   });
+  await page.route(
+    "**/v1/planning-sessions/ps_linked/turns/*/cancel",
+    async (route) => {
+      expect(
+        decodeURIComponent(
+          new URL(route.request().url()).pathname.split("/").at(-2)!,
+        ),
+      ).toBe(activeRun);
+      expect(route.request().postDataJSON()).toEqual({});
+      cancellations += 1;
+      await route.fulfill({
+        json: {
+          runId: activeRun,
+          state: cancellations === 1 ? "cancellation_requested" : "cancelled",
+          valueTier: "CONDUIT_NATIVE",
+        },
+      });
+    },
+  );
   await page.goto("/console/#s01-intake/ps_linked");
   const flow = page.locator("#main-workspace [data-plan-flow]");
   await expect(flow.locator("[data-plan-composer]")).toContainText("ps_linked");
@@ -849,15 +871,22 @@ test("a planning deep link rehydrates the session, and Stop aborts the stream", 
   await page.getByLabel("Message", { exact: true }).fill("Continue");
   await page.locator("[data-plan-send]").click();
   await expect(page.locator("[data-plan-stop]")).toBeVisible();
+  await expect.poll(() => runs).toBe(1);
   await page.locator("[data-plan-stop]").click();
   await aborted;
   await expect(page.locator("[data-plan-stopped]")).toContainText(
-    "not cancelled on the Hub",
+    "not yet confirmed",
   );
   await expect(page.locator("[data-plan-stop]")).toHaveCount(0);
   await expect(page.locator("[data-plan-error]")).toHaveCount(0);
   await expect(page.locator("[data-plan-send]")).toBeEnabled();
   expect(runs).toBe(1);
+  await page.locator("[data-plan-cancel-check]").click();
+  await expect(page.locator("[data-plan-stopped]")).toContainText(
+    "confirmed this planning turn is cancelled",
+  );
+  await expect(page.locator("[data-plan-cancel-check]")).toHaveCount(0);
+  expect(cancellations).toBe(2);
 
   // The link survives leaving the screen and coming back.
   await page.evaluate(() =>

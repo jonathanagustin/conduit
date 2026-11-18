@@ -42,13 +42,14 @@ export class PlanningAgent {
     this.interrupt = null;
     this.recoveryRequired = false;
     this.active = false;
+    this.activeRun = null;
     this.forms = null;
   }
   /**
    * @param {{message?: string, answers?: Array<{id: string, value: string}>, formAction?: any, recover?: boolean}} options
    * @param {any} binding
    * @param {(run: any, event: any) => void} update
-   * @param {AbortSignal} [signal] aborts the stream being read; the Hub has no cancel route
+   * @param {AbortSignal} [signal] aborts browser reading and subsequent form effects; Hub cancellation is a separate owner-bound request
    */
   async run(
     { message = "", answers, formAction, recover = false } = {},
@@ -106,6 +107,11 @@ export class PlanningAgent {
             ? { forwardedProps: { conduit: { mode: "snapshot" } } }
             : {}),
         };
+        this.activeRun = {
+          threadId: this.threadId,
+          runId: input.runId,
+          readOnly: recover,
+        };
         const run = await runAgent(
           input,
           (current, event) => {
@@ -115,6 +121,7 @@ export class PlanningAgent {
           this.fetch,
           signal,
         );
+        signal?.throwIfAborted();
         this.messages = mergeAgentMessages(this.messages, [
           ...run.messages.values(),
         ]);
@@ -137,6 +144,7 @@ export class PlanningAgent {
         // An interrupted/error exchange leaves its requests for explicit recovery.
         results = [];
         for (const item of pending) {
+          signal?.throwIfAborted();
           const observed = run.tools.get(item.id);
           const call = {
             id: item.id,
@@ -169,6 +177,7 @@ export class PlanningAgent {
       throw error;
     } finally {
       this.active = false;
+      this.activeRun = null;
     }
   }
 }

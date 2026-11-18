@@ -266,7 +266,7 @@ describe("stop", () => {
       stopped: true,
     });
     expect(stopped).toContain("data-plan-stopped");
-    expect(stopped).toContain("not cancelled on the Hub");
+    expect(stopped).toContain("Cancellation is not confirmed");
   });
 
   it("passes the abort signal to the agent stream request", async () => {
@@ -303,15 +303,22 @@ describe("stop", () => {
     }
     vi.stubGlobal("Element", FakeElement);
     let signal: AbortSignal | undefined;
-    const fetchImpl = vi.fn(
-      (_path: string, init: RequestInit) =>
-        new Promise<Response>((_, reject) => {
-          signal = init.signal ?? undefined;
-          init.signal?.addEventListener("abort", () =>
-            reject(new DOMException("Aborted", "AbortError")),
-          );
-        }),
-    );
+    const fetchImpl = vi.fn((_path: string, init: RequestInit) => {
+      if (_path.endsWith("/cancel"))
+        return Promise.resolve(
+          json({
+            runId: _path.split("/").at(-2),
+            state: "cancellation_requested",
+            valueTier: "CONDUIT_NATIVE",
+          }),
+        );
+      return new Promise<Response>((_, reject) => {
+        signal = init.signal ?? undefined;
+        init.signal?.addEventListener("abort", () =>
+          reject(new DOMException("Aborted", "AbortError")),
+        );
+      });
+    });
     let click: (event: unknown) => Promise<void> = async () => {};
     const root = {
       addEventListener: (type: string, handler: typeof click) => {
@@ -334,8 +341,16 @@ describe("stop", () => {
     expect(store.planning.busy).toBe("");
     expect(store.planning.stopped).toBe(true);
     expect(store.planning.error).toBeNull();
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
     expect(fetchImpl.mock.calls[0][0]).toBe("/v1/agent-runs");
+    const body = fetchImpl.mock.calls[0][1].body;
+    if (typeof body !== "string")
+      throw new Error("expected serialized run input");
+    const input = JSON.parse(body);
+    expect(fetchImpl.mock.calls[1][0]).toBe(
+      `/v1/planning-sessions/ps_1/turns/${input.runId}/cancel`,
+    );
+    expect(fetchImpl.mock.calls[1][1].signal).toBeUndefined();
   });
 });
 

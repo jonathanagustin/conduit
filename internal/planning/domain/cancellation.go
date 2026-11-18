@@ -5,6 +5,9 @@ import (
 	"strings"
 )
 
+// MaxTurnRuns bounds retained logical run identities per planning session.
+const MaxTurnRuns = 512
+
 var (
 	ErrRunCancelled = errors.New("planning turn was cancelled")
 	ErrRunConflict  = errors.New("planning run id has already been used")

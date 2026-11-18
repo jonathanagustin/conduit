@@ -12,7 +12,7 @@ const (
 	ErrTypeRunCancelled = "RunCancelled"
 	ErrTypeRunConflict  = "RunConflict"
 	ErrTypeRunCapacity  = "RunCapacity"
-	maxTurnRuns         = 512
+	maxTurnRuns         = domain.MaxTurnRuns
 )
 
 // CancelTurnRequest addresses one logical agent run, never the entire session.
