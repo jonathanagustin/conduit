@@ -1646,6 +1646,18 @@ Inspect packaging runs reported by the Hub
 conduit run
 ```
 
+## conduit run get
+
+Read native packaging-run status (not Plan approval)
+
+```text
+conduit run get RUN_ID [flags]
+```
+
+| Flag | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `--read-transport` | `string` | `rest` | packaging detail transport: rest or connect; failures are never replayed |
+
 ## conduit run list
 
 List packaging runs

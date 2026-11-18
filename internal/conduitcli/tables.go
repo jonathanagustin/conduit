@@ -9,6 +9,7 @@ import (
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/operator"
+	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 )
 
 type environmentList struct {
@@ -125,4 +126,10 @@ func planView(record controlplane.PlanRecord, err error) (any, error) {
 		return nil, err
 	}
 	return planStatusView{PlanRecord: record}, nil
+}
+
+type packagingRunDetail struct{ packagingdomain.RunStatus }
+
+func (view packagingRunDetail) MarshalCSV() ([][]string, error) {
+	return [][]string{{"runId", "configured", "phase", "outcome", "planId", "targetPlanRef"}, {view.RunID, strconv.FormatBool(view.Configured), view.Phase, view.Outcome, view.PlanID, view.TargetPlanRef}}, nil
 }

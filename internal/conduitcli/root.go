@@ -19,6 +19,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/buildinfo"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/operator"
+	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v4"
 )
@@ -61,6 +62,7 @@ type Service interface {
 	GetPlan(context.Context, string) (controlplane.PlanRecord, error)
 	ListPlans(context.Context, operator.PlanListQuery) (operator.PlanListResult, error)
 	ListPackagingRuns(context.Context, operator.PackagingRunQuery) (operator.PackagingRunList, error)
+	GetPackagingRun(context.Context, string) (packagingdomain.RunStatus, error)
 	GetReportedState(context.Context, string) (controlplane.EnvironmentReport, error)
 	ListSuppressions(context.Context, string) ([]controlplane.SuppressionRecord, error)
 	RemoveSuppression(context.Context, string) (controlplane.SuppressionRecord, error)

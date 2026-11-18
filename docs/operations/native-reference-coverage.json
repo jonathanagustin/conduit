@@ -29,11 +29,11 @@
     "internal/conduitcli/promotion_commands.go": "6ca38e8da9966dd1b67ad14e5398eba245710ffd6055f002923b1ad897de921d",
     "internal/conduitcli/refresh.go": "4d59384bd177c8f7eaf81c0f9007b11e2e0feabc2bf7f442cca62155c1c12e82",
     "internal/conduitcli/release_channel_commands.go": "361d7896a91ddb82f9e68e468a01ad3cd3a3c8dd24057d85d6e5ab96af15876c",
-    "internal/conduitcli/root.go": "b7b40ca0e1c951e79683c8f24cecbcd4831e9e76cf4e7d3445b5d529b3f36878",
-    "internal/conduitcli/run_commands.go": "a16cd717eb6c284db65b7f74a6c683af07a4481d703b18b1830d799abb8f028a",
+    "internal/conduitcli/root.go": "5b2db81f200811889b9165e7ca7bce3eb0d3bab57eadfb62334d9b525ac72036",
+    "internal/conduitcli/run_commands.go": "57efaa0a038450808077741b83a9263377e0371d3a54ba111d9e872020628274",
     "internal/conduitcli/security_commands.go": "a420b6af7ea577fa7583392224b8f34e0eb46c67bdff1bdf7a0a96b3cfe132d1",
     "internal/conduitcli/space_commands.go": "857ed2a14f2a5aa381fa433f840470dd1a0ce884ecb43fd860332398273dad4b",
-    "internal/conduitcli/tables.go": "6f10ba7b64faa8f1bc45a478eb7cfcfe277dc557f1071af7da74f857c970a3ec",
+    "internal/conduitcli/tables.go": "74ceaf71b49283bd5a8d48199c0f25322a1f19f8a6805e97a42008846c15545d",
     "internal/conduitcli/temporary_maintenance_commands.go": "48f1453a1b17567269f494816d6b3aafe11853927fa98540facc3944f43f5a8c",
     "internal/conduitcli/workflow.go": "97e104b08f4f0dd8b226b24b80f11752fbdd358b13c53da449f2851e5f205443",
     "internal/conduitcli/yaml_output.go": "627d4b6a5d756d4b4552f90d88cf88b18a0876aa9a2d423ba809d0b7c4e75d7b",
@@ -49,5 +49,5 @@
   "routesWithNativeOpenAPI": 28,
   "nativeOpenAPIOperations": 28,
   "protoContracts": 6,
-  "cliCommands": 177
+  "cliCommands": 178
 }
