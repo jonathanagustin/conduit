@@ -25,12 +25,20 @@ func (stub *stubWriter) ProposePackage(context.Context, domain.PackagingContext)
 }
 
 type stubStore struct {
-	commits []map[string]string
+	commits        []map[string]string
+	selectedDir    string
+	selectedCommit string
+	selectErr      error
 }
 
 func (store *stubStore) Prepare(context.Context, string, string, string, string) (string, string, error) {
 	return "/tmp/ws", "workspace/demo", nil
 }
+func (store *stubStore) SelectCommit(_ context.Context, dir, commit string) error {
+	store.selectedDir, store.selectedCommit = dir, commit
+	return store.selectErr
+}
+
 func (store *stubStore) Commit(_ context.Context, _ string, files map[string]string, _ string) (string, error) {
 	copied := map[string]string{}
 	for k, v := range files {

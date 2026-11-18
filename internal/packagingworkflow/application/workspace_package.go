@@ -45,6 +45,7 @@ type WorkspaceAuditor interface {
 // WorkspaceStore is a git-backed branch the packager commits into.
 type WorkspaceStore interface {
 	Prepare(ctx context.Context, dir, repoURL, ref, branch string) (dirOut, branchOut string, err error)
+	SelectCommit(ctx context.Context, dir, commit string) error
 	Commit(ctx context.Context, dir string, files map[string]string, message string) (string, error)
 }
 

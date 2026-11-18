@@ -73,6 +73,10 @@ func (Store) Prepare(ctx context.Context, dir, repoURL, ref, branch string) (str
 	return snap.Dir, snap.Branch, nil
 }
 
+func (Store) SelectCommit(ctx context.Context, dir, commit string) error {
+	return (workspacegit.Repo{Dir: dir}).Detach(ctx, commit)
+}
+
 func (Store) Commit(ctx context.Context, dir string, files map[string]string, message string) (string, error) {
 	return (workspacegit.Repo{Dir: dir}).Commit(ctx, files, message)
 }

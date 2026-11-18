@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/workspacegit"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	packagingskill "github.com/jonathanagustin/conduit/skills/packaging"
 )
@@ -44,7 +43,7 @@ func (packager WorkspacePackager) Governed(ctx context.Context, req GovernedRequ
 	}
 	result.Branch = workBranch
 	if strings.TrimSpace(req.Commit) != "" {
-		if err := (workspacegit.Repo{Dir: workDir}).Detach(ctx, req.Commit); err != nil {
+		if err := packager.Store.SelectCommit(ctx, workDir, req.Commit); err != nil {
 			result.Error = err.Error()
 			return result, nil
 		}

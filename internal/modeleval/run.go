@@ -292,6 +292,10 @@ func (*memoryWorkspace) Prepare(_ context.Context, dir, _, _, branch string) (st
 	return dir, branch, nil
 }
 
+func (*memoryWorkspace) SelectCommit(context.Context, string, string) error {
+	return fmt.Errorf("offline evaluation workspace cannot select a Git commit")
+}
+
 func (*memoryWorkspace) Commit(_ context.Context, _ string, files map[string]string, message string) (string, error) {
 	names := make([]string, 0, len(files))
 	for name := range files {
