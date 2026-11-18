@@ -31,6 +31,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 keep=0
 simulate_agent=1
+with_packaging=0
 # Which desired state to seed, and so which branch of the simulator the Agent
 # takes. Each scenario has its own spec file because their assertions contradict
 # one another by design: a Hub carrying a failed Plan cannot also satisfy
@@ -50,9 +51,15 @@ while [ "$#" -gt 0 ]; do
     # the state the console was in before one existed, and a spec that asserts
     # on staleness needs it.
     --no-agent) simulate_agent=0; shift ;;
+    --with-packaging) with_packaging=1; shift ;;
     *) break ;;
   esac
 done
+
+if [ "${with_packaging}" -eq 1 ] && [ "${scenario}" != healthy ]; then
+  echo "simulate: --with-packaging requires the healthy scenario" >&2
+  exit 2
+fi
 
 port="${CONDUIT_SIMULATION_PORT:-8099}"
 hub_url="http://127.0.0.1:${port}"
@@ -62,22 +69,33 @@ model_port="${CONDUIT_SIMULATION_MODEL_PORT:-$((port + 1))}"
 hub_pid=""
 agent_pid=""
 model_pid=""
+packaging_pid=""
+temporal_pid=""
+packaging_run=""
+evidence_dir="${CONDUIT_SIMULATION_EVIDENCE_DIR:-}"
 
 cleanup() {
   local status=$?
   if [ "${keep}" -eq 0 ]; then
-    for pid in "${agent_pid}" "${hub_pid}" "${model_pid}"; do
+    for pid in "${agent_pid}" "${hub_pid}" "${model_pid}" "${packaging_pid}" "${temporal_pid}"; do
       [ -n "${pid}" ] || continue
       kill "${pid}" 2>/dev/null || true
       wait "${pid}" 2>/dev/null || true
     done
   fi
   if [ "${status}" -ne 0 ]; then
-    for log in hub agent model; do
+    for log in hub agent model packaging temporal; do
       [ -s "${work}/${log}.log" ] || continue
       echo "--- ${log} log ---" >&2
       tail -40 "${work}/${log}.log" >&2
     done
+  fi
+  if [ -n "${evidence_dir}" ]; then
+    mkdir -p "${evidence_dir}"
+    for log in hub agent model packaging temporal; do
+      if [ -f "${work}/${log}.log" ]; then cp "${work}/${log}.log" "${evidence_dir}/${log}.log"; fi
+    done
+    if [ -f "${work}/packaging-status.json" ]; then cp "${work}/packaging-status.json" "${evidence_dir}/packaging-status.json"; fi
   fi
   [ "${keep}" -eq 0 ] && rm -rf "${work}"
   return "${status}"
@@ -103,6 +121,42 @@ echo "simulate: building the console"
 "${repo_root}/scripts/build-console.sh"
 echo "simulate: building the Hub"
 go build -o "${work}/hub" "${repo_root}/cmd/platform-delivery"
+
+# Opt-in recorded-fixture packaging worker, using the real native workflow and
+# Temporal status/history reader. No approval is sent and no artifact is published.
+if [ "${with_packaging}" -eq 1 ]; then
+  cli="${CONDUIT_TEMPORAL_CLI:-${repo_root}/.cache/temporal/temporal}"
+  [ -x "${cli}" ] || { echo "simulate: --with-packaging requires the verified pinned Temporal CLI" >&2; exit 1; }
+  go build -o "${work}/packaging-workflow" "${repo_root}/cmd/packaging-workflow"
+  "${work}/packaging-workflow" --cli "${cli}" --db "${work}/temporal.db" start-server >"${work}/temporal.log" 2>&1 &
+  temporal_pid=$!
+  packaging_address=""
+  for _ in $(seq 1 120); do
+    packaging_address="$(awk '/^frontend 127\.0\.0\.1:[0-9]+ ui http:\/\/127\.0\.0\.1:/ { print $2; exit }' "${work}/temporal.log")"
+    [ -z "${packaging_address}" ] || break
+    kill -0 "${temporal_pid}" 2>/dev/null || { echo "simulate: Temporal exited during startup" >&2; exit 1; }
+    sleep 0.5
+  done
+  [ -n "${packaging_address}" ] || { echo "simulate: Temporal did not report its loopback frontend" >&2; exit 1; }
+  "${work}/packaging-workflow" --address "${packaging_address}" --state-dir "${work}/packaging-state" worker >"${work}/packaging.log" 2>&1 &
+  packaging_pid=$!
+  packaging_run="packaging-feedback-1"
+  "${work}/packaging-workflow" --address "${packaging_address}" run "${packaging_run}"
+  packaging_ready=0
+  for _ in $(seq 1 120); do
+    if "${work}/packaging-workflow" --address "${packaging_address}" status "${packaging_run}" >"${work}/packaging-status.json" 2>/dev/null &&
+      python3 -c 'import json,sys; row=json.load(open(sys.argv[1])); sys.exit(0 if row.get("phase")=="review" and row.get("runId")==sys.argv[2] and not row.get("planId") else 1)' "${work}/packaging-status.json" "${packaging_run}"; then
+      packaging_ready=1
+      break
+    fi
+    kill -0 "${packaging_pid}" 2>/dev/null || { echo "simulate: packaging worker exited during startup" >&2; exit 1; }
+    sleep 0.5
+  done
+  [ "${packaging_ready}" -eq 1 ] || { echo "simulate: packaging workflow did not reach unapproved review" >&2; exit 1; }
+  export PACKAGING_TEMPORAL_ADDRESS="${packaging_address}"
+  echo "simulate: real recorded-fixture packaging workflow ${packaging_run} is waiting for review"
+fi
+
 
 # The assistant needs a model to take a turn at all, and a simulation cannot
 # call a real one. This is a loopback script that calls one read tool and then
@@ -156,6 +210,21 @@ done
 curl -sf --noproxy '*' -o /dev/null "${hub_url}/console/" ||
   { echo "simulate: the Hub never served the console" >&2; exit 1; }
 
+# Visibility is eventually indexed: require the actual Hub catalog to expose
+# the seeded workflow before the browser assertions start.
+if [ "${with_packaging}" -eq 1 ]; then
+  packaging_visible=0
+  for _ in $(seq 1 120); do
+    if curl -fsS --noproxy '*' -H 'X-Platform-Subject: operator' "${hub_url}/v1/packaging-runs" >"${work}/packaging-index.json" &&
+      python3 -c 'import json,sys; rows=json.load(open(sys.argv[1])).get("items",[]); sys.exit(0 if any(row.get("runId")==sys.argv[2] for row in rows) else 1)' "${work}/packaging-index.json" "${packaging_run}"; then
+      packaging_visible=1
+      break
+    fi
+    sleep 0.5
+  done
+  [ "${packaging_visible}" -eq 1 ] || { echo "simulate: packaging workflow was not visible through the Hub" >&2; exit 1; }
+fi
+
 # Seeded as "proposer", while the browser acts as "operator". They have to be
 # different people: the Hub refuses the author of a Change Request approving it,
 # so a simulation that proposed and approved as one subject could never exercise
@@ -183,7 +252,7 @@ fi
 
 if [ "${keep}" -eq 1 ]; then
   echo "simulate: Hub left running at ${hub_url}/console/ (pid ${hub_pid}, data ${work})"
-  echo "simulate: stop it with: kill ${hub_pid} ${agent_pid} ${model_pid}"
+  echo "simulate: stop it with: kill ${hub_pid} ${agent_pid} ${model_pid} ${packaging_pid} ${temporal_pid}"
   exit 0
 fi
 
@@ -194,11 +263,12 @@ case "${scenario}" in
   failure|degraded) specs=assistant.spec.ts ;;
   *) echo "simulate: unknown scenario '${scenario}'" >&2; exit 1 ;;
 esac
+if [ "${with_packaging}" -eq 1 ]; then specs="${specs} packaging-feedback.spec.ts"; fi
 for spec in ${specs}; do
   [ -f "${repo_root}/web/src/test/live/${spec}" ] ||
     { echo "simulate: scenario '${scenario}' has no spec file ${spec}" >&2; exit 1; }
 done
 
 # shellcheck disable=SC2086 # specs is a space-separated list of file names
-CONDUIT_HUB_URL="${hub_url}/console/" CONDUIT_SIMULATED_PLAN="${plan_id}" \
+CONDUIT_HUB_URL="${hub_url}/console/" CONDUIT_SIMULATED_PLAN="${plan_id}" CONDUIT_SIMULATED_PACKAGING_RUN="${packaging_run}" \
   pnpm --dir "${repo_root}/web" exec playwright test --config playwright.live.config.ts ${specs} "$@"

@@ -86,6 +86,29 @@ deployed worker shares the Hub's Plan store.
 
 ## Demo
 
+### Browser review-note qualification
+
+With the pinned Temporal CLI already installed, run
+`bash scripts/simulate-console.sh --with-packaging`. Set
+`CONDUIT_TEMPORAL_CLI` to its executable when it is outside the default cache.
+The opt-in harness starts an isolated loopback server and the real packaging
+worker with recorded pipeline fixtures, then waits for `packaging-feedback-1`
+to reach review before starting the Hub and Chromium journeys. It sends no
+approval and does not publish an artifact or deploy a tenant.
+
+The packaging journey records file, manifest, and step notes through the actual
+Hub. It checks the exact reviewed input, author, non-approval receipt, reload
+readback, literal rendering, and refusals for an empty selector or missing run.
+The parent run and event history must remain unchanged. Feedback is currently
+shared operator input: these routes are operator-any, not owner-private or
+environment-grant scoped. This test does not establish model proposal quality,
+durable feedback storage across Hub restart, or all console write paths.
+
+Set `CONDUIT_SIMULATION_EVIDENCE_DIR` to retain owned server logs and the
+packaging status receipt before cleanup. Playwright also attaches the actual
+run, history, and feedback receipts to its test result. The ordinary simulation
+continues to run without Temporal when the flag is absent.
+
 The crash drill is the test, not a tour of the UI:
 
 ```sh
