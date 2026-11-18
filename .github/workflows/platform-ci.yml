@@ -519,16 +519,23 @@ jobs:
         # the cost is not only the wasted twenty minutes -- it is the wrong
         # verdict on a good commit.
         #
-        # Three bounded attempts total at most fifteen minutes, so a stall now
-        # fails its attempt and retries instead of eating the budget the gates
+        # Three attempts, each five minutes plus a thirty-second TERM-to-KILL
+        # grace period, bound installation to sixteen-and-a-half minutes plus
+        # retry delays. The forced deadline also covers TERM-resistant children.
+        # Run the deadline as root too: an unprivileged timeout cannot terminate
+        # Playwright's root-owned apt child, which would keep the dpkg lock.
+        # Keep browser downloads in the runner's normal cache for user tests.
+        # A stall fails its attempt and retries instead of eating the budget the gates
         # need. The retry is for a hung or failed download only; it cannot mask
         # a browser that installs and then misbehaves, which is the test's job.
         #
         # Since #213 the blast radius is also smaller: a stall here cancels this
         # lane, not the Go, CLI, and validator lanes, which have already run.
         run: |
+          console_browser_cache="${PLAYWRIGHT_BROWSERS_PATH:-${HOME}/.cache/ms-playwright}"
           for attempt in 1 2 3; do
-            if timeout 5m pnpm --dir web exec playwright install --with-deps chromium firefox webkit; then
+            if sudo env "PATH=${PATH}" "PLAYWRIGHT_BROWSERS_PATH=${console_browser_cache}" timeout --kill-after=30s 5m pnpm --dir web exec playwright install --with-deps chromium firefox webkit; then
+              sudo chown -R --no-dereference -- "$(id -u):$(id -g)" "${console_browser_cache}"
               exit 0
             fi
             echo "console browser install attempt ${attempt} failed or timed out" >&2
