@@ -20,6 +20,8 @@ import (
 type Threads interface {
 	// Create stores an empty thread, or returns domain.ErrThreadLimit.
 	Create(ctx context.Context, thread domain.Thread) error
+	// Fork atomically snapshots an owned source into a new owned thread.
+	Fork(ctx context.Context, owner, sourceID string, target domain.Thread) (domain.Thread, error)
 	// List returns the owner's threads without messages, newest update first,
 	// then by id.
 	List(ctx context.Context, owner string) ([]domain.Thread, error)
@@ -114,4 +116,26 @@ func randomID() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(raw), nil
+}
+
+// ForkThread copies saved history without invoking models, tools or actions.
+func (service Service) ForkThread(ctx context.Context, actor Actor, id string) (domain.Thread, error) {
+	owner, err := service.owner(actor)
+	if err != nil {
+		return domain.Thread{}, err
+	}
+	if !domain.ValidThreadID(id) {
+		return domain.Thread{}, domain.ErrThreadNotFound
+	}
+	newID := service.NewID
+	if newID == nil {
+		newID = randomID
+	}
+	entropy, err := newID()
+	if err != nil {
+		return domain.Thread{}, err
+	}
+	now := service.stamp()
+	target := domain.Thread{ID: domain.ThreadID(entropy), Owner: owner, CreatedAt: now, UpdatedAt: now}
+	return service.Threads.Fork(ctx, owner, id, target)
 }

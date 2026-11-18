@@ -107,3 +107,34 @@ func TestPostgresSchemaEnforcesTheBounds(t *testing.T) {
 		}
 	}
 }
+
+func TestPostgresForkMessageFailureRollsBackWholeCopy(t *testing.T) {
+	ctx := t.Context()
+	store, err := New(ctx, freshDSN(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	source := domain.Thread{ID: domain.ThreadID("11111111111111111111111111111111"), Owner: "ada", Title: "original"}
+	if err := store.Create(ctx, source); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Append(ctx, "ada", source.ID, []domain.Message{{Role: domain.RoleUser, Text: "question"}, {Role: domain.RoleAssistant, Text: "answer"}}, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.ExecContext(ctx, `CREATE FUNCTION refuse_fork_message() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.position=1 THEN RAISE EXCEPTION 'synthetic fork refusal'; END IF; RETURN NEW; END $$; CREATE TRIGGER refuse_fork_message BEFORE INSERT ON conduit_assistant_thread_messages FOR EACH ROW EXECUTE FUNCTION refuse_fork_message()`); err != nil {
+		t.Fatal(err)
+	}
+	target := domain.Thread{ID: domain.ThreadID("22222222222222222222222222222222"), Owner: "ada"}
+	if _, err := store.Fork(ctx, "ada", source.ID, target); err == nil {
+		t.Fatal("failed copy acknowledged")
+	}
+	rows, err := store.List(ctx, "ada")
+	if err != nil || len(rows) != 1 || rows[0].ID != source.ID {
+		t.Fatal("partial fork header survived", rows, err)
+	}
+	original, err := store.Get(ctx, "ada", source.ID)
+	if err != nil || len(original.Messages) != 2 {
+		t.Fatal("failed fork changed source", original, err)
+	}
+}

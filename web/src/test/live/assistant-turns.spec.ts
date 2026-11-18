@@ -140,3 +140,56 @@ test("the open thread survives a reload, and deleting it removes it from the Hub
     threadId,
   );
 });
+
+test("fork copies saved history without another model turn and survives source deletion", async ({
+  page,
+}) => {
+  await page.goto("./");
+  await openAssistant(page);
+  await ask(page, QUESTION);
+  await expect(answers(page)).toContainText(ANSWER);
+  const originalID = await page.evaluate(() =>
+    localStorage.getItem("conduit.console.assistantThread"),
+  );
+  expect(originalID).toMatch(/^ath_[0-9a-f]{32}$/);
+  const original = { id: originalID! };
+  let turns = 0;
+  page.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/v1/assistant/turns"
+    )
+      turns++;
+  });
+  const copied = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname ===
+        `/v1/assistant/threads/${original.id}/fork`,
+  );
+  await rail(page)
+    .getByRole("button", { name: "Fork conversation", exact: true })
+    .click();
+  const response = await copied;
+  expect(response.status()).toBe(201);
+  const fork = await response.json();
+  expect(fork.id).not.toBe(original.id);
+  expect(fork.messageCount).toBe(2);
+  await expect(
+    rail(page).locator("[data-assistant-thread-title]"),
+  ).toContainText("Fork of");
+  await expect(answers(page)).toContainText(ANSWER);
+  expect(turns).toBe(0);
+  const removed = await page.request.delete(
+    new URL(`/v1/assistant/threads/${original.id}`, page.url()).toString(),
+    { headers: { "X-Conduit-CSRF": "1" } },
+  );
+  expect(removed.status()).toBe(204);
+  await page.reload();
+  await openAssistant(page);
+  await expect(answers(page)).toContainText(ANSWER);
+  await expect(
+    rail(page).locator("[data-assistant-thread-title]"),
+  ).toContainText("Fork of");
+  expect(turns).toBe(0);
+});

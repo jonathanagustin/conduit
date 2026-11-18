@@ -122,6 +122,11 @@ export async function createThread(title = "", options = {}) {
 export const readThread = (id, options = {}) =>
   json("GET", threadPath(id), options);
 
+/** Copy only saved messages; no model or tool call is run. */
+/** @param {string} id @param {RequestOptions} [options] */
+export const forkThread = (id, options = {}) =>
+  json("POST", `${threadPath(id)}/fork`, { ...options, body: {} });
+
 /** @param {string} id @param {RequestOptions} [options] */
 export const deleteThread = (id, options = {}) =>
   json("DELETE", threadPath(id), options);

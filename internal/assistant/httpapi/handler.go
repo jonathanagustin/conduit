@@ -23,6 +23,7 @@ const (
 	ThreadCreateRoute = "POST /v1/assistant/threads"
 	ThreadReadRoute   = "GET /v1/assistant/threads/{threadID}"
 	ThreadDeleteRoute = "DELETE /v1/assistant/threads/{threadID}"
+	ThreadForkRoute   = "POST /v1/assistant/threads/{threadID}/fork"
 )
 
 // Tools runs one tool, one turn, or one thread operation for the caller.
@@ -33,6 +34,7 @@ type Tools interface {
 	ListThreads(ctx context.Context, actor application.Actor) ([]domain.Thread, error)
 	GetThread(ctx context.Context, actor application.Actor, id string) (domain.Thread, error)
 	DeleteThread(ctx context.Context, actor application.Actor, id string) error
+	ForkThread(ctx context.Context, actor application.Actor, id string) (domain.Thread, error)
 }
 
 // Config is the route's dependencies.
@@ -155,6 +157,23 @@ func Register(mux *http.ServeMux, cfg Config) {
 			return
 		}
 		writeJSON(writer, http.StatusOK, threadDocument(thread))
+	})
+	mux.HandleFunc(ThreadForkRoute, func(writer http.ResponseWriter, request *http.Request) {
+		caller, ok := threadCaller(cfg, writer, request)
+		if !ok {
+			return
+		}
+		var body struct{}
+		if err := decode(request, &body); err != nil && !errors.Is(err, io.EOF) {
+			writeError(writer, http.StatusBadRequest, codeInvalidRequest, "request body must be an empty JSON object")
+			return
+		}
+		thread, err := cfg.Tools.ForkThread(request.Context(), caller, request.PathValue("threadID"))
+		if err != nil {
+			writeTurnError(writer, application.Turn{}, err)
+			return
+		}
+		writeJSON(writer, http.StatusCreated, threadDocument(thread))
 	})
 	mux.HandleFunc(ThreadDeleteRoute, func(writer http.ResponseWriter, request *http.Request) {
 		caller, ok := threadCaller(cfg, writer, request)

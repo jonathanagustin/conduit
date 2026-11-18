@@ -130,6 +130,10 @@ func (api assistantAPI) GetThread(ctx context.Context, actor application.Actor, 
 	return api.service(actor).GetThread(ctx, actor, id)
 }
 
+func (api assistantAPI) ForkThread(ctx context.Context, actor application.Actor, id string) (assistantdomain.Thread, error) {
+	return api.service(actor).ForkThread(ctx, actor, id)
+}
+
 func (api assistantAPI) DeleteThread(ctx context.Context, actor application.Actor, id string) error {
 	return api.service(actor).DeleteThread(ctx, actor, id)
 }

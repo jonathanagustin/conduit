@@ -167,7 +167,8 @@ func TestThreadRoutesAreScopedToTheirOwner(t *testing.T) {
 	// A bare hexadecimal username can occur inside a random thread ID. Keep
 	// the owner-leak assertion meaningful without matching legitimate entropy.
 	const owner = "operator-ada"
-	server := handler(&scripted{replies: []string{askForEnvironments, answer, `{"text":"zeta, as I said."}`}})
+	model := &scripted{replies: []string{askForEnvironments, answer, `{"text":"zeta, as I said."}`}}
+	server := handler(model)
 	status, created, raw := call(t, server, owner, http.MethodPost, "/v1/assistant/threads", `{}`)
 	if status != http.StatusCreated || created["title"] != "" || created["messageCount"] != float64(0) || len(created["messages"].([]any)) != 0 {
 		t.Fatalf("create = %d %s", status, raw)
@@ -188,6 +189,7 @@ func TestThreadRoutesAreScopedToTheirOwner(t *testing.T) {
 	for name, attempt := range map[string][]string{
 		"read":   {http.MethodGet, "/v1/assistant/threads/" + id, ""},
 		"delete": {http.MethodDelete, "/v1/assistant/threads/" + id, ""},
+		"fork":   {http.MethodPost, "/v1/assistant/threads/" + id + "/fork", "{}"},
 		"turn":   {http.MethodPost, "/v1/assistant/turns", `{"mode":"explore","message":"continue","threadId":"` + id + `"}`},
 	} {
 		status, body, raw := call(t, server, "grace", attempt[0], attempt[1], attempt[2])
@@ -224,6 +226,20 @@ func TestThreadRoutesAreScopedToTheirOwner(t *testing.T) {
 		record["id"] != "call_1_1" || record["arguments"].(map[string]any)["objectType"] != "Environment" || record["result"].(map[string]any)["matchedCount"] != float64(1) {
 		t.Fatalf("messages = %s", raw)
 	}
+	model.mu.Lock()
+	beforeFork := model.calls
+	model.mu.Unlock()
+	status, copied, raw := call(t, server, owner, http.MethodPost, "/v1/assistant/threads/"+id+"/fork", `{}`)
+	if status != http.StatusCreated || copied["id"] == id || len(copied["messages"].([]any)) != 2 || copied["title"] != "Fork of which environments exist?" || strings.Contains(raw, "owner") || strings.Contains(raw, owner) {
+		t.Fatalf("fork = %d %s", status, raw)
+	}
+	forkID := copied["id"].(string)
+	model.mu.Lock()
+	afterFork := model.calls
+	model.mu.Unlock()
+	if afterFork != beforeFork {
+		t.Fatal("fork invoked model", beforeFork, afterFork)
+	}
 	status, turn, raw = call(t, server, owner, http.MethodPost, "/v1/assistant/turns", `{"mode":"explore","message":"what was it called?","threadId":"`+id+`"}`)
 	if status != http.StatusOK || turn["text"] != "zeta, as I said." {
 		t.Fatalf("resume = %d %s", status, raw)
@@ -233,6 +249,9 @@ func TestThreadRoutesAreScopedToTheirOwner(t *testing.T) {
 	}
 	if status, body, _ := call(t, server, owner, http.MethodGet, "/v1/assistant/threads/"+id, ""); status != http.StatusNotFound || body["code"] != "THREAD_NOT_FOUND" {
 		t.Fatalf("read after delete = %d", status)
+	}
+	if status, body, raw := call(t, server, owner, http.MethodGet, "/v1/assistant/threads/"+forkID, ""); status != http.StatusOK || len(body["messages"].([]any)) != 2 {
+		t.Fatalf("source deletion affected fork: %d %s", status, raw)
 	}
 	if status, body, _ := call(t, server, owner, http.MethodGet, "/v1/assistant/threads/not-an-id", ""); status != http.StatusNotFound || body["code"] != "THREAD_NOT_FOUND" {
 		t.Fatalf("malformed id = %d", status)

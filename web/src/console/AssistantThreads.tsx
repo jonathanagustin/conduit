@@ -21,6 +21,7 @@ export function AssistantThreadBar() {
   const store = useAssistantStore();
   const threads = useAssistantState((state) => state.threads);
   const running = useAssistantState((state) => state.running);
+  const loading = useAssistantState((state) => state.loading);
   const error = useAssistantState((state) => state.threadError);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -56,7 +57,7 @@ export function AssistantThreadBar() {
         <span data-assistant-thread-title className="min-w-0 truncate">
           {current ? threadTitle(current) : "New conversation"}
         </span>
-        <span className="flex shrink-0 gap-1">
+        <span className="flex min-w-0 flex-wrap justify-end gap-1">
           <button
             type="button"
             className="kit-btn kit-btn-sm"
@@ -64,6 +65,15 @@ export function AssistantThreadBar() {
             onClick={() => setOpen((value) => !value)}
           >
             Conversations ({threads.threads.length})
+          </button>
+          <button
+            type="button"
+            className="kit-btn kit-btn-sm"
+            disabled={running || loading || threads.openId === null}
+            title="Copy saved messages into a new conversation without running a model"
+            onClick={() => void store.forkThread()}
+          >
+            Fork conversation
           </button>
           <button
             type="button"

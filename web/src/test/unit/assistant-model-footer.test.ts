@@ -165,6 +165,7 @@ describe("assistant message model footer", () => {
       createThread: async () => ({ id: "thread-942", title: "" }),
       readThread: async (id) => ({ id, messages: [] }),
       deleteThread: async () => null,
+      forkThread: async () => ({ id: "thread-fork", messages: [] }),
       postTool: async () => ({ ok: true }),
       streamTurn: (body, exchange, onEvent, options) =>
         streamTurn(body, exchange, onEvent, { ...options, fetchImpl }),

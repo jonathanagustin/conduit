@@ -43,6 +43,11 @@ function harness(over: Partial<AssistantApi> = {}, turns: Script[] = []) {
     listThreads: vi.fn(async () => []),
     createThread: vi.fn(async () => ({ id: "ath_new", title: "" })),
     readThread: vi.fn(async (id: string) => ({ id, messages: [] })),
+    forkThread: vi.fn(async () => ({
+      id: "ath_fork",
+      title: "Fork",
+      messages: [],
+    })),
     deleteThread: vi.fn(async () => null),
     postTool: vi.fn(async () => ({ ok: true })),
     streamTurn: vi.fn(async (body, exchange, onEvent, options) => {
@@ -431,5 +436,72 @@ describe("AssistantStore.submitTool", () => {
         error: "a person cannot approve their own change request",
       },
     ]);
+  });
+  it("forks saved messages without running a model or tool", async () => {
+    const forkThread = vi.fn(async () => ({
+      id: "ath_fork",
+      title: "Fork of original",
+      messages: [{ role: "user", text: "saved question" }],
+    }));
+    const { store, api, storage } = harness({
+      listThreads: vi.fn(async () => [{ id: "ath_source", title: "Original" }]),
+      forkThread,
+    });
+    await store.init();
+    await store.openThread("ath_source");
+    await store.forkThread();
+    expect(forkThread).toHaveBeenCalledWith("ath_source");
+    expect(store.getState().threads.openId).toBe("ath_fork");
+    expect(store.getState().threads.threads.map((row) => row.id)).toEqual([
+      "ath_fork",
+      "ath_source",
+    ]);
+    expect(store.getState().messages[0]).toMatchObject({
+      role: "user",
+      text: "saved question",
+    });
+    expect(storage.getItem(OPEN_THREAD_KEY)).toBe("ath_fork");
+    expect(api.streamTurn).not.toHaveBeenCalled();
+    expect(api.postTool).not.toHaveBeenCalled();
+  });
+  it("keeps the source open when the Hub refuses a fork", async () => {
+    const { store, storage } = harness({
+      listThreads: vi.fn(async () => [{ id: "ath_source" }]),
+      forkThread: vi.fn(async () => {
+        throw failure("THREAD_LIMIT");
+      }),
+    });
+    await store.init();
+    await store.openThread("ath_source");
+    await store.forkThread();
+    expect(store.getState().threads.openId).toBe("ath_source");
+    expect(storage.getItem(OPEN_THREAD_KEY)).toBe("ath_source");
+    expect(store.getState().threadError).toContain("not forked");
+    expect(store.getState().loading).toBe(false);
+  });
+  it("does not apply a late fork response after conversation navigation", async () => {
+    let resolve!: (value: unknown) => void;
+    const forkThread = vi.fn(
+      () =>
+        new Promise<unknown>((done) => {
+          resolve = done;
+        }),
+    );
+    const { store, api } = harness({
+      listThreads: vi.fn(async () => [{ id: "ath_source" }]),
+      forkThread,
+    });
+    await store.init();
+    await store.openThread("ath_source");
+    const pending = store.forkThread();
+    await store.forkThread();
+    expect(api.forkThread).toHaveBeenCalledTimes(1);
+    await store.send("wait for the fork");
+    expect(api.streamTurn).not.toHaveBeenCalled();
+    store.newThread();
+    resolve({ id: "ath_fork", messages: [{ role: "user", text: "old" }] });
+    await pending;
+    expect(store.getState().threads.openId).toBeNull();
+    expect(store.getState().messages).toEqual([]);
   });
 });

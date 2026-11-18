@@ -1063,6 +1063,25 @@ test("a Confirm the Hub refuses is shown as refused, not as applied", async ({
     }),
   );
   const card = rail(page).locator('[data-tool-call-id="call_1_1"]');
+  // The jump control must reserve footer space instead of floating over
+  // message actions in a narrow assistant viewport.
+  const jump = rail(page).locator(".aui-thread-scroll-to-bottom");
+  await expect
+    .poll(() =>
+      jump.evaluate((button) => {
+        const footer = button.closest(".aui-thread-viewport-footer");
+        if (!footer) return false;
+        const outer = footer.getBoundingClientRect();
+        const inner = button.getBoundingClientRect();
+        return (
+          inner.top >= outer.top &&
+          inner.bottom <= outer.bottom &&
+          inner.left >= outer.left &&
+          inner.right <= outer.right
+        );
+      }),
+    )
+    .toBe(true);
   await card.getByRole("button", { name: "Confirm", exact: true }).click();
   await expect(card).toHaveAttribute("data-tool-state", "refused");
   await expect(card.locator("[data-tool-refusal]")).toContainText(
