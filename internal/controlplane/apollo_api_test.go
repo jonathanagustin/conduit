@@ -1309,7 +1309,7 @@ func TestACommandPlanDoesNotEraseAnEnvironmentsRecalls(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lifecycle, err := apolloReleaseLifecyclePort{repository: repository}.ReleaseLifecycle(ctx)
+	lifecycle, err := releaseLifecycleProjectionPort{repository: repository}.ReleaseLifecycle(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}

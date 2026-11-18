@@ -169,3 +169,10 @@ func WorseHealth(left, right string) string {
 	}
 	return left
 }
+
+// ReleaseLifecycle is the native aggregate of declared recalls and promotions.
+// It contains no compatibility transport identifiers or repository authority.
+type ReleaseLifecycle struct {
+	Recalls    []ProjectedRecall
+	Promotions []ProjectedPromotion
+}

@@ -30,6 +30,13 @@ for (const path of filesBelow(join(root, "internal"))) {
   }
   const local = relative(root, path).replaceAll("\\", "/");
   const dependencies = imports(path);
+  if (["internal/controlplane/release_lifecycle_projection.go", "internal/controlplane/apollo_ports.go"].includes(local)) {
+    for (const dependency of dependencies) {
+      if (/\/internal\/(apollo|apollographql)(?:\/|$)/.test(dependency)) {
+        failures.push(`${local}: native repository projection imports reference adapter ${dependency}`);
+      }
+    }
+  }
   const coreKind = local.includes("/application/") ? "application" : local.includes("/ports/") ? "port" : null;
   if (coreKind) {
     for (const dependency of dependencies) {
