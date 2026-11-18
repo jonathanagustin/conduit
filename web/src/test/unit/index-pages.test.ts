@@ -260,6 +260,56 @@ describe("visible-screen reads", () => {
     }
   });
 
+  it("loads reported health and declared Plan policies for the promotion panel", async () => {
+    const installation = {
+      environment: "edge-a",
+      installationId: "app",
+      product: "app.example:api",
+      observedVersion: "1.0.0",
+      health: "HEALTHY",
+    };
+    const desiredState = {
+      productSettings: [
+        {
+          product: "app.example:api",
+          promotionPipeline: {
+            stages: [
+              {
+                fromChannel: "DEV",
+                toChannel: "STAGING",
+                policy: { minimumHealthyEntities: 1 },
+              },
+            ],
+          },
+        },
+      ],
+    };
+    const paths = installHub((url) => {
+      if (url.pathname === "/v1/fleet/installations")
+        return { installations: [installation], summary: { total: 1 } };
+      if (url.pathname === "/v1/plans")
+        return {
+          plans: [{ id: "policy-plan", environment: "edge-a" }],
+          total: 1,
+        };
+      if (url.pathname === "/v1/plans/policy-plan")
+        return {
+          id: "policy-plan",
+          plan: { environment: "edge-a" },
+          desiredState,
+        };
+      return {};
+    });
+    const state: Record<string, any> = { screen: "rm06-promotion-pipe" };
+    await createLiveHub({ state, render: () => {} }).refresh();
+    expect(
+      paths.some((path) => path.startsWith("/v1/fleet/installations?")),
+    ).toBe(true);
+    expect(paths.some((path) => path.startsWith("/v1/plans?"))).toBe(true);
+    expect(state.hub.installations).toEqual([installation]);
+    expect(state.hub.plans[0].desiredState).toEqual(desiredState);
+  });
+
   it("does not load delivery indexes for Work Intake", async () => {
     const paths = installHub(() => ({}));
     const state: Record<string, any> = { screen: "s01-intake" };

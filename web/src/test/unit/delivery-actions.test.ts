@@ -406,9 +406,47 @@ describe("promotion evaluation", () => {
           installationId: "api",
           health: "HEALTHY",
           observedAt: "2026-05-01T00:00:00Z",
+          healthySince: "2026-05-01T00:00:00Z",
         },
       ],
     });
+  });
+
+  it("credits zero held duration and never copies a claimed earlier healthy-since", () => {
+    const observedAt = "2026-05-01T00:00:00Z";
+    const evidence = promotionEvidence(
+      [{ ...installations[0], healthySince: "2000-01-01T00:00:00Z" }],
+      release("0.2.0"),
+    );
+    expect(evidence[0].healthySince).toBe(observedAt);
+    expect(
+      Date.parse(evidence[0].observedAt) - Date.parse(evidence[0].healthySince),
+    ).toBe(0);
+    const request = buildPromotionEvaluation({
+      stage: {
+        ...stage,
+        policy: { ...policy, minimumHealthyDurationSeconds: 3600 },
+      },
+      products: products(),
+      version: "0.2.0",
+      installations,
+    });
+    expect(request.body.policy.minimumHealthyDurationSeconds).toBe(3600);
+    expect(request.body.evidence[0].healthySince).toBe(
+      request.body.evidence[0].observedAt,
+    );
+    expect(
+      promotionEvidence(
+        [{ ...installations[0], observedAt: undefined }],
+        release("0.2.0"),
+      )[0],
+    ).not.toHaveProperty("healthySince");
+    expect(
+      promotionEvidence(
+        [{ ...installations[0], health: "UNHEALTHY" }],
+        release("0.2.0"),
+      )[0],
+    ).not.toHaveProperty("healthySince");
   });
 
   it("submits no evidence rather than evidence about another version", () => {

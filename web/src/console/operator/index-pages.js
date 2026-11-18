@@ -68,7 +68,7 @@ const EXTRA_READS = Object.freeze({
   "rm05-release-rollout": ["rollouts"],
   "rm-waves": ["rollouts"],
   "rm10-ramped-rollout": ["rollouts"],
-  "rm06-promotion-pipe": ["products", "environments"],
+  "rm06-promotion-pipe": ["products", "environments", "installations", "plans"],
   "rm-channels": ["channels", "products", "environments"],
   "s02-workspaces": ["workspaces"],
   "s09-source": ["workspaces"],
