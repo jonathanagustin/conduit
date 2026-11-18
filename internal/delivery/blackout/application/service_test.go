@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -36,5 +37,42 @@ func TestDeclareRequiresConfirmationAndClearRefusesTheAuthor(t *testing.T) {
 	cleared, err := service.ApproveClear(ctx, controlplane.Principal{Username: "bea", Teams: []string{"release-reviewers"}}, proposed.ChangeRequestID, "rehearsal is over")
 	if err != nil || !cleared.Allowed || service.Active("east", start) != "" {
 		t.Fatalf("clear = %#v active %q %v", cleared, service.Active("east", start), err)
+	}
+}
+
+// Embedding preserves the real repository contract while failing only audit writes.
+type declarationAuditFailure struct {
+	controlplane.Repository
+	refusal error
+}
+
+func (store declarationAuditFailure) AppendAuthorizationAudit(context.Context, controlplane.AuthorizationAuditEvent) (controlplane.AuthorizationAuditEvent, error) {
+	return controlplane.AuthorizationAuditEvent{}, store.refusal
+}
+func TestFailedDeclarationAuditLeavesActiveBlackoutsUnchanged(t *testing.T) {
+	now := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+	repository := controlplane.NewMemoryRepository()
+	service := &Service{Store: repository, Now: func() time.Time { return now }}
+	existing, err := service.Declare(t.Context(), "ada", "east", "existing freeze", now, now.Add(time.Hour), true)
+	if err != nil || !existing.Allowed || existing.AuditID == "" {
+		t.Fatalf("initial declaration=%+v %v", existing, err)
+	}
+	refusal := errors.New("audit storage unavailable")
+	service.Store = declarationAuditFailure{Repository: repository, refusal: refusal}
+	failed, err := service.Declare(t.Context(), "bea", "west", "must not become active", now, now.Add(time.Hour), true)
+	if !errors.Is(err, refusal) || failed.Allowed || failed.AuditID != "" || len(failed.Blackouts) != 0 {
+		t.Fatalf("failed declaration=%+v %v", failed, err)
+	}
+	if got := service.Active("west", now); got != "" {
+		t.Fatalf("failed declaration became active: %q", got)
+	}
+	if got := service.Active("east", now); got != "existing freeze" {
+		t.Fatalf("existing declaration changed: %q", got)
+	}
+	// Once audit recording recovers, the same request can succeed exactly once.
+	service.Store = repository
+	recovered, err := service.Declare(t.Context(), "bea", "west", "reviewed freeze", now, now.Add(time.Hour), true)
+	if err != nil || !recovered.Allowed || recovered.AuditID == "" || len(recovered.Blackouts) != 2 || service.Active("west", now) != "reviewed freeze" {
+		t.Fatalf("recovered declaration=%+v %v", recovered, err)
 	}
 }
