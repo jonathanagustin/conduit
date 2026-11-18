@@ -33,6 +33,17 @@ These are Conduit-native contracts. See [overview](connect-reporting-overview.md
 [Plan approval](connect-plan-approval.md) for their bounded behavior.
 The map does not imply that all Hub routes have RPC equivalents.
 
+## Declared follow-on contracts, not served routes
+
+`proto/conduit/environments/v1/environment_summary.proto` declares
+`EnvironmentReadService/ListEnvironmentSummaries`, a narrow projection of native
+`GET /v1/environments?view=summary`. It carries identity, report summary and
+spoke liveness, not Environment configuration/policy collections or Entity
+bodies. [Its contract note](connect-environment-summaries.md) records native
+pagination/Space semantics and the authorization parity still required. No Hub
+handler is registered, and no caller uses it. The served-route map above remains
+unchanged; generated stubs alone do not complete #392 or #394.
+
 Known follow-ons are environment index/detail/reported-state, fleet
 installations, full Plan index/detail/cancel, change-request approve/reject,
 and authorization audit. Governed packaging rerun/cancel already have REST

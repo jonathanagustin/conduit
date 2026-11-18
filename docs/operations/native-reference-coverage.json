@@ -39,6 +39,7 @@
     "internal/conduitcli/yaml_output.go": "627d4b6a5d756d4b4552f90d88cf88b18a0876aa9a2d423ba809d0b7c4e75d7b",
     "internal/hub/composition/authorization.go": "795d60b3f729f4be250d54658964e07da0399f3894a5a199f47a8ab7ad35e210",
     "proto/conduit/catalog/v1/product_summary.proto": "4a3183ca3853ffa955bb294ec5b08de329327530529e406050ec8253d951eb3a",
+    "proto/conduit/environments/v1/environment_summary.proto": "6cdbd3af682ba579aeee7a1a69f446a26e5d1bf096a6c920922adc1ed2dbd7e7",
     "proto/conduit/notifications/v1/notification_event.proto": "0b1d7b0c38ad4ac66c00606781ee2650a8dc7f501a87b64d5e474e249f85a6e4",
     "proto/conduit/packaging/v1/packaging_run.proto": "3c286a6ebdf69cb806f2460f71dcb8e7ca061070f2966b1766f384e29c02613e",
     "proto/conduit/plans/v1/plan_approval.proto": "13337bd87dd8c2685be051260b6fb4d5e92e5ef8d5eba1f870d1ca70c7919a6b",
@@ -48,6 +49,6 @@
   "registeredRoutes": 265,
   "routesWithNativeOpenAPI": 28,
   "nativeOpenAPIOperations": 28,
-  "protoContracts": 6,
+  "protoContracts": 7,
   "cliCommands": 178
 }
