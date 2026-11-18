@@ -48,7 +48,14 @@ Each failure is a distinct error value in `internal/modelhttp`. Callers see it w
 | The key file cannot be used | `ErrKeyFile` | model failed |
 | Connection or certificate failure | `ErrTransport` | model failed |
 
-The port error texts still say "local model CLI"; the ports were not changed for this adapter. The Hub does not retry. A 429 reports the delay and leaves the decision to the caller.
+The port error texts still say "local model CLI"; the ports were not changed for
+this adapter. The adapter makes one HTTP attempt. The Hub's model governor
+classifies the resulting failure and may retry it within its configured attempt,
+backoff and request-deadline bounds. A provider's `Retry-After` contributes to
+that bounded retry policy; it does not authorize an unlimited wait. Timeouts and
+terminal authentication or input failures are not retried. See
+[model usage, limits and transcripts](ai-usage-and-transcripts.md#retries) for
+the retry classes and configuration.
 
 ## Which model paths use it
 
