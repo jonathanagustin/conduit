@@ -3,11 +3,20 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 
 	"github.com/jonathanagustin/conduit/internal/delivery/waves/domain"
 )
+
+// StatusError carries a composition-owned public refusal.
+type StatusError struct {
+	Status  int
+	Message string
+}
+
+func (err StatusError) Error() string { return err.Message }
 
 const (
 	ListRoute  = "GET /v1/rollouts"
@@ -17,7 +26,7 @@ const (
 // Config is the route's dependencies.
 type Config struct {
 	Authorize func(*http.Request) error
-	List      func() []domain.Rollout
+	List      func(*http.Request) ([]domain.Rollout, error)
 	Write     func(r *http.Request, body Body) (int, any, error)
 }
 
@@ -44,7 +53,12 @@ func Register(mux *http.ServeMux, cfg Config) {
 		}
 		rows := []domain.Rollout{}
 		if cfg.List != nil {
-			rows = cfg.List()
+			var err error
+			rows, err = cfg.List(r)
+			if err != nil {
+				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "rollout evidence is unavailable"})
+				return
+			}
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"rollouts": rows})
 	})
@@ -73,9 +87,18 @@ func Register(mux *http.ServeMux, cfg Config) {
 }
 
 func authorized(cfg Config, w http.ResponseWriter, r *http.Request) bool {
+	if cfg.Authorize == nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return false
+	}
 	if cfg.Authorize != nil {
 		if err := cfg.Authorize(r); err != nil {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+			status, message := http.StatusUnauthorized, "unauthorized"
+			var public StatusError
+			if errors.As(err, &public) && public.Status >= 400 && public.Status <= 599 {
+				status, message = public.Status, public.Message
+			}
+			writeJSON(w, status, map[string]string{"error": message})
 			return false
 		}
 	}
