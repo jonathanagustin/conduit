@@ -98,7 +98,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `GET /v1/export-pipelines` | `operator-grant` | No native schema |
 | `GET /v1/export-pipelines/{pipelineID}/schedule-runs` | `operator-grant` | No native schema |
 | `GET /v1/fleet/installations` | `operator-filtered` | No native schema |
-| `GET /v1/fleet/upgrades` | `operator-any` | No native schema |
+| `GET /v1/fleet/upgrades` | `operator-filtered` | No native schema |
 | `GET /v1/intake-attachments` | `operator-self` | No native schema |
 | `GET /v1/intake-attachments/{digest}` | `operator-self` | No native schema |
 | `GET /v1/intelligence/evals` | `operator-any` | No native schema |
@@ -130,7 +130,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `GET /v1/products` | `operator-filtered` | No native schema |
 | `GET /v1/products/{productID}/download-releases` | `operator-grant` | No native schema |
 | `GET /v1/products/{productID}/releases/{version}/download-assets` | `operator-grant` | No native schema |
-| `GET /v1/products/{product}/dependencies/{version}` | `operator-any` | No native schema |
+| `GET /v1/products/{product}/dependencies/{version}` | `operator-grant` | No native schema |
 | `GET /v1/products/{product}/promotion-stages/{fromChannel}/{toChannel}` | `operator-grant` | No native schema |
 | `GET /v1/products/{product}/publications` | `operator-grant` | No native schema |
 | `GET /v1/products/{product}/releases` | `operator-grant` | No native schema |
