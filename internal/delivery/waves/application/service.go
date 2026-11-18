@@ -5,6 +5,7 @@ package application
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"strings"
 	"sync"
@@ -159,7 +160,11 @@ func (service *Service) Propose(ctx context.Context, actor controlplane.Principa
 	if len(changes) == 0 {
 		return Result{}, fmt.Errorf("rollout has no target Environments")
 	}
-	request, err := governanceService.ProposeHumanChange(ctx, "ROLLOUT", id, changes[0].ReferencedResources["environment"].Name, changes, actor, "Rollout "+action+" "+id, action+" "+rollout.Product+" "+rollout.Version)
+	// Native human requests derive their identity from target kind and ID. Each
+	// operation needs a fresh review; the rollout/resource coordinates remain
+	// in the native changes rather than reusing a completed request's authority.
+	operationID := id + "/" + action + "/" + rand.Text()
+	request, err := governanceService.ProposeHumanChange(ctx, "ROLLOUT", operationID, changes[0].ReferencedResources["environment"].Name, changes, actor, "Rollout "+action+" "+id, action+" "+rollout.Product+" "+rollout.Version)
 	if err != nil {
 		return Result{}, err
 	}
