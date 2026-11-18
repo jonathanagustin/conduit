@@ -8,6 +8,8 @@ test_build="${test_root}/dist"
 export PLATFORM_CONSOLE_CACHE_DIR="${test_root}/vite-cache"
 trap 'rm -rf "${test_root}"' EXIT
 
+python3 "${repo_root}/scripts/test-prepare-hosted-browser-apt.py"
+
 "${repo_root}/scripts/build-console.sh"
 # `verify-local.sh` deliberately points XDG_CACHE_HOME at a repository-owned,
 # restart-safe cache. A browser present in the ambient Codespace cache is not

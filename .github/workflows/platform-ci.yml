@@ -261,7 +261,7 @@ jobs:
             go=true
             cli=true
           fi
-          if [ -n "$(matches '^proto/|^buf\.(yaml|gen\.yaml)$|^Taskfile\.yml$|^scripts/(verify-proto\.sh|normalize-connect-stubs\.py)$|^web/|^internal/consoleui/|(^|/)pnpm-lock\.yaml$|(^|/)pnpm-workspace\.yaml$|^scripts/(build-console|test-console|verify-console-assets)\.sh$|^Containerfile$')" ]; then
+          if [ -n "$(matches '^proto/|^buf\.(yaml|gen\.yaml)$|^Taskfile\.yml$|^scripts/(verify-proto\.sh|normalize-connect-stubs\.py)$|^web/|^internal/consoleui/|(^|/)pnpm-lock\.yaml$|(^|/)pnpm-workspace\.yaml$|^scripts/(build-console|test-console|verify-console-assets)\.sh$|^scripts/(prepare-hosted-browser-apt|test-prepare-hosted-browser-apt)\.py$|^Containerfile$')" ]; then
             console=true
           fi
           # Lint lane also holds documentation, Containerfile, renovate, and
@@ -532,6 +532,13 @@ jobs:
         # Since #213 the blast radius is also smaller: a stall here cancels this
         # lane, not the Go, CLI, and validator lanes, which have already run.
         run: |
+          python3 scripts/test-prepare-hosted-browser-apt.py
+          # Keep the same signed Ubuntu suites/packages, avoiding the regional
+          # EC2 mirror that exhausted all three attempts on two fresh runners.
+          # Act and self-hosted/local operators retain their APT configuration.
+          if [[ "${RUNNER_ENVIRONMENT:-}" == github-hosted && "${ACT:-}" != true ]]; then
+            sudo env "GITHUB_ACTIONS=${GITHUB_ACTIONS:-}" "RUNNER_ENVIRONMENT=${RUNNER_ENVIRONMENT:-}" "ACT=${ACT:-}" python3 scripts/prepare-hosted-browser-apt.py
+          fi
           console_browser_cache="${PLAYWRIGHT_BROWSERS_PATH:-${HOME}/.cache/ms-playwright}"
           for attempt in 1 2 3; do
             if sudo env "PATH=${PATH}" "PLAYWRIGHT_BROWSERS_PATH=${console_browser_cache}" timeout --kill-after=30s 5m pnpm --dir web exec playwright install --with-deps chromium firefox webkit; then
