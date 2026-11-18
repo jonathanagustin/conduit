@@ -789,6 +789,7 @@ func (store *Store) CopyAt(ctx context.Context, fromID, toID, headCommit string)
 		return err
 	}
 	upstream := ""
+	var pushURLs []string
 	for _, remote := range strings.Fields(remotes) {
 		if remote != "origin" {
 			continue
@@ -800,6 +801,16 @@ func (store *Store) CopyAt(ctx context.Context, fromID, toID, headCommit string)
 		upstream = strings.TrimSpace(upstream)
 		if upstream == "" {
 			return domain.ErrInvalid
+		}
+		pushOutput, pushErr := gitOut(ctx, fromRepo, "remote", "get-url", "--push", "--all", "origin")
+		if pushErr != nil {
+			return pushErr
+		}
+		pushURLs = strings.Split(strings.TrimSpace(pushOutput), "\n")
+		for _, url := range pushURLs {
+			if strings.TrimSpace(url) == "" {
+				return domain.ErrInvalid
+			}
 		}
 	}
 	if err := os.MkdirAll(filepath.Dir(toRepo), 0o755); err != nil {
@@ -815,7 +826,19 @@ func (store *Store) CopyAt(ctx context.Context, fromID, toID, headCommit string)
 	if upstream == "" {
 		return runGit(ctx, toRepo, "remote", "remove", "origin")
 	}
-	return runGit(ctx, toRepo, "remote", "set-url", "origin", upstream)
+	if err := runGit(ctx, toRepo, "remote", "set-url", "origin", upstream); err != nil {
+		return err
+	}
+	for i, url := range pushURLs {
+		args := []string{"remote", "set-url", "--push"}
+		if i > 0 {
+			args = append(args, "--add")
+		}
+		if err := runGit(ctx, toRepo, append(args, "origin", url)...); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (t treeAdapter) CopyAt(ctx context.Context, fromID, toID, headCommit string) error {

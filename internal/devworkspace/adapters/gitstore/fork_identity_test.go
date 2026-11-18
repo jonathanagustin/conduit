@@ -155,3 +155,36 @@ func TestForkCopyRejectsInvalidDestination(t *testing.T) {
 		}
 	}
 }
+
+func TestForkRetainsSeparateOriginPushDestination(t *testing.T) {
+	store, parent, service, fetchOrigin := forkIdentityFixture(t, true)
+	pushOrigin := filepath.Join(t.TempDir(), "push.git")
+	if err := runGit(t.Context(), "", "init", "--bare", pushOrigin); err != nil {
+		t.Fatal(err)
+	}
+	if err := runGit(t.Context(), store.RepoDir(parent.ID), "remote", "set-url", "--push", "origin", pushOrigin); err != nil {
+		t.Fatal(err)
+	}
+	child, err := service.Fork(t.Context(), domain.Caller{Username: "ada"}, parent.ID, "Separate push")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fetch, err := gitOut(t.Context(), store.RepoDir(child.ID), "remote", "get-url", "origin")
+	if err != nil || strings.TrimSpace(fetch) != fetchOrigin {
+		t.Fatal("changed fetch destination", fetch, err)
+	}
+	push, err := gitOut(t.Context(), store.RepoDir(child.ID), "remote", "get-url", "--push", "origin")
+	if err != nil || strings.TrimSpace(push) != pushOrigin {
+		t.Fatal("lost configured push destination", push, err)
+	}
+	if _, err := store.PreserveOnIdle(t.Context(), child, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	got, err := gitOut(t.Context(), "", "--git-dir", pushOrigin, "rev-parse", "refs/heads/"+child.Branch)
+	if err != nil || strings.TrimSpace(got) != child.HeadCommit {
+		t.Fatal("push destination lacks child branch", got, err)
+	}
+	if err := runGit(t.Context(), "", "--git-dir", fetchOrigin, "show-ref", "--verify", "refs/heads/"+child.Branch); err == nil {
+		t.Fatal("fork pushed to fetch-only destination")
+	}
+}
