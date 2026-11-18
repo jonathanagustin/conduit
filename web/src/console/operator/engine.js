@@ -1,4 +1,5 @@
 import { observeGlobe } from "./globe-observers.js";
+import { createMountBindings } from "./mount-bindings.js";
 function canvasPaint(value) {
   if (typeof value !== "string") return value;
   const style = getComputedStyle(
@@ -137,6 +138,8 @@ import {
 export function mountOperator(host, options) {
   let disposed = false;
   let disposeGlobe = () => {};
+  const windowBindings = createMountBindings(window);
+  const actions = windowBindings.bindings;
   const notifyOperator = () => {
     const mount = host.querySelector("#assistant-thread-mount");
     options.onAssistantMount(state.chatCollapsed ? null : mount);
@@ -1094,7 +1097,7 @@ export function mountOperator(host, options) {
       state.assistantMode = purpose === "coa" ? "release_plan" : "explore";
       state.chatCollapsed = false;
       renderChatRail();
-      publishAssistantContext(state);
+      publishAssistantContext(state, actions);
       const prefix =
         purpose === "coa"
           ? "Outline a reviewable course of action for"
@@ -1880,7 +1883,7 @@ export function mountOperator(host, options) {
   function renderChatRail() {
     const rail = document.getElementById("right-chat-rail");
     if (!rail) return;
-    publishAssistantContext(state);
+    publishAssistantContext(state, actions);
     if (state.chatCollapsed) {
       rail.className = "hidden";
       rail.innerHTML = "";
@@ -2016,7 +2019,7 @@ export function mountOperator(host, options) {
     state.chatCollapsed = false;
     renderChatRail();
   }
-  window.inspectObject = inspectObject;
+  actions.inspectObject = inspectObject;
 
   function handleInspectorClick(target) {
     const tab = target.closest("[data-inspector-tab]");
@@ -5252,7 +5255,7 @@ export function mountOperator(host, options) {
     getOperatorName: () => state.operatorName,
     onDockReset: () => renderChatRail(),
   });
-  window.toggleSettingsDialog = () => settingsDialog.toggle();
+  actions.toggleSettingsDialog = () => settingsDialog.toggle();
 
   const onKey = (ev) => {
     if (ev.defaultPrevented) return;
@@ -5306,15 +5309,15 @@ export function mountOperator(host, options) {
   document.addEventListener("submit", onIndexSubmit);
   document.addEventListener("click", onIndexClick);
   restoreLocation();
-  window.switchScreen = switchScreen;
-  window.closeTab = closeTab;
-  window.toggleMobileNav = toggleMobileNav;
-  window.closeMobileNav = closeMobileNav;
-  window.toggleLeftRailCollapse = toggleLeftRailCollapse;
-  window.toggleChatRail = toggleChatRail;
-  window.toggleEngineerWorkspace = toggleEngineerWorkspace;
-  window.refreshHub = () => liveHub.refresh();
-  window.toggleTheme = () => {
+  actions.switchScreen = switchScreen;
+  actions.closeTab = closeTab;
+  actions.toggleMobileNav = toggleMobileNav;
+  actions.closeMobileNav = closeMobileNav;
+  actions.toggleLeftRailCollapse = toggleLeftRailCollapse;
+  actions.toggleChatRail = toggleChatRail;
+  actions.toggleEngineerWorkspace = toggleEngineerWorkspace;
+  actions.refreshHub = () => liveHub.refresh();
+  actions.toggleTheme = () => {
     const root = document.querySelector(".operator-root");
     if (!root) return;
     const next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
@@ -5323,32 +5326,32 @@ export function mountOperator(host, options) {
     const button = document.getElementById("theme-toggle");
     if (button) button.textContent = next === "light" ? "Dark" : "Light";
   };
-  window.handleGlobalSearch = handleGlobalSearch;
-  window.openCmdOmnibar = openCmdOmnibar;
-  window.handleOmnibarKey = handleOmnibarKey;
-  window.paletteInput = paletteInput;
-  window.paletteCategory = paletteCategory;
-  window.pickPaletteItem = pickPaletteItem;
-  window.renderConduitModals = renderConduitModals;
-  window.renderMainWorkspace = renderMainWorkspace;
-  window.showTip = showTip;
-  window.hideTip = hideTip;
-  window.recordAudit = recordAudit;
-  window.toggleSavedViewPin = (id) => {
+  actions.handleGlobalSearch = handleGlobalSearch;
+  actions.openCmdOmnibar = openCmdOmnibar;
+  actions.handleOmnibarKey = handleOmnibarKey;
+  actions.paletteInput = paletteInput;
+  actions.paletteCategory = paletteCategory;
+  actions.pickPaletteItem = pickPaletteItem;
+  actions.renderConduitModals = renderConduitModals;
+  actions.renderMainWorkspace = renderMainWorkspace;
+  actions.showTip = showTip;
+  actions.hideTip = hideTip;
+  actions.recordAudit = recordAudit;
+  actions.toggleSavedViewPin = (id) => {
     const view = state.savedViews.find((item) => item.id === id);
     if (view) view.pinned = !view.pinned;
     renderApp();
   };
-  window.removeSavedView = (id) => {
+  actions.removeSavedView = (id) => {
     state.savedViews = state.savedViews.filter((item) => item.id !== id);
     renderApp();
   };
-  window.state = state;
+  actions.state = state;
   const removeInlineActions = installInlineActions(document);
-  releaseGates.bind(window);
-  ontologyGraph.bind(window);
-  settings.bind(window);
-  capabilities.bind(window);
+  releaseGates.bind(actions);
+  ontologyGraph.bind(actions);
+  settings.bind(actions);
+  capabilities.bind(actions);
   settingsDialog.restore();
   renderApp();
   return () => {
@@ -5363,5 +5366,6 @@ export function mountOperator(host, options) {
     window.removeEventListener("hashchange", onHash);
     document.removeEventListener("submit", onIndexSubmit);
     document.removeEventListener("click", onIndexClick);
+    windowBindings.dispose();
   };
 }

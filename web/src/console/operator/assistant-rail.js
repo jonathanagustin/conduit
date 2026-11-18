@@ -335,13 +335,13 @@ function routeFor(objectType) {
   }
 }
 
-export function publishAssistantContext(state) {
+export function publishAssistantContext(state, target = window) {
   const chips = contextChips(state).map((chip) => ({
     id: chip.id,
     objectType: chip.objectType,
     label: chip.label || chip.id,
   }));
-  window.__conduitAssistantContext = {
+  target.__conduitAssistantContext = {
     mode: state.assistantMode || "explore",
     chips,
   };

@@ -318,9 +318,14 @@ test("live permission failure is visible and leaves polling active without recon
   );
   await expect(page.locator("#live-events-retry")).toBeVisible();
   const before = current.reads.filter((path) => path === "/v1/plans").length;
-  await page.clock.runFor(30000);
+  // Initial reads may still be in flight when live permission is refused.
+  // A busy poll is intentionally skipped; keep the fake clock advancing so
+  // the assertion observes the next eligible poll rather than freezing time.
   await expect
-    .poll(() => current.reads.filter((path) => path === "/v1/plans").length)
+    .poll(async () => {
+      await page.clock.runFor(30000);
+      return current.reads.filter((path) => path === "/v1/plans").length;
+    })
     .toBeGreaterThan(before);
   const requests = await page.evaluate(
     () =>
