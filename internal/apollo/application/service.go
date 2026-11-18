@@ -101,10 +101,9 @@ type EnvironmentInventoryPort interface {
 // halves travel together so that answering a Release costs one query rather
 // than one per field, and so that recallStatus and releaseChannels on the same
 // response describe the same moment.
-type ReleaseLifecycle struct {
-	Recalls    []environments.ProjectedRecall
-	Promotions []environments.ProjectedPromotion
-}
+// ReleaseLifecycle remains an alias for existing adapter callers; the snapshot
+// belongs to Conduit rather than to a compatibility transport.
+type ReleaseLifecycle = environments.ReleaseLifecycle
 
 // PublicationAssets are optional Conduit-native exact bytes associated with a
 // Helm publication. They are never part of the public Apollo request model.

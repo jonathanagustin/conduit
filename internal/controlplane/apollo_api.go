@@ -28,7 +28,7 @@ func newApolloPublicAPI(repository Repository, governance *GovernanceService, co
 		context.Background(),
 		apolloCatalogPort{repository: repository},
 		apolloReportingPort{repository: repository},
-		apolloReleaseLifecyclePort{repository: repository},
+		releaseLifecycleProjectionPort{repository: repository},
 		apolloEnvironmentInventoryPort{repository: repository},
 	)
 	if err != nil {
@@ -175,7 +175,7 @@ func (api *apolloPublicAPI) syncDesiredState(ctx context.Context, state DesiredS
 	// of which replica served the write: this funnel runs only in the process
 	// that accepted the desired state, so the other replica -- and every replica
 	// after a restart -- served all three EMPTY, which a client cannot tell
-	// apart from a Hub that governs nothing. apolloReleaseLifecyclePort and
+	// apart from a Hub that governs nothing. releaseLifecycleProjectionPort and
 	// apolloEnvironmentInventoryPort read the same facts from the Plans, which
 	// both replicas share.
 	//
