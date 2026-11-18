@@ -74,3 +74,9 @@ type VolumeExpiryAudit interface {
 type History interface {
 	History(ctx context.Context, workspaceID, headCommit string) (domain.CommitHistory, error)
 }
+
+// SnapshotCopier optionally pins a fork to the parent's recorded Git commit.
+// Metadata-only file adapters retain their existing Copy contract.
+type SnapshotCopier interface {
+	CopyAt(ctx context.Context, fromID, toID, headCommit string) error
+}
