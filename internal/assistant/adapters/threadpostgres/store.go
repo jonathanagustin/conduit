@@ -151,6 +151,9 @@ func (store *Store) Get(ctx context.Context, owner, id string) (domain.Thread, e
 		if err := json.Unmarshal(document, &message); err != nil {
 			return domain.Thread{}, err
 		}
+		if err := message.Validate(); err != nil {
+			return domain.Thread{}, err
+		}
 		thread.Messages = append(thread.Messages, message)
 	}
 	if err := rows.Err(); err != nil {

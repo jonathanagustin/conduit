@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { expect, test as base, type Page } from "@playwright/test";
 
 import { APPLICATIONS, session, stubHub } from "./hub-stub";
@@ -1105,4 +1107,109 @@ test("the command palette lists only what the session enables", async ({
   await page.keyboard.press("Control+k");
   await palette.getByLabel("Search").fill("Fleet");
   await expect(row("Fleet")).not.toHaveCount(0);
+});
+
+// Synthetic Go-generated wire data exercises the browser contract, not a live model.
+const groundingFixture = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../../internal/assistant/domain/testdata/grounding-v1.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+) as Json;
+
+for (const transport of ["json", "stream"] as const) {
+  test(`retrieved sources survive ${transport} and thread reload`, async ({
+    page,
+    hub,
+  }) => {
+    await openAssistant(page);
+    await send(page, "show retrieved references");
+    const turn = await hub.nextTurn();
+    const document = turnDocument({
+      threadId: "ath_1",
+      text: "Retrieved fixture references.",
+      results: [],
+      toolCalls: [],
+      grounding: groundingFixture,
+    });
+    hub.remember("ath_1", "show retrieved references", document);
+    if (transport === "json") turn.json(200, document);
+    else {
+      turn.send({
+        type: "RUN_STARTED",
+        threadId: "ath_1",
+        runId: "arun_sources",
+      });
+      turn.send({
+        type: "RUN_FINISHED",
+        threadId: "ath_1",
+        runId: "arun_sources",
+        result: document,
+      });
+      turn.end();
+    }
+    const sources = rail(page).locator('[data-assistant-sources="available"]');
+    await expect(sources).toBeVisible();
+    const summary = sources.locator(":scope > summary");
+    await summary.focus();
+    await page.keyboard.press("Enter");
+    await expect(sources.locator("blockquote").first()).toContainText(
+      "<script>untrusted source text</script>",
+    );
+    await expect(sources.locator("script, img, a")).toHaveCount(0);
+    await sources.getByText("Source evidence", { exact: true }).first().click();
+    await expect(sources).toContainText("aud_fixture_doc");
+    await expect(sources).toContainText("0–77 (end exclusive)");
+    if (transport === "stream")
+      await page.screenshot({
+        path: test.info().outputPath("retrieved-sources.png"),
+      });
+    const writesBefore = hub.writes.length;
+    await page.reload();
+    await page.getByTitle("Toggle right chat panel").click();
+    await expect(sources).toBeVisible();
+    await sources.locator(":scope > summary").click();
+    await expect(sources).toContainText("Environment:visible-fixture");
+    expect(hub.writes.length).toBe(writesBefore);
+  });
+}
+
+test("failed streams retain retrieved sources without reporting success", async ({
+  page,
+  hub,
+}) => {
+  await openAssistant(page);
+  await send(page, "retrieve then fail");
+  const turn = await hub.nextTurn();
+  turn.send({
+    type: "RUN_STARTED",
+    threadId: "ath_1",
+    runId: "arun_failed_sources",
+  });
+  turn.send({
+    type: "CUSTOM",
+    name: "conduit.assistant.turn-result",
+    value: {
+      grounding: { ...groundingFixture, truncated: true },
+      rounds: 1,
+    },
+  });
+  turn.send({
+    type: "RUN_ERROR",
+    code: "MODEL_UNAVAILABLE",
+    message: "Model unavailable after retrieval",
+  });
+  turn.end();
+  await expect(
+    rail(page).getByRole("button", { name: "Retry", exact: true }),
+  ).toBeVisible();
+  const sources = rail(page).locator('[data-assistant-sources="available"]');
+  await sources.locator(":scope > summary").click();
+  await expect(sources).toContainText(
+    "Additional source excerpts are not shown.",
+  );
+  await expect(sources.locator("[data-source-citation]")).toHaveCount(2);
 });

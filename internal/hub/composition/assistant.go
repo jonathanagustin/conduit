@@ -12,6 +12,7 @@ import (
 	"time"
 
 	assistantmodelhttp "github.com/jonathanagustin/conduit/internal/assistant/adapters/modelhttp"
+	assistantdocs "github.com/jonathanagustin/conduit/internal/assistant/adapters/productdocs"
 	"github.com/jonathanagustin/conduit/internal/assistant/adapters/threadmemory"
 	"github.com/jonathanagustin/conduit/internal/assistant/application"
 	assistantdomain "github.com/jonathanagustin/conduit/internal/assistant/domain"
@@ -35,7 +36,8 @@ func mountAssistant(
 	}
 	api := assistantAPI{
 		repository: repository, governance: governanceService, options: options, hub: hub, model: model, cases: cases,
-		threads: threads,
+		threads:       threads,
+		documentation: assistantdocs.New(),
 	}
 	mux := http.NewServeMux()
 	assistanthttp.Register(mux, assistanthttp.Config{
@@ -73,13 +75,14 @@ func assistantModel(getenv func(string) string) (assistantdomain.Model, error) {
 }
 
 type assistantAPI struct {
-	repository controlplane.Repository
-	governance *controlplane.GovernanceService
-	options    controlplane.HandlerOptions
-	hub        Options
-	model      assistantdomain.Model
-	cases      evalAdder
-	threads    application.Threads
+	documentation application.Documentation
+	repository    controlplane.Repository
+	governance    *controlplane.GovernanceService
+	options       controlplane.HandlerOptions
+	hub           Options
+	model         assistantdomain.Model
+	cases         evalAdder
+	threads       application.Threads
 }
 
 type evalAdder interface {
@@ -88,17 +91,18 @@ type evalAdder interface {
 
 func (api assistantAPI) service(actor application.Actor) application.Service {
 	return application.Service{
-		Objects:  catalogQuery{governance: api.governance, options: api.options, repository: api.repository},
-		Governor: actionGate{repository: api.repository, hub: api.hub},
-		Changes:  changeOpener{service: api.governance, actions: assistantActions{repository: api.repository, options: api.options, hub: api.hub}},
-		Diffs:    changeReader{repository: api.repository},
-		Audit:    toolAudit{repository: api.repository},
-		Model:    api.model,
-		Cases:    api.cases,
-		Authors:  requestAuthor{repository: api.repository},
-		Reviews:  changeReviewer{service: api.governance},
-		Receipts: assistantReceiptReader{repository: api.repository},
-		Threads:  api.threads,
+		Documentation: api.documentation,
+		Objects:       catalogQuery{governance: api.governance, options: api.options, repository: api.repository},
+		Governor:      actionGate{repository: api.repository, hub: api.hub},
+		Changes:       changeOpener{service: api.governance, actions: assistantActions{repository: api.repository, options: api.options, hub: api.hub}},
+		Diffs:         changeReader{repository: api.repository},
+		Audit:         toolAudit{repository: api.repository},
+		Model:         api.model,
+		Cases:         api.cases,
+		Authors:       requestAuthor{repository: api.repository},
+		Reviews:       changeReviewer{service: api.governance},
+		Receipts:      assistantReceiptReader{repository: api.repository},
+		Threads:       api.threads,
 	}
 }
 

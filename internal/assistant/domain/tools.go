@@ -15,10 +15,11 @@ import (
 )
 
 const (
-	ToolQuery   = "query_ontology_objects"
-	ToolPropose = "propose_governed_action"
-	ToolDiff    = "review_change_diff"
-	ToolWrite   = "governed_write"
+	ToolQuery         = "query_ontology_objects"
+	ToolDocumentation = "search_product_documentation"
+	ToolPropose       = "propose_governed_action"
+	ToolDiff          = "review_change_diff"
+	ToolWrite         = "governed_write"
 
 	LabelNoModel   = "No model call"
 	LabelLiveModel = "Live model call"
@@ -77,6 +78,11 @@ type EqFilter struct {
 	Value string `json:"value"`
 }
 
+// DocumentationArgs is a bounded text query, never a path or URL to open.
+type DocumentationArgs struct {
+	Query string `json:"query"`
+}
+
 // ProposeArgs names a governed action. Opening a change request still needs a person.
 type ProposeArgs struct {
 	ActionID         string `json:"actionId"`
@@ -120,12 +126,13 @@ type Field struct {
 
 // ToolCall is one validated call.
 type ToolCall struct {
-	Name      string
-	Query     QueryArgs
-	Propose   ProposeArgs
-	Diff      DiffArgs
-	Write     WriteArgs
-	Arguments json.RawMessage
+	Documentation DocumentationArgs
+	Name          string
+	Query         QueryArgs
+	Propose       ProposeArgs
+	Diff          DiffArgs
+	Write         WriteArgs
+	Arguments     json.RawMessage
 }
 
 // ModelReply is the only object a model may return.
@@ -163,13 +170,13 @@ func ModeAllows(mode, tool string) bool {
 func toolsForMode(mode string) []string {
 	switch strings.TrimSpace(mode) {
 	case ModeExplore:
-		return []string{ToolQuery}
+		return []string{ToolQuery, ToolDocumentation}
 	case ModeReleasePlan:
-		return []string{ToolQuery, ToolPropose, ToolWrite}
+		return []string{ToolQuery, ToolDocumentation, ToolPropose, ToolWrite}
 	case ModeConfigDiff:
-		return []string{ToolQuery, ToolDiff}
+		return []string{ToolQuery, ToolDocumentation, ToolDiff}
 	case ModeOntology:
-		return []string{ToolQuery, ToolPropose, ToolDiff, ToolWrite}
+		return []string{ToolQuery, ToolDocumentation, ToolPropose, ToolDiff, ToolWrite}
 	default:
 		return nil
 	}
@@ -183,6 +190,16 @@ func ParseToolCall(name string, arguments json.RawMessage) (ToolCall, error) {
 		call.Arguments = []byte("{}")
 	}
 	switch name {
+	case ToolDocumentation:
+		args, err := decode[DocumentationArgs](call.Arguments)
+		if err != nil {
+			return ToolCall{}, err
+		}
+		args.Query = strings.TrimSpace(args.Query)
+		if args.Query == "" || len(args.Query) > 256 {
+			return ToolCall{}, fmt.Errorf("%w: documentation query must be 1 to 256 bytes", ErrToolInvalid)
+		}
+		call.Documentation = args
 	case ToolQuery:
 		args, err := decode[QueryArgs](call.Arguments)
 		if err != nil {

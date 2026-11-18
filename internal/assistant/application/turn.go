@@ -72,7 +72,7 @@ func (service Service) Converse(ctx context.Context, actor Actor, request TurnRe
 }
 
 func (service Service) rounds(ctx context.Context, actor Actor, request TurnRequest, history []domain.Message, observer Observer) (Turn, error) {
-	turn := Turn{Label: domain.LabelLiveModel}
+	turn := Turn{Label: domain.LabelLiveModel, Grounding: domain.NewGrounding()}
 	conversation := domain.Conversation{Mode: request.Mode, Message: request.Message, Chips: request.Chips, History: history}
 	executed := 0
 	for round := 1; ; round++ {
@@ -135,6 +135,9 @@ func (service Service) rounds(ctx context.Context, actor Actor, request TurnRequ
 				return turn, err
 			}
 			result.Label = domain.LabelLiveModel
+			if result.OK && call.Name == domain.ToolQuery {
+				result.Sources, result.SourcesTruncated = service.ontologySources(result)
+			}
 			turn.ToolCalls = append(turn.ToolCalls, call)
 			turn.Results = append(turn.Results, result)
 			if observer != nil {
@@ -145,6 +148,11 @@ func (service Service) rounds(ctx context.Context, actor Actor, request TurnRequ
 			encoded, err := json.Marshal(result)
 			if err != nil {
 				return turn, err
+			}
+			if result.OK && len(encoded) <= domain.MaxToolResultBytes {
+				turn.Grounding.Add(result.Sources, result.SourcesTruncated)
+			} else if len(result.Sources) > 0 || result.SourcesTruncated {
+				turn.Grounding.Truncated = true
 			}
 			exchange.Records = append(exchange.Records, domain.ToolRecord{
 				ID: call.ID, Round: round, Name: call.Name, Arguments: call.Arguments, Result: encoded,
@@ -195,6 +203,7 @@ func (service Service) remember(ctx context.Context, actor Actor, request TurnRe
 		return domain.ErrThreadsUnavailable
 	}
 	answer := domain.Message{Role: domain.RoleAssistant, Text: turn.Text, Mode: request.Mode, CreatedAt: service.stamp(), Usage: turn.Usage.Clone()}
+	answer.Grounding = turn.Grounding.Clone()
 	if failure != nil {
 		answer.ErrorCode = ErrorCode(failure)
 	}

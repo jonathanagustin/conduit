@@ -1,4 +1,5 @@
 import { servedModelLabel } from "./model-identity";
+import { parseGrounding, type GroundingEvidence } from "./assistant-grounding";
 /*
  * The assistant's turn and thread state, as pure functions.
  *
@@ -72,6 +73,7 @@ export type TurnError = {
 };
 
 export type AssistantTurn = {
+  grounding?: GroundingEvidence | null;
   status: "running" | "complete" | "error" | "cancelled";
   /** True once RUN_STARTED arrived: the Hub reached a model call. */
   started: boolean;
@@ -130,6 +132,7 @@ export function newTurn(): AssistantTurn {
     label: "",
     model: null,
     usage: null,
+    grounding: null,
     error: null,
   };
 }
@@ -208,6 +211,7 @@ export function applyTurnDocument(
     threadId: text(fields["threadId"]) || turn.threadId,
     model: servedModel(fields["model"]) ?? turn.model,
     usage: reportedTokenUsage(fields["usage"]),
+    grounding: parseGrounding(fields["grounding"]),
   };
 }
 
@@ -656,6 +660,7 @@ export function messagesFromThread(thread: unknown): ChatMessage[] {
         tools,
         text: text(message["text"]),
         usage: reportedTokenUsage(message["usage"]),
+        grounding: parseGrounding(message["grounding"]),
         status:
           code === "CANCELLED" ? "cancelled" : code ? "error" : "complete",
         error: code && code !== "CANCELLED" ? { code, message: "" } : null,
@@ -669,6 +674,7 @@ export function messagesFromThread(thread: unknown): ChatMessage[] {
 // ---------------------------------------------------------------------------
 
 export type TurnMeta = {
+  grounding?: GroundingEvidence | null;
   mode: string;
   label: string;
   rounds: number;
@@ -758,6 +764,7 @@ export function toThreadMessage(message: ChatMessage): ThreadMessageShape {
           rounds: turn.rounds,
           model: turn.model,
           usage: turn.usage ?? null,
+          grounding: turn.grounding ?? null,
           code: turn.error?.code ?? "",
         },
       },

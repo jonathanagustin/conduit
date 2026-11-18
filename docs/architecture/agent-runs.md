@@ -164,6 +164,35 @@ audits per tool call instead, as it did before.
 A thread belongs to the authenticated username. A thread that does not exist
 and a thread another operator owns are the same `404 THREAD_NOT_FOUND`.
 
+### Retrieved source excerpts
+
+The native `search_product_documentation` read tool searches five embedded
+references: operator sign-in, AI usage/transcripts, HTTP model configuration,
+route authorization and agent runs. This is a bounded lexical search, requiring
+all meaningful query terms; it does not search arbitrary paths, URLs, private
+captures or the complete documentation tree. Results contain at most three
+512-byte UTF-8 excerpts. Missing or unavailable references remain explicit.
+
+Model turns also retain excerpts from the existing permission-filtered ontology
+query result, without rereading a repository or widening the authenticated
+principal. Successful audit recording precedes publication of either source
+kind. Tool data remains untrusted prompt content and grants no approval.
+
+Optional `grounding` metadata uses `conduit.assistant-grounding/v1` with
+`CONDUIT_NATIVE` sources: exact quote, source coordinate, excerpt SHA-256,
+retrieval timestamp and audit receipt. Documentation includes full-file SHA-256,
+line bounds and byte offsets (end exclusive). Each turn retains at most eight
+sources and explicitly reports omitted excerpts. These records identify retrieved
+material; they do not attest model correctness or establish that every answer
+statement is supported. The model cannot supply this metadata.
+
+JSON results, the existing terminal SSE result/custom partial-result event and
+stored thread messages carry the same records. The console renders plain-text
+excerpts in keyboard-operable disclosures, with no source HTML execution or
+source URL fetching. Legacy messages have no source panel; observed empty
+retrieval and malformed metadata have distinct messages. Thread snapshots are
+independent copies. MCP retains its existing two-read-tool contract.
+
 ### Supported assistant writes and execution
 
 The Conduit-native `governed_write` allowlist is `add_eval_case`,

@@ -32,6 +32,41 @@ func message(role, text string, minute int) domain.Message {
 
 // Run exercises one adapter. open returns an empty store each time.
 func Run(t *testing.T, open func(t *testing.T) application.Threads) {
+	t.Run("grounding and tool payloads retain independent source snapshots", func(t *testing.T) {
+		store, ctx := open(t), context.Background()
+		if err := store.Create(ctx, thread("ada", 1)); err != nil {
+			t.Fatal(err)
+		}
+		source, err := domain.NewCitation(domain.Citation{Kind: domain.SourceOntology, Title: "Environment", Source: "Environment:visible", Quote: `{"id":"visible"}`})
+		if err != nil {
+			t.Fatal(err)
+		}
+		source.AuditEventID = "aud_fixture"
+		source.RetrievedAt = epoch
+		grounding := domain.NewGrounding()
+		grounding.Add([]domain.Citation{source}, false)
+		answer := message(domain.RoleAssistant, "answer", 1)
+		answer.Grounding = grounding
+		answer.ToolCalls = []domain.ToolRecord{{ID: "call_1", Name: domain.ToolQuery, Arguments: json.RawMessage(`{"objectType":"Environment"}`), Result: json.RawMessage(`{"ok":true}`)}}
+		if err := store.Append(ctx, "ada", id(1), []domain.Message{answer}, "answer"); err != nil {
+			t.Fatal(err)
+		}
+		answer.Grounding.Sources[0].Quote = "changed caller source"
+		answer.ToolCalls[0].Arguments[0] = '['
+		got, err := store.Get(ctx, "ada", id(1))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !got.Messages[0].Grounding.Valid() || got.Messages[0].Grounding.Sources[0].Quote != source.Quote || string(got.Messages[0].ToolCalls[0].Arguments) != `{"objectType":"Environment"}` {
+			t.Fatalf("caller changed source snapshot: %+v", got)
+		}
+		got.Messages[0].Grounding.Sources[0].Title = "changed reader source"
+		got.Messages[0].ToolCalls[0].Result[0] = '['
+		again, err := store.Get(ctx, "ada", id(1))
+		if err != nil || again.Messages[0].Grounding.Sources[0].Title != source.Title || string(again.Messages[0].ToolCalls[0].Result) != `{"ok":true}` {
+			t.Fatalf("reader changed source snapshot: %+v %v", again, err)
+		}
+	})
 	t.Run("reported usage survives storage without aliasing callers or readers", func(t *testing.T) {
 		store, ctx := open(t), context.Background()
 		if err := store.Create(ctx, thread("ada", 1)); err != nil {
