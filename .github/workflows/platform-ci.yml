@@ -858,6 +858,7 @@ jobs:
           UDS_BIN: /tmp/uds
         run: |
           ruby scripts/verify-zarf-package.rb
+          ruby scripts/test-zarf-tracing.rb
           ./scripts/test-zarf-runtime-selection.sh
           # The package deploys manifests, not the charts: this renders both
           # for each profile with the Helm pinned above and fails on any

@@ -14,6 +14,7 @@ import (
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	observability "github.com/jonathanagustin/conduit/internal/observability/domain"
+	traceports "github.com/jonathanagustin/conduit/internal/observability/ports"
 )
 
 type Receipt struct {
@@ -65,6 +66,7 @@ type SecretMutationExecutor interface {
 }
 
 type Worker struct {
+	Tracer        traceports.Tracer
 	ControlPlane  ControlPlane
 	Executor      Executor
 	Materials     SecretMutationExecutor
@@ -74,7 +76,7 @@ type Worker struct {
 	Now           func() time.Time
 }
 
-func (worker Worker) RunOnce(ctx context.Context) (bool, error) {
+func (worker Worker) RunOnce(ctx context.Context) (worked bool, runErr error) {
 	if worker.ControlPlane == nil || worker.Executor == nil {
 		return false, errors.New("control plane and executor are required")
 	}
@@ -94,7 +96,15 @@ func (worker Worker) RunOnce(ctx context.Context) (bool, error) {
 	if _, traced := observability.TraceFromContext(ctx); !traced {
 		ctx = observability.ContextWithTrace(ctx, observability.NewTraceContext())
 	}
-	record, err := worker.ControlPlane.Lease(ctx, worker.Environment, worker.AgentID, leaseDuration)
+	leaseCtx := ctx
+	var leaseSpan traceports.Span
+	if worker.Tracer != nil {
+		leaseCtx, leaseSpan = worker.Tracer.Start(ctx, traceports.AgentLease, observability.TraceContext{})
+	}
+	record, err := worker.ControlPlane.Lease(leaseCtx, worker.Environment, worker.AgentID, leaseDuration)
+	if leaseSpan != nil {
+		leaseSpan.End(err != nil && !errors.Is(err, ErrNoPlan))
+	}
 	if errors.Is(err, ErrNoPlan) {
 		return false, nil
 	}
@@ -103,6 +113,12 @@ func (worker Worker) RunOnce(ctx context.Context) (bool, error) {
 	}
 	if record.Lease == nil || record.Lease.Token == "" {
 		return false, errors.New("control plane returned a lease without an opaque token")
+	}
+	if worker.Tracer != nil {
+		parent, _ := observability.ParseTraceparent(record.DecisionTraceparent)
+		var span traceports.Span
+		ctx, span = worker.Tracer.Start(ctx, traceports.AgentExecution, parent)
+		defer traceports.EndOnReturn(span, &runErr)
 	}
 	token := record.Lease.Token
 	attempt := record.Lease.Attempt
@@ -201,7 +217,7 @@ func (worker Worker) RunOnce(ctx context.Context) (bool, error) {
 				break
 			}
 			if step.Action != controlplane.PlanActionUnmanage {
-				receipt, applyErr := worker.Executor.Apply(workCtx, record.Plan, step)
+				receipt, applyErr := worker.tracedApply(workCtx, record.Plan, step)
 				if applyErr != nil {
 					executionErr = fmt.Errorf("apply %s: %w", step.InstallationID, applyErr)
 					failedInstallationID = step.InstallationID
@@ -458,4 +474,13 @@ func reportedSecrets(mutations []controlplane.SecretMutation) []controlplane.Rep
 		})
 	}
 	return reported
+}
+
+func (worker Worker) tracedApply(ctx context.Context, plan controlplane.Plan, step controlplane.PlanStep) (receipt Receipt, err error) {
+	if worker.Tracer != nil {
+		var span traceports.Span
+		ctx, span = worker.Tracer.Start(ctx, traceports.AgentApply, observability.TraceContext{})
+		defer traceports.EndOnReturn(span, &err)
+	}
+	return worker.Executor.Apply(ctx, plan, step)
 }

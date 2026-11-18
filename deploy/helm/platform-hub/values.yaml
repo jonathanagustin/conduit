@@ -317,3 +317,12 @@ model:
   # encrypts that hop. scripts/verify-helm-runtime.rb permits this one
   # insecure opt-in and no other.
   allowInsecureHTTP: false
+
+# Optional outbound OTLP/HTTP traces. No endpoint means no exporter or egress.
+# Collector and CA are deployment-owned; see docs/operations/tracing.md.
+tracing:
+  endpoint: ""
+  sampleRatio: 0.01
+  caConfigMap:
+    name: ""
+    key: ca.pem

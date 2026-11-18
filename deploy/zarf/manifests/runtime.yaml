@@ -64,6 +64,13 @@ spec:
           image: {{ index .Pkg.Metadata.Annotations "conduit.dev/hub-image" | toString | toJson }}
           imagePullPolicy: IfNotPresent
           env:
+            {{ if .Values.TRACING_OTLP_HTTP_ENDPOINT }}
+            - { name: CONDUIT_OTLP_HTTP_ENDPOINT, value: {{ .Values.TRACING_OTLP_HTTP_ENDPOINT | toString | toJson }} }
+            - { name: CONDUIT_TRACE_SAMPLE_RATIO, value: {{ .Values.TRACING_SAMPLE_RATIO | toString | toJson }} }
+            {{ if .Values.TRACING_CA_CONFIGMAP }}
+            - { name: CONDUIT_OTLP_CA_FILE, value: /run/conduit-otlp-ca/ca.pem }
+            {{ end }}
+            {{ end }}
             - { name: AGENT_CLIENT_CA_FILE, value: /run/platform-tls/ca.crt }
             - { name: TLS_CERT_FILE, value: /run/platform-tls/tls.crt }
             - { name: TLS_KEY_FILE, value: /run/platform-tls/tls.key }
@@ -157,6 +164,9 @@ spec:
             capabilities: { drop: ["ALL"] }
             readOnlyRootFilesystem: true
           volumeMounts:
+            {{ if and .Values.TRACING_OTLP_HTTP_ENDPOINT .Values.TRACING_CA_CONFIGMAP }}
+            - { name: conduit-otlp-ca, mountPath: /run/conduit-otlp-ca, readOnly: true }
+            {{ end }}
             - { name: state, mountPath: /var/lib/platform-delivery }
             - { name: oidc-ca, mountPath: /etc/ssl/platform-ca, readOnly: true }
             - { name: hub-tls, mountPath: /run/platform-tls, readOnly: true }
@@ -167,6 +177,13 @@ spec:
             - { name: conduit-model-ca, mountPath: /run/conduit-model-ca, readOnly: true }
 {{ .Values.rendered.HUB_OPERATIONAL_MOUNTS }}
       volumes:
+        {{ if and .Values.TRACING_OTLP_HTTP_ENDPOINT .Values.TRACING_CA_CONFIGMAP }}
+        - name: conduit-otlp-ca
+          configMap:
+            name: {{ .Values.TRACING_CA_CONFIGMAP | toString | toJson }}
+            items:
+              - { key: ca.pem, path: ca.pem }
+        {{ end }}
 {{ .Values.rendered.HUB_OPERATIONAL_VOLUMES }}
         # Derived from REPOSITORY_KIND like the replica count. file mounts the
         # retained PVC. postgres mounts a per-Pod emptyDir, because two replicas
@@ -278,6 +295,13 @@ spec:
           image: {{ index .Pkg.Metadata.Annotations "conduit.dev/spoke-agent-image" | toString | toJson }}
           imagePullPolicy: IfNotPresent
           env:
+            {{ if .Values.TRACING_OTLP_HTTP_ENDPOINT }}
+            - { name: CONDUIT_OTLP_HTTP_ENDPOINT, value: {{ .Values.TRACING_OTLP_HTTP_ENDPOINT | toString | toJson }} }
+            - { name: CONDUIT_TRACE_SAMPLE_RATIO, value: {{ .Values.TRACING_SAMPLE_RATIO | toString | toJson }} }
+            {{ if .Values.TRACING_CA_CONFIGMAP }}
+            - { name: CONDUIT_OTLP_CA_FILE, value: /run/conduit-otlp-ca/ca.pem }
+            {{ end }}
+            {{ end }}
             - { name: CONTROL_PLANE_URL, value: "https://platform-delivery.platform-system.svc.cluster.local:8081" }
             - { name: CONTROL_PLANE_CA_FILE, value: /run/platform-tls/ca.crt }
             - { name: CONTROL_PLANE_CLIENT_CERT_FILE, value: /run/platform-tls/tls.crt }
@@ -297,10 +321,20 @@ spec:
             capabilities: { drop: ["ALL"] }
             readOnlyRootFilesystem: true
           volumeMounts:
+            {{ if and .Values.TRACING_OTLP_HTTP_ENDPOINT .Values.TRACING_CA_CONFIGMAP }}
+            - { name: conduit-otlp-ca, mountPath: /run/conduit-otlp-ca, readOnly: true }
+            {{ end }}
             - { name: temporary, mountPath: /tmp }
             - { name: agent-tls, mountPath: /run/platform-tls, readOnly: true }
 {{ .Values.rendered.SPOKE_OPERATIONAL_MOUNTS }}
       volumes:
+        {{ if and .Values.TRACING_OTLP_HTTP_ENDPOINT .Values.TRACING_CA_CONFIGMAP }}
+        - name: conduit-otlp-ca
+          configMap:
+            name: {{ .Values.TRACING_CA_CONFIGMAP | toString | toJson }}
+            items:
+              - { key: ca.pem, path: ca.pem }
+        {{ end }}
 {{ .Values.rendered.SPOKE_OPERATIONAL_VOLUMES }}
         - name: temporary
           emptyDir: {}

@@ -14,6 +14,7 @@ import (
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	observability "github.com/jonathanagustin/conduit/internal/observability/domain"
+	traceports "github.com/jonathanagustin/conduit/internal/observability/ports"
 )
 
 var (
@@ -170,7 +171,7 @@ func (client *HTTPControlPlane) request(
 	for name, value := range headers {
 		request.Header.Set(name, value)
 	}
-	if traceparent := observability.OutboundTraceparent(ctx); traceparent != "" {
+	if traceparent := traceports.OutboundTraceparent(ctx); traceparent != "" {
 		request.Header.Set(observability.TraceparentHeader, traceparent)
 	}
 	response, err := client.Client.Do(request)

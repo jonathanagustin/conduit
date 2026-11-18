@@ -1,3 +1,6 @@
+{{- if and .Values.tracing.caConfigMap.name (not .Values.tracing.endpoint) }}
+{{- fail "tracing.endpoint is required with tracing.caConfigMap.name" }}
+{{- end }}
 {{- if and .Values.metrics.enabled (ne .Values.repository.kind "postgres") }}
 {{- fail "metrics.enabled requires repository.kind postgres: the Hub serves /metrics only for the PostgreSQL repository" }}
 {{- end }}
@@ -95,6 +98,13 @@ spec:
           image: {{ required "image must be an immutable digest reference" .Values.image | quote }}
           imagePullPolicy: {{ .Values.imagePullPolicy }}
           env:
+            {{- if .Values.tracing.endpoint }}
+            - { name: CONDUIT_OTLP_HTTP_ENDPOINT, value: {{ .Values.tracing.endpoint | quote }} }
+            - { name: CONDUIT_TRACE_SAMPLE_RATIO, value: {{ .Values.tracing.sampleRatio | quote }} }
+            {{- if .Values.tracing.caConfigMap.name }}
+            - { name: CONDUIT_OTLP_CA_FILE, value: /run/conduit-otlp-ca/ca.pem }
+            {{- end }}
+            {{- end }}
             - { name: REPOSITORY_KIND, value: {{ .Values.repository.kind | quote }} }
             {{- if eq .Values.repository.kind "postgres" }}
             - { name: POSTGRES_DSN_FILE, value: /run/conduit-database/{{ .Values.repository.postgres.dsnKey }} }
@@ -285,6 +295,9 @@ spec:
               drop: ["ALL"]
             readOnlyRootFilesystem: true
           volumeMounts:
+            {{- if and .Values.tracing.endpoint .Values.tracing.caConfigMap.name }}
+            - { name: conduit-otlp-ca, mountPath: /run/conduit-otlp-ca, readOnly: true }
+            {{- end }}
             {{- if eq .Values.repository.kind "file" }}
             - { name: state, mountPath: /var/lib/platform-delivery }
             {{- else }}
@@ -338,6 +351,13 @@ spec:
             - { name: conduit-model-ca, mountPath: /run/conduit-model-ca, readOnly: true }
             {{- end }}
       volumes:
+        {{- if and .Values.tracing.endpoint .Values.tracing.caConfigMap.name }}
+        - name: conduit-otlp-ca
+          configMap:
+            name: {{ .Values.tracing.caConfigMap.name | quote }}
+            items:
+              - { key: {{ .Values.tracing.caConfigMap.key | quote }}, path: ca.pem }
+        {{- end }}
         {{- if eq .Values.repository.kind "file" }}
         - name: state
           persistentVolumeClaim:

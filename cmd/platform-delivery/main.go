@@ -44,7 +44,9 @@ import (
 	notificationsapplication "github.com/jonathanagustin/conduit/internal/notifications/application"
 	notificationports "github.com/jonathanagustin/conduit/internal/notifications/ports"
 	httpmetrics "github.com/jonathanagustin/conduit/internal/observability/adapters/httpmetrics"
+	tracinghttp "github.com/jonathanagustin/conduit/internal/observability/adapters/otlphttp"
 	metricsapplication "github.com/jonathanagustin/conduit/internal/observability/application"
+	traceports "github.com/jonathanagustin/conduit/internal/observability/ports"
 	packagingconfig "github.com/jonathanagustin/conduit/internal/packagingworkflow/config"
 	packaginghttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/httpapi"
 	packagingruntime "github.com/jonathanagustin/conduit/internal/packagingworkflow/runtime"
@@ -72,6 +74,15 @@ func main() {
 			os.Exit(1)
 		}
 		return
+	}
+	traceRecorder, traceErr := tracinghttp.New(ctx, os.Getenv, "conduit-hub", composition.HubRouteLabels())
+	if traceErr != nil {
+		slog.Error("configure tracing", "error", traceErr)
+		os.Exit(1)
+	}
+	defer func() { _ = traceRecorder.Shutdown() }()
+	if traceRecorder != nil {
+		ctx = traceports.ContextWithTracer(ctx, traceRecorder)
 	}
 	address := os.Getenv("LISTEN_ADDRESS")
 	if address == "" {
@@ -321,8 +332,11 @@ func main() {
 	}
 	// Outside the limiter, so a request it refuses is counted and logged too.
 	requestRecorder := composition.NewRequestRecorder()
-	server.Handler = composition.ObserveRequests(server.Handler, handlerOptions,
-		composition.RequestObservation{Recorder: requestRecorder})
+	observation := composition.RequestObservation{Recorder: requestRecorder}
+	if traceRecorder != nil {
+		observation.Tracer = traceRecorder
+	}
+	server.Handler = composition.ObserveRequests(server.Handler, handlerOptions, observation)
 	if agentClientCAFile != "" {
 		server.TLSConfig, err = controlplane.AgentServerTLSConfig(agentClientCAFile)
 		if err != nil {

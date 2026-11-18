@@ -13,6 +13,7 @@ import (
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	observability "github.com/jonathanagustin/conduit/internal/observability/domain"
+	traceports "github.com/jonathanagustin/conduit/internal/observability/ports"
 )
 
 // Every request path this client builds is absolute, so ResolveReference
@@ -492,5 +493,26 @@ func TestAgentRequestsCarryTheTraceOnTheirContextAsAChildSpan(t *testing.T) {
 	}
 	if first.SpanID == trace.SpanID || first.SpanID == second.SpanID {
 		t.Fatalf("the calls are not distinct child spans: %q", seen)
+	}
+}
+
+func TestExportedAgentTraceUsesTheActualSpanAsTheHTTPParent(t *testing.T) {
+	var seen string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r.Header.Get("traceparent")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+	client, err := NewHTTPControlPlane(server.URL, server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := observability.NewTraceContext()
+	ctx := traceports.ContextWithSpan(observability.ContextWithTrace(context.Background(), current), &workerTrace{})
+	if err := client.Start(ctx, "environment", "agent", "plan", "token"); err != nil {
+		t.Fatal(err)
+	}
+	if seen != current.Traceparent() {
+		t.Fatal("HTTP client fabricated an unexported parent span")
 	}
 }

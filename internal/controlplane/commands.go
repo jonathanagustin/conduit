@@ -176,7 +176,7 @@ func (lifecycle *Lifecycle) IssueCommand(ctx context.Context, request IssueComma
 			ResourceName: request.ResourceName, TargetVersion: target.Version, IssuedBy: issuer, Rationale: request.Rationale, IssuedAt: now},
 		CreatedAt: now, UpdatedAt: now, Revision: 1,
 	}
-	return lifecycle.repository.CreatePlan(ctx, record)
+	return lifecycle.createTracedPlan(ctx, record)
 }
 
 func securityRecallBlocksCommand(state DesiredState, target PlanStep) bool {

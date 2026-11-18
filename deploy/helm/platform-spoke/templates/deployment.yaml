@@ -1,3 +1,6 @@
+{{- if and .Values.tracing.caConfigMap.name (not .Values.tracing.endpoint) }}
+{{- fail "tracing.endpoint is required with tracing.caConfigMap.name" }}
+{{- end }}
 {{- $podLabels := deepCopy .Values.podLabels -}}
 {{- $_ := set $podLabels "app.kubernetes.io/name" (include "platform-spoke.name" .) -}}
 {{- $_ := set $podLabels "app.kubernetes.io/instance" .Release.Name -}}
@@ -46,6 +49,13 @@ spec:
           image: {{ required "image must be an immutable digest reference" .Values.image | quote }}
           imagePullPolicy: {{ .Values.imagePullPolicy }}
           env:
+            {{- if .Values.tracing.endpoint }}
+            - { name: CONDUIT_OTLP_HTTP_ENDPOINT, value: {{ .Values.tracing.endpoint | quote }} }
+            - { name: CONDUIT_TRACE_SAMPLE_RATIO, value: {{ .Values.tracing.sampleRatio | quote }} }
+            {{- if .Values.tracing.caConfigMap.name }}
+            - { name: CONDUIT_OTLP_CA_FILE, value: /run/conduit-otlp-ca/ca.pem }
+            {{- end }}
+            {{- end }}
             - { name: CONTROL_PLANE_URL, value: {{ required "controlPlaneURL is required" .Values.controlPlaneURL | quote }} }
             - { name: CONTROL_PLANE_CA_FILE, value: /etc/ssl/platform-ca/ca.pem }
             - { name: CONTROL_PLANE_CLIENT_CERT_FILE, value: /run/platform-tls/tls.crt }
@@ -82,6 +92,9 @@ spec:
               drop: ["ALL"]
             readOnlyRootFilesystem: true
           volumeMounts:
+            {{- if and .Values.tracing.endpoint .Values.tracing.caConfigMap.name }}
+            - { name: conduit-otlp-ca, mountPath: /run/conduit-otlp-ca, readOnly: true }
+            {{- end }}
             - { name: temporary, mountPath: /tmp }
             - { name: client-tls, mountPath: /run/platform-tls, readOnly: true }
             - { name: external-ca, mountPath: /etc/ssl/platform-ca, readOnly: true }
@@ -92,6 +105,13 @@ spec:
             - { name: material-preparer-tools, mountPath: {{ .Values.materialPreparer.toolsMountPath | quote }}, readOnly: true }
             {{- end }}
       volumes:
+        {{- if and .Values.tracing.endpoint .Values.tracing.caConfigMap.name }}
+        - name: conduit-otlp-ca
+          configMap:
+            name: {{ .Values.tracing.caConfigMap.name | quote }}
+            items:
+              - { key: {{ .Values.tracing.caConfigMap.key | quote }}, path: ca.pem }
+        {{- end }}
         - name: temporary
           emptyDir: {}
         - name: client-tls

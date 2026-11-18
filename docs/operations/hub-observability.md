@@ -123,14 +123,13 @@ of letters, digits, `.`, `_` and `-`; anything else is replaced by a generated
 ### Trace id
 
 The Hub reads a W3C `traceparent` request header. A well-formed one is
-continued; a malformed or absent one starts a new trace. The Spoke Agent sends
-one trace per work cycle, so the Hub's lines for an Agent's lease, start,
-heartbeats and finish share a `trace_id`.
-
-This is log correlation, not tracing. No span is recorded or exported, and a
-Plan's decision is not linked to its later lease.
-[ADR 0018](../decisions/0018-tracing.md) (Proposed) sets out what OTLP export
-would cost and asks for the decision.
+continued; a malformed or absent one starts a new trace. With export disabled, the Spoke Agent sends one trace per work cycle, so
+its lease, start, heartbeat and finish access-log lines share a `trace_id`.
+This default records no spans and does not link a decision to its later lease.
+[ADR 0018](../decisions/0018-tracing.md) adopts opt-in OTLP/HTTP tracing.
+The default remains log correlation. See the [tracing runbook](tracing.md) for
+export settings, Plan decision/lease/execution continuity, disclosure limits and
+deployment-owned collector qualification.
 
 ## Alerts, dashboard, runbooks
 

@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	execution "github.com/jonathanagustin/conduit/internal/execution/domain"
+	observability "github.com/jonathanagustin/conduit/internal/observability/domain"
+	traceports "github.com/jonathanagustin/conduit/internal/observability/ports"
 	"sort"
 	"strings"
 	"time"
@@ -52,24 +54,28 @@ type PlanCancellation struct {
 }
 
 type PlanRecord struct {
-	ID                 string                   `json:"id"`
-	DesiredStateDigest string                   `json:"desiredStateDigest"`
-	DesiredState       *DesiredState            `json:"desiredState,omitempty"`
-	ChangeRequestID    string                   `json:"changeRequestId,omitempty"`
-	Plan               Plan                     `json:"plan"`
-	Status             PlanStatus               `json:"status"`
-	RequiredApprovals  int                      `json:"requiredApprovals"`
-	Approvals          []Approval               `json:"approvals,omitempty"`
-	Lease              *PlanLease               `json:"lease,omitempty"`
-	Failure            string                   `json:"failure,omitempty"`
-	FailedInstallation string                   `json:"failedInstallationId,omitempty"`
-	Execution          *PlanExecution           `json:"execution,omitempty"`
-	Cancellation       *PlanCancellation        `json:"cancellation,omitempty"`
-	Command            *EntityCommand           `json:"command,omitempty"`
-	Optimizer          *OptimizerPlanProvenance `json:"optimizer,omitempty"`
-	CreatedAt          time.Time                `json:"createdAt"`
-	UpdatedAt          time.Time                `json:"updatedAt"`
-	Revision           uint64                   `json:"revision"`
+	// CONDUIT-INVENTED: observability.PlanDecisionTrace
+	// Displaced-by: a published or sanitized protocol defining persisted Plan decision trace context and asynchronous lease linkage.
+	// DecisionTraceparent is optional diagnostic context, outside Plan identity.
+	DecisionTraceparent string                   `json:"decisionTraceparent,omitempty"`
+	ID                  string                   `json:"id"`
+	DesiredStateDigest  string                   `json:"desiredStateDigest"`
+	DesiredState        *DesiredState            `json:"desiredState,omitempty"`
+	ChangeRequestID     string                   `json:"changeRequestId,omitempty"`
+	Plan                Plan                     `json:"plan"`
+	Status              PlanStatus               `json:"status"`
+	RequiredApprovals   int                      `json:"requiredApprovals"`
+	Approvals           []Approval               `json:"approvals,omitempty"`
+	Lease               *PlanLease               `json:"lease,omitempty"`
+	Failure             string                   `json:"failure,omitempty"`
+	FailedInstallation  string                   `json:"failedInstallationId,omitempty"`
+	Execution           *PlanExecution           `json:"execution,omitempty"`
+	Cancellation        *PlanCancellation        `json:"cancellation,omitempty"`
+	Command             *EntityCommand           `json:"command,omitempty"`
+	Optimizer           *OptimizerPlanProvenance `json:"optimizer,omitempty"`
+	CreatedAt           time.Time                `json:"createdAt"`
+	UpdatedAt           time.Time                `json:"updatedAt"`
+	Revision            uint64                   `json:"revision"`
 	// CompletionRecorded is committed with the terminal status and its evidence.
 	// It fences retries from replaying observations or automatic suppressions.
 	CompletionRecorded bool `json:"completionRecorded,omitempty"`
@@ -161,6 +167,19 @@ func NewLifecycle(repository Repository) *Lifecycle {
 	return &Lifecycle{repository: repository, now: time.Now, newToken: randomToken}
 }
 
+func (lifecycle *Lifecycle) createTracedPlan(ctx context.Context, record PlanRecord) (created PlanRecord, err error) {
+	if tracer, ok := traceports.TracerFromContext(ctx); ok {
+		var span traceports.Span
+		ctx, span = tracer.Start(ctx, traceports.PlanDecision, observability.TraceContext{})
+		defer traceports.EndOnReturn(span, &err)
+	}
+
+	if parent, ok := traceports.RecordedTrace(ctx); ok {
+		record.DecisionTraceparent = parent.Traceparent()
+	}
+	return lifecycle.repository.CreatePlan(ctx, record)
+}
+
 func (lifecycle *Lifecycle) CreatePlan(ctx context.Context, state DesiredState) (PlanRecord, error) {
 	return lifecycle.createPlan(ctx, state, nil)
 }
@@ -226,7 +245,7 @@ func (lifecycle *Lifecycle) createPlan(ctx context.Context, state DesiredState, 
 		provenance := *optimizer
 		record.Optimizer = &provenance
 	}
-	created, err := lifecycle.repository.CreatePlan(ctx, record)
+	created, err := lifecycle.createTracedPlan(ctx, record)
 	if err != nil {
 		return PlanRecord{}, err
 	}
@@ -263,7 +282,7 @@ func (lifecycle *Lifecycle) recordNonExecutingState(
 		UpdatedAt:          now,
 		Revision:           1,
 	}
-	created, err := lifecycle.repository.CreatePlan(ctx, record)
+	created, err := lifecycle.createTracedPlan(ctx, record)
 	if err != nil {
 		return PlanRecord{}, err
 	}
@@ -577,6 +596,9 @@ func (lifecycle *Lifecycle) leaseNextPlan(
 			return nil
 		})
 		if updateErr == nil {
+			if parent, ok := observability.ParseTraceparent(leased.DecisionTraceparent); ok {
+				traceports.Link(ctx, parent)
+			}
 			return leased, nil
 		}
 		if !errors.Is(updateErr, ErrConflict) {
