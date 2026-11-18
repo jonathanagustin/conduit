@@ -5,8 +5,9 @@ The Hub explicitly registers the POST method
 an operator-filtered read. It authenticates before protobuf decoding and uses
 the original resolved principal with the native Environment visibility query.
 Readable Space selection and membership narrow that query; neither grants
-Environment authority. REST remains enabled. #394 owns caller migration;
-no REST deprecation or automatic transport fallback is enabled.
+Environment authority. REST remains enabled. The CLI's explicit summary mode
+can select Connect; other #394 caller migration remains open. No REST
+deprecation or automatic transport fallback is enabled.
 
 ## Native source and bounded projection
 
@@ -45,6 +46,33 @@ filtering, Space selection, pagination and refusals, including proof that an
 unknown method is not served. #394 owns any explicit generated caller and
 REST rollback mode. No Plan, approval, lease, Agent or packaging authority is
 introduced by this read contract.
+
+## Explicit CLI summary view
+
+`conduit environment list` still returns full records over REST. The narrow RPC
+cannot replace that output: omitted configuration must not be presented as
+empty configuration. Select the summary explicitly:
+
+```sh
+conduit environment list --view summary
+conduit environment list --view summary --read-transport connect --search prod
+```
+
+REST is the default transport in either view. `--read-transport connect` and
+`--search` require `--view summary`; unsupported combinations fail before a
+request. The existing `--space-id` selector applies to both transports. Summary
+output contains narrow identities, optional report counts/times, Spoke liveness
+and the filtered total. JSON, YAML, table and CSV use the same narrow values.
+Generation is opaque, missing reports remain absent, and missing times are not
+replaced by the current time. Configuration and Entity bodies do not enter the
+summary output even when REST supplies a wider native record.
+
+The generated client uses the configured operator HTTP client and its original
+credentials, trust, deadline, cancellation, redirect refusal and response-size
+bound. It follows native cursors with the same search/Space, rejects repeated
+cursors and duplicate identities, validates response envelopes/counts/times and
+emits no partial output when a page fails. Errors are never retried through the
+other transport. This changes no command, Plan approval or execution authority.
 
 ## Verification
 

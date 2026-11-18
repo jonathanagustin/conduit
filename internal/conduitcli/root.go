@@ -344,6 +344,10 @@ func newService(ctx context.Context, configuration ConnectionConfig) (Service, f
 		return nil, nil, err
 	}
 	service := operator.NewService(adapter)
+	if err := adapter.SetEnvironmentReadTransport(configuration.EnvironmentReadTransport); err != nil {
+		connection.cleanup()
+		return nil, nil, err
+	}
 	if err := adapter.SetPlanReadTransport(configuration.PlanReadTransport); err != nil {
 		connection.cleanup()
 		return nil, nil, err
@@ -499,6 +503,7 @@ func planCommand(state *commandState) *cobra.Command {
 func environmentCommand(state *commandState) *cobra.Command {
 	command := &cobra.Command{Use: "environment", Aliases: []string{"env"}, Short: "Inspect Environment state"}
 	var contactTeam string
+	var listView, listSearch string
 	create := &cobra.Command{
 		Use:   "create ENVIRONMENT_NAME",
 		Short: "Author a Git-owned Environment descriptor",
@@ -514,12 +519,26 @@ func environmentCommand(state *commandState) *cobra.Command {
 	create.Flags().StringVar(&contactTeam, "contact-team", "",
 		"Team responsible for the Environment. If omitted, the Environment is authored without an owning team.")
 	command.AddCommand(create)
-	command.AddCommand(&cobra.Command{
+	list := &cobra.Command{
 		Use:   "list",
 		Short: "List visible Environments",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
+			if listView != "full" && listView != "summary" {
+				return errors.New("--view must be full or summary")
+			}
+			if listView == "full" && (state.config.EnvironmentReadTransport == "connect" || listSearch != "") {
+				return errors.New("Connect transport and search require --view summary; full Environment records remain REST-only")
+			}
 			return state.execute(command, func(service Service) (any, error) {
+				if listView == "summary" {
+					reader, ok := service.(operator.EnvironmentSummaryReader)
+					if !ok {
+						return nil, errors.New("Environment summary reads are not configured")
+					}
+					result, err := reader.ListEnvironmentSummaries(command.Context(), listSearch)
+					return environmentSummaryList{result}, err
+				}
 				records, err := service.ListEnvironments(command.Context())
 				if err != nil {
 					return nil, err
@@ -527,7 +546,11 @@ func environmentCommand(state *commandState) *cobra.Command {
 				return environmentList{Environments: records}, nil
 			})
 		},
-	})
+	}
+	list.Flags().StringVar(&listView, "view", "full", "Environment projection: full or summary")
+	list.Flags().StringVar(&listSearch, "search", "", "Environment ID substring search; requires summary view")
+	list.Flags().StringVar(&state.config.EnvironmentReadTransport, "read-transport", "rest", "summary transport: rest or connect; failures are never replayed")
+	command.AddCommand(list)
 	command.AddCommand(&cobra.Command{
 		Use:   "get ENVIRONMENT_ID",
 		Short: "Get a declared and reported Environment projection",
