@@ -77,11 +77,11 @@ func (service *Service) Create(ctx context.Context, actor, id, product, version 
 	if _, exists := service.rollouts[rollout.ID]; exists {
 		return Result{}, fmt.Errorf("rollout %s already exists", rollout.ID)
 	}
-	service.rollouts[rollout.ID] = rollout
 	auditID, err := service.audit(ctx, actor, "rollout/"+rollout.ID, governance.DecisionAllow, "rollout drafted")
 	if err != nil {
 		return Result{}, err
 	}
+	service.rollouts[rollout.ID] = rollout
 	return Result{Allowed: true, Reason: "rollout drafted", Status: rollout.Status, Rollout: rollout, AuditID: auditID}, nil
 }
 
@@ -96,12 +96,14 @@ func (service *Service) Pause(ctx context.Context, actor, id string, confirmed b
 	next, reason := domain.Pause(rollout, actor, confirmed)
 	decision := governance.DecisionDeny
 	if reason == "rollout paused" {
-		service.rollouts[id] = next
 		decision = governance.DecisionAllow
 	}
 	auditID, err := service.audit(ctx, actor, "rollout/"+id, decision, reason)
 	if err != nil {
 		return Result{}, err
+	}
+	if decision == governance.DecisionAllow {
+		service.rollouts[id] = next
 	}
 	return Result{Allowed: decision == governance.DecisionAllow, Reason: reason, Status: next.Status, Rollout: next, AuditID: auditID}, nil
 }

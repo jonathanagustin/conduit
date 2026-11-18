@@ -38,3 +38,15 @@ func TestAnonymousRolloutWriteIsRefused(t *testing.T) {
 		t.Fatalf("status = %d", response.Code)
 	}
 }
+
+func TestRolloutWriteFailureRedactsBackendDiagnostic(t *testing.T) {
+	mux := http.NewServeMux()
+	Register(mux, Config{Authorize: func(*http.Request) error { return nil }, Write: func(*http.Request, Body) (int, any, error) {
+		return 0, nil, errors.New("private audit backend diagnostic")
+	}})
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/rollouts", strings.NewReader(`{}`)))
+	if response.Code != 502 || strings.Contains(response.Body.String(), "private") {
+		t.Fatal(response.Code, response.Body)
+	}
+}
