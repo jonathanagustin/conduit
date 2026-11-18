@@ -200,9 +200,17 @@ describe("Space-scoped refresh", () => {
 
   it("carries selected Space on the live upgrade refresh", async () => {
     const requests = install();
-    const state: any = { spaceId: SPACE, screen: "s17-spokes-audit", indexQuery: `space=${SPACE}` };
+    const state: any = {
+      spaceId: SPACE,
+      screen: "s17-spokes-audit",
+      indexQuery: `space=${SPACE}`,
+    };
     await createLiveHub({ state, render: () => {} }).refresh();
-    expect(requests.find((url) => url.pathname === "/v1/fleet/upgrades")?.searchParams.getAll("spaceId")).toEqual([SPACE]);
+    expect(
+      requests
+        .find((url) => url.pathname === "/v1/fleet/upgrades")
+        ?.searchParams.getAll("spaceId"),
+    ).toEqual([SPACE]);
   });
 
   it("asks the server for selected indexes without post-filtering a loaded page", async () => {
