@@ -539,7 +539,9 @@ test("a completed answer settles when reveal animation frames stop", async ({
     result: turnDocument({ threadId: "ath_1", results: [], toolCalls: [] }),
   });
   turn.end();
-  await expect(answers(page).locator(".aui-md")).toHaveText("One environment: zeta.");
+  await expect(answers(page).locator(".aui-md")).toHaveText(
+    "One environment: zeta.",
+  );
   await expect(
     page.getByRole("button", { name: "Stop generating", exact: true }),
   ).toHaveCount(0);
