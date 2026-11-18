@@ -5,6 +5,7 @@ import {
   WORKSPACE_HOST_PREVIEW_NOTICE,
   workspaceScope,
   currentWorkspaceDiff,
+  currentWorkspaceHistory,
   safeWorkspaceDownload,
 } from "../../console/operator/dev-workspaces.js";
 const row = {
@@ -84,4 +85,56 @@ it("keeps the studio header on the selected workspace instead of a packaging run
   expect(
     areaObject(hub, "area-packaging", { workspaceView: true, workspace: null }),
   ).toBeNull();
+});
+
+describe("workspace commit history", () => {
+  const item = {
+    ...row,
+    branch: "workspace/alice/a",
+    headCommit: "a".repeat(40),
+  };
+  const history = {
+    ...item,
+    current: true,
+    valueTier: "CONDUIT_NATIVE",
+    truncated: false,
+    entries: [
+      {
+        commit: item.headCommit,
+        committedAt: "2026-11-18T12:00:00Z",
+        subject: "fix: recorded <literal>",
+      },
+    ],
+  };
+  it("requires exact head, branch and source context with bounded real commit metadata", () => {
+    expect(currentWorkspaceHistory(history, item)).toBe(true);
+    for (const changed of [
+      { current: false },
+      { valueTier: "unknown" },
+      { headCommit: "b".repeat(40) },
+      {
+        headCommit: "b".repeat(40),
+        entries: [{ ...history.entries[0], commit: "b".repeat(40) }],
+      },
+      { branch: "other" },
+      { proposalRevision: "old" },
+      { sourceDigest: "changed" },
+      { workspaceId: "other" },
+      { entries: [] },
+      { entries: [{ ...history.entries[0], commit: "HEAD" }] },
+      { entries: [{ ...history.entries[0], committedAt: "invalid" }] },
+      { entries: Array.from({ length: 21 }, () => history.entries[0]) },
+    ])
+      expect(currentWorkspaceHistory({ ...history, ...changed }, item)).toBe(
+        false,
+      );
+  });
+  it("invalidates an earlier scope when only the recorded branch or head changes", () => {
+    expect(
+      workspaceScope({ ...item, headCommit: "b".repeat(40) }, "alice"),
+    ).not.toBe(workspaceScope(item, "alice"));
+    expect(workspaceScope({ ...item, branch: "other" }, "alice")).not.toBe(
+      workspaceScope(item, "alice"),
+    );
+  });
 });

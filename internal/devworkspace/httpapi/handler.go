@@ -24,6 +24,7 @@ const (
 	routeTree     = "GET /v1/dev-workspaces/{workspaceID}/tree"
 	routeFile     = "GET /v1/dev-workspaces/{workspaceID}/file"
 	routeDiff     = "GET /v1/dev-workspaces/{workspaceID}/diff"
+	routeHistory  = "GET /v1/dev-workspaces/{workspaceID}/history"
 	routeRun      = "POST /v1/dev-workspaces/{workspaceID}/runtime"
 	routeRunStop  = "POST /v1/dev-workspaces/{workspaceID}/runtime/stop"
 	routeRunGet   = "GET /v1/dev-workspaces/{workspaceID}/runtime"
@@ -67,6 +68,7 @@ func Register(mux *http.ServeMux, cfg Config) {
 	mux.HandleFunc(routeTree, func(w http.ResponseWriter, r *http.Request) { tree(cfg, w, r) })
 	mux.HandleFunc(routeFile, func(w http.ResponseWriter, r *http.Request) { file(cfg, w, r) })
 	mux.HandleFunc(routeDiff, func(w http.ResponseWriter, r *http.Request) { diff(cfg, w, r) })
+	mux.HandleFunc(routeHistory, func(w http.ResponseWriter, r *http.Request) { history(cfg, w, r) })
 	mux.HandleFunc(routeRun, func(w http.ResponseWriter, r *http.Request) { startRuntime(cfg, w, r) })
 	mux.HandleFunc(routeRunStop, func(w http.ResponseWriter, r *http.Request) { stop(cfg, w, r) })
 	mux.HandleFunc(routeRunGet, func(w http.ResponseWriter, r *http.Request) { runtimeStatus(cfg, w, r) })
@@ -485,4 +487,17 @@ func ApplyAction(ctx context.Context, service *application.Service, caller domai
 	default:
 		return domain.ErrForbidden
 	}
+}
+
+func history(cfg Config, w http.ResponseWriter, r *http.Request) {
+	caller, ok := authenticate(cfg, w, r)
+	if !ok {
+		return
+	}
+	result, err := cfg.Service.History(r.Context(), caller, r.PathValue("workspaceID"), r.URL.Query().Get("revision"), r.URL.Query().Get("head"), visible(cfg, r))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }

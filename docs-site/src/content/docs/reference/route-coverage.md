@@ -5,7 +5,7 @@ description: The shipped route and authorization register, including explicit na
 
 Generated from `internal/hub/composition/authorization.go`; this is a route and access-decision inventory, not a substitute for request/response schemas. Compatibility adapter paths are listed by their shipped names; this does not claim a private upstream protocol. The [native API reference](/conduit/reference/native-api/) renders the available schemas. [#391](https://github.com/jonathanagustin/conduit/issues/391) owns the uncontracted remainder.
 
-264 registered patterns; 28 match a native OpenAPI operation. These counts are generated, and include method-not-allowed fallback patterns. Protobuf methods are documented separately and are not counted as additional REST schemas.
+265 registered patterns; 28 match a native OpenAPI operation. These counts are generated, and include method-not-allowed fallback patterns. Protobuf methods are documented separately and are not counted as additional REST schemas.
 
 | Registered route | Access decision | Native OpenAPI contract |
 | --- | --- | --- |
@@ -76,6 +76,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `GET /v1/dev-workspaces/{workspaceID}/diff` | `operator-filtered` | No native schema |
 | `GET /v1/dev-workspaces/{workspaceID}/download` | `operator-filtered` | No native schema |
 | `GET /v1/dev-workspaces/{workspaceID}/file` | `operator-filtered` | No native schema |
+| `GET /v1/dev-workspaces/{workspaceID}/history` | `operator-filtered` | No native schema |
 | `GET /v1/dev-workspaces/{workspaceID}/logs` | `operator-filtered` | No native schema |
 | `GET /v1/dev-workspaces/{workspaceID}/runtime` | `operator-filtered` | No native schema |
 | `GET /v1/dev-workspaces/{workspaceID}/tree` | `operator-filtered` | No native schema |

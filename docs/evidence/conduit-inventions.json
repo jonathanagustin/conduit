@@ -15,6 +15,13 @@
   ],
   "inventions": [
     {
+      "id": "devworkspace.CommitHistory",
+      "what": "Native read-only workspace commit history at an exact recorded head/revision, up to 20 real commits with explicit truncation and metadata bounds; the Studio refuses stale or mismatched context.",
+      "why": "Issue #558 requests commit history, but existing workspace metadata cannot establish a commit inventory and recorded adapters must not invent one.",
+      "displacedBy": "An authoritative workspace commit-history contract and paging rules.",
+      "riskIfWrong": "Native response shape and bounds may need replacement. The read does not expose working-tree changes, full commit bodies, remote reachability, repository completeness, approval or execution authority."
+    },
+    {
       "id": "blackout.IntervalSnapshot",
       "what": "Opt-in native blackout snapshot: evaluated decision plus at most 64 exact-environment stored intervals, sorted by start with explicit truncation and process-local custody; the existing calendar draws only these recorded intervals.",
       "why": "Issue #553 needs blackout spans, but the original evaluation route exposes only a blocked reason and cannot establish interval coordinates.",
