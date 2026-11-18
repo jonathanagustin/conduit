@@ -15,6 +15,13 @@
   ],
   "inventions": [
     {
+      "id": "blackout.IntervalSnapshot",
+      "what": "Opt-in native blackout snapshot: evaluated decision plus at most 64 exact-environment stored intervals, sorted by start with explicit truncation and process-local custody; the existing calendar draws only these recorded intervals.",
+      "why": "Issue #553 needs blackout spans, but the original evaluation route exposes only a blocked reason and cannot establish interval coordinates.",
+      "displacedBy": "An authoritative blackout interval-list and calendar contract.",
+      "riskIfWrong": "Native list shape and display bound may need replacement. State is process-local, not durable or a tenant schedule. No rollout appointments, resolved dependency timing, publication or deployment is inferred."
+    },
+    {
       "id": "planning.TurnCancellation",
       "what": "Native owner-scoped exact-run planning cancellation through a generated HTTP contract, durable Temporal update fences or an explicit process-local development store, retained run ids, cancel-before-start tombstones, distinct requested/terminal receipts and discarded late results. Browser Stop sends a separate captured-run cancellation request and guards stale responses.",
       "why": "Issue #820 requires Hub-backed Stop. Existing browser abort does not cancel a durable workflow update. No adopted upstream contract defines planning-run cancellation semantics.",

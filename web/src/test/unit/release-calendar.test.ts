@@ -28,3 +28,57 @@ it("draws only distinct actual increasing maintenance intervals", () => {
     "Resolved scheduling data is unavailable",
   );
 });
+
+it("draws only bounded native exact-environment blackout intervals and discloses custody", () => {
+  const snapshot = {
+    environment: "east",
+    valueTier: "CONDUIT_NATIVE",
+    persistence: "process-local",
+    evaluatedAt: "2026-11-18T12:00:00Z",
+    truncated: true,
+    intervals: [
+      {
+        environment: "east",
+        author: "<operator>",
+        reason: "<freeze>",
+        startsAt: "2026-11-18T11:00:00Z",
+        endsAt: "2026-11-18T13:00:00Z",
+      },
+    ],
+  };
+  const markup = releaseCalendarMarkup([], snapshot);
+  expect(markup).toContain("repeating-linear-gradient");
+  expect(markup).toContain('aria-label="Recorded blackout interval"');
+  expect(markup).toContain("&lt;freeze&gt;");
+  expect(markup).toContain("&lt;operator&gt;");
+  expect(markup).toContain("Process-local blackout snapshot");
+  expect(markup).toContain("omitted intervals can still block");
+  for (const invalid of [
+    { ...snapshot, valueTier: "unknown" },
+    { ...snapshot, persistence: "durable" },
+    {
+      ...snapshot,
+      intervals: [{ ...snapshot.intervals[0], environment: "west" }],
+    },
+    {
+      ...snapshot,
+      intervals: [{ ...snapshot.intervals[0], endsAt: "invalid" }],
+    },
+    {
+      ...snapshot,
+      intervals: Array.from({ length: 65 }, () => snapshot.intervals[0]),
+    },
+    {
+      environment: "east",
+      blocked: true,
+      reason: "a reason is not coordinates",
+    },
+  ]) {
+    const absent = releaseCalendarMarkup([], invalid);
+    expect(absent).toContain("Blackout interval evidence is unavailable");
+    expect(absent).not.toContain("data-blackout-interval");
+  }
+  expect(
+    releaseCalendarMarkup([], { ...snapshot, truncated: false, intervals: [] }),
+  ).toContain("No stored blackout interval");
+});

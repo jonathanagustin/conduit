@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
+
+	"github.com/jonathanagustin/conduit/internal/delivery/blackout/application"
 )
 
 const (
@@ -14,6 +16,7 @@ const (
 
 // Config is the route's dependencies.
 type Config struct {
+	Snapshot  func(environment string, at time.Time) application.Snapshot
 	Authorize func(*http.Request) error
 	Active    func(environment string, at time.Time) string
 	Write     func(r *http.Request) (int, any, error)
@@ -35,6 +38,20 @@ func Register(mux *http.ServeMux, cfg Config) {
 			at = parsed
 		}
 		environment := r.URL.Query().Get("environment")
+		if raw := r.URL.Query().Get("includeIntervals"); raw != "" {
+			if raw != "true" && raw != "false" {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "includeIntervals must be true or false"})
+				return
+			}
+			if raw == "true" {
+				if cfg.Snapshot == nil {
+					writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "blackout intervals are unavailable"})
+					return
+				}
+				writeJSON(w, http.StatusOK, cfg.Snapshot(environment, at))
+				return
+			}
+		}
 		reason := ""
 		if cfg.Active != nil {
 			reason = cfg.Active(environment, at)

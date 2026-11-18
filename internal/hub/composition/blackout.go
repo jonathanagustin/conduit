@@ -20,7 +20,8 @@ func mountBlackouts(legacy http.Handler, repository controlplane.Repository, opt
 			_, err := operatorClaims(request, options)
 			return err
 		},
-		Active: service.Active,
+		Active:   service.Active,
+		Snapshot: service.Snapshot,
 		Write: func(request *http.Request) (int, any, error) {
 			principal, ok := packagingPrincipal(request, governance, options)
 			if !ok {
