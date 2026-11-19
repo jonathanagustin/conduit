@@ -2187,22 +2187,9 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !ok {
 			return
 		}
-		record, err := repository.GetPlan(request.Context(), request.PathValue("planID"))
+		record, err := ReadAuthorizedPlan(request.Context(), repository, governance, principal, configuration, request.PathValue("planID"))
 		if err != nil {
 			writeLifecycleError(w, err)
-			return
-		}
-		if record.ChangeRequestID != "" {
-			changeRequest, err := repository.GetChangeRequest(request.Context(), record.ChangeRequestID)
-			if err != nil {
-				writeLifecycleError(w, err)
-				return
-			}
-			if !canReadChangeRequest(request.Context(), governance, principal, configuration, changeRequest) {
-				writeLifecycleError(w, ErrForbidden)
-				return
-			}
-		} else if !requireResourceOperation(w, request, governance, principal, configuration, environmentRID(record.Plan.Environment), OperationReadResource) {
 			return
 		}
 		space, selected := selectedIndexSpace(w, request, principal, configuration)
@@ -2212,7 +2199,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !requireIndexSpaceMatch(w, space.environment(record.Plan.Environment)) {
 			return
 		}
-		writeJSON(w, http.StatusOK, redactLeaseToken(record))
+		writeJSON(w, http.StatusOK, record)
 	})
 	mux.HandleFunc("POST /v1/plans/{planID}/approvals", func(w http.ResponseWriter, request *http.Request) {
 		principal, ok := requireOperatorPrincipal(w, request, governance, configuration)
