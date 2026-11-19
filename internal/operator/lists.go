@@ -67,7 +67,7 @@ func (adapter *HTTPControlPlane) ListPlans(ctx context.Context, query PlanListQu
 	setQuery(values, "status", query.Status)
 	setQuery(values, "installationId", query.InstallationID)
 	setQuery(values, "search", query.Search)
-	plans, total, err := followCursor(ctx, adapter, "/v1/plans?"+values.Encode(), func(page controlplane.PlanSummaryPage) ([]controlplane.PlanSummary, int, string) {
+	plans, total, err := followCursor(ctx, adapter, adapter.withSpaceSelection("/v1/plans?"+values.Encode()), func(page controlplane.PlanSummaryPage) ([]controlplane.PlanSummary, int, string) {
 		return page.Plans, page.Total, page.NextCursor
 	})
 	if err != nil {
