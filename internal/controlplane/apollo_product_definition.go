@@ -868,70 +868,20 @@ var (
 	apolloVolumeNamePattern   = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
 	// Storage sizes are a whole number of megabytes, gigabytes, or terabytes.
 	apolloVolumeSizePattern = regexp.MustCompile(`^([0-9]+)(M|G|T)$`)
-	// Memory accepts the decimal and binary units the Resources extension lists,
-	// and a bare byte count.
-	apolloMemoryPattern = regexp.MustCompile(`^([0-9]+(?:\.[0-9]+)?)(Ki|K|Mi|M|Gi|G|T)?$`)
-	// CPU is a unit-less core count, so a suffixed value is rejected rather than
-	// silently read as some other unit.
-	apolloCPUPattern = regexp.MustCompile(`^[0-9]+(?:\.[0-9]+)?$`)
 )
 
 var (
 	apolloVolumeSizeScales = map[string]float64{"M": 1e6, "G": 1e9, "T": 1e12}
-	apolloMemoryScales     = map[string]float64{
-		"": 1, "K": 1e3, "M": 1e6, "G": 1e9, "T": 1e12,
-		"Ki": 1 << 10, "Mi": 1 << 20, "Gi": 1 << 30,
-	}
 )
 
-// parseApolloMemory converts a memory quantity to a comparable magnitude. The
-// result is only used for ordering comparisons, never round-tripped back into a
-// document, so float imprecision cannot corrupt a declared value.
+// parseApolloMemory retains the existing comparison-only quantity entry point.
 func parseApolloMemory(value string) (float64, bool) {
-	match := apolloMemoryPattern.FindStringSubmatch(strings.TrimSpace(value))
-	if match == nil {
-		return 0, false
-	}
-	number, err := strconv.ParseFloat(match[1], 64)
-	if err != nil {
-		return 0, false
-	}
-	return number * apolloMemoryScales[match[2]], true
+	return productconfiguration.ParseMemory(value)
 }
 
-func validateApolloResourceQuantities(
-	path string, quantities *ApolloResourceQuantities, errs *[]ValidationError,
-) (float64, float64) {
-	if quantities == nil {
-		return 0, 0
-	}
-	add := func(field, message string) {
-		*errs = append(*errs, ValidationError{Path: path + field, Message: message})
-	}
-	var cpu, memory float64
-	if trimmed := strings.TrimSpace(quantities.CPU); trimmed != "" {
-		parsed, err := strconv.ParseFloat(trimmed, 64)
-		switch {
-		case !apolloCPUPattern.MatchString(trimmed) || err != nil:
-			add(".cpu", "must be a unit-less number of cores")
-		case parsed <= 0:
-			add(".cpu", "must be greater than zero")
-		default:
-			cpu = parsed
-		}
-	}
-	if trimmed := strings.TrimSpace(quantities.Memory); trimmed != "" {
-		parsed, ok := parseApolloMemory(trimmed)
-		switch {
-		case !ok:
-			add(".memory", "must be a number optionally suffixed Ki, K, Mi, M, Gi, G, or T")
-		case parsed <= 0:
-			add(".memory", "must be greater than zero")
-		default:
-			memory = parsed
-		}
-	}
-	return cpu, memory
+// validateApolloResourceQuantities retains native diagnostic paths and ordering.
+func validateApolloResourceQuantities(path string, quantities *ApolloResourceQuantities, errs *[]ValidationError) (float64, float64) {
+	return productconfiguration.ValidateResourceQuantities(path, quantities, errs)
 }
 
 // ApolloEffectiveResources retains the existing configuration default resolver.

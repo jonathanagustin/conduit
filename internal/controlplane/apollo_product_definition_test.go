@@ -1855,3 +1855,19 @@ func TestApolloProductDefinitionErrorsAreOrderedByPath(t *testing.T) {
 		t.Errorf("validation errors were not ordered by path: %v", paths)
 	}
 }
+
+// A finite numeric part may overflow only after its memory unit is applied.
+// Both sides becoming +Inf must not make an oversized request pass validation.
+func TestApolloProductDefinitionRejectsScaledMemoryOverflow(t *testing.T) {
+	request := strings.Repeat("9", 300) + "T"
+	limit := strings.Repeat("8", 300) + "T"
+	_, errs := decodeTestDefinition(t, bareManifest, "resources:\n  requests:\n    memory: "+request+"\n  limits:\n    memory: "+limit+"\n")
+	if len(errs) != 2 {
+		t.Fatalf("overflowed quantities did not produce both diagnostics: %#v", errs)
+	}
+	for i, path := range []string{"configuration.resources.limits.memory", "configuration.resources.requests.memory"} {
+		if errs[i].Path != path || errs[i].Message != "must be a number optionally suffixed Ki, K, Mi, M, Gi, G, or T" {
+			t.Fatalf("overflow diagnostic changed: %#v", errs)
+		}
+	}
+}
