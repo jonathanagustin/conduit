@@ -15,7 +15,7 @@ import (
 // stay at the HTTP edge; generated DTO translation and compatibility state live
 // in the Apollo application context behind Catalog and Environment ports.
 type apolloPublicAPI struct {
-	repository          Repository
+	publicationAssets   publicationAssetWriter
 	governance          *GovernanceService
 	configuration       HandlerOptions
 	initializationError error
@@ -23,7 +23,7 @@ type apolloPublicAPI struct {
 }
 
 func newApolloPublicAPI(repository Repository, governance *GovernanceService, configuration HandlerOptions) *apolloPublicAPI {
-	api := &apolloPublicAPI{repository: repository, governance: governance, configuration: configuration}
+	api := &apolloPublicAPI{publicationAssets: repository, governance: governance, configuration: configuration}
 	service, err := apolloapp.New(
 		context.Background(),
 		publicationCatalogPort{repository: repository},
@@ -101,7 +101,7 @@ func (api *apolloPublicAPI) storeHelmPublicationAssets(
 		if len(contents) == 0 {
 			return nil, nil
 		}
-		descriptor, _, err := api.repository.PutBlob(ctx, "", mediaType, bytes.NewReader(contents))
+		descriptor, _, err := api.publicationAssets.PutBlob(ctx, "", mediaType, bytes.NewReader(contents))
 		if err != nil {
 			return nil, err
 		}

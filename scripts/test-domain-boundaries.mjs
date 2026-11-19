@@ -32,6 +32,7 @@ try {
   if (!run().includes("PASS domain boundaries")) throw new Error("native Environment snapshot fixture did not pass");
 
   const controls = [
+    ["internal/controlplane/publication_asset_projection.go", 'package controlplane\nimport "example/internal/apollo"\n', null],
     ["internal/controlplane/catalog_projection.go", 'package controlplane\nimport "example/internal/apollo"\n', null],
     ["internal/environments/application/projection_reader.go", 'package application\nimport "example/internal/controlplane"\n', 'package application\nimport "example/internal/environments/domain"\n'],
     ["internal/environments/application/reference.go", 'package application\nimport adapter "example/internal/apollo/application"\n', null],
