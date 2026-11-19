@@ -5,57 +5,33 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 
-	apolloapp "github.com/jonathanagustin/conduit/internal/apollo/application"
 	environments "github.com/jonathanagustin/conduit/internal/environments/domain"
+	environmentports "github.com/jonathanagustin/conduit/internal/environments/ports"
 )
 
 // Raw transport snapshots belong to the compatibility adapter, not the native
 // Environment domain. They are committed with their normalized projection.
-type persistedApolloAgentReports struct {
-	Info   json.RawMessage `json:"info,omitempty"`
-	Health json.RawMessage `json:"health,omitempty"`
+type persistedReportProjectionInputs = environmentports.ReportProjectionInputs
+
+type reportProjectionOperation func(environmentReportReadRepository, persistedReportProjectionInputs) (persistedReportProjectionInputs, *EnvironmentReport, error)
+type atomicReportProjectionStore interface {
+	updateReportProjection(context.Context, string, reportProjectionOperation) error
 }
 
-type apolloAgentReportOperation func(environmentReportReadRepository, persistedApolloAgentReports) (persistedApolloAgentReports, *EnvironmentReport, error)
-type apolloAgentReportStore interface {
-	updateApolloAgentReports(context.Context, string, apolloAgentReportOperation) error
-}
-
-func (port environmentReportingProjectionPort) UpdateAgentReports(ctx context.Context, environment string, patch apolloapp.AgentReportPatch, project func(apolloapp.AgentReportSnapshot) (*environments.Report, error)) error {
+// UpdateReportProjection supplies only native facts and opaque retained inputs.
+// Compatibility decoding is performed by the adapter within this transaction.
+func (port environmentReportingProjectionPort) UpdateReportProjection(ctx context.Context, environment string, project func(environmentports.ReportProjectionSnapshot) (environmentports.ReportProjectionInputs, *environments.Report, error)) error {
 	if !dnsLabelPattern.MatchString(environment) {
 		return ErrNotFound
 	}
-	store, ok := port.repository.(apolloAgentReportStore)
+	store, ok := port.repository.(atomicReportProjectionStore)
 	if !ok {
-		return errors.New("repository does not support atomic Apollo agent reports")
+		return errors.New("repository does not support atomic report projections")
 	}
-	return store.updateApolloAgentReports(ctx, environment, func(repository environmentReportReadRepository, raw persistedApolloAgentReports) (persistedApolloAgentReports, *EnvironmentReport, error) {
+	return store.updateReportProjection(ctx, environment, func(repository environmentReportReadRepository, raw persistedReportProjectionInputs) (persistedReportProjectionInputs, *EnvironmentReport, error) {
+		snapshot := environmentports.ReportProjectionSnapshot{Environment: environment, Inputs: raw}
 		var err error
-		if patch.Info != nil {
-			raw.Info, err = json.Marshal(*patch.Info)
-			if err != nil {
-				return raw, nil, err
-			}
-		}
-		if patch.Health != nil {
-			raw.Health, err = json.Marshal(*patch.Health)
-			if err != nil {
-				return raw, nil, err
-			}
-		}
-		snapshot := apolloapp.AgentReportSnapshot{Environment: environment}
-		if len(raw.Info) > 0 {
-			if err := json.Unmarshal(raw.Info, &snapshot.Inputs.Info); err != nil {
-				return raw, nil, fmt.Errorf("decode Apollo info: %w", err)
-			}
-		}
-		if len(raw.Health) > 0 {
-			if err := json.Unmarshal(raw.Health, &snapshot.Inputs.Health); err != nil {
-				return raw, nil, fmt.Errorf("decode Apollo health: %w", err)
-			}
-		}
 		snapshot.Plan, err = latestEnvironmentPlanProjection(ctx, repository, environment)
 		if err != nil {
 			return raw, nil, err
@@ -64,23 +40,22 @@ func (port environmentReportingProjectionPort) UpdateAgentReports(ctx context.Co
 		if err != nil && !errors.Is(err, ErrNotFound) {
 			return raw, nil, err
 		}
-		report, err := project(snapshot)
-		return raw, report, err
+		return project(snapshot)
 	})
 }
 
-func cloneApolloAgentReports(input map[string]persistedApolloAgentReports) map[string]persistedApolloAgentReports {
-	result := make(map[string]persistedApolloAgentReports, len(input))
+func cloneReportProjectionInputs(input map[string]persistedReportProjectionInputs) map[string]persistedReportProjectionInputs {
+	result := make(map[string]persistedReportProjectionInputs, len(input))
 	for key, value := range input {
-		result[key] = persistedApolloAgentReports{Info: append(json.RawMessage(nil), value.Info...), Health: append(json.RawMessage(nil), value.Health...)}
+		result[key] = persistedReportProjectionInputs{Info: append(json.RawMessage(nil), value.Info...), Health: append(json.RawMessage(nil), value.Health...)}
 	}
 	return result
 }
 
-func (repository *MemoryRepository) updateApolloAgentReports(ctx context.Context, environment string, operation apolloAgentReportOperation) error {
+func (repository *MemoryRepository) updateReportProjection(ctx context.Context, environment string, operation reportProjectionOperation) error {
 	return repository.Transaction(ctx, func(view Repository) error {
 		memory := view.(*MemoryRepository)
-		raw, report, err := operation(memory, memory.apolloAgentReports[environment])
+		raw, report, err := operation(memory, memory.reportProjectionInputs[environment])
 		if err != nil {
 			return err
 		}
@@ -89,17 +64,17 @@ func (repository *MemoryRepository) updateApolloAgentReports(ctx context.Context
 				return err
 			}
 		}
-		memory.apolloAgentReports[environment] = raw
+		memory.reportProjectionInputs[environment] = raw
 		return nil
 	})
 }
 
-func (repository *PostgresRepository) updateApolloAgentReports(ctx context.Context, environment string, operation apolloAgentReportOperation) error {
+func (repository *PostgresRepository) updateReportProjection(ctx context.Context, environment string, operation reportProjectionOperation) error {
 	// The metadata row lock serializes both raw inputs and projections, including
 	// concurrent first reports where an environment's raw row does not yet exist.
 	return repository.withStateTransaction(ctx, true, func(memory *MemoryRepository, transaction *sql.Tx) error {
 		var encoded []byte
-		var raw persistedApolloAgentReports
+		var raw persistedReportProjectionInputs
 		err := transaction.QueryRowContext(ctx, "SELECT inputs FROM conduit_apollo_agent_reports WHERE environment = $1", environment).Scan(&encoded)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
@@ -130,32 +105,32 @@ func (repository *PostgresRepository) updateApolloAgentReports(ctx context.Conte
 
 // A single file keeps raw input and projection atomic in single-process mode.
 // Existing report files remain readable; native report writes preserve inputs.
-type apolloReportEnvelope struct {
+type reportProjectionEnvelope struct {
 	LiveOutbox nativeLiveOutbox `json:"_liveOutbox,omitempty"`
 	EnvironmentReport
-	ApolloAgentReports      persistedApolloAgentReports `json:"apolloAgentReports,omitempty"`
-	ApolloProjectionPending bool                        `json:"apolloProjectionPending,omitempty"`
+	ProjectionInputs  persistedReportProjectionInputs `json:"apolloAgentReports,omitempty"`
+	ProjectionPending bool                            `json:"apolloProjectionPending,omitempty"`
 }
 
-func (repository *FileRepository) readApolloReportEnvelope(environment string) (apolloReportEnvelope, error) {
+func (repository *FileRepository) readReportProjectionEnvelope(environment string) (reportProjectionEnvelope, error) {
 	if !dnsLabelPattern.MatchString(environment) {
-		return apolloReportEnvelope{}, ErrNotFound
+		return reportProjectionEnvelope{}, ErrNotFound
 	}
-	var envelope apolloReportEnvelope
+	var envelope reportProjectionEnvelope
 	err := readJSON(repository.reportPath(environment), &envelope)
 	return envelope, err
 }
 
-func (repository *FileRepository) updateApolloAgentReports(ctx context.Context, environment string, operation apolloAgentReportOperation) error {
+func (repository *FileRepository) updateReportProjection(ctx context.Context, environment string, operation reportProjectionOperation) error {
 	repository.mu.Lock()
 	defer repository.mu.Unlock()
-	envelope, err := repository.readApolloReportEnvelope(environment)
+	envelope, err := repository.readReportProjectionEnvelope(environment)
 	if err != nil && !errors.Is(err, ErrNotFound) {
 		return err
 	}
 	if errors.Is(err, ErrNotFound) {
 		envelope.Environment = environment
-		envelope.ApolloProjectionPending = true
+		envelope.ProjectionPending = true
 	}
 	memory := NewMemoryRepository()
 	plans, err := repository.listPlansUnlocked(environment)
@@ -165,7 +140,7 @@ func (repository *FileRepository) updateApolloAgentReports(ctx context.Context, 
 	for _, plan := range plans {
 		memory.plans[plan.ID] = plan
 	}
-	if !envelope.ApolloProjectionPending {
+	if !envelope.ProjectionPending {
 		memory.reports[environment] = envelope.EnvironmentReport
 	}
 	var catalog ImportedCatalog
@@ -174,7 +149,7 @@ func (repository *FileRepository) updateApolloAgentReports(ctx context.Context, 
 	} else if !errors.Is(err, ErrNotFound) {
 		return err
 	}
-	raw, report, err := operation(memory, envelope.ApolloAgentReports)
+	raw, report, err := operation(memory, envelope.ProjectionInputs)
 	if err != nil {
 		return err
 	}
@@ -185,8 +160,8 @@ func (repository *FileRepository) updateApolloAgentReports(ctx context.Context, 
 		}
 		envelope.EnvironmentReport = stored
 		envelope.LiveOutbox = appendNativeInvalidation(envelope.LiveOutbox, "environment", environment, stored.Revision, "fleet", "overview", "kpi")
-		envelope.ApolloProjectionPending = false
+		envelope.ProjectionPending = false
 	}
-	envelope.ApolloAgentReports = raw
+	envelope.ProjectionInputs = raw
 	return atomicWriteJSON(repository.reportPath(environment), envelope)
 }

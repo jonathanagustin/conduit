@@ -9,6 +9,7 @@ package ports
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/jonathanagustin/conduit/internal/environments/domain"
 )
@@ -31,4 +32,27 @@ type ProfileRepository interface {
 	PutEnvironmentProfile(ctx context.Context, profile domain.Profile) (domain.Profile, error)
 	GetEnvironmentProfile(ctx context.Context, environment string) (domain.Profile, error)
 	ListEnvironmentProfileRevisions(ctx context.Context, environment string) ([]domain.Profile, error)
+}
+
+// ReportProjectionInputs holds opaque independently replaced input snapshots.
+// Decoding and transport-specific patch semantics belong to the edge adapter.
+// JSON names preserve the existing persisted representation.
+type ReportProjectionInputs struct {
+	Info   json.RawMessage `json:"info,omitempty"`
+	Health json.RawMessage `json:"health,omitempty"`
+}
+
+// ReportProjectionSnapshot contains facts captured inside one storage transaction.
+type ReportProjectionSnapshot struct {
+	Environment string
+	Inputs      ReportProjectionInputs
+	Plan        domain.PlanProjection
+	Report      domain.Report
+}
+
+// AtomicReportingPort commits raw inputs and their normalized native projection
+// together. Unsupported stores must refuse rather than fall back to split writes.
+type AtomicReportingPort interface {
+	ReportingPort
+	UpdateReportProjection(context.Context, string, func(ReportProjectionSnapshot) (ReportProjectionInputs, *domain.Report, error)) error
 }

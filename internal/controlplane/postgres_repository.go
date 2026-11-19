@@ -176,7 +176,7 @@ func (repository *MemoryRepository) Transaction(
 		return err
 	}
 	working.transactionLocal = true
-	working.apolloAgentReports = cloneApolloAgentReports(repository.apolloAgentReports)
+	working.reportProjectionInputs = cloneReportProjectionInputs(repository.reportProjectionInputs)
 	if err := operation(working); err != nil {
 		return err
 	}
@@ -184,7 +184,7 @@ func (repository *MemoryRepository) Transaction(
 	next := working.stateLocked()
 	working.mu.Unlock()
 	repository.applyStateLocked(next)
-	repository.apolloAgentReports = working.apolloAgentReports
+	repository.reportProjectionInputs = working.reportProjectionInputs
 	return nil
 }
 
