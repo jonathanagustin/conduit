@@ -85,22 +85,51 @@ export function artifactMarkup(artifact, esc = defaultEsc) {
  * It says what happened on the button itself and restores the label.
  */
 export function bindCopyButtons(root) {
-  if (!root || root.dataset?.copyBound === "1") return;
+  if (!root || root.dataset?.copyBound === "1") return () => {};
   if (root.dataset) root.dataset.copyBound = "1";
-  root.addEventListener("click", async (event) => {
+  let disposed = false;
+  const feedback = new Map();
+  const onClick = async (event) => {
     const button = event.target?.closest?.("[data-copy-text]");
-    if (!button) return;
-    const label = button.textContent;
+    if (!button || disposed) return;
+    const previous = feedback.get(button);
+    if (previous) clearTimeout(previous.timer);
+    const attempt = {
+      label: previous?.label ?? button.textContent,
+      timer: undefined,
+    };
+    feedback.set(button, attempt);
+    let message;
     try {
       await navigator.clipboard.writeText(
         button.getAttribute("data-copy-text") || "",
       );
-      button.textContent = "Copied";
+      message = "Copied";
     } catch {
-      button.textContent = "Copy failed";
+      message = "Copy failed";
     }
-    setTimeout(() => {
-      if (button.isConnected) button.textContent = label;
+    if (disposed || feedback.get(button) !== attempt) return;
+    if (!button.isConnected) {
+      feedback.delete(button);
+      return;
+    }
+    button.textContent = message;
+    attempt.timer = setTimeout(() => {
+      if (feedback.get(button) !== attempt) return;
+      if (button.isConnected) button.textContent = attempt.label;
+      feedback.delete(button);
     }, 1500);
-  });
+  };
+  root.addEventListener("click", onClick);
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    root.removeEventListener("click", onClick);
+    if (root.dataset) delete root.dataset.copyBound;
+    for (const [button, attempt] of feedback) {
+      clearTimeout(attempt.timer);
+      if (button.isConnected) button.textContent = attempt.label;
+    }
+    feedback.clear();
+  };
 }

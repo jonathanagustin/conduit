@@ -1048,7 +1048,7 @@ export function mountOperator(host, options) {
   bindDeliveryCapabilities((operation, resourceRid) =>
     capabilities.canPerform(operation, resourceRid),
   );
-  bindCopyButtons(host);
+  const disposeCopyButtons = bindCopyButtons(host);
   const notifications = createNotifications({
     state,
     render: () => renderApp({ backgroundRefresh: true }),
@@ -5361,6 +5361,7 @@ export function mountOperator(host, options) {
   renderApp();
   return () => {
     disposed = true;
+    disposeCopyButtons();
     disposeKit();
     disposeGlobe();
     engineerFocus.dispose();
