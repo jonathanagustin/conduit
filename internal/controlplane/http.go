@@ -2229,103 +2229,19 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !ok {
 			return
 		}
-		body, ok := decodeJSON[struct {
-			Reason                     string `json:"reason"`
-			CreateSuppression          bool   `json:"createSuppression,omitempty"`
-			SuppressionDurationSeconds int    `json:"suppressionDurationSeconds,omitempty"`
-			InstallationID             string `json:"installationId,omitempty"`
-		}](w, request)
+		body, ok := decodeJSON[PlanCancellationCommand](w, request)
 		if !ok {
 			return
 		}
-		subject := principal.Username
-		existing, err := repository.GetPlan(request.Context(), request.PathValue("planID"))
+		record, err := CancelPlanAsOperator(request.Context(), repository, lifecycle, governance, principal, configuration, request.PathValue("planID"), body)
 		if err != nil {
-			writeLifecycleError(w, err)
+			var validation PlanCancellationValidationError
+			if errors.As(err, &validation) {
+				writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": validation.Error()})
+			} else {
+				writeLifecycleError(w, err)
+			}
 			return
-		}
-		if existing.ChangeRequestID != "" {
-			changeRequest, err := repository.GetChangeRequest(request.Context(), existing.ChangeRequestID)
-			if err != nil {
-				writeLifecycleError(w, err)
-				return
-			}
-			if changeRequest.Author.Username != principal.Username {
-				writeLifecycleError(w, ErrForbidden)
-				return
-			}
-		} else {
-			// A Plan with no Change Request is cancelled by Lifecycle.CancelPlan,
-			// which performs no eligibility check: authentication alone therefore
-			// let any operator cancel such a Plan, in any Environment, including
-			// one they hold nothing on, and optionally plant a suppression.
-			//
-			// The check is the one the approval route for the same ungoverned
-			// branch already makes. It applies to this branch only: a governed
-			// Plan answers to its author, and requiring Operate here as well
-			// would refuse an author who may cancel their own Change Request
-			// without holding the Environment itself.
-			if !requireResourceOperation(w, request, governance, principal, configuration,
-				environmentRID(existing.Plan.Environment), OperationOperate) {
-				return
-			}
-		}
-		duration := body.SuppressionDurationSeconds
-		if body.CreateSuppression {
-			// A suppression is durable Environment state that outlives the Plan
-			// which planted it, and POST /v1/environments/{id}/suppressions
-			// gates that same effect at Operate. Authorship is standing over a
-			// Change Request and not over an Environment, so the governed branch
-			// above -- which asks only whether the author is calling -- let an
-			// author who never held more than ProposeChange reach the effect at
-			// the lower of two bars (#150).
-			//
-			// Only the suppression is gated and not the cancellation: requiring
-			// Operate for the whole route would refuse an author cancelling
-			// their own Change Request in an Environment they hold nothing on,
-			// which governance admits on purpose. Stated once, after the branch
-			// dispatch, so that both branches answer to it.
-			if !governance.AuthorizeResourceOperation(request.Context(), principal, configuration,
-				environmentRID(existing.Plan.Environment), OperationOperate) {
-				writeLifecycleError(w, fmt.Errorf("%w: creating a suppression through Plan cancellation requires %s on %s",
-					ErrForbidden, OperationOperate, environmentRID(existing.Plan.Environment)))
-				return
-			}
-			if duration == 0 {
-				duration = 30 * 60
-			}
-			if duration < 60 || duration > 30*24*60*60 {
-				writeJSON(w, http.StatusUnprocessableEntity, map[string]string{
-					"error": "suppression duration must be between one minute and 30 days",
-				})
-				return
-			}
-			if body.InstallationID != "" && !existing.Plan.ContainsInstallation(body.InstallationID) {
-				writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "installation is not in the Plan"})
-				return
-			}
-		}
-		record, err := lifecycle.CancelPlan(request.Context(), request.PathValue("planID"), subject, body.Reason)
-		if err != nil {
-			writeLifecycleError(w, err)
-			return
-		}
-		if record.ChangeRequestID != "" {
-			if _, err := governance.Cancel(request.Context(), record.ChangeRequestID, principal, body.Reason); err != nil {
-				writeLifecycleError(w, err)
-				return
-			}
-		}
-		if body.CreateSuppression {
-			startsAt := time.Now().UTC()
-			endsAt := startsAt.Add(time.Duration(duration) * time.Second)
-			if _, err := lifecycle.CreateManualSuppression(
-				request.Context(), record.Plan.Environment, body.InstallationID,
-				"Plan cancellation: "+body.Reason, subject, startsAt, &endsAt,
-			); err != nil {
-				writeLifecycleError(w, err)
-				return
-			}
 		}
 		writeJSON(w, http.StatusOK, redactLeaseToken(record))
 	})
