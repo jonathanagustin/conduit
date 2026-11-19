@@ -100,6 +100,10 @@ if (/\bcontrolplane\.(?:ApolloProductDefinition|DecodeApolloProductDefinitionWit
   failures.push("CLI definition reader re-enters the legacy paired-document carrier or codec");
 }
 const apolloAdapter = readFileSync(join(root, "internal/controlplane/apollo_openapi_adapter.go"), "utf8");
+const cliSettings = readFileSync(join(root, "internal/conduitcli/apollo_coverage_commands.go"), "utf8");
+if (/\bcontrolplane\.(?:DecodeApolloEnvironmentSettings|EncodeApolloEnvironmentSettings)\b/.test(cliSettings)) {
+  failures.push("CLI settings reader re-enters the legacy settings codec delegate");
+}
 if (apolloAdapter.includes("invokeApolloFacade")) {
   failures.push("Apollo generated adapter re-enters the legacy HTTP facade");
 }
