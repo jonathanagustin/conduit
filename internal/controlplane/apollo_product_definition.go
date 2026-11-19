@@ -2,7 +2,6 @@ package controlplane
 
 import (
 	"io"
-	"sort"
 
 	"github.com/jonathanagustin/conduit/internal/apollo/productconfiguration"
 	"github.com/jonathanagustin/conduit/internal/apollo/productdefinition"
@@ -31,19 +30,19 @@ import (
 
 // Product types whose installations are described by a configuration.yml.
 const (
-	ApolloProductTypeHelmChart = "helm-chart.v1"
-	ApolloProductTypeTerraform = "terraform.v1"
-	ApolloProductTypeService   = "service.v1"
-	ApolloProductTypeServiceV2 = "service.v2"
-	ApolloProductTypeDaemonSet = "daemon-set.v1"
+	ApolloProductTypeHelmChart = productmanifest.ProductTypeHelmChart
+	ApolloProductTypeTerraform = productmanifest.ProductTypeTerraform
+	ApolloProductTypeService   = productmanifest.ProductTypeService
+	ApolloProductTypeServiceV2 = productmanifest.ProductTypeServiceV2
+	ApolloProductTypeDaemonSet = productmanifest.ProductTypeDaemonSet
 	// The Product Types page enumerates only these two, while its sibling pages
 	// write service.v1 in every example — including the Product Manifest page's
 	// minimal manifest. Both spellings are accepted here because a conformance
 	// validator that rejected either would reject documents the specification
 	// itself publishes. Execution is unaffected: the Helm adapter still requires
 	// helm-chart.v1, because that is the only type it can actually run.
-	ApolloProductTypeAsset = "asset.v1"
-	ApolloProductTypeHelm  = "helm.v1"
+	ApolloProductTypeAsset = productmanifest.ProductTypeAsset
+	ApolloProductTypeHelm  = productmanifest.ProductTypeHelm
 )
 
 // Managed file types and reload semantics.
@@ -221,50 +220,12 @@ func DecodeApolloProductDefinitionWithTemplates(
 // stay with the packaging validator: a service.v1 Product has no Helm chart, so
 // requiring one here would reject every conformant service definition.
 func ValidateApolloProductDefinition(definition ApolloProductDefinition) []ValidationError {
-	errs := make([]ValidationError, 0)
-	add := func(path, message string) { errs = append(errs, ValidationError{Path: path, Message: message}) }
-	manifest := definition.Manifest
-	// manifest-version is optional here, unlike in the packaging validator. The
-	// Product Manifest page lists exactly four required fields and its minimal
-	// example carries no manifest-version; apollo-cli emits one, so the execution
-	// path can keep requiring it, but a hand-written conformant manifest must not
-	// be rejected for omitting a field the specification never asked for.
-	if manifest.ManifestVersion != "" && manifest.ManifestVersion != "1.0" {
-		add("manifest.manifest-version", "must be 1.0 when present")
-	}
-	if !coordinatePattern.MatchString(manifest.ProductGroup + ":" + manifest.ProductName) {
-		add("manifest.product", "product-group and product-name must form a group:name coordinate")
-	}
-	// A Product Release may declare a non-orderable version. Nothing may sort it
-	// against another version, but refusing to publish it would be this validator
-	// narrowing the specification rather than enforcing it.
-	if !IsApolloProductVersion(manifest.ProductVersion) {
-		add("manifest.product-version", "must be an Apollo orderable or non-orderable version")
-	}
-	switch manifest.ProductType {
-	case ApolloProductTypeHelmChart, ApolloProductTypeTerraform,
-		ApolloProductTypeService, ApolloProductTypeServiceV2, ApolloProductTypeDaemonSet,
-		ApolloProductTypeAsset, ApolloProductTypeHelm:
-	default:
-		add("manifest.product-type", "must be a known Apollo Product type")
-	}
-	manifestErrs := make([]ValidationError, 0)
-	validateApolloManifestServiceExtensions(manifest.Extensions, &manifestErrs)
-	for _, err := range manifestErrs {
-		errs = append(errs, ValidationError{Path: "manifest." + err.Path, Message: err.Message})
-	}
-	errs = append(errs, validateApolloProductConfiguration(definition)...)
-	sort.SliceStable(errs, func(i, j int) bool { return errs[i].Path < errs[j].Path })
-	return errs
+	return productdefinition.Validate(definitionValidationInput(definition))
 }
 
 // definitionValidationInput keeps the legacy carrier and its decoding identity intact.
 func definitionValidationInput(definition ApolloProductDefinition) productdefinition.Input {
 	return productdefinition.Input{Manifest: definition.Manifest, Configuration: definition.Configuration, Templates: definition.Templates}
-}
-
-func validateApolloProductConfiguration(definition ApolloProductDefinition) []ValidationError {
-	return productdefinition.ValidateConfiguration(definitionValidationInput(definition))
 }
 
 // ValidateApolloVolumeOverride retains the existing compatibility entry point.
