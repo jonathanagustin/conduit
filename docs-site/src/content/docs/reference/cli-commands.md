@@ -1057,6 +1057,7 @@ conduit plan cancel PLAN_ID [flags]
 | Flag | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `--reason` | `string` | `` | cancellation reason |
+| `--write-transport` | `string` | `rest` | Cancellation transport: rest (full Plan) or connect (conduit.plan-cancellation/v1 receipt); failures are not replayed |
 
 ## conduit plan get
 

@@ -52,3 +52,29 @@ not imply that previously persisted effects were rolled back.
 Only the exact registered POST procedure is mounted. It is a write operation;
 Plan read services, packaging services and unknown methods cannot cancel a Plan.
 This is a Conduit-native transport contract, not private protocol compatibility.
+
+## Explicit CLI transport
+
+`conduit plan cancel PLAN_ID --reason "reviewed" --write-transport connect`
+sends one generated command and emits `conduit.plan-cancellation/v1`, kind
+`PlanCancellationReceipt`. JSON and YAML contain the scoped Plan summary,
+recorded cancellation and linked Change Request ID. CSV and table include the
+receipt version/kind, Plan coordinates/status, cancellation subject/reason and
+exact revision. This is not the full REST Plan or an Agent stop acknowledgement.
+
+Omitting `--write-transport`, or selecting `rest`, retains the existing full Plan
+output. The CLI retains its existing reason-only cancellation capability; it does
+not add suppression flags. Existing console cancellation remains REST.
+
+The Connect caller retains configured TLS, bearer authentication, timeout and
+context cancellation. It refuses redirects and never retries, reads a substitute
+Plan or replays over REST after failure. Successful receipts must match the
+requested Plan, cancelled status and normalized reason, with valid timestamps
+and native integer counts. Explicit Connect selection cannot use a REST-only
+injected service.
+
+Only one completed-outcome detail matching the requested Plan is accepted as
+completion evidence. Missing, duplicated, malformed, false or unbound evidence
+remains unknown. Error strings omit raw server and transport diagnostics. Inspect
+native state before manual recovery; neither a failure nor context cancellation
+establishes that no effect occurred.
