@@ -109,7 +109,21 @@ type ProductCatalogSummaryPage struct {
 	PageMetadata
 }
 
-func ListEnvironmentCatalog(ctx context.Context, repository Repository) ([]EnvironmentCatalogRecord, error) {
+// EnvironmentCatalogReader exposes only the inputs needed by the native catalog.
+// It grants no approval, publication, report-write or execution authority.
+type EnvironmentCatalogReader interface {
+	ListPlans(context.Context, string) ([]PlanRecord, error)
+	ListEnvironmentReports(context.Context) ([]EnvironmentReport, error)
+}
+
+// ProductCatalogReader exposes reviewed Plans and existing publications without
+// allowing the projection to publish or mutate either source.
+type ProductCatalogReader interface {
+	ListPlans(context.Context, string) ([]PlanRecord, error)
+	ListProductPublications(context.Context, string) ([]ProductPublication, error)
+}
+
+func ListEnvironmentCatalog(ctx context.Context, repository EnvironmentCatalogReader) ([]EnvironmentCatalogRecord, error) {
 	plans, err := repository.ListPlans(ctx, "")
 	if err != nil {
 		return nil, err
@@ -146,7 +160,7 @@ func ListEnvironmentCatalog(ctx context.Context, repository Repository) ([]Envir
 	return records, nil
 }
 
-func ListProductCatalog(ctx context.Context, repository Repository) ([]ProductCatalogRecord, error) {
+func ListProductCatalog(ctx context.Context, repository ProductCatalogReader) ([]ProductCatalogRecord, error) {
 	plans, err := repository.ListPlans(ctx, "")
 	if err != nil {
 		return nil, err
