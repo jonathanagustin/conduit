@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"regexp"
 	"strings"
@@ -848,4 +849,142 @@ func TestBundleRollbackLeavesPriorDeploymentInPlace(t *testing.T) {
 		t.Fatalf("Rollback error = %v, want a refusal", err)
 	}
 	assertCalls(t, runner)
+}
+
+func TestRequireUDSPackageStatusReadsWithoutApplyingManifest(t *testing.T) {
+	t.Parallel()
+	crRead := []string{"kubectl", "get", "package.uds.dev", "excalidraw", "-n", "excalidraw", "-o", "yaml"}
+	for _, tc := range []struct {
+		phase           string
+		observed        int
+		health, rollout string
+	}{
+		{"Ready", 2, controlplane.HealthHealthy, controlplane.RolloutUpToDate},
+		{"Ready", 1, controlplane.HealthWarning, controlplane.RolloutInGracePeriod},
+		{"Pending", 2, controlplane.HealthWarning, controlplane.RolloutInGracePeriod},
+		{"Failed", 2, controlplane.HealthTerminal, controlplane.RolloutBlocked},
+	} {
+		t.Run(fmt.Sprintf("%s%d", tc.phase, tc.observed), func(t *testing.T) {
+			status := fmt.Sprintf("apiVersion: uds.dev/v1alpha1\nkind: Package\nmetadata:\n  name: excalidraw\n  namespace: excalidraw\n  generation: 2\nstatus:\n  phase: %s\n  observedGeneration: %d\n", tc.phase, tc.observed)
+			runner := initialised("").on("customresourcedefinition.apiextensions.k8s.io/packages.uds.dev", nil, crdProbe...).on(status, nil, crRead...)
+			exec := executor(runner)
+			exec.RequirePackageStatus = true
+			step := installStep()
+			if _, err := exec.Apply(t.Context(), controlplane.Plan{}, step); err != nil {
+				t.Fatal(err)
+			}
+			observed, err := exec.Observe(t.Context(), step)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if observed.Health != tc.health || observed.RolloutStatus != tc.rollout {
+				t.Fatalf("UDS phase bypassed: %+v", observed)
+			}
+			found := false
+			for _, call := range runner.calls {
+				if hasPrefix(call, crRead...) {
+					found = true
+				}
+				if hasPrefix(call, "kubectl", "apply") || hasPrefix(call, "kubectl", "delete", "package.uds.dev") {
+					t.Fatalf("status read enabled Package mutation: %v", call)
+				}
+			}
+			if !found || exec.PackageManifestPath != "" {
+				t.Fatal("status read depends on a manifest path")
+			}
+		})
+	}
+}
+
+func TestRequireUDSPackageStatusRefusesMissingCRDBeforeDeployment(t *testing.T) {
+	t.Parallel()
+	runner := initialised("").on("", nil, crdProbe...)
+	exec := executor(runner)
+	exec.RequirePackageStatus = true
+	_, err := exec.Apply(t.Context(), controlplane.Plan{}, installStep())
+	if !errors.Is(err, uds.ErrPreflightBlocked) || !errors.Is(err, uds.ErrUDSCRDsAbsent) {
+		t.Fatalf("missing status CRD accepted: %v", err)
+	}
+	assertCalls(t, runner, verifiedRead(desiredDigest), stateProbe, crdProbe)
+}
+
+func TestRequireUDSPackageStatusRefusesUnavailableReadback(t *testing.T) {
+	t.Parallel()
+	crRead := []string{"kubectl", "get", "package.uds.dev", "excalidraw", "-n", "excalidraw", "-o", "yaml"}
+	for name, rule := range map[string]rule{
+		"absent": {out: ""}, "API unavailable": {err: errors.New("API unavailable")}, "malformed": {out: "not a Package"},
+		"wrong name":         {out: "apiVersion: uds.dev/v1alpha1\nkind: Package\nmetadata: {name: other, namespace: excalidraw, generation: 1}\nstatus: {phase: Ready, observedGeneration: 1}\n"},
+		"wrong namespace":    {out: "apiVersion: uds.dev/v1alpha1\nkind: Package\nmetadata: {name: excalidraw, namespace: other, generation: 1}\nstatus: {phase: Ready, observedGeneration: 1}\n"},
+		"missing generation": {out: "apiVersion: uds.dev/v1alpha1\nkind: Package\nmetadata: {name: excalidraw, namespace: excalidraw}\nstatus: {phase: Ready}\n"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			runner := initialised(record(desiredDigest, "0.2.0", 1, "Succeeded")).on(rule.out, rule.err, crRead...)
+			exec := executor(runner)
+			exec.RequirePackageStatus = true
+			if _, err := exec.Observe(t.Context(), installStep()); err == nil {
+				t.Fatal("unavailable UDS status reported as an observation")
+			}
+		})
+	}
+}
+
+func TestRequireUDSPackageStatusConfirmsAbsenceAfterUninstall(t *testing.T) {
+	t.Parallel()
+	absenceRead := []string{"kubectl", "get", "package.uds.dev", "excalidraw", "-n", "excalidraw", "--ignore-not-found", "-o", "name"}
+	for name, tc := range map[string]struct {
+		out     string
+		failure error
+		success bool
+	}{"absent": {success: true}, "still present": {out: "package.uds.dev/excalidraw"}, "API unavailable": {failure: errors.New("API unavailable")}} {
+		t.Run(name, func(t *testing.T) {
+			runner := initialised("").on(tc.out, tc.failure, absenceRead...)
+			exec := executor(runner)
+			exec.RequirePackageStatus = true
+			step := installStep()
+			step.Action = "uninstall"
+			observed, err := exec.Observe(t.Context(), step)
+			if (err == nil) != tc.success {
+				t.Fatalf("absence check changed: %+v %v", observed, err)
+			}
+			if tc.success && observed.Lifecycle != controlplane.LifecycleUninstalled {
+				t.Fatal("observed absence did not report removal")
+			}
+			assertCalls(t, runner, recordRead, absenceRead)
+		})
+	}
+}
+
+func TestRequireUDSPackageStatusRefusesUnscopedReads(t *testing.T) {
+	t.Parallel()
+	for _, action := range []string{"install", "uninstall"} {
+		t.Run(action, func(t *testing.T) {
+			deployed := ""
+			if action == "install" {
+				deployed = record(desiredDigest, "0.2.0", 1, "Succeeded")
+			}
+			runner := initialised(deployed)
+			exec := executor(runner)
+			exec.RequirePackageStatus = true
+			step := installStep()
+			step.Action = action
+			step.Namespace = ""
+			if _, err := exec.Observe(t.Context(), step); !errors.Is(err, uds.ErrRefused) {
+				t.Fatalf("unscoped read accepted: %v", err)
+			}
+			assertCalls(t, runner, recordRead)
+		})
+	}
+}
+
+func TestRequireUDSPackageStatusPreflightsRemoval(t *testing.T) {
+	t.Parallel()
+	runner := initialised(record(desiredDigest, "0.2.0", 1, "Succeeded")).on("", nil, crdProbe...)
+	exec := executor(runner)
+	exec.RequirePackageStatus = true
+	step := installStep()
+	step.Action = "uninstall"
+	if _, err := exec.Apply(t.Context(), controlplane.Plan{}, step); !errors.Is(err, uds.ErrUDSCRDsAbsent) {
+		t.Fatalf("removal skipped required readback preflight: %v", err)
+	}
+	assertCalls(t, runner, stateProbe, crdProbe)
 }

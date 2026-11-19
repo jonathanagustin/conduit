@@ -138,6 +138,9 @@ type Executor struct {
 	// VerificationKeyPath is a public key file, the alternative to Publisher.
 	// Exactly one of the two must be configured.
 	VerificationKeyPath string
+	// RequirePackageStatus also reads the existing UDS Package for health and
+	// confirms its absence after removal. It never applies/deletes a Package CR.
+	RequirePackageStatus bool
 	// PackageManifestPath is an optional UDS Package CR applied after deploy.
 	PackageManifestPath string
 	// UDSPackageName names that CR; it defaults to the Zarf package name.
@@ -165,7 +168,8 @@ func (e Executor) zarfBin() string    { return binOr(e.ZarfBin, "zarf") }
 func (e Executor) udsBin() string     { return binOr(e.UDSBin, "uds") }
 func (e Executor) kubectlBin() string { return binOr(e.KubectlBin, "kubectl") }
 
-func (e Executor) managesUDSPackage() bool { return strings.TrimSpace(e.PackageManifestPath) != "" }
+func (e Executor) managesUDSPackage() bool  { return strings.TrimSpace(e.PackageManifestPath) != "" }
+func (e Executor) observesUDSPackage() bool { return e.RequirePackageStatus || e.managesUDSPackage() }
 
 func (e Executor) udsPackageName(zarfName string) string {
 	return binOr(e.UDSPackageName, zarfName)
@@ -482,7 +486,7 @@ func (e Executor) Apply(ctx context.Context, _ controlplane.Plan, step controlpl
 		defer cleanup()
 		deploy[len(deploy)-1] = command
 	}
-	if err := e.preflight(ctx, isBundle(step) || e.managesUDSPackage()); err != nil {
+	if err := e.preflight(ctx, isBundle(step) || e.observesUDSPackage()); err != nil {
 		return agent.Receipt{}, err
 	}
 	prior, err := e.deployedState(ctx, name)
@@ -628,7 +632,7 @@ func (e Executor) uninstall(ctx context.Context, step controlplane.PlanStep, nam
 	if err != nil {
 		return agent.Receipt{}, err
 	}
-	if err := e.preflight(ctx, false); err != nil {
+	if err := e.preflight(ctx, e.RequirePackageStatus); err != nil {
 		return agent.Receipt{}, err
 	}
 	prior, err := e.deployedState(ctx, name)
@@ -674,6 +678,20 @@ func (e Executor) Observe(ctx context.Context, step controlplane.PlanStep) (cont
 		if deployed != nil {
 			return controlplane.ReportedEntity{}, fmt.Errorf("Zarf package %s remains deployed after uninstall", name)
 		}
+		if e.RequirePackageStatus {
+			namespace := strings.TrimSpace(step.Namespace)
+			if namespace == "" {
+				return controlplane.ReportedEntity{}, refuse(step, "a namespace is required to read the UDS Package")
+			}
+			packageName := e.udsPackageName(name)
+			out, err := e.runner().Run(ctx, e.kubectlBin(), "get", "package.uds.dev", packageName, "-n", namespace, "--ignore-not-found", "-o", "name")
+			if err != nil {
+				return controlplane.ReportedEntity{}, fmt.Errorf("observe removed UDS Package %s/%s: %w", namespace, packageName, err)
+			}
+			if strings.TrimSpace(string(out)) != "" {
+				return controlplane.ReportedEntity{}, fmt.Errorf("UDS Package %s/%s remains after uninstall", namespace, packageName)
+			}
+		}
 		// Absence was read back, so this mirrors the Helm executor's
 		// uninstalled report: the digests identify what was removed.
 		return controlplane.ReportedEntity{
@@ -693,7 +711,7 @@ func (e Executor) Observe(ctx context.Context, step controlplane.PlanStep) (cont
 	}
 
 	health, rollout := componentHealth(deployed)
-	if e.managesUDSPackage() {
+	if e.observesUDSPackage() {
 		ns := strings.TrimSpace(step.Namespace)
 		if ns == "" {
 			return controlplane.ReportedEntity{}, refuse(step, "a namespace is required to read the UDS Package")
@@ -706,6 +724,9 @@ func (e Executor) Observe(ctx context.Context, step controlplane.PlanStep) (cont
 		obs, err := udsconverge.ParsePackageStatus(out)
 		if err != nil {
 			return controlplane.ReportedEntity{}, err
+		}
+		if e.RequirePackageStatus && (obs.Name != crName || obs.Namespace != ns || obs.Generation < 1) {
+			return controlplane.ReportedEntity{}, fmt.Errorf("UDS Package %s/%s returned missing or mismatched metadata", ns, crName)
 		}
 		switch {
 		case strings.EqualFold(obs.Phase, "Failed") || strings.EqualFold(obs.Phase, "Unhealthy"):

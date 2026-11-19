@@ -34,7 +34,7 @@ const (
 
 var packageExecutorVariables = []string{
 	"PACKAGE_PUBLISHER_CERTIFICATE_ISSUER", "PACKAGE_PUBLISHER_CERTIFICATE_IDENTITY",
-	"PACKAGE_VERIFICATION_KEY_PATH", "PACKAGE_ARCHITECTURE", "ZARF_BIN", "UDS_BIN", "UDS_NATIVE_BUNDLES",
+	"PACKAGE_VERIFICATION_KEY_PATH", "PACKAGE_ARCHITECTURE", "ZARF_BIN", "UDS_BIN", "UDS_NATIVE_BUNDLES", "UDS_REQUIRE_PACKAGE_STATUS",
 }
 
 // packageExecutorFromEnvironment builds the Zarf/UDS executor, or returns nil
@@ -74,6 +74,13 @@ func packageExecutorFromEnvironment(getenv func(string) string) (agent.Executor,
 		executor.NativeBundles = true
 	default:
 		return nil, errors.New("UDS_NATIVE_BUNDLES must be true or false")
+	}
+	switch required := value("UDS_REQUIRE_PACKAGE_STATUS"); required {
+	case "", "false":
+	case "true":
+		executor.RequirePackageStatus = true
+	default:
+		return nil, errors.New("UDS_REQUIRE_PACKAGE_STATUS must be true or false")
 	}
 	keyless := executor.Publisher != (domain.PublisherPolicy{})
 	switch {

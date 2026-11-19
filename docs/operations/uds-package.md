@@ -352,11 +352,24 @@ replace the Spoke check or assert that cluster hardware was discovered.
 
 | Variable | Meaning |
 | --- | --- |
-| `PACKAGE_EXECUTOR_ENABLED` | `true` turns the executor on. Anything below without it stops the Spoke at start-up. |
+| `PACKAGE_EXECUTOR_ENABLED` | `true` turns the executor on. Package-only settings require it; `KUBECTL_BIN` remains shared with Helm. |
 | `PACKAGE_PUBLISHER_CERTIFICATE_ISSUER`, `PACKAGE_PUBLISHER_CERTIFICATE_IDENTITY` | Keyless publisher policy: two anchored regular expressions, passed to `zarf --certificate-oidc-issuer-regexp` and `--certificate-identity-regexp`. |
 | `PACKAGE_VERIFICATION_KEY_PATH` | Absolute path of a public key file, the alternative to the publisher pair. |
 | `PACKAGE_ARCHITECTURE` | `amd64` or `arm64`. Defaults to the Spoke binary's own. |
+| `UDS_REQUIRE_PACKAGE_STATUS` | Optional `true` requires the UDS Package CRD and observed Package status; defaults to `false`. Does not enable manifest application. |
 | `ZARF_BIN`, `UDS_BIN`, `KUBECTL_BIN` | Binary paths. Default: looked up on `PATH`. |
+
+`UDS_REQUIRE_PACKAGE_STATUS=true` requires an existing namespaced UDS Package
+with the admitted Zarf package name in the reviewed step namespace. Health and
+rollout include its phase and observed generation. Returned name/namespace must
+match the queried Package and its generation must be positive. Missing, malformed or
+unavailable status fails the observation; a stale Ready generation stays in
+grace. Removal is reported only after both Zarf and the UDS Package are absent.
+The option neither applies nor deletes a Package CR and never sets a mutable
+manifest path. Package configuration must already come from the admitted
+artifact or its reviewed deployment setup. Differently named Package CRs are
+not selected by this CLI option. Source and fake-command tests qualify this
+wiring; actual UDS Core convergence receipts remain tracked in #427/#619.
 
 `UDS_NATIVE_BUNDLES=true` explicitly selects UDS 0.41's NextMode HCL bundle
 contract on this Spoke. The default retains legacy bundles. There is no format
