@@ -125,65 +125,7 @@ func ValidateApolloProductManifest(manifest ApolloProductManifest) []ValidationE
 // Product type because a Helm Product that declares volumes-v2 means the same
 // thing by it as a service Product does.
 func validateApolloManifestServiceExtensions(extensions ApolloProductManifestExtensions, errs *[]ValidationError) {
-	add := func(path, message string) { *errs = append(*errs, ValidationError{Path: path, Message: message}) }
-	for _, name := range sortedKeys(extensions.VolumesV2) {
-		volume := extensions.VolumesV2[name]
-		path := fmt.Sprintf("extensions.volumes-v2.%s", name)
-		if !apolloVolumeNamePattern.MatchString(name) {
-			add(path, "volume name must be alphanumerics and hyphens")
-		}
-		if volume.VolumeType.DurableVolume == nil {
-			add(path+".volume-type", "must declare a volume type; durable-volume is the only known type")
-		}
-	}
-	proxy := validateApolloPublicEndpointNames("extensions.public-proxy-endpoints", extensions.PublicProxyEndpoints, errs)
-	validateApolloPublicEndpointNames("extensions.public-tcp-endpoints", extensions.PublicTCPEndpoints, errs)
-	validateApolloPublicEndpointNames("extensions.public-udp-endpoints", extensions.PublicUDPEndpoints, errs)
-	// An endpoint cannot be both proxied and raw TCP or UDP: the proxy terminates
-	// TLS and routes on a path, while the raw paths forward an allocated external
-	// port. TCP and UDP together are allowed, and are how a Product asks for both
-	// protocols on one external port.
-	for index, name := range extensions.PublicTCPEndpoints {
-		if _, exists := proxy[name]; exists {
-			add(fmt.Sprintf("extensions.public-tcp-endpoints[%d]", index),
-				"must not also appear in public-proxy-endpoints")
-		}
-	}
-	for index, name := range extensions.PublicUDPEndpoints {
-		if _, exists := proxy[name]; exists {
-			add(fmt.Sprintf("extensions.public-udp-endpoints[%d]", index),
-				"must not also appear in public-proxy-endpoints")
-		}
-	}
-	switch extensions.QuorumRequirement {
-	case "", ApolloQuorumAll, ApolloQuorumAllButOne, ApolloQuorumAny, ApolloQuorumSimpleMajority:
-	default:
-		add("extensions.quorum-requirement", "must be all, all-but-one, any, or simple-majority")
-	}
-	switch extensions.UpgradeStrategy {
-	case "", ApolloUpgradeStrategyRolling, ApolloUpgradeStrategyShutdown:
-	default:
-		add("extensions.upgrade-strategy", "must be rolling or shutdown")
-	}
-}
-
-// validateApolloPublicEndpointNames checks one of the two ingress extensions and
-// returns the set of names it exposed, which the cross-document checks reuse.
-func validateApolloPublicEndpointNames(path string, names []string, errs *[]ValidationError) map[string]struct{} {
-	add := func(path, message string) { *errs = append(*errs, ValidationError{Path: path, Message: message}) }
-	seen := make(map[string]struct{}, len(names))
-	for index, name := range names {
-		entry := fmt.Sprintf("%s[%d]", path, index)
-		if strings.TrimSpace(name) == "" {
-			add(entry, "must name an endpoints.definitions entry")
-			continue
-		}
-		if _, exists := seen[name]; exists {
-			add(entry, "must not repeat an endpoint name")
-		}
-		seen[name] = struct{}{}
-	}
-	return seen
+	productmanifest.ValidateServiceExtensions(extensions, errs)
 }
 
 // ExecutableReleaseFromApolloManifest adapts only the stricter subset that can
