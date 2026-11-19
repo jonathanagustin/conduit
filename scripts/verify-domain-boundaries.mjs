@@ -89,6 +89,12 @@ for (const path of filesBelow(join(root, "internal"))) {
     }
   }
 }
+// The CLI owns document input and must use the owning manifest validator.
+// Native lifecycle errors and Environment types still legitimately use the facade.
+const cliWorkflow = readFileSync(join(root, "internal/conduitcli/workflow.go"), "utf8");
+if (/\bcontrolplane\.ValidateApolloProductManifest\s*\(/.test(cliWorkflow)) {
+  failures.push("CLI Helm initializer re-enters the legacy manifest validator delegate");
+}
 const apolloAdapter = readFileSync(join(root, "internal/controlplane/apollo_openapi_adapter.go"), "utf8");
 if (apolloAdapter.includes("invokeApolloFacade")) {
   failures.push("Apollo generated adapter re-enters the legacy HTTP facade");
