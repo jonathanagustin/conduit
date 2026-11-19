@@ -36,6 +36,7 @@ try {
   if (!run().includes("PASS domain boundaries")) throw new Error("native Environment snapshot fixture did not pass");
 
   const controls = [
+    ["internal/conduitcli/workflow.go", "package conduitcli\nfunc read(){ controlplane.DecodeApolloProductManifest(reader) }\n", "package conduitcli\nfunc initialize(){ productmanifest.ValidatePackaging(manifest) }\n"],
     ["internal/conduitcli/product_tgz.go", "package conduitcli\nfunc read(){ controlplane.DecodeApolloProductManifest(reader) }\n", "package conduitcli\n"],
     ["internal/conduitcli/product_tgz.go", "package conduitcli\nfunc validate(){ controlplane.ValidateApolloProductManifest(manifest) }\n", "package conduitcli\n"],
     ["internal/conduitcli/apollo_coverage_commands.go", "package conduitcli\nfunc read(){ controlplane.DecodeApolloEnvironmentSettings(document) }\n", "package conduitcli\n"],
