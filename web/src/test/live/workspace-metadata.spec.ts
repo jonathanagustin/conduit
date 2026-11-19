@@ -225,6 +225,8 @@ test("workspace review submission requires owner confirmation and opens only a s
     title: "Review recorded workspace metadata",
     description: "A separate human review; no approval or execution.",
     approve: false,
+    reviewedRevision: workspace.proposalRevision,
+    reviewedSourceDigest: workspace.sourceDigest,
   };
   const nonOwner = await page.request.post(
     new URL(`${path}/submit`, page.url()).toString(),
@@ -341,4 +343,126 @@ test("workspace review submission requires owner confirmation and opens only a s
   expect(
     (await read(page, `/v1/change-requests/${receipt.changeRequestId}`)).status,
   ).toBe("PENDING_APPROVALS");
+});
+
+test("workspace review refuses metadata changed after the final browser preflight", async ({
+  page,
+}, testInfo) => {
+  await page.goto("./");
+  const title = `Review race metadata ${Date.now().toString(16)}`;
+  const created = await page.request.post(
+    new URL("/v1/dev-workspaces", page.url()).toString(),
+    {
+      data: {
+        profileId: "live-metadata-only",
+        environmentId: "dev-use2",
+        title,
+      },
+    },
+  );
+  expect(created.status()).toBe(201);
+  const original = (await created.json()) as Workspace;
+  const path = `/v1/dev-workspaces/${original.workspaceId}`;
+  const upgrade = async (digit: string, version: string) => {
+    const reply = await page.request.post(
+      new URL(`${path}/upgrade`, page.url()).toString(),
+      {
+        data: {
+          sourceDigest: "sha256:" + digit.repeat(64),
+          templateVersion: version,
+          toolVersions: "recorded-tools-v1",
+        },
+      },
+    );
+    expect(reply.status()).toBe(200);
+    return (await read(page, path)) as Workspace;
+  };
+  const reviewed = await upgrade("c", "reviewed-metadata-a");
+  const before = (
+    (await read(page, "/v1/change-requests?limit=200")).changeRequests as {
+      id: string;
+    }[]
+  )
+    .map((row) => row.id)
+    .sort();
+  await page.goto("./#s12-lifecycle");
+  await page
+    .getByRole("button", { name: `${title} · stopped`, exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Stage separate review", exact: true })
+    .click();
+  const form = page.locator("[data-ws-confirm]");
+  await expect(form).toContainText(reviewed.proposalRevision);
+  await expect(form).toContainText(reviewed.sourceDigest!);
+  await form
+    .getByLabel("Title", { exact: true })
+    .fill("Review only displayed metadata A");
+  await form
+    .getByLabel("Review description", { exact: true })
+    .fill("The confirmed revision and source must not change in transit.");
+  await form.getByRole("checkbox").check();
+  const preflight = page
+    .waitForResponse(
+      (reply) =>
+        reply.request().method() === "GET" &&
+        new URL(reply.url()).pathname === path,
+    )
+    .then((reply) => reply.json() as Promise<Workspace>);
+  let changed: Workspace | undefined;
+  let submitted: unknown;
+  await page.route(`**${path}/submit`, async (route) => {
+    submitted = route.request().postDataJSON();
+    expect(await preflight).toMatchObject({
+      proposalRevision: reviewed.proposalRevision,
+      sourceDigest: reviewed.sourceDigest,
+    });
+    changed = await upgrade("d", "unreviewed-metadata-b");
+    expect(changed.proposalRevision).not.toBe(reviewed.proposalRevision);
+    // Continue the actual browser request to the actual Hub. No response is faked.
+    await route.continue();
+  });
+  const responsePromise = page.waitForResponse(
+    (reply) =>
+      reply.request().method() === "POST" &&
+      new URL(reply.url()).pathname === `${path}/submit`,
+  );
+  await form
+    .getByRole("button", { name: "Confirm workspace action", exact: true })
+    .click();
+  const response = await responsePromise;
+  const receipt = await response.json();
+  const admitted = receipt.changeRequestId
+    ? await read(page, `/v1/change-requests/${receipt.changeRequestId}`)
+    : null;
+  await testInfo.attach("workspace-submission-interleaving", {
+    contentType: "application/json",
+    body: Buffer.from(
+      JSON.stringify(
+        {
+          reviewed,
+          preflight: await preflight,
+          changed,
+          submitted,
+          status: response.status(),
+          receipt,
+          admitted,
+        },
+        null,
+        2,
+      ),
+    ),
+  });
+  expect(response.status()).toBe(409);
+  await expect(page.locator("[data-workspace-studio]")).toContainText(
+    "reviewed workspace metadata changed",
+  );
+  const after = (
+    (await read(page, "/v1/change-requests?limit=200")).changeRequests as {
+      id: string;
+    }[]
+  )
+    .map((row) => row.id)
+    .sort();
+  expect(after).toEqual(before);
 });

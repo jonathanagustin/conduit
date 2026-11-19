@@ -224,3 +224,9 @@ func Touch(ws Workspace, now time.Time) Workspace {
 	}
 	return ws
 }
+
+// SubmissionSnapshot pins the metadata a caller reviewed before submission.
+type SubmissionSnapshot struct {
+	Revision     string
+	SourceDigest string
+}

@@ -34,10 +34,12 @@ type submitter struct {
 	receipt domain.Receipt
 	err     error
 	calls   int
+	draft   domain.Submission
 }
 
-func (fake *submitter) Submit(context.Context, domain.Caller, domain.Submission) (domain.Receipt, error) {
+func (fake *submitter) Submit(_ context.Context, _ domain.Caller, draft domain.Submission) (domain.Receipt, error) {
 	fake.calls++
+	fake.draft = draft
 	return fake.receipt, fake.err
 }
 
@@ -416,4 +418,43 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func TestSubmitReviewedPinsCapturedMetadata(t *testing.T) {
+	for _, tc := range []struct {
+		name, revision, source string
+		want                   error
+	}{
+		{"matching empty source", "", "", nil},
+		{"stale revision", "old", "", domain.ErrConflict},
+		{"stale source", "", "changed", domain.ErrConflict},
+		{"blank revision", " ", "", domain.ErrInvalid},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			service, _, log := newService(t)
+			workspace, err := service.Create(context.Background(), caller(), "profile", "dev", "Sample")
+			if err != nil {
+				t.Fatal(err)
+			}
+			revision := tc.revision
+			if revision == "" {
+				revision = workspace.ProposalRevision
+			}
+			receipt, err := service.SubmitReviewed(context.Background(), caller(), workspace.ID, "Review", "please", false, domain.SubmissionSnapshot{Revision: revision, SourceDigest: tc.source})
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("receipt %#v error %v, want %v", receipt, err, tc.want)
+			}
+			fake := service.submit.(*submitter)
+			if tc.want != nil {
+				if fake.calls != 0 {
+					t.Fatal("stale metadata reached submitter")
+				}
+				if errors.Is(tc.want, domain.ErrConflict) && !log.has("workspace.submitted", "DENY") {
+					t.Fatal("missing denial audit")
+				}
+			} else if fake.calls != 1 || fake.draft.Revision != workspace.ProposalRevision || fake.draft.SourceDigest != workspace.SourceDigest {
+				t.Fatalf("wrong captured snapshot: %#v", fake)
+			}
+		})
+	}
 }

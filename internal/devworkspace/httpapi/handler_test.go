@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -90,4 +91,45 @@ type allowSubmit struct{}
 
 func (allowSubmit) Submit(context.Context, domain.Caller, domain.Submission) (domain.Receipt, error) {
 	return domain.Receipt{ChangeRequestID: "crq_test", Status: "PENDING_APPROVALS"}, nil
+}
+
+func TestSubmissionReviewedMetadataPreconditions(t *testing.T) {
+	handler, store := newHandler(t)
+	id := createAs(t, handler, "ada", "dev")
+	workspace, err := store.Get(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name string
+		body map[string]any
+		want int
+	}{
+		{"legacy", map[string]any{}, http.StatusAccepted},
+		{"matching empty source", map[string]any{"reviewedRevision": workspace.ProposalRevision, "reviewedSourceDigest": ""}, http.StatusAccepted},
+		{"revision only", map[string]any{"reviewedRevision": workspace.ProposalRevision}, http.StatusBadRequest},
+		{"source only", map[string]any{"reviewedSourceDigest": ""}, http.StatusBadRequest},
+		{"blank revision", map[string]any{"reviewedRevision": "", "reviewedSourceDigest": ""}, http.StatusBadRequest},
+		{"stale revision", map[string]any{"reviewedRevision": "old", "reviewedSourceDigest": ""}, http.StatusConflict},
+		{"stale source", map[string]any{"reviewedRevision": workspace.ProposalRevision, "reviewedSourceDigest": "changed"}, http.StatusConflict},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.body["title"] = "Review"
+			tc.body["description"] = "please"
+			encoded, err := json.Marshal(tc.body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req := httptest.NewRequest(http.MethodPost, "/v1/dev-workspaces/"+id+"/submit", strings.NewReader(string(encoded)))
+			req.Header.Set("X-Test-User", "ada")
+			reply := httptest.NewRecorder()
+			handler.ServeHTTP(reply, req)
+			if tc.want == http.StatusConflict && !strings.Contains(reply.Body.String(), "reviewed workspace metadata changed") {
+				t.Fatalf("misleading conflict response: %s", reply.Body.String())
+			}
+			if reply.Code != tc.want {
+				t.Fatalf("status %d body %s, want %d", reply.Code, reply.Body.String(), tc.want)
+			}
+		})
+	}
 }

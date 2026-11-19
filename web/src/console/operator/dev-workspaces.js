@@ -501,7 +501,12 @@ export function createDevWorkspaces({
       body = {
         title: value("title"),
         ...(action === "submit"
-          ? { description: value("description"), approve: false }
+          ? {
+              description: value("description"),
+              approve: false,
+              reviewedRevision: item.proposalRevision,
+              reviewedSourceDigest: item.sourceDigest || "",
+            }
           : {}),
       };
       if (!body.title || (action === "submit" && !body.description)) {
