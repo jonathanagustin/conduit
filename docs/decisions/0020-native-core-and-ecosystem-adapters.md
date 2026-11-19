@@ -149,3 +149,18 @@ not-found errors become the GraphQL absence sentinel; listing failures and all
 other errors retain their original identity. The two cached Product reads keep
 their existing context-free application signatures. The remaining route binder
 and compatibility command facade still require extraction.
+
+Native validation problem values and four existing lexical grammar expressions
+now live in `validation/domain`, without infrastructure or adapter dependencies.
+The core retains source aliases; canonical internal Go type identities move to
+that leaf. JSON path/message fields, nil-versus-empty diagnostics, aggregate
+error text/order and the grammar bytes are retained. Additional field-specific
+length/authority checks remain with their existing callers.
+
+The Environment settings codec and document validation now live with its
+compatibility document shape. Core entry points delegate to that codec; native
+DesiredState conversion and governance remain in place. Unknown YAML fields,
+explicit presence, diagnostic paths and accepted document fields are preserved.
+This enables compatibility schemas to use native diagnostics without importing
+the control-plane facade; the remaining command/conversion and product-definition
+extractions are still open under #428.
