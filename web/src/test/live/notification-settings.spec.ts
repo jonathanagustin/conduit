@@ -19,6 +19,13 @@ test("native notification settings preserve owner boundaries and authoritative r
   };
   const contactsPath = "/v1/notifications/contacts";
   const preferencesPath = "/v1/notifications/preferences";
+  // The native response intentionally omits a false allFutureTypes bool. The
+  // write must still carry explicit false; null and other values stay invalid.
+  const preferenceView = (value: Record<string, unknown>) => ({
+    ...value,
+    allFutureTypes:
+      value.allFutureTypes === undefined ? false : value.allFutureTypes,
+  });
   const owner = { kind: "USER", id: "operator" };
   const before = await read(contactsPath);
   expect(before).toEqual({ owner, contacts: [] });
@@ -143,17 +150,20 @@ test("native notification settings preserve owner boundaries and authoritative r
   const preferenceSaved = await preferenceResponse;
   expect(preferenceSaved.status()).toBe(200);
   const preference = await preferenceSaved.json();
-  expect(preference).toMatchObject({
+  expect(preferenceView(preference)).toMatchObject({
     ...preferenceBody,
     owner,
     typeAvailabilityScope: "ALL_KNOWN",
   });
   expect(preference.revision).toBeGreaterThan(0);
+  expect(writes.find((write) => write.path === preferencesPath)?.body).toEqual(
+    preferenceBody,
+  );
   await expect(page.locator("[data-preference-saved]")).toContainText(
     `stored revision ${preference.revision}`,
   );
   const storedPreference = await read(preferencePath);
-  expect(storedPreference).toMatchObject({
+  expect(preferenceView(storedPreference)).toMatchObject({
     ...preferenceBody,
     owner,
     id: preference.id,
@@ -179,7 +189,7 @@ test("native notification settings preserve owner boundaries and authoritative r
   expect(advancedResponse.status()).toBe(200);
   const advancedReceipt = await advancedResponse.json();
   const advanced = await read(preferencePath);
-  expect(advanced).toMatchObject({
+  expect(preferenceView(advanced)).toMatchObject({
     ...preferenceBody,
     owner,
     id: preference.id,
