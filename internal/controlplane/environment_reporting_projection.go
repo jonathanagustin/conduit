@@ -9,9 +9,13 @@ import (
 // environmentReportingProjectionPort narrows lifecycle state to reviewed Plan projections and
 // normalized Environment reports. The Apollo package never imports PlanRecord,
 // Repository, or any control-plane implementation type.
-type environmentReportingProjectionRepository interface {
+type environmentReportReadRepository interface {
 	ListPlans(context.Context, string) ([]PlanRecord, error)
 	GetEnvironmentReport(context.Context, string) (environments.Report, error)
+}
+
+type environmentReportingProjectionRepository interface {
+	environmentReportReadRepository
 	PutEnvironmentReport(context.Context, environments.Report) (environments.Report, error)
 }
 
@@ -20,7 +24,11 @@ type environmentReportingProjectionPort struct {
 }
 
 func (port environmentReportingProjectionPort) LatestPlan(ctx context.Context, environment string) (environments.PlanProjection, error) {
-	plans, err := port.repository.ListPlans(ctx, environment)
+	return latestEnvironmentPlanProjection(ctx, port.repository, environment)
+}
+
+func latestEnvironmentPlanProjection(ctx context.Context, repository environmentReportReadRepository, environment string) (environments.PlanProjection, error) {
+	plans, err := repository.ListPlans(ctx, environment)
 	if err != nil || len(plans) == 0 {
 		return environments.PlanProjection{}, err
 	}
