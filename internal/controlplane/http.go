@@ -3025,21 +3025,6 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 // was not is readable by whoever may read its Environment. A repository error
 // denies rather than admits -- an index that fails open leaks every Plan the
 // moment the Change Request store is unavailable.
-func canReadPlan(
-	ctx context.Context, repository Repository, governance *GovernanceService,
-	principal Principal, configuration HandlerOptions, record PlanRecord,
-) bool {
-	if record.ChangeRequestID != "" {
-		changeRequest, err := repository.GetChangeRequest(ctx, record.ChangeRequestID)
-		if err != nil {
-			return false
-		}
-		return canReadChangeRequest(ctx, governance, principal, configuration, changeRequest)
-	}
-	return isGovernanceAdministrator(ctx, governance, principal, configuration) ||
-		governance.Authorize(ctx, effectivePrincipal(principal), environmentRID(record.Plan.Environment), OperationReadResource)
-}
-
 // planTargetsInstallation reports whether a Plan acts on an Installation, by
 // its steps rather than its Environment: an Environment-wide Plan that does
 // not touch the Installation being asked about is not an answer to that
