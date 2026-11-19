@@ -1,10 +1,8 @@
 package controlplane
 
 import (
-	"fmt"
 	"io"
 	"sort"
-	"strings"
 
 	"github.com/jonathanagustin/conduit/internal/apollo/productconfiguration"
 	"github.com/jonathanagustin/conduit/internal/apollo/productdefinition"
@@ -115,13 +113,13 @@ const (
 // Kubernetes liveness and readiness probes. They are constants because the
 // Product implements them; a Product cannot choose different ones.
 const (
-	ApolloLivenessSubpath  = "/status/liveness"
-	ApolloReadinessSubpath = "/status/readiness"
+	ApolloLivenessSubpath  = productconfiguration.LivenessSubpath
+	ApolloReadinessSubpath = productconfiguration.ReadinessSubpath
 	// ApolloHealthSubpath is the third status resource. Liveness and readiness
 	// decide whether a replica is restarted or routed to; health is richer
 	// operational detail that is reported rather than acted on, which is why it
 	// always answers 200 and carries its state in the body.
-	ApolloHealthSubpath = "/status/health"
+	ApolloHealthSubpath = productconfiguration.HealthSubpath
 
 	// ApolloProbeIntervalSeconds is how often the platform polls. It is part of
 	// the contract rather than a tuning knob: a Product promises these endpoints
@@ -140,7 +138,7 @@ const ApolloTemplateDirectory = productconfiguration.TemplateDirectory
 // ApolloManagedFileMountPath is the directory managed files are rendered into
 // inside the main container.
 func ApolloManagedFileMountPath(productName string) string {
-	return "/opt/palantir/services/" + productName + "/var/conf"
+	return productconfiguration.ManagedFileMountPath(productName)
 }
 
 // ApolloProductDefinition is the manifest/configuration pair for one Product
@@ -178,14 +176,13 @@ const ApolloMaximumVolumeSize = productconfiguration.MaximumVolumeSize
 // the join in one place: a Product that serves /my-app must be probed at
 // /my-app/status/liveness, not at the container root.
 func ApolloStatusProbePaths(endpoint ApolloEndpointDefinition) (liveness, readiness string) {
-	base := strings.TrimSuffix(endpoint.EffectivePath(), "/")
-	return base + ApolloLivenessSubpath, base + ApolloReadinessSubpath
+	return productconfiguration.StatusProbePaths(endpoint)
 }
 
 // ApolloHealthProbePath renders the health resource the reported-state pipeline
 // polls, relative to the same status endpoint.
 func ApolloHealthProbePath(endpoint ApolloEndpointDefinition) string {
-	return strings.TrimSuffix(endpoint.EffectivePath(), "/") + ApolloHealthSubpath
+	return productconfiguration.HealthProbePath(endpoint)
 }
 
 // DecodeApolloProductConfiguration delegates the optional structural document decoder.
@@ -296,34 +293,7 @@ func validateApolloGeneratedSecret(path, name string, secret ApolloGeneratedSecr
 // It reports whether the entry was a candidate. An entry with no valid port
 // carries information other than an address and is returned unchanged.
 func ApolloAugmentProducedDiscovery(entry ApolloDiscoveryProduces, host string) (map[string]any, bool) {
-	payload := map[string]any{}
-	for key, node := range entry.Payload {
-		var value any
-		if err := node.Decode(&value); err == nil {
-			payload[key] = value
-		}
-	}
-	if entry.Role != "" {
-		payload["role"] = entry.Role
-	}
-	if entry.Port < 1 || entry.Port > 65535 || strings.TrimSpace(host) == "" {
-		return payload, false
-	}
-	scheme := entry.Scheme
-	if scheme == "" {
-		scheme = "https"
-	}
-	requestPath := entry.Path
-	if requestPath == "" {
-		requestPath = "/"
-	}
-	uri := fmt.Sprintf("%s://%s:%d%s", scheme, host, entry.Port, requestPath)
-	payload["port"] = entry.Port
-	payload["scheme"] = scheme
-	payload["path"] = requestPath
-	payload["uri"] = uri
-	payload["uris"] = []any{uri}
-	return payload, true
+	return productconfiguration.AugmentProducedDiscovery(entry, host)
 }
 
 // ApolloGeneratedSecretsKey retains the source name for the protected document block.
