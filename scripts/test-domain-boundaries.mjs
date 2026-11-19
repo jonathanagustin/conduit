@@ -22,6 +22,7 @@ try {
   write("internal/conduitcli/workflow.go", "package conduitcli\nfunc initialize(){ productmanifest.ValidatePackaging(manifest) }\n");
   write("internal/conduitcli/product_release_commands.go", "package conduitcli\n");
   write("internal/conduitcli/apollo_coverage_commands.go", "package conduitcli\n");
+  write("internal/conduitcli/product_tgz.go", "package conduitcli\n");
   write("internal/apollo/application/service.go", "package application\n");
   write("internal/apollo/workloadmetadata/metadata.go", 'package workloadmetadata\nimport "go.yaml.in/yaml/v4"\n');
   write("internal/delivery/reconciliation/application/worker.go", "package application\n");
@@ -35,6 +36,9 @@ try {
   if (!run().includes("PASS domain boundaries")) throw new Error("native Environment snapshot fixture did not pass");
 
   const controls = [
+    ["internal/conduitcli/workflow.go", "package conduitcli\nfunc read(){ controlplane.DecodeApolloProductManifest(reader) }\n", "package conduitcli\nfunc initialize(){ productmanifest.ValidatePackaging(manifest) }\n"],
+    ["internal/conduitcli/product_tgz.go", "package conduitcli\nfunc read(){ controlplane.DecodeApolloProductManifest(reader) }\n", "package conduitcli\n"],
+    ["internal/conduitcli/product_tgz.go", "package conduitcli\nfunc validate(){ controlplane.ValidateApolloProductManifest(manifest) }\n", "package conduitcli\n"],
     ["internal/conduitcli/apollo_coverage_commands.go", "package conduitcli\nfunc read(){ controlplane.DecodeApolloEnvironmentSettings(document) }\n", "package conduitcli\n"],
     ["internal/conduitcli/apollo_coverage_commands.go", "package conduitcli\nfunc write(){ controlplane.EncodeApolloEnvironmentSettings(settings) }\n", "package conduitcli\n"],
     ["internal/conduitcli/product_release_commands.go", "package conduitcli\nvar definition controlplane.ApolloProductDefinition\n", "package conduitcli\n"],
