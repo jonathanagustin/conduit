@@ -527,7 +527,7 @@ func environmentCommand(state *commandState) *cobra.Command {
 				return errors.New("--view must be full or summary")
 			}
 			if listView == "full" && (state.config.EnvironmentReadTransport == "connect" || listSearch != "") {
-				return errors.New("Connect transport and search require --view summary; full Environment records remain REST-only")
+				return errors.New("Connect transport and search require --view summary; full Environment lists remain REST-only")
 			}
 			return state.execute(command, func(service Service) (any, error) {
 				if listView == "summary" {
@@ -550,7 +550,7 @@ func environmentCommand(state *commandState) *cobra.Command {
 	list.Flags().StringVar(&listSearch, "search", "", "Environment ID substring search; requires summary view")
 	list.Flags().StringVar(&state.config.EnvironmentReadTransport, "read-transport", "rest", "summary transport: rest or connect; failures are never replayed")
 	command.AddCommand(list)
-	command.AddCommand(&cobra.Command{
+	detail := &cobra.Command{
 		Use:   "get ENVIRONMENT_ID",
 		Short: "Get a declared and reported Environment projection",
 		Args:  cobra.ExactArgs(1),
@@ -559,7 +559,9 @@ func environmentCommand(state *commandState) *cobra.Command {
 				return service.GetEnvironment(command.Context(), args[0])
 			})
 		},
-	})
+	}
+	detail.Flags().StringVar(&state.config.EnvironmentReadTransport, "read-transport", "rest", "detail transport: rest or connect; failures are never replayed")
+	command.AddCommand(detail)
 
 	manifest := &cobra.Command{Use: "manifest", Short: "Generate Spoke deployment manifests"}
 	var namespace, image, hubURL, agentID, clientTLSSecret, externalCAConfigMap, storageClass string

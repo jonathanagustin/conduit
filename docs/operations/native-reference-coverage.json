@@ -30,7 +30,7 @@
     "internal/conduitcli/promotion_commands.go": "6ca38e8da9966dd1b67ad14e5398eba245710ffd6055f002923b1ad897de921d",
     "internal/conduitcli/refresh.go": "4d59384bd177c8f7eaf81c0f9007b11e2e0feabc2bf7f442cca62155c1c12e82",
     "internal/conduitcli/release_channel_commands.go": "361d7896a91ddb82f9e68e468a01ad3cd3a3c8dd24057d85d6e5ab96af15876c",
-    "internal/conduitcli/root.go": "9a766bfbd4f24fe09c6367c9f6bb3b6571846285fdcb50b55ff2dfde93ab130b",
+    "internal/conduitcli/root.go": "4f7a5f2739d55dd3f9dd8a81f9c0b00bf06472647174bf4edd6aef07d5aec59e",
     "internal/conduitcli/run_commands.go": "57efaa0a038450808077741b83a9263377e0371d3a54ba111d9e872020628274",
     "internal/conduitcli/security_commands.go": "a420b6af7ea577fa7583392224b8f34e0eb46c67bdff1bdf7a0a96b3cfe132d1",
     "internal/conduitcli/space_commands.go": "857ed2a14f2a5aa381fa433f840470dd1a0ce884ecb43fd860332398273dad4b",

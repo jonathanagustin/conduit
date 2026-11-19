@@ -151,6 +151,9 @@ func (adapter *HTTPControlPlane) ListEnvironments(ctx context.Context) ([]contro
 }
 
 func (adapter *HTTPControlPlane) GetEnvironment(ctx context.Context, environment string) (controlplane.EnvironmentCatalogRecord, error) {
+	if adapter.environmentReadTransport == "connect" {
+		return adapter.getEnvironmentConnect(ctx, environment)
+	}
 	var result controlplane.EnvironmentCatalogRecord
 	err := adapter.request(ctx, http.MethodGet, adapter.withSpaceSelection("/v1/environments/"+url.PathEscape(environment)), nil, &result)
 	return result, err
