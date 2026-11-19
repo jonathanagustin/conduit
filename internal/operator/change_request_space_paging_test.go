@@ -134,7 +134,7 @@ func TestChangeRequestRESTPagingKeepsOpaqueQueryAndRejectsPartialResults(t *test
 					t.Errorf("query changed: %s", r.URL)
 				}
 				if calls == 2 && mode == "late refusal" {
-					http.Error(w, "refused", 403)
+					http.Error(w, "refused", http.StatusForbidden)
 					return
 				}
 				next := cursor
