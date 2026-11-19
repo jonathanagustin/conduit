@@ -601,8 +601,12 @@ conduit environment delete ENVIRONMENT_ID [flags]
 Get a declared and reported Environment projection
 
 ```text
-conduit environment get ENVIRONMENT_ID
+conduit environment get ENVIRONMENT_ID [flags]
 ```
+
+| Flag | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `--read-transport` | `string` | `rest` | detail transport: rest or connect; failures are never replayed |
 
 ## conduit environment list
 

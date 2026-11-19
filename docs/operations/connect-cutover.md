@@ -26,7 +26,7 @@ including reads. A read encoded as POST is not a governed state change.
 | `GET /v1/fleet/installations` | `conduit.fleet.v1.FleetReadService/ListFleetInstallations` | Dual-served filtered Fleet projection; current CLI and console callers remain REST |
 | `GET /v1/environments?view=summary` | `conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries` | CLI `environment list --view summary --read-transport connect`; full list stays REST |
 | `GET /v1/environments/{environmentID}/reported-state` | `conduit.environments.v1.EnvironmentObservationService/GetEnvironmentReportedState` | CLI `environment reported-state --read-transport connect`; REST remains the default; failures are not replayed |
-| `GET /v1/environments/{environmentID}` | `conduit.environments.v1.EnvironmentDetailService/GetEnvironment` | Dual-served full native configuration/report read with optional Space selection; existing callers remain REST |
+| `GET /v1/environments/{environmentID}` | `conduit.environments.v1.EnvironmentDetailService/GetEnvironment` | CLI `environment get --read-transport connect` selects the full typed read with optional Space selection; REST remains the default; failures are not replayed |
 | `GET /v1/authorization-audit?view=events` | `conduit.governance.v1.AuthorizationAuditReadService/ListAuthorizationAuditEvents` | Bounded dual-serve adapter; existing callers remain REST |
 | `GET /v1/notifications/events` | `conduit.notifications.v1.NotificationService/ListNotificationEvents` | Generated Audit notification client |
 
@@ -50,8 +50,8 @@ caller qualification remains #394 work.
 The Environment summary adapter reuses the native Environment/Space query and
 is explicitly registered. [Its contract note](connect-environment-summaries.md)
 records the narrow projection, presence and authority boundaries. The CLI's
-explicit summary view can select Connect; console and full Environment callers
-remain REST. #394 stays open for the remaining migration.
+explicit summary view and full detail command can select Connect; full lists
+and console Environment callers remain REST. #394 stays open for the remaining migration.
 
 Known contract follow-ons are full Environment index, full Plan index/detail, change-request approve/reject,
 and audit-chain export. [Audit event reads](connect-audit-events.md) share the

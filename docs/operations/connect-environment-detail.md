@@ -1,8 +1,9 @@
 # Full native Environment detail contract
 
 Status: the full detail adapter is explicitly mounted beside REST (#392).
-Current callers remain REST; #394 owns opt-in caller migration. No deprecation
-or automatic fallback is activated.
+CLI `environment get --read-transport connect` explicitly selects this read;
+REST remains the default and console callers remain REST. #394 owns remaining
+caller migration. No deprecation or automatic fallback is activated.
 
 `conduit.environments.v1.EnvironmentDetailService/GetEnvironment` corresponds to
 `GET /v1/environments/{environmentID}` in main
@@ -82,3 +83,23 @@ permission, missing-resource and unconfigured-Space outcomes map to typed codes;
 internal diagnostics are redacted. The adapter projects raw native fields and
 reuses the reported-state mapper. No secret provider is called, no default is
 resolved, and recorded override reviewer metadata grants no authority.
+
+
+## Explicit CLI detail read
+
+`conduit environment get ENVIRONMENT_ID` retains default/explicit REST output.
+Opt in with `--read-transport connect`; the existing configured HTTP client,
+TLS/bearer/SPIFFE/development identity, timeout and cancellation apply. An
+optional `--space-id` narrows both transports through the native Hub. Refusals,
+unavailable/old servers, malformed responses and timeouts are never replayed
+through REST.
+
+The client binds returned Environment/report identities to the requested ID,
+requires the full record/Environment/liveness envelope, validates timestamps and
+native integer widths, and bounds the response to one MiB. It maps all declared
+configuration fields into the existing CLI output types, preserves nil policies
+and explicit false, and reuses reported-state conversion. JSON configuration is
+parsed as exactly one object or null with `UseNumber`, retaining delivered
+numbers without a float conversion. Unknown time remains unknown; no policy
+default or liveness clock is resolved by the client. Repeated/map nil-versus-empty
+limits remain those of the protobuf contract above.
