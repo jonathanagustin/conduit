@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jonathanagustin/conduit/internal/apollo/productmanifest"
 	"io"
 	"net/http"
 	"net/url"
@@ -498,7 +499,7 @@ func (adapter *HTTPControlPlane) requestWithMediaType(ctx context.Context, metho
 // group, name and the version bounds. Such a Release is published through the
 // Conduit-native route, which persists the whole ApolloManifestDependency,
 // rather than through /api/v0 with the extra fields dropped.
-func manifestExceedsPublicContract(manifest controlplane.ApolloProductManifest) bool {
+func manifestExceedsPublicContract(manifest productmanifest.Manifest) bool {
 	for _, dependency := range manifest.Extensions.ProductDependencies {
 		if dependency.Optional || dependency.RecommendedVersion != "" {
 			return true

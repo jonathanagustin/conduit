@@ -3,6 +3,7 @@ package conduitcli
 import (
 	"errors"
 	"fmt"
+	"github.com/jonathanagustin/conduit/internal/apollo/productmanifest"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -204,18 +205,18 @@ func initializeHelmChartManifest(options helmChartInitOptions) (helmChartInitRes
 	if len(artifacts) == 0 {
 		return helmChartInitResult{}, fmt.Errorf("at least one exact --artifact is required or must be discoverable from image.repository/tag/digest in values")
 	}
-	manifestArtifacts := make([]controlplane.ApolloManifestArtifact, 0, len(artifacts))
+	manifestArtifacts := make([]productmanifest.Artifact, 0, len(artifacts))
 	for _, artifact := range artifacts {
 		if !digestReferencePattern.MatchString(artifact) {
 			return helmChartInitResult{}, fmt.Errorf("artifact %q is not an exact OCI sha256 digest reference", artifact)
 		}
-		manifestArtifacts = append(manifestArtifacts, controlplane.ApolloManifestArtifact{Type: "oci", URI: artifact})
+		manifestArtifacts = append(manifestArtifacts, productmanifest.Artifact{Type: "oci", URI: artifact})
 	}
-	manifest := controlplane.ApolloProductManifest{
+	manifest := productmanifest.Manifest{
 		ManifestVersion: "1.0", ProductGroup: parts[0], ProductName: parts[1], ProductVersion: parts[2], ProductType: "helm-chart.v1",
-		Extensions: controlplane.ApolloProductManifestExtensions{
+		Extensions: productmanifest.Extensions{
 			Artifacts: manifestArtifacts,
-			HelmChart: &controlplane.ApolloManifestHelmChart{Name: options.Name, Version: options.Version, RepositoryURL: options.RepositoryURL},
+			HelmChart: &productmanifest.HelmChart{Name: options.Name, Version: options.Version, RepositoryURL: options.RepositoryURL},
 		},
 	}
 	if errs := controlplane.ValidateApolloProductManifest(manifest); len(errs) > 0 {
@@ -370,18 +371,18 @@ func writeNewFile(path string, contents []byte) error {
 	return nil
 }
 
-func readProductManifest(path string) (controlplane.ApolloProductManifest, error) {
+func readProductManifest(path string) (productmanifest.Manifest, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return controlplane.ApolloProductManifest{}, fmt.Errorf("open Product manifest: %w", err)
+		return productmanifest.Manifest{}, fmt.Errorf("open Product manifest: %w", err)
 	}
 	defer file.Close()
 	manifest, errs, err := controlplane.DecodeApolloProductManifest(file)
 	if err != nil {
-		return controlplane.ApolloProductManifest{}, err
+		return productmanifest.Manifest{}, err
 	}
 	if len(errs) > 0 {
-		return controlplane.ApolloProductManifest{}, controlplane.ValidationErrors(errs)
+		return productmanifest.Manifest{}, controlplane.ValidationErrors(errs)
 	}
 	return manifest, nil
 }
