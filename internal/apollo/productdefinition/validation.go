@@ -15,7 +15,7 @@ import (
 )
 
 // Input is a read-only view of the documents and available template names.
-// Decoding and native Release conversion remain with their existing entry points.
+// Decode owns the document carrier; native Release conversion remains separate.
 type Input struct {
 	Manifest      productmanifest.Manifest
 	Configuration productconfiguration.Configuration

@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"github.com/jonathanagustin/conduit/internal/apollo/productdefinition"
 	"github.com/jonathanagustin/conduit/internal/apollo/productmanifest"
 	"io"
 	"mime"
@@ -83,11 +84,11 @@ func productReleaseDefinitionCommand(state *commandState) *cobra.Command {
 // a definition, and requiring an empty file would be a worse contract than
 // allowing its absence.
 func readProductDefinition(manifestPath, configurationPath, templatesDir string) (
-	controlplane.ApolloProductDefinition, []controlplane.ValidationError, error,
+	productdefinition.Definition, []controlplane.ValidationError, error,
 ) {
 	manifestFile, err := os.Open(manifestPath)
 	if err != nil {
-		return controlplane.ApolloProductDefinition{}, nil, fmt.Errorf("open Product manifest: %w", err)
+		return productdefinition.Definition{}, nil, fmt.Errorf("open Product manifest: %w", err)
 	}
 	defer manifestFile.Close()
 	// A nil reader is how the decoder spells "this Product ships no
@@ -96,16 +97,16 @@ func readProductDefinition(manifestPath, configurationPath, templatesDir string)
 	if configurationPath != "" {
 		configurationFile, err := os.Open(configurationPath)
 		if err != nil {
-			return controlplane.ApolloProductDefinition{}, nil, fmt.Errorf("open Product configuration: %w", err)
+			return productdefinition.Definition{}, nil, fmt.Errorf("open Product configuration: %w", err)
 		}
 		defer configurationFile.Close()
 		configuration = configurationFile
 	}
 	templates, err := readDefinitionTemplates(configurationPath, templatesDir)
 	if err != nil {
-		return controlplane.ApolloProductDefinition{}, nil, err
+		return productdefinition.Definition{}, nil, err
 	}
-	return controlplane.DecodeApolloProductDefinitionWithTemplates(manifestFile, configuration, templates)
+	return productdefinition.Decode(manifestFile, configuration, templates)
 }
 
 // readDefinitionTemplates lists the templates a tmpl managed file can refer to.

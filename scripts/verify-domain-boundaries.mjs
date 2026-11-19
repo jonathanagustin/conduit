@@ -95,6 +95,10 @@ const cliWorkflow = readFileSync(join(root, "internal/conduitcli/workflow.go"), 
 if (/\bcontrolplane\.ValidateApolloProductManifest\s*\(/.test(cliWorkflow)) {
   failures.push("CLI Helm initializer re-enters the legacy manifest validator delegate");
 }
+const cliDefinition = readFileSync(join(root, "internal/conduitcli/product_release_commands.go"), "utf8");
+if (/\bcontrolplane\.(?:ApolloProductDefinition|DecodeApolloProductDefinitionWithTemplates)\b/.test(cliDefinition)) {
+  failures.push("CLI definition reader re-enters the legacy paired-document carrier or codec");
+}
 const apolloAdapter = readFileSync(join(root, "internal/controlplane/apollo_openapi_adapter.go"), "utf8");
 if (apolloAdapter.includes("invokeApolloFacade")) {
   failures.push("Apollo generated adapter re-enters the legacy HTTP facade");
