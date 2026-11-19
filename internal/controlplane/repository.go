@@ -30,7 +30,7 @@ type MemoryRepository struct {
 	liveOutboxes                map[string]nativeLiveOutbox
 	plans                       map[string]PlanRecord
 	reports                     map[string]EnvironmentReport
-	apolloAgentReports          map[string]persistedApolloAgentReports
+	reportProjectionInputs      map[string]persistedReportProjectionInputs
 	suppressions                map[string]SuppressionRecord
 	promotions                  map[string]PromotionRecord
 	promotionStageControls      map[string]PromotionStageControl
@@ -68,7 +68,7 @@ func NewMemoryRepository() *MemoryRepository {
 	return &MemoryRepository{
 		liveOutboxes: make(map[string]nativeLiveOutbox),
 		plans:        make(map[string]PlanRecord), reports: make(map[string]EnvironmentReport),
-		apolloAgentReports:          make(map[string]persistedApolloAgentReports),
+		reportProjectionInputs:      make(map[string]persistedReportProjectionInputs),
 		suppressions:                make(map[string]SuppressionRecord),
 		promotions:                  make(map[string]PromotionRecord),
 		promotionStageControls:      make(map[string]PromotionStageControl),
@@ -2105,13 +2105,13 @@ func (repository *FileRepository) PutEnvironmentReport(
 ) (EnvironmentReport, error) {
 	repository.mu.Lock()
 	defer repository.mu.Unlock()
-	envelope, err := repository.readApolloReportEnvelope(report.Environment)
+	envelope, err := repository.readReportProjectionEnvelope(report.Environment)
 	if err != nil && !errors.Is(err, ErrNotFound) {
 		return EnvironmentReport{}, err
 	}
 	report.Revision = envelope.Revision + 1
 	envelope.EnvironmentReport = report
-	envelope.ApolloProjectionPending = false
+	envelope.ProjectionPending = false
 	envelope.LiveOutbox = appendNativeInvalidation(envelope.LiveOutbox, "environment", report.Environment, report.Revision, "fleet", "overview", "kpi")
 	if err := atomicWriteJSON(repository.reportPath(report.Environment), envelope); err != nil {
 		return EnvironmentReport{}, err
@@ -2157,11 +2157,11 @@ func (repository *FileRepository) listEnvironmentReportsUnlocked() ([]Environmen
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
 			continue
 		}
-		var report apolloReportEnvelope
+		var report reportProjectionEnvelope
 		if err := readJSON(filepath.Join(repository.reportDirectory(), entry.Name()), &report); err != nil {
 			return nil, err
 		}
-		if !report.ApolloProjectionPending {
+		if !report.ProjectionPending {
 			merged[report.Environment] = report.EnvironmentReport
 		}
 	}
@@ -2252,11 +2252,11 @@ func (repository *FileRepository) readReport(environment string) (EnvironmentRep
 	if !dnsLabelPattern.MatchString(environment) {
 		return EnvironmentReport{}, ErrNotFound
 	}
-	envelope, err := repository.readApolloReportEnvelope(environment)
+	envelope, err := repository.readReportProjectionEnvelope(environment)
 	if err != nil {
 		return EnvironmentReport{}, err
 	}
-	if envelope.ApolloProjectionPending {
+	if envelope.ProjectionPending {
 		return EnvironmentReport{}, ErrNotFound
 	}
 	return envelope.EnvironmentReport, nil

@@ -3,6 +3,7 @@ package controlplane
 import (
 	"context"
 	"errors"
+	reportadapter "github.com/jonathanagustin/conduit/internal/apollo/adapters/reporting"
 	"strings"
 	"testing"
 
@@ -47,7 +48,7 @@ func TestEnvironmentReportingProjectionRefusesNonAtomicStoreWithoutFallback(t *t
 	store := &reportingProjectionStore{}
 	port := environmentReportingProjectionPort{repository: store}
 	projected := false
-	err := port.UpdateAgentReports(t.Context(), "dev", apolloapp.AgentReportPatch{}, func(apolloapp.AgentReportSnapshot) (*environments.Report, error) {
+	err := reportadapter.New(port).UpdateAgentReports(t.Context(), "dev", apolloapp.AgentReportPatch{}, func(apolloapp.AgentReportSnapshot) (*environments.Report, error) {
 		projected = true
 		return &environments.Report{Environment: "dev"}, nil
 	})
@@ -80,8 +81,8 @@ type atomicProjectionReadFixture struct {
 	result *environments.Report
 }
 
-func (store *atomicProjectionReadFixture) updateApolloAgentReports(_ context.Context, _ string, operation apolloAgentReportOperation) error {
-	_, report, err := operation(store.source, persistedApolloAgentReports{})
+func (store *atomicProjectionReadFixture) updateReportProjection(_ context.Context, _ string, operation reportProjectionOperation) error {
+	_, report, err := operation(store.source, persistedReportProjectionInputs{})
 	if err == nil {
 		store.result = report
 	}
@@ -97,7 +98,7 @@ func TestAtomicReportProjectionUsesReadOnlyTransactionSnapshot(t *testing.T) {
 	port := environmentReportingProjectionPort{repository: store}
 	calls := 0
 	projected := &environments.Report{Environment: "dev", AgentID: "agent"}
-	err := port.UpdateAgentReports(t.Context(), "dev", apolloapp.AgentReportPatch{}, func(snapshot apolloapp.AgentReportSnapshot) (*environments.Report, error) {
+	err := reportadapter.New(port).UpdateAgentReports(t.Context(), "dev", apolloapp.AgentReportPatch{}, func(snapshot apolloapp.AgentReportSnapshot) (*environments.Report, error) {
 		calls++
 		if snapshot.Environment != "dev" || snapshot.Plan.ID != "plan" || len(snapshot.Plan.Steps) != 1 || snapshot.Plan.Steps[0].InstallationID != "install" || snapshot.Report.Environment != "dev" {
 			t.Fatalf("wrong transaction snapshot: %+v", snapshot)
@@ -117,7 +118,7 @@ func TestAtomicReportProjectionPreservesReadFailureBeforeProjection(t *testing.T
 	source := &reportSnapshotReadOnly{failure: failure}
 	store := &atomicProjectionReadFixture{source: source}
 	projected := false
-	err := (environmentReportingProjectionPort{repository: store}).UpdateAgentReports(t.Context(), "dev", apolloapp.AgentReportPatch{}, func(apolloapp.AgentReportSnapshot) (*environments.Report, error) {
+	err := reportadapter.New(environmentReportingProjectionPort{repository: store}).UpdateAgentReports(t.Context(), "dev", apolloapp.AgentReportPatch{}, func(apolloapp.AgentReportSnapshot) (*environments.Report, error) {
 		projected = true
 		return &environments.Report{}, nil
 	})

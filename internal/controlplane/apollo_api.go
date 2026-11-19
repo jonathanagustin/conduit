@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jonathanagustin/conduit/internal/apollo"
+	reportadapter "github.com/jonathanagustin/conduit/internal/apollo/adapters/reporting"
 	apolloapp "github.com/jonathanagustin/conduit/internal/apollo/application"
 	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 )
@@ -36,7 +37,7 @@ func newApolloPublicAPI(repository compatibilityProjectionRepository, governance
 	service, err := apolloapp.New(
 		context.Background(),
 		publicationCatalogPort{repository: repository},
-		environmentReportingProjectionPort{repository: repository},
+		reportadapter.New(environmentReportingProjectionPort{repository: repository}),
 		releaseLifecycleProjectionPort{repository: repository},
 		environmentInventoryProjectionPort{repository: repository},
 	)

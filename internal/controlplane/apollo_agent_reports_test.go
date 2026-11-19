@@ -3,6 +3,7 @@ package controlplane
 import (
 	"context"
 	"errors"
+	reportadapter "github.com/jonathanagustin/conduit/internal/apollo/adapters/reporting"
 	apolloapp "github.com/jonathanagustin/conduit/internal/apollo/application"
 	"os"
 	"reflect"
@@ -127,7 +128,7 @@ func TestApolloAgentReportStorageAtomicUpdates(t *testing.T) {
 				wait.Add(1)
 				go func(port environmentReportingProjectionPort, patch apolloapp.AgentReportPatch) {
 					defer wait.Done()
-					errs <- port.UpdateAgentReports(ctx, "pending", patch, func(snapshot apolloapp.AgentReportSnapshot) (*environments.Report, error) { return nil, nil })
+					errs <- reportadapter.New(port).UpdateAgentReports(ctx, "pending", patch, func(snapshot apolloapp.AgentReportSnapshot) (*environments.Report, error) { return nil, nil })
 				}(ports[index], patch)
 			}
 			wait.Wait()
@@ -157,19 +158,19 @@ func TestApolloAgentReportStorageAtomicUpdates(t *testing.T) {
 				}
 				return nil, nil
 			}
-			if err := port.UpdateAgentReports(ctx, "pending", apolloapp.AgentReportPatch{}, verify); err != nil {
+			if err := reportadapter.New(port).UpdateAgentReports(ctx, "pending", apolloapp.AgentReportPatch{}, verify); err != nil {
 				t.Fatal(err)
 			}
 			failure := errors.New("projection failed")
 			empty := []apollo.EntityInfo{}
-			err = port.UpdateAgentReports(ctx, "pending", apolloapp.AgentReportPatch{Info: &empty}, func(snapshot apolloapp.AgentReportSnapshot) (*environments.Report, error) { return nil, failure })
+			err = reportadapter.New(port).UpdateAgentReports(ctx, "pending", apolloapp.AgentReportPatch{Info: &empty}, func(snapshot apolloapp.AgentReportSnapshot) (*environments.Report, error) { return nil, failure })
 			if !errors.Is(err, failure) {
 				t.Fatalf("failure not propagated: %v", err)
 			}
-			if err := port.UpdateAgentReports(ctx, "pending", apolloapp.AgentReportPatch{}, verify); err != nil {
+			if err := reportadapter.New(port).UpdateAgentReports(ctx, "pending", apolloapp.AgentReportPatch{}, verify); err != nil {
 				t.Fatal(err)
 			}
-			if err := port.UpdateAgentReports(ctx, "pending", apolloapp.AgentReportPatch{Info: &empty}, func(snapshot apolloapp.AgentReportSnapshot) (*environments.Report, error) {
+			if err := reportadapter.New(port).UpdateAgentReports(ctx, "pending", apolloapp.AgentReportPatch{Info: &empty}, func(snapshot apolloapp.AgentReportSnapshot) (*environments.Report, error) {
 				if len(snapshot.Inputs.Info) != 0 || len(snapshot.Inputs.Health) != 1 {
 					t.Fatalf("empty replacement was not retained: %#v", snapshot.Inputs)
 				}
@@ -182,7 +183,7 @@ func TestApolloAgentReportStorageAtomicUpdates(t *testing.T) {
 				t.Fatalf("projection not committed: %#v, %v", report, err)
 			}
 			for _, invalid := range []string{"../escape", "", "a/b"} {
-				if err := port.UpdateAgentReports(ctx, invalid, apolloapp.AgentReportPatch{}, verify); !errors.Is(err, ErrNotFound) {
+				if err := reportadapter.New(port).UpdateAgentReports(ctx, invalid, apolloapp.AgentReportPatch{}, verify); !errors.Is(err, ErrNotFound) {
 					t.Fatalf("invalid environment %q accepted: %v", invalid, err)
 				}
 			}
@@ -247,7 +248,7 @@ func TestPostgresApolloProjectionRollsBackWhenRawWriteFails(t *testing.T) {
 		_, _ = postgres.database.Exec(`DROP TRIGGER IF EXISTS reject_apollo_report ON conduit_apollo_agent_reports; DROP FUNCTION IF EXISTS reject_apollo_report()`)
 	})
 	port := environmentReportingProjectionPort{repository: repository}
-	err := port.UpdateAgentReports(ctx, "rollback", apolloapp.AgentReportPatch{}, func(apolloapp.AgentReportSnapshot) (*environments.Report, error) {
+	err := reportadapter.New(port).UpdateAgentReports(ctx, "rollback", apolloapp.AgentReportPatch{}, func(apolloapp.AgentReportSnapshot) (*environments.Report, error) {
 		return &environments.Report{Environment: "rollback", AgentID: "must-not-commit"}, nil
 	})
 	if err == nil {

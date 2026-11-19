@@ -57,7 +57,7 @@ type atomicFacadeProjectionStore struct {
 	environment string
 }
 
-func (s *atomicFacadeProjectionStore) updateApolloAgentReports(ctx context.Context, environment string, _ apolloAgentReportOperation) error {
+func (s *atomicFacadeProjectionStore) updateReportProjection(ctx context.Context, environment string, _ reportProjectionOperation) error {
 	s.calls++
 	s.context = ctx
 	s.environment = environment
@@ -100,8 +100,8 @@ func TestCompatibilityFacadePreservesDynamicAtomicCapabilityAndContext(t *testin
 
 type memoryAtomicFacadeStore struct{ *facadeProjectionStore }
 
-func (s *memoryAtomicFacadeStore) updateApolloAgentReports(ctx context.Context, environment string, operation apolloAgentReportOperation) error {
-	return s.backend.updateApolloAgentReports(ctx, environment, operation)
+func (s *memoryAtomicFacadeStore) updateReportProjection(ctx context.Context, environment string, operation reportProjectionOperation) error {
+	return s.backend.updateReportProjection(ctx, environment, operation)
 }
 
 func TestCompatibilityFacadeKeepsRealAtomicReportPersistence(t *testing.T) {

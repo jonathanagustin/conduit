@@ -119,3 +119,15 @@ selected desired states; it does not clone every historical Plan. The applicatio
 owns deterministic source-key ordering and returned slice ownership. Boundary
 checks reject legacy/reference imports into this application. Latest-Plan storage
 selection and raw compatibility persistence remain later extraction steps.
+
+
+The atomic Environment report projection storage now accepts only opaque JSON
+input snapshots and native Plan/report facts through `environments/ports`.
+`apollo/adapters/reporting` owns public info/health replacement and decoding,
+including nil-versus-empty semantics, inside the same storage transaction.
+The native storage projection file is included in the adapter-import boundary
+check. Existing file JSON keys, PostgreSQL table names and reported Agent IDs
+remain unchanged so this extraction does not migrate or relabel retained evidence.
+Memory/file/PostgreSQL transaction locking, rollback and dynamic refusal of
+non-atomic stores remain mandatory. The remaining compatibility facades and
+product-definition shapes still require extraction; this does not finish #428.
