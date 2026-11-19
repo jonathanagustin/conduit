@@ -7,124 +7,25 @@ import (
 	"strings"
 	"time"
 
-	"go.yaml.in/yaml/v4"
+	"github.com/jonathanagustin/conduit/internal/apollo/productmanifest"
 )
 
-// ApolloProductManifest is the current CLI Product Definition boundary. It is
-// intentionally separate from the internal Release model: Apollo manifests
-// contain repository locators but do not necessarily pin the chart and image
-// digests required by the self-operated execution plane.
-type ApolloProductManifest struct {
-	ManifestVersion string                          `yaml:"manifest-version" json:"manifestVersion"`
-	ProductGroup    string                          `yaml:"product-group" json:"productGroup"`
-	ProductName     string                          `yaml:"product-name" json:"productName"`
-	ProductVersion  string                          `yaml:"product-version" json:"productVersion"`
-	ProductType     string                          `yaml:"product-type" json:"productType"`
-	Extensions      ApolloProductManifestExtensions `yaml:"extensions" json:"extensions"`
-}
-
-type ApolloProductManifestExtensions struct {
-	Artifacts                []ApolloManifestArtifact        `yaml:"artifacts,omitempty" json:"artifacts,omitempty"`
-	HelmChart                *ApolloManifestHelmChart        `yaml:"helm-chart,omitempty" json:"helmChart,omitempty"`
-	ProductDependencies      []ApolloManifestDependency      `yaml:"product-dependencies,omitempty" json:"productDependencies,omitempty"`
-	ProductIncompatibilities []ApolloManifestIncompatibility `yaml:"product-incompatibilities,omitempty" json:"productIncompatibilities,omitempty"`
-	RolloutStrategy          string                          `yaml:"rollout-strategy,omitempty" json:"rolloutStrategy,omitempty"`
-	ResourceReadinessTimeout string                          `yaml:"resource-readiness-timeout,omitempty" json:"resourceReadinessTimeout,omitempty"`
-	ImagePrePullConfig       *ApolloImagePrePullConfig       `yaml:"image-pre-pull-config,omitempty" json:"imagePrePullConfig,omitempty"`
-	// VolumesV2 declares the durable volumes a Product may be given. The
-	// declaration lives in the manifest because it is a property of the built
-	// Product; configuration.yml only sizes what is declared here.
-	VolumesV2 map[string]ApolloManifestVolume `yaml:"volumes-v2,omitempty" json:"volumesV2,omitempty"`
-	// PublicProxyEndpoints, PublicTCPEndpoints, and PublicUDPEndpoints request
-	// ingress for endpoints the Product already defines. Each entry is the name
-	// of an endpoints.definitions key rather than a repeated port, so the two
-	// documents cannot disagree about which port is exposed.
-	PublicProxyEndpoints []string `yaml:"public-proxy-endpoints,omitempty" json:"publicProxyEndpoints,omitempty"`
-	PublicTCPEndpoints   []string `yaml:"public-tcp-endpoints,omitempty" json:"publicTcpEndpoints,omitempty"`
-	PublicUDPEndpoints   []string `yaml:"public-udp-endpoints,omitempty" json:"publicUdpEndpoints,omitempty"`
-	// RequireStableHostname and AllowTrafficWhenNotReady both default to false.
-	// They are pointers so that an explicit false survives a round trip as an
-	// explicit false: a Product author who writes it is recording a decision, and
-	// rewriting their document to drop it loses that.
-	RequireStableHostname    *bool `yaml:"require-stable-hostname,omitempty" json:"requireStableHostname,omitempty"`
-	AllowTrafficWhenNotReady *bool `yaml:"allow-traffic-when-not-ready,omitempty" json:"allowTrafficWhenNotReady,omitempty"`
-	// QuorumRequirement is how many replicas must be available for the Product to
-	// answer correctly, and UpgradeStrategy is what the platform may do to those
-	// replicas during an upgrade. They travel together because a rolling upgrade
-	// is only safe while the quorum requirement stays satisfied.
-	QuorumRequirement string               `yaml:"quorum-requirement,omitempty" json:"quorumRequirement,omitempty"`
-	UpgradeStrategy   string               `yaml:"upgrade-strategy,omitempty" json:"upgradeStrategy,omitempty"`
-	Other             map[string]yaml.Node `yaml:",inline" json:"-"`
-}
-
-// ApolloManifestVolume is one entry of the volumes-v2 extension. The manifest
-// declares only that the Product wants a volume and what kind it is; sizing
-// lives in configuration.yml, which an operator may override per installation.
-// Keeping the two apart is what makes the manifest immutable for a Release
-// while still letting one installation ask for more disk than another.
-type ApolloManifestVolume struct {
-	VolumeType ApolloManifestVolumeType `yaml:"volume-type" json:"volumeType"`
-}
-
-// ApolloManifestVolumeType is a tagged union over the kinds of volume a Product
-// may request. Exactly one member must be present. An empty `durable-volume: {}`
-// mapping is how the specification spells the only currently known kind, so the
-// member is a pointer: the difference between an absent key and an empty
-// mapping is the whole signal.
-type ApolloManifestVolumeType struct {
-	DurableVolume *ApolloDurableVolume `yaml:"durable-volume,omitempty" json:"durableVolume,omitempty"`
-}
-
-// ApolloDurableVolume is a volume whose contents survive Pod replacement. It
-// carries no fields today; the type exists so that adding one later is not a
-// breaking change to every declaration.
-type ApolloDurableVolume struct{}
-
-type ApolloImagePrePullConfig struct {
-	Timeout string `yaml:"timeout" json:"timeout"`
-}
-
-type ApolloManifestArtifact struct {
-	Type string `yaml:"type" json:"type"`
-	URI  string `yaml:"uri" json:"uri"`
-}
-
-type ApolloManifestHelmChart struct {
-	Name          string `yaml:"helm-chart-name" json:"helmChartName"`
-	Version       string `yaml:"helm-chart-version" json:"helmChartVersion"`
-	RepositoryURL string `yaml:"helm-repository-url" json:"helmRepositoryUrl"`
-}
-
-type ApolloManifestDependency struct {
-	ProductGroup       string `yaml:"product-group" json:"productGroup"`
-	ProductName        string `yaml:"product-name" json:"productName"`
-	MinimumVersion     string `yaml:"minimum-version" json:"minimumVersion"`
-	MaximumVersion     string `yaml:"maximum-version" json:"maximumVersion"`
-	RecommendedVersion string `yaml:"recommended-version,omitempty" json:"recommendedVersion,omitempty"`
-	Optional           bool   `yaml:"optional,omitempty" json:"optional,omitempty"`
-}
-
-type ApolloManifestIncompatibility struct {
-	ProductGroup   string `yaml:"product-group" json:"productGroup"`
-	ProductName    string `yaml:"product-name" json:"productName"`
-	ProductType    string `yaml:"product-type,omitempty" json:"productType,omitempty"`
-	MinimumVersion string `yaml:"minimum-version,omitempty" json:"minimumVersion,omitempty"`
-	MaximumVersion string `yaml:"maximum-version,omitempty" json:"maximumVersion,omitempty"`
-}
+// ApolloProductManifest preserves source callers while the document lives at its compatibility boundary.
+type ApolloProductManifest = productmanifest.Manifest
+type ApolloProductManifestExtensions = productmanifest.Extensions
+type ApolloManifestVolume = productmanifest.Volume
+type ApolloManifestVolumeType = productmanifest.VolumeType
+type ApolloDurableVolume = productmanifest.DurableVolume
+type ApolloImagePrePullConfig = productmanifest.ImagePrePullConfig
+type ApolloManifestArtifact = productmanifest.Artifact
+type ApolloManifestHelmChart = productmanifest.HelmChart
+type ApolloManifestDependency = productmanifest.Dependency
+type ApolloManifestIncompatibility = productmanifest.Incompatibility
 
 func DecodeApolloProductManifest(reader io.Reader) (ApolloProductManifest, []ValidationError, error) {
-	decoder := yaml.NewDecoder(io.LimitReader(reader, 1<<20))
-	decoder.KnownFields(true)
-	var manifest ApolloProductManifest
-	if err := decoder.Decode(&manifest); err != nil {
-		return ApolloProductManifest{}, nil, fmt.Errorf("decode Apollo Product manifest: %w", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return ApolloProductManifest{}, nil, errors.New("Apollo Product manifest must contain exactly one YAML document")
-		}
-		return ApolloProductManifest{}, nil, fmt.Errorf("decode trailing Apollo Product manifest data: %w", err)
+	manifest, err := productmanifest.Decode(reader)
+	if err != nil {
+		return ApolloProductManifest{}, nil, err
 	}
 	return manifest, ValidateApolloProductManifest(manifest), nil
 }
