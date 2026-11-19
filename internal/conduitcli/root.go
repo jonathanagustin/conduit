@@ -526,8 +526,8 @@ func environmentCommand(state *commandState) *cobra.Command {
 			if listView != "full" && listView != "summary" {
 				return errors.New("--view must be full or summary")
 			}
-			if listView == "full" && (state.config.EnvironmentReadTransport == "connect" || listSearch != "") {
-				return errors.New("Connect transport and search require --view summary; full Environment lists remain REST-only")
+			if listView == "full" && listSearch != "" {
+				return errors.New("search requires --view summary")
 			}
 			return state.execute(command, func(service Service) (any, error) {
 				if listView == "summary" {
@@ -548,7 +548,7 @@ func environmentCommand(state *commandState) *cobra.Command {
 	}
 	list.Flags().StringVar(&listView, "view", "full", "Environment projection: full or summary")
 	list.Flags().StringVar(&listSearch, "search", "", "Environment ID substring search; requires summary view")
-	list.Flags().StringVar(&state.config.EnvironmentReadTransport, "read-transport", "rest", "summary transport: rest or connect; failures are never replayed")
+	list.Flags().StringVar(&state.config.EnvironmentReadTransport, "read-transport", "rest", "Environment list transport: rest or connect; failures are never replayed")
 	command.AddCommand(list)
 	detail := &cobra.Command{
 		Use:   "get ENVIRONMENT_ID",

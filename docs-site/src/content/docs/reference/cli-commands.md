@@ -618,7 +618,7 @@ conduit environment list [flags]
 
 | Flag | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `--read-transport` | `string` | `rest` | summary transport: rest or connect; failures are never replayed |
+| `--read-transport` | `string` | `rest` | Environment list transport: rest or connect; failures are never replayed |
 | `--search` | `string` | `` | Environment ID substring search; requires summary view |
 | `--view` | `string` | `full` | Environment projection: full or summary |
 
