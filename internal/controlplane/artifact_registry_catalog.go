@@ -13,7 +13,13 @@ type ArtifactRegistryRecord struct {
 	Assignment  ArtifactRegistryAssignment `json:"assignment"`
 }
 
-func ListArtifactRegistryRecords(ctx context.Context, repository Repository) ([]ArtifactRegistryRecord, error) {
+// ArtifactRegistryReader supplies only the durable Plan history needed by this
+// projection; registry publication and lifecycle mutations are not available.
+type ArtifactRegistryReader interface {
+	ListPlans(context.Context, string) ([]PlanRecord, error)
+}
+
+func ListArtifactRegistryRecords(ctx context.Context, repository ArtifactRegistryReader) ([]ArtifactRegistryRecord, error) {
 	plans, err := repository.ListPlans(ctx, "")
 	if err != nil {
 		return nil, err
