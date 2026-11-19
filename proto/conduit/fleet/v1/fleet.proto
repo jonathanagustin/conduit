@@ -1,0 +1,91 @@
+syntax = "proto3";
+package conduit.fleet.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/jonathanagustin/conduit/gen/go/conduit/fleet/v1;fleetv1";
+
+// FleetReadService serves the existing operator-filtered native Fleet view.
+service FleetReadService {
+  // ListFleetInstallations is GET /v1/fleet/installations, not a Fleet action.
+  rpc ListFleetInstallations(ListFleetInstallationsRequest) returns (ListFleetInstallationsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message ListFleetInstallationsRequest {
+  string environment = 1;
+  string installation_id = 2;
+  string product = 3;
+  string health = 4;
+  string rollout_status = 5;
+  string config_status = 6;
+  string lifecycle = 7;
+  string search = 8;
+  string cursor = 9;
+  // Absent uses 100; explicit limits must be 1..200.
+  optional int32 limit = 10;
+  // Absent uses native reporting policy; explicit values must be 1..86400.
+  optional int32 max_age_seconds = 11;
+  // Readable membership narrows current Environment authority, never grants it.
+  string space_id = 12;
+}
+
+// FleetInstallation is an observation/projection, never execution authority.
+message FleetInstallation {
+  string environment = 1;
+  string installation_id = 2;
+  string product = 3;
+  string namespace = 4;
+  string desired_version = 5;
+  string observed_version = 6;
+  string desired_release_digest = 7;
+  string observed_release_digest = 8;
+  string desired_config_digest = 9;
+  string observed_config_digest = 10;
+  string health = 11;
+  string rollout_status = 12;
+  string config_status = 13;
+  string lifecycle = 14;
+  // Missing means no recorded observation, never a fabricated current time.
+  google.protobuf.Timestamp observed_at = 15;
+  int64 observation_age_seconds = 16;
+  bool stale = 17;
+}
+
+// FleetSummary counts all matching visible rows before pagination.
+message FleetSummary {
+  int64 total = 1;
+  map<string, int64> health = 2;
+  map<string, int64> rollout = 3;
+  map<string, int64> config = 4;
+  map<string, int64> lifecycle = 5;
+  int64 stale = 6;
+}
+
+// FleetFacets retains native counterfactual counts: a dimension excludes its
+// own filter, but never excludes authority or selected Space membership.
+message FleetFacets {
+  map<string, int64> environment = 1;
+  map<string, int64> product = 2;
+  map<string, int64> health = 3;
+  map<string, int64> rollout_status = 4;
+  map<string, int64> config_status = 5;
+  map<string, int64> lifecycle = 6;
+}
+
+// ListFleetInstallationsResponse maps only REST-visible native fields. Internal
+// facet-contribution scaffolding is not exposed. Empty protobuf collections do
+// not retain Go nil-versus-empty distinctions.
+message ListFleetInstallationsResponse {
+  google.protobuf.Timestamp generated_at = 1;
+  int64 max_result_age_seconds = 2;
+  repeated FleetInstallation installations = 3;
+  FleetSummary summary = 4;
+  FleetFacets facets = 5;
+  int32 page_size = 6;
+  int32 limit = 7;
+  string next_cursor = 8;
+  string previous_cursor = 9;
+  bool has_previous = 10;
+}
