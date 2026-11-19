@@ -184,6 +184,16 @@ func (service *Service) Delete(ctx context.Context, caller domain.Caller, id, co
 // Submit opens a change request. It refuses an approval flag and never calls
 // an approve method.
 func (service *Service) Submit(ctx context.Context, caller domain.Caller, id, title, description string, approve bool) (domain.Receipt, error) {
+	return service.submitSnapshot(ctx, caller, id, title, description, approve, nil)
+}
+
+// SubmitReviewed opens review only for the exact metadata the caller confirmed.
+// Legacy Submit callers retain current-snapshot semantics.
+func (service *Service) SubmitReviewed(ctx context.Context, caller domain.Caller, id, title, description string, approve bool, reviewed domain.SubmissionSnapshot) (domain.Receipt, error) {
+	return service.submitSnapshot(ctx, caller, id, title, description, approve, &reviewed)
+}
+
+func (service *Service) submitSnapshot(ctx context.Context, caller domain.Caller, id, title, description string, approve bool, reviewed *domain.SubmissionSnapshot) (domain.Receipt, error) {
 	workspace, err := service.owned(ctx, caller, id)
 	if err != nil {
 		return domain.Receipt{}, err
@@ -193,6 +203,17 @@ func (service *Service) Submit(ctx context.Context, caller domain.Caller, id, ti
 			return domain.Receipt{}, err
 		}
 		return domain.Receipt{}, domain.ErrSelfApproval
+	}
+	if reviewed != nil {
+		if strings.TrimSpace(reviewed.Revision) == "" {
+			return domain.Receipt{}, domain.ErrInvalid
+		}
+		if reviewed.Revision != workspace.ProposalRevision || reviewed.SourceDigest != workspace.SourceDigest {
+			if err := service.record(ctx, caller, "workspace.submitted", workspace.ID, "DENY", "reviewed workspace metadata changed"); err != nil {
+				return domain.Receipt{}, err
+			}
+			return domain.Receipt{}, domain.ErrConflict
+		}
 	}
 	if service.submit == nil {
 		return domain.Receipt{}, domain.ErrDisabled

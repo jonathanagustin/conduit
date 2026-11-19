@@ -167,16 +167,32 @@ func submit(cfg Config, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Title       string `json:"title"`
-		Description string `json:"description"`
-		Approve     bool   `json:"approve"`
+		Title                string  `json:"title"`
+		Description          string  `json:"description"`
+		Approve              bool    `json:"approve"`
+		ReviewedRevision     *string `json:"reviewedRevision"`
+		ReviewedSourceDigest *string `json:"reviewedSourceDigest"`
 	}
 	if err := decode(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "request body is not valid JSON")
 		return
 	}
-	receipt, err := cfg.Service.Submit(r.Context(), caller, r.PathValue("workspaceID"), body.Title, body.Description, body.Approve)
+	if (body.ReviewedRevision == nil) != (body.ReviewedSourceDigest == nil) {
+		writeError(w, http.StatusBadRequest, "reviewedRevision and reviewedSourceDigest must be supplied together")
+		return
+	}
+	var receipt domain.Receipt
+	var err error
+	if body.ReviewedRevision != nil {
+		receipt, err = cfg.Service.SubmitReviewed(r.Context(), caller, r.PathValue("workspaceID"), body.Title, body.Description, body.Approve, domain.SubmissionSnapshot{Revision: *body.ReviewedRevision, SourceDigest: *body.ReviewedSourceDigest})
+	} else {
+		receipt, err = cfg.Service.Submit(r.Context(), caller, r.PathValue("workspaceID"), body.Title, body.Description, body.Approve)
+	}
 	if err != nil {
+		if errors.Is(err, domain.ErrConflict) {
+			writeError(w, http.StatusConflict, "reviewed workspace metadata changed; inspect the current record")
+			return
+		}
 		writeErr(w, err)
 		return
 	}

@@ -234,6 +234,8 @@ test("workspace studio drops stale reads and confirms real metadata coordinates"
     title: "Review upgraded workspace",
     description: "Independent human review",
     approve: false,
+    reviewedRevision: "rev-upgraded",
+    reviewedSourceDigest: digest,
   });
   expect(writes).toHaveLength(2);
   await page

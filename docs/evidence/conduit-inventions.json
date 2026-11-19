@@ -520,7 +520,7 @@
     },
     {
       "id": "workspace.ScopedHumanSubmission",
-      "what": "A workspace review target identity bound to native actor/delegation, environment, workspace, revision and source coordinates; submission always uses the existing mandatory-human-review command.",
+      "what": "A workspace review target identity bound to native actor/delegation, environment, workspace, revision and source coordinates; submission always uses the existing mandatory-human-review command. Console submissions pin paired reviewed revision/source preconditions against the captured server snapshot; legacy callers without pins retain current-snapshot semantics.",
       "why": "The existing native target used only workspace ID and revision and allowed policy auto-approval before a later service-layer rejection. There is no public private-workspace submission identity or delegated-author transport establishing these details.",
       "displacedBy": "a published or authorized sanitized workspace submission identity, delegated-author and mandatory-human-review contract.",
       "riskIfWrong": "This is a native review-only proposal, not execution or deployment. Service-account and one-hop represented identity are retained for the existing self-review rule. Previously stored requests are not rewritten."

@@ -7,3 +7,13 @@ The native caller retains service-account status and one-hop represented identit
 Request target identity now binds the credential/delegation, environment, workspace, revision and source digest. Exact retries reuse the identity, while a different represented author or scope cannot reuse another request. The readable workspace/revision prefix is retained. This is registered as `workspace.ScopedHumanSubmission`; previous stored requests are not rewritten.
 
 The revision and source digest in the request are the workspace's recorded coordinates. This does not make the current recorded store into a branch-backed editor, attest file content or execute a metadata upgrade. Those wider backend/editor tasks remain separate. This fix supports the studio controls in #558 without adding a second approval path.
+
+Console submissions include paired `reviewedRevision` and `reviewedSourceDigest`
+preconditions captured from the displayed confirmation. The server checks both
+against the same owned workspace snapshot used to create the proposal; a mismatch
+returns HTTP 409 before opening a Change Request. Supplying only one field or a
+blank revision returns HTTP 400. An explicitly empty source digest is valid when
+that is the recorded value. Legacy API requests omitting both fields retain
+current-snapshot semantics and do not guarantee binding to an earlier display.
+This Conduit extension prevents substituting an unseen snapshot during submission;
+it does not lock the workspace or authorize later execution of stale metadata.
