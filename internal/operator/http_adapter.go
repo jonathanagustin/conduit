@@ -418,6 +418,9 @@ func (adapter *HTTPControlPlane) GetPlan(ctx context.Context, id string) (contro
 }
 
 func (adapter *HTTPControlPlane) GetReportedState(ctx context.Context, environment string) (controlplane.EnvironmentReport, error) {
+	if adapter.environmentReadTransport == "connect" {
+		return adapter.getReportedStateConnect(ctx, environment)
+	}
 	var report controlplane.EnvironmentReport
 	err := adapter.request(ctx, http.MethodGet, "/v1/environments/"+url.PathEscape(environment)+"/reported-state", nil, &report)
 	return report, err

@@ -591,7 +591,7 @@ func environmentCommand(state *commandState) *cobra.Command {
 	}
 	manifest.AddCommand(generate)
 	command.AddCommand(manifest)
-	command.AddCommand(&cobra.Command{
+	reportedState := &cobra.Command{
 		Use:   "reported-state ENVIRONMENT_ID",
 		Short: "Get the latest exact state reported by a Spoke",
 		Args:  cobra.ExactArgs(1),
@@ -600,7 +600,9 @@ func environmentCommand(state *commandState) *cobra.Command {
 				return service.GetReportedState(command.Context(), args[0])
 			})
 		},
-	})
+	}
+	reportedState.Flags().StringVar(&state.config.EnvironmentReadTransport, "read-transport", "rest", "reported-state transport: rest or connect; failures are never replayed")
+	command.AddCommand(reportedState)
 	addEnvironmentCoverageCommands(command, state)
 	return command
 }

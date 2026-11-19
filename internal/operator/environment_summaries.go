@@ -63,7 +63,8 @@ func (service Service) ListEnvironmentSummaries(ctx context.Context, search stri
 	return reader.ListEnvironmentSummaries(ctx, search)
 }
 
-// SetEnvironmentReadTransport selects only explicitly requested summary reads.
+// SetEnvironmentReadTransport selects contracted summary/reported-state reads.
+// Full Environment get/list and writes retain their existing REST paths.
 func (adapter *HTTPControlPlane) SetEnvironmentReadTransport(mode string) error {
 	if mode != "" && mode != "rest" && mode != "connect" {
 		return fmt.Errorf("Environment read transport must be rest or connect")

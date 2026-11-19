@@ -670,8 +670,12 @@ conduit environment release-channel set ENVIRONMENT_ID [flags]
 Get the latest exact state reported by a Spoke
 
 ```text
-conduit environment reported-state ENVIRONMENT_ID
+conduit environment reported-state ENVIRONMENT_ID [flags]
 ```
+
+| Flag | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `--read-transport` | `string` | `rest` | reported-state transport: rest or connect; failures are never replayed |
 
 ## conduit environment setting
 
