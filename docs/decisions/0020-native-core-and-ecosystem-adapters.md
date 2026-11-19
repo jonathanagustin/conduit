@@ -109,3 +109,13 @@ unavailable rather than receiving a non-atomic fallback. Native projection
 methods live in `environment_reporting_projection.go`, with adapter imports
 rejected. Raw compatibility snapshots and their legacy persistence remain a
 separate extraction step, and the protocol facade still composes these bridges.
+
+
+Inventory ordering and release-lifecycle aggregation now live behind the native
+Environment application's ProjectionSource contract. It receives fresh native
+per-Environment snapshots, not PlanRecord or protocol objects. The legacy source
+adapter keeps latestDesiredStates/latestDeclaredStates selection and cloning of
+selected desired states; it does not clone every historical Plan. The application
+owns deterministic source-key ordering and returned slice ownership. Boundary
+checks reject legacy/reference imports into this application. Latest-Plan storage
+selection and raw compatibility persistence remain later extraction steps.

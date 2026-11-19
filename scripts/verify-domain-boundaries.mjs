@@ -30,10 +30,17 @@ for (const path of filesBelow(join(root, "internal"))) {
   }
   const local = relative(root, path).replaceAll("\\", "/");
   const dependencies = imports(path);
-  if (["internal/controlplane/release_lifecycle_projection.go", "internal/controlplane/catalog_publication_projection.go", "internal/controlplane/environment_inventory_projection.go", "internal/controlplane/environment_reporting_projection.go"].includes(local)) {
+  if (["internal/controlplane/release_lifecycle_projection.go", "internal/controlplane/catalog_publication_projection.go", "internal/controlplane/environment_inventory_projection.go", "internal/controlplane/environment_reporting_projection.go", "internal/controlplane/environment_projection_source.go"].includes(local)) {
     for (const dependency of dependencies) {
       if (/\/internal\/(apollo|apollographql)(?:\/|$)/.test(dependency)) {
         failures.push(`${local}: native repository projection imports reference adapter ${dependency}`);
+      }
+    }
+  }
+  if (local.startsWith("internal/environments/application/")) {
+    for (const dependency of dependencies) {
+      if (/\/internal\/(controlplane|apollo|apollographql)(?:\/|$)/.test(dependency)) {
+        failures.push(`${local}: native Environment application imports legacy or reference adapter ${dependency}`);
       }
     }
   }
