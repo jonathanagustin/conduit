@@ -40,6 +40,17 @@ These are Conduit-native contracts. See [overview](connect-reporting-overview.md
 [Fleet installations](connect-fleet-installations.md) for their bounded behavior.
 The map does not imply that all Hub routes have RPC equivalents.
 
+## Declared contracts awaiting adapters
+
+| Existing REST route | Declared RPC | Status |
+| --- | --- | --- |
+| `GET /v1/environments/{environmentID}` | `conduit.environments.v1.EnvironmentDetailService/GetEnvironment` | Contract only; no runtime registration or caller migration |
+
+[The full Environment detail contract](connect-environment-detail.md) carries
+native configuration and reuses reported-state/liveness messages. Its handler
+and caller qualification remain #392/#394 work; REST remains the supported
+transport for this read.
+
 ## Remaining contracts and callers
 
 The Environment summary adapter reuses the native Environment/Space query and
@@ -48,7 +59,7 @@ records the narrow projection, presence and authority boundaries. The CLI's
 explicit summary view can select Connect; console and full Environment callers
 remain REST. #394 stays open for the remaining migration.
 
-Known follow-ons are full Environment index/detail, full Plan index/detail, change-request approve/reject,
+Known contract follow-ons are full Environment index, full Plan index/detail, change-request approve/reject,
 and audit-chain export. [Audit event reads](connect-audit-events.md) share the
 native administrator gate and pagination; caller migration remains separate. Governed packaging rerun/cancel already have REST
 routes but no methods in the current packaging proto.

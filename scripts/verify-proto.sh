@@ -42,6 +42,8 @@ trap 'rm -rf "$temporary"' EXIT
 mkdir -p "$temporary/base" "$temporary/generated"
 git archive "$base_sha" buf.yaml proto | tar -xf - -C "$temporary/base"
 "$buf_bin" breaking --against "$temporary/base"
+"$buf_bin" build --as-file-descriptor-set --exclude-source-info -o "$temporary/environment-detail.json"
+python3 scripts/verify-environment-detail-contract.py "$temporary/environment-detail.json"
 export PROTO_VERIFY_TEMP="$temporary"
 python3 - <<'PY'
 import json,os,pathlib,subprocess,runpy
