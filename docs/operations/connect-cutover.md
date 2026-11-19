@@ -24,8 +24,8 @@ including reads. A read encoded as POST is not a governed state change.
 | `POST /v1/plans/{planID}/approvals` | `conduit.plans.v1.PlanApprovalService/ApprovePlan` | Generated active operator delivery/approval panels and legacy helper; explicit CLI `plan approve --write-transport connect` returns a versioned receipt; CLI default remains REST, no automatic retry |
 | `GET /v1/plans?view=summary` | `conduit.plans.v1.PlanReadService/ListPlanSummaries` | Explicit CLI `plan list --read-transport connect`; default remains REST |
 | `GET /v1/fleet/installations` | `conduit.fleet.v1.FleetReadService/ListFleetInstallations` | Dual-served filtered Fleet projection; current CLI and console callers remain REST |
-| `GET /v1/environments?view=full` (or absent view) | `conduit.environments.v1.EnvironmentCatalogService/ListEnvironments` | Full native index adapter; existing CLI and console full-list callers remain REST |
-| `GET /v1/environments?view=summary` | `conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries` | CLI `environment list --view summary --read-transport connect`; full list stays REST |
+| `GET /v1/environments?view=full` (or absent view) | `conduit.environments.v1.EnvironmentCatalogService/ListEnvironments` | CLI `environment list --read-transport connect`; REST remains default and console callers remain REST |
+| `GET /v1/environments?view=summary` | `conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries` | CLI `environment list --view summary --read-transport connect`; explicit full-view Connect is also available |
 | `GET /v1/environments/{environmentID}/reported-state` | `conduit.environments.v1.EnvironmentObservationService/GetEnvironmentReportedState` | CLI `environment reported-state --read-transport connect`; REST remains the default; failures are not replayed |
 | `GET /v1/environments/{environmentID}` | `conduit.environments.v1.EnvironmentDetailService/GetEnvironment` | CLI `environment get --read-transport connect` selects the full typed read with optional Space selection; REST remains the default; failures are not replayed |
 | `GET /v1/authorization-audit?view=events` | `conduit.governance.v1.AuthorizationAuditReadService/ListAuthorizationAuditEvents` | Bounded dual-serve adapter; existing callers remain REST |
@@ -45,7 +45,7 @@ The map does not imply that all Hub routes have RPC equivalents.
 [The full Environment detail contract](connect-environment-detail.md) now has
 an explicitly mounted authorized adapter and an opt-in CLI caller.
 [The full Environment index](connect-environment-catalog.md) reuses that full
-record shape; its CLI and console callers remain REST. Remaining caller
+record shape; its CLI reader is explicitly selectable and console callers remain REST. Remaining caller
 qualification is #394 work.
 
 ## Remaining contracts and callers
@@ -53,10 +53,10 @@ qualification is #394 work.
 The Environment summary adapter reuses the native Environment/Space query and
 is explicitly registered. [Its contract note](connect-environment-summaries.md)
 records the narrow projection, presence and authority boundaries. The CLI's
-explicit summary view and full detail command can select Connect; full lists
-and console Environment callers remain REST. #394 stays open for the remaining migration.
+explicit full/summary list and full detail commands can select Connect;
+console Environment callers remain REST. #394 stays open for the remaining migration.
 
-Known contract follow-ons are full Environment index, full Plan index/detail, change-request approve/reject,
+Known contract follow-ons are full Plan index/detail, change-request approve/reject,
 and audit-chain export. [Audit event reads](connect-audit-events.md) share the
 native administrator gate and pagination; caller migration remains separate. Governed packaging rerun/cancel already have REST
 routes but no methods in the current packaging proto.
