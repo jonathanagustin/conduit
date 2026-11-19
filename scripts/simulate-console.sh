@@ -189,6 +189,7 @@ if [ "${with_planning}" -eq 1 ]; then
   printf '%s\n' '# Local planning cancellation fixture' >"${work}/planning-source/README.md"
   git -C "${work}/planning-source" add README.md
   git -C "${work}/planning-source" -c user.name=Fixture -c user.email=fixture@example.invalid commit --quiet -m 'test: seed planning cancellation fixture'
+  git -C "${work}/planning-source" branch reviewed-ref
   git clone --quiet --bare "${work}/planning-source" "${work}/sources/planning-cancel.git"
   git -C "${work}/sources/planning-cancel.git" update-server-info
   python3 -u -m http.server 0 --bind 127.0.0.1 --directory "${work}/sources" >"${work}/source.log" 2>&1 &

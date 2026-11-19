@@ -711,6 +711,7 @@ function errorBanner(error) {
 function composer(planning) {
   const busy = Boolean(planning.busy);
   const locked = Boolean(planning.session);
+  const sourceIntake = locked ? planning.session.intake || {} : planning;
   const activeProfile =
     planning.session?.profile?.name || planning.profile || "onboard";
   const isAppgen = activeProfile === "appgen";
@@ -725,9 +726,9 @@ function composer(planning) {
     </div>`
     : `<div class="plan-fields">
       <div><label class="plan-label" for="plan-repo">Repository URL</label>
-        <input type="text" class="kit-input" id="plan-repo" data-plan-field="repoUrl" value="${esc(planning.repoUrl)}" placeholder="https://host/org/repo" autocomplete="off"${locked ? " disabled" : ""} /></div>
+        <input type="text" class="kit-input" id="plan-repo" data-plan-field="repoUrl" value="${esc(sourceIntake.repoUrl)}" placeholder="https://host/org/repo" autocomplete="off"${locked ? " disabled" : ""} /></div>
       <div><label class="plan-label" for="plan-ref">Ref</label>
-        <input type="text" class="kit-input" id="plan-ref" data-plan-field="ref" value="${esc(planning.ref)}" placeholder="branch, tag, or commit" autocomplete="off"${locked ? " disabled" : ""} /></div>
+        <input type="text" class="kit-input" id="plan-ref" data-plan-field="ref" value="${esc(sourceIntake.ref)}" placeholder="branch, tag, or commit" autocomplete="off"${locked ? " disabled" : ""} /></div>
     </div>`;
   return `<section class="kit-panel kit-pad plan-card" data-plan-composer aria-label="Composer">
     <div class="kit-header-title plan-card__head">

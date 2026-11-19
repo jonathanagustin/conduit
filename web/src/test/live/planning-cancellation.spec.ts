@@ -35,7 +35,7 @@ test("planning Stop cancels the exact native owner turn and another actor cannot
   // Session creation is API setup. Cancellation itself must be the browser's
   // real native POST, with no intercepted Hub response.
   const created = await page.request.post(`${origin}/v1/planning-sessions`, {
-    data: { repoUrl: repository, ref: "main" },
+    data: { repoUrl: repository, ref: "reviewed-ref" },
   });
   expect(created.status(), await created.text()).toBe(201);
   const initial = await created.json();
@@ -44,6 +44,9 @@ test("planning Stop cancels the exact native owner turn and another actor cannot
   await page.goto(`./#s01-intake/${encodeURIComponent(initial.id)}`);
   const flow = page.locator("#main-workspace [data-plan-flow]");
   await expect(flow.getByLabel("Repository URL")).toHaveValue(repository);
+  await expect(flow.getByLabel("Ref", { exact: true })).toHaveValue(
+    "reviewed-ref",
+  );
   const running = page.waitForRequest(
     (request) =>
       request.method() === "POST" &&
@@ -107,6 +110,11 @@ test("planning Stop cancels the exact native owner turn and another actor cannot
       return body.state;
     })
     .toBe("cancelled");
+  // Wait for the browser to consume its first receipt before deciding whether
+  // it needs the explicit Check action for an acknowledged but pending stop.
+  await expect(flow.locator("[data-plan-stopped]")).toContainText(
+    /recorded the cancellation request|confirmed this planning turn is cancelled/,
+  );
   const check = flow.locator("[data-plan-cancel-check]");
   if (await check.isVisible()) await check.click();
   await expect(flow.locator("[data-plan-stopped]")).toContainText(
