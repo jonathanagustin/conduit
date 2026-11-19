@@ -10,7 +10,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/apollo/productmanifest"
 )
 
-// Compatibility aliases preserve source callers while the document lives at its boundary.
+// ApolloProductManifest preserves source callers while the document lives at its compatibility boundary.
 type ApolloProductManifest = productmanifest.Manifest
 type ApolloProductManifestExtensions = productmanifest.Extensions
 type ApolloManifestVolume = productmanifest.Volume

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -92,8 +91,8 @@ func TestStrictBoundaryAndLegacyDiagnostics(t *testing.T) {
 		{"extensions:\n  volumes-v2:\n    data:\n      volume-type:\n        durable-volume:\n          unknown: true\n", "field unknown not found in type controlplane.ApolloDurableVolume"},
 	} {
 		_, err := Decode(strings.NewReader(tt.input))
-		var typed *yaml.TypeError
-		if err == nil || !errors.As(err, &typed) || !strings.Contains(err.Error(), tt.want) {
+		var typed *yaml.LoadErrors
+		if err == nil || !errors.As(err, &typed) || !strings.HasPrefix(err.Error(), "decode Apollo Product manifest: yaml: construct errors: ") || !strings.Contains(err.Error(), tt.want) {
 			t.Fatalf("input %q: %v", tt.input, err)
 		}
 	}
@@ -124,13 +123,26 @@ type errorReader struct{ err error }
 func (r errorReader) Read([]byte) (int, error) { return 0, r.err }
 
 func TestDiagnosticMappingDoesNotRewriteUserData(t *testing.T) {
+	cause := errors.New("underlying cause")
 	for current, legacy := range legacyTypeNames {
-		user := "line 1: field productmanifest." + current + " not found in type productmanifest." + current
-		original := &yaml.TypeError{Errors: []string{user, "unrelated productmanifest." + current}}
-		got := legacyDiagnostic(original).(*yaml.TypeError)
-		want := []string{"line 1: field productmanifest." + current + " not found in type controlplane." + legacy, original.Errors[1]}
-		if !reflect.DeepEqual(got.Errors, want) || original.Errors[0] != user {
+		user := "field productmanifest." + current + " not found in type productmanifest." + current
+		mark := yaml.Mark{Line: 2, Column: 3}
+		detail := yaml.NewLoadError(yaml.ConstructorStage, user, mark, cause)
+		detail.ContextMsg = "mapping context"
+		detail.ContextMark = yaml.Mark{Line: 1, Column: 1}
+		original := &yaml.LoadErrors{Errors: []*yaml.LoadError{detail, yaml.NewLoadError(yaml.ConstructorStage, "unrelated productmanifest."+current, mark, nil)}}
+		got := legacyDiagnostic(original).(*yaml.LoadErrors)
+		want := "field productmanifest." + current + " not found in type controlplane." + legacy
+		first := got.Errors[0]
+		if first.Message != want || got.Errors[1].Message != original.Errors[1].Message || original.Errors[0].Message != user {
 			t.Fatalf("mapping %s: %#v", current, got.Errors)
+		}
+		if first == detail || first.Mark != mark || first.ContextMark != detail.ContextMark || first.ContextMsg != detail.ContextMsg || first.Stage != detail.Stage || !errors.Is(got, cause) {
+			t.Fatalf("structured error metadata/cause changed: %#v", first)
+		}
+		var matched *yaml.LoadError
+		if !errors.As(got, &matched) || matched != first {
+			t.Fatal("structured error no longer inspectable")
 		}
 	}
 }

@@ -30,21 +30,24 @@ func Decode(reader io.Reader) (Manifest, error) {
 
 // Moving a Go type must not change the existing YAML diagnostic contract.
 // Rewrite only the terminal type label emitted by yaml, never user input.
-// Keep the rich TypeError and all other wrapped errors available to errors.As/Is.
+// Keep structured load errors and their underlying causes available to errors.As/Is.
 func legacyDiagnostic(err error) error {
-	var typed *yaml.TypeError
+	var typed *yaml.LoadErrors
 	if !errors.As(err, &typed) {
 		return err
 	}
-	result := &yaml.TypeError{Errors: append([]string(nil), typed.Errors...)}
-	for i, message := range result.Errors {
+	result := &yaml.LoadErrors{Errors: make([]*yaml.LoadError, len(typed.Errors))}
+	for i, detail := range typed.Errors {
+		copy := *detail
+		result.Errors[i] = &copy
+		message := detail.Message
 		for current, legacy := range legacyTypeNames {
 			for _, diagnostic := range []string{" in type ", " into "} {
 				for _, wrapper := range []string{"", "*", "[]", "map[string]"} {
 					prefix := diagnostic + wrapper
 					suffix := prefix + "productmanifest." + current
 					if strings.HasSuffix(message, suffix) {
-						result.Errors[i] = strings.TrimSuffix(message, suffix) + prefix + "controlplane." + legacy
+						copy.Message = strings.TrimSuffix(message, suffix) + prefix + "controlplane." + legacy
 					}
 				}
 			}
