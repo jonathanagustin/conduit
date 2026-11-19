@@ -18,7 +18,7 @@ type persistedApolloAgentReports struct {
 	Health json.RawMessage `json:"health,omitempty"`
 }
 
-type apolloAgentReportOperation func(Repository, persistedApolloAgentReports) (persistedApolloAgentReports, *EnvironmentReport, error)
+type apolloAgentReportOperation func(environmentReportReadRepository, persistedApolloAgentReports) (persistedApolloAgentReports, *EnvironmentReport, error)
 type apolloAgentReportStore interface {
 	updateApolloAgentReports(context.Context, string, apolloAgentReportOperation) error
 }
@@ -31,7 +31,7 @@ func (port environmentReportingProjectionPort) UpdateAgentReports(ctx context.Co
 	if !ok {
 		return errors.New("repository does not support atomic Apollo agent reports")
 	}
-	return store.updateApolloAgentReports(ctx, environment, func(repository Repository, raw persistedApolloAgentReports) (persistedApolloAgentReports, *EnvironmentReport, error) {
+	return store.updateApolloAgentReports(ctx, environment, func(repository environmentReportReadRepository, raw persistedApolloAgentReports) (persistedApolloAgentReports, *EnvironmentReport, error) {
 		var err error
 		if patch.Info != nil {
 			raw.Info, err = json.Marshal(*patch.Info)
@@ -56,12 +56,11 @@ func (port environmentReportingProjectionPort) UpdateAgentReports(ctx context.Co
 				return raw, nil, fmt.Errorf("decode Apollo health: %w", err)
 			}
 		}
-		scoped := environmentReportingProjectionPort{repository: repository}
-		snapshot.Plan, err = scoped.LatestPlan(ctx, environment)
+		snapshot.Plan, err = latestEnvironmentPlanProjection(ctx, repository, environment)
 		if err != nil {
 			return raw, nil, err
 		}
-		snapshot.Report, err = scoped.GetReport(ctx, environment)
+		snapshot.Report, err = repository.GetEnvironmentReport(ctx, environment)
 		if err != nil && !errors.Is(err, ErrNotFound) {
 			return raw, nil, err
 		}
