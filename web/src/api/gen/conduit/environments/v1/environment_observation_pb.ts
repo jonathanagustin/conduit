@@ -46,7 +46,8 @@ export const GetEnvironmentReportedStateRequestSchema: GenMessage<GetEnvironment
   messageDesc(file_conduit_environments_v1_environment_observation, 0);
 
 /**
- * An absent observation timestamp represents native zero/unknown time; no
+ * ReportedEnvironmentState retains observed evidence. An absent timestamp means
+ * native zero/unknown time; no
  * current timestamp is invented. Open status strings retain native vocabulary.
  *
  * @generated from message conduit.environments.v1.ReportedEnvironmentState
@@ -307,7 +308,7 @@ export const HealthCheckSchema: GenMessage<HealthCheck> =
   messageDesc(file_conduit_environments_v1_environment_observation, 6);
 
 /**
- * Metadata only: the native report contains provider references and key names,
+ * ReportedSecretReference carries metadata only: provider references and key names,
  * not secret values. This is still private Environment inventory.
  *
  * @generated from message conduit.environments.v1.ReportedSecretReference

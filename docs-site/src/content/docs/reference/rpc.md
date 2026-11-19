@@ -77,7 +77,8 @@ message GetEnvironmentReportedStateRequest {
   string environment = 1;
 }
 
-// An absent observation timestamp represents native zero/unknown time; no
+// ReportedEnvironmentState retains observed evidence. An absent timestamp means
+// native zero/unknown time; no
 // current timestamp is invented. Open status strings retain native vocabulary.
 message ReportedEnvironmentState {
   string environment = 1;
@@ -134,7 +135,7 @@ message HealthCheck {
   bytes params_json = 4;
 }
 
-// Metadata only: the native report contains provider references and key names,
+// ReportedSecretReference carries metadata only: provider references and key names,
 // not secret values. This is still private Environment inventory.
 message ReportedSecretReference {
   string assignment = 1;

@@ -67,7 +67,8 @@ func (x *GetEnvironmentReportedStateRequest) GetEnvironment() string {
 	return ""
 }
 
-// An absent observation timestamp represents native zero/unknown time; no
+// ReportedEnvironmentState retains observed evidence. An absent timestamp means
+// native zero/unknown time; no
 // current timestamp is invented. Open status strings retain native vocabulary.
 type ReportedEnvironmentState struct {
 	state         protoimpl.MessageState     `protogen:"open.v1"`
@@ -560,7 +561,7 @@ func (x *HealthCheck) GetParamsJson() []byte {
 	return nil
 }
 
-// Metadata only: the native report contains provider references and key names,
+// ReportedSecretReference carries metadata only: provider references and key names,
 // not secret values. This is still private Environment inventory.
 type ReportedSecretReference struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`

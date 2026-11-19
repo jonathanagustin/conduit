@@ -39,7 +39,7 @@
     "internal/conduitcli/yaml_output.go": "627d4b6a5d756d4b4552f90d88cf88b18a0876aa9a2d423ba809d0b7c4e75d7b",
     "internal/hub/composition/authorization.go": "61028101417065afe29f73e673bb78f2a9b2bcba95899d6b5d59cb745c09dbc2",
     "proto/conduit/catalog/v1/product_summary.proto": "4a3183ca3853ffa955bb294ec5b08de329327530529e406050ec8253d951eb3a",
-    "proto/conduit/environments/v1/environment_observation.proto": "85497854c762742e9a945f6297b80ecea5ba47300c9fb0427f391e0d8de076e1",
+    "proto/conduit/environments/v1/environment_observation.proto": "da3f2f16127b9401ebd3286c4411816a86e8704d6eed4a69e24f90ea785a9aea",
     "proto/conduit/environments/v1/environment_summary.proto": "6cdbd3af682ba579aeee7a1a69f446a26e5d1bf096a6c920922adc1ed2dbd7e7",
     "proto/conduit/governance/v1/authorization_audit.proto": "c53c4a08cbc1944a1be9469fa6ef1f24d0968051351dd57e7f0e3d76e3cd8f2a",
     "proto/conduit/notifications/v1/notification_event.proto": "0b1d7b0c38ad4ac66c00606781ee2650a8dc7f501a87b64d5e474e249f85a6e4",
