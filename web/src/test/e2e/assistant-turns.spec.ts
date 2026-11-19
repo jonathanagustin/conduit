@@ -1159,6 +1159,7 @@ test("the command palette lists only what the session enables", async ({
   ).toHaveCount(0);
   await page.keyboard.press("Control+k");
   const palette = page.getByRole("dialog", { name: "Command palette" });
+  await expect(palette.getByLabel("Search")).toBeFocused();
   const row = (title: string) =>
     palette.locator(".kit-palette-row").filter({
       has: page.locator(".kit-palette-title", {
@@ -1293,4 +1294,43 @@ test("failed streams retain retrieved sources without reporting success", async 
     "Additional source excerpts are not shown.",
   );
   await expect(sources.locator("[data-source-citation]")).toHaveCount(2);
+});
+
+test("a detached operator does not focus another view's palette input", async ({
+  page,
+  hub,
+}) => {
+  hub.session = session();
+  await page.goto("/console/");
+  await expect(
+    page
+      .locator("#left-nav")
+      .getByRole("button", { name: "Fleet", exact: true }),
+  ).toBeVisible();
+  await page.clock.install();
+  await page.evaluate(() => {
+    Reflect.get(window, "openCmdOmnibar")();
+    const original = document.querySelector(".operator-root");
+    if (!original) throw new Error("operator root missing");
+    original.remove();
+    // A replacement view may reuse the palette ID. The old mount owns neither
+    // this input nor its focus; no response or application action is stubbed here.
+    const replacement = document.createElement("input");
+    replacement.id = "conduit-omnibar-inp";
+    replacement.setAttribute("aria-label", "Replacement view search");
+    document.body.append(replacement);
+    const current = document.createElement("button");
+    current.textContent = "Current view focus";
+    document.body.append(current);
+    current.focus();
+  });
+  await page.clock.runFor(25);
+  expect(await page.evaluate(() => document.activeElement?.id)).not.toBe(
+    "conduit-omnibar-inp",
+  );
+  await expect(
+    page.getByRole("button", { name: "Current view focus" }),
+  ).toBeFocused();
+  await expect(page.locator("#conduit-omnibar-inp")).toHaveCount(1);
+  await expect(page.locator("#conduit-omnibar-inp")).not.toBeFocused();
 });
