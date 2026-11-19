@@ -316,23 +316,26 @@ func (adapter *HTTPControlPlane) UploadArtifact(ctx context.Context, mediaType s
 
 func (adapter *HTTPControlPlane) ListChangeRequests(ctx context.Context, environment string) ([]controlplane.ChangeRequest, error) {
 	query := url.Values{}
+	query.Set("limit", "200")
 	if strings.TrimSpace(environment) != "" {
 		query.Set("environment", environment)
 	}
-	path := "/v1/change-requests"
-	if encoded := query.Encode(); encoded != "" {
-		path += "?" + encoded
+	path := adapter.withSpaceSelection("/v1/change-requests?" + query.Encode())
+	requests, _, err := followCursor(ctx, adapter, path, func(page controlplane.ChangeRequestPage) ([]controlplane.ChangeRequest, int, string) {
+		return page.ChangeRequests, page.Total, page.NextCursor
+	})
+	if err != nil {
+		return nil, err
 	}
-	var response struct {
-		ChangeRequests []controlplane.ChangeRequest `json:"changeRequests"`
+	if requests == nil {
+		requests = []controlplane.ChangeRequest{}
 	}
-	err := adapter.request(ctx, http.MethodGet, path, nil, &response)
-	return response.ChangeRequests, err
+	return requests, nil
 }
 
 func (adapter *HTTPControlPlane) GetChangeRequest(ctx context.Context, id string) (controlplane.ChangeRequest, error) {
 	var result controlplane.ChangeRequest
-	err := adapter.request(ctx, http.MethodGet, "/v1/change-requests/"+url.PathEscape(id), nil, &result)
+	err := adapter.request(ctx, http.MethodGet, adapter.withSpaceSelection("/v1/change-requests/"+url.PathEscape(id)), nil, &result)
 	return result, err
 }
 
