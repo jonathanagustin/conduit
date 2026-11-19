@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jonathanagustin/conduit/internal/packagevalidation/application"
 	"github.com/jonathanagustin/conduit/internal/packagevalidation/domain"
 	"github.com/jonathanagustin/conduit/internal/packagevalidation/ports"
 )
@@ -41,7 +42,7 @@ func New(authorize func(context.Context, ports.Locator) error) (*Store, error) {
 func (s *Store) SetAttempt(locator ports.Locator, attempt ports.Attempt) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := validateAttempt(locator, attempt); err != nil {
+	if err := application.ValidateAttempt(locator, attempt); err != nil {
 		return err
 	}
 	if _, exists := s.attempts[locator]; exists {
@@ -68,17 +69,10 @@ func (s *Store) Update(locator ports.Locator, change func(*ports.Attempt) error)
 	if next.Manifest.Challenge != old.Manifest.Challenge || next.Consumed != old.Consumed || (old.Cancelled && !next.Cancelled) {
 		return domain.ErrUntrusted
 	}
-	if err := validateAttempt(locator, next); err != nil {
+	if err := application.ValidateAttempt(locator, next); err != nil {
 		return err
 	}
 	s.attempts[locator] = cloneAttempt(next)
-	return nil
-}
-func validateAttempt(locator ports.Locator, attempt ports.Attempt) error {
-	digest, err := attempt.Policy.Digest()
-	if err != nil || attempt.Manifest.RunID != locator.RunID || attempt.Manifest.ProposalRevision != locator.ProposalRevision || attempt.Manifest.Validate() != nil || attempt.Manifest.PolicyDigest != digest || attempt.Manifest.ProfileDigest != attempt.Policy.ProfileDigest {
-		return domain.ErrInvalid
-	}
 	return nil
 }
 
@@ -105,19 +99,8 @@ func (s *Store) UseAttempt(ctx context.Context, locator ports.Locator, verify fu
 	if err := ctx.Err(); err != nil {
 		return ports.Admission{}, err
 	}
-	if attempt.Cancelled || record.Manifest != attempt.Manifest || record.State != "VERIFIED_EVIDENCE" || record.ValueTier != "CONDUIT_NATIVE" || record.ID == "" || s.now().UTC().Before(record.VerifiedAt) || !s.now().UTC().Before(record.ExpiresAt) {
-		return ports.Admission{}, domain.ErrUntrusted
-	}
-	claim, err := domain.Decode(record.Attestation)
-	if err != nil {
+	if err := application.VerifyAdmission(attempt, record, s.now().UTC()); err != nil {
 		return ports.Admission{}, err
-	}
-	evidence, err := domain.Verify(claim, attempt.Manifest, attempt.Policy, s.now().UTC())
-	if err != nil {
-		return ports.Admission{}, err
-	}
-	if evidence.ID() != record.ID || evidence.Producer() != record.ProducerID || !evidence.ExpiresAt().Equal(record.ExpiresAt) {
-		return ports.Admission{}, domain.ErrUntrusted
 	}
 	if s.auditFailure != nil {
 		return ports.Admission{}, s.auditFailure
@@ -125,7 +108,7 @@ func (s *Store) UseAttempt(ctx context.Context, locator ports.Locator, verify fu
 	if err := ctx.Err(); err != nil {
 		return ports.Admission{}, err
 	}
-	if !evidence.ValidAt(s.now().UTC()) {
+	if err := application.VerifyAdmission(attempt, record, s.now().UTC()); err != nil {
 		return ports.Admission{}, domain.ErrUntrusted
 	}
 	// All three writes happen after the final check while one lock is held.

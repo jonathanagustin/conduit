@@ -112,6 +112,8 @@ CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/identity/adapters/se
 # Model usage and AI transcripts run the conformance suite their in-memory
 # adapters run on every `go test`, and a budget shared by two pools.
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/modelgovernor/adapters/postgres
+# Validation receipts, audit and challenge consumption must survive pool restarts.
+CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/packagevalidation/adapters/postgres
 # Operator-added eval cases: the CaseStore conformance suite against real
 # PostgreSQL, including the reopen that a Hub restart is.
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/intelligence/adapters/casepostgres
