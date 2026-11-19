@@ -54,6 +54,23 @@ func TestEnvironmentDetailProjectsEveryNativeConfigurationFieldWithoutDefaults(t
 	if e.Labels["key"] != "value" || *e.Namespaces[0].DeletionProtected || e.ArtifactRegistries[0].Mirrors[0] != "mirror" {
 		t.Fatal("wire result aliases native configuration")
 	}
+	// A raw zero must stay zero, but an explicitly configured wide value must
+	// also survive; the zero fixture alone cannot catch an omitted assignment.
+	e.ArtifactSecurityPolicy.MaximumScanAgeSeconds = 1 << 47
+	e.HelmExecution.ImagePrePull.Enabled = true
+	*e.Namespaces[0].DeletionProtected = true
+	got, err = environmentDetailMessage(controlplane.EnvironmentCatalogRecord{Environment: e})
+	if err != nil || got.Environment.ArtifactSecurityPolicy.MaximumScanAgeSeconds != 1<<47 ||
+		!got.Environment.HelmExecution.ImagePrePull.Enabled || !*got.Environment.Namespaces[0].DeletionProtected {
+		t.Fatalf("explicit configured policy changed: %v %v", got, err)
+	}
+	e.Namespaces[0].DeletionProtected = nil
+	e.HelmExecution.ImagePrePull = nil
+	got, err = environmentDetailMessage(controlplane.EnvironmentCatalogRecord{Environment: e})
+	if err != nil || got.Environment.Namespaces[0].DeletionProtected != nil || got.Environment.HelmExecution.ImagePrePull != nil {
+		t.Fatalf("absent nested override became configured: %v %v", got, err)
+	}
+
 }
 
 func TestEnvironmentDetailPreservesAbsenceAndRejectsUnrepresentableValues(t *testing.T) {
