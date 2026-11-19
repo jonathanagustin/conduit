@@ -36,7 +36,7 @@ func (r *readerFixture) ListInstallations(ctx context.Context, id string) (apoll
 	return apollo.ListInstallationsResponse{Installations: &v}, r.failure
 }
 func (r *readerFixture) ListProducts() apollo.ListProductsResponse {
-	r.call(nil, "products")
+	r.calls = append(r.calls, readCall{method: "products"})
 	v := []apollo.Product{{Id: "group:product"}}
 	return apollo.ListProductsResponse{Products: &v}
 }
@@ -50,7 +50,7 @@ func (r *readerFixture) GetEnvironment(ctx context.Context, id string) (apollo.E
 	return apollo.Environment{Rid: id}, r.failure
 }
 func (r *readerFixture) GetProduct(id string) (apollo.Product, error) {
-	r.call(nil, "product", id)
+	r.calls = append(r.calls, readCall{method: "product", args: []string{id}})
 	return apollo.Product{Id: id}, r.failure
 }
 func (r *readerFixture) GetRelease(ctx context.Context, id, version string) (apollo.Release, error) {
