@@ -2545,26 +2545,8 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			Lifecycle: query.Get("lifecycle"), Search: query.Get("search"), MaxAge: maxAge,
 		}
 
-		administrator := isGovernanceAdministrator(request.Context(), governance, principal, configuration)
-		// Apply the existing Environment authority and private membership before
-		// Reporting builds search results, summaries or near-miss facets. Memoise
-		// the authority decision shared by Plans and observed reports.
-		readable := map[string]bool{}
-		mayRead := func(environment string) bool {
-			if administrator {
-				return true
-			}
-			allowed, decided := readable[environment]
-			if !decided {
-				allowed = governance.Authorize(request.Context(), effectivePrincipal(principal),
-					environmentRID(environment), OperationReadResource)
-				readable[environment] = allowed
-			}
-			return allowed
-		}
-		projection, err := buildFleetProjection(request.Context(), repository, fleetQuery, time.Now(), func(environment string) bool {
-			return space.environment(environment) && mayRead(environment)
-		})
+		retain := fleetReadVisibility(request.Context(), governance, principal, configuration, space)
+		projection, err := buildFleetProjection(request.Context(), repository, fleetQuery, time.Now(), retain)
 		if err != nil {
 			writeLifecycleError(w, err)
 			return
