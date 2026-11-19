@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/jonathanagustin/conduit/internal/spaces/domain"
 )
@@ -104,5 +105,9 @@ func (adapter *HTTPControlPlane) withSpaceSelection(path string) string {
 	if adapter.spaceID == "" {
 		return path
 	}
-	return path + "?spaceId=" + url.QueryEscape(adapter.spaceID)
+	separator := "?"
+	if strings.Contains(path, "?") {
+		separator = "&"
+	}
+	return path + separator + "spaceId=" + url.QueryEscape(adapter.spaceID)
 }
