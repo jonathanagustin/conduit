@@ -340,6 +340,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorSelf, Detail: "requireOperatorPrincipal; reads the Accept binding on a planning session and does not approve"},
 		{Pattern: "GET /v1/planning-sessions/{sessionID}/events",
 			Decision: DecisionOperatorSelf, Detail: "requireOperatorPrincipal; reads recorded planning events, including inspection, Needs Input, and plan events, and does not approve"},
+		{Pattern: "POST /conduit.plans.v1.PlanCancellationService/CancelPlan",
+			Decision: DecisionOperatorGrant, Detail: "native operatorClaims + ResolvePrincipal; shared CancelPlanAsOperator preserves original carrier, linked Change Request authorship or Environment Operate, and separate suppression Operate/validation; sequential effects, no retry or execution credential"},
 		{Pattern: "POST /conduit.plans.v1.PlanApprovalService/ApprovePlan",
 			Decision: DecisionOperatorGrant, Detail: "native operatorClaims + ResolvePrincipal; shared ApprovePlanAsOperator applies linked Change Request reviewer policy or Environment Operate, preserves original carrier audit identity and recorded approval on handoff failure; no execution credential"},
 		{Pattern: "POST /conduit.plans.v1.PlanReadService/ListPlanSummaries",

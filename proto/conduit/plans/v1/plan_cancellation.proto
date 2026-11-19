@@ -1,0 +1,48 @@
+syntax = "proto3";
+package conduit.plans.v1;
+
+import "conduit/plans/v1/plan_summary.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/jonathanagustin/conduit/gen/go/conduit/plans/v1;plansv1";
+
+// PlanCancellationService applies existing cancellation and suppression policy.
+service PlanCancellationService {
+  // CancelPlan is POST /v1/plans/{planID}/cancel. Never retry or REST-replay.
+  rpc CancelPlan(CancelPlanRequest) returns (CancelPlanResponse);
+}
+
+message CancelPlanRequest {
+  string plan_id = 1;
+  string reason = 2;
+  // Suppression additionally requires Operate on the Plan's Environment.
+  bool create_suppression = 3;
+  // Zero uses the existing 30-minute default when suppression is requested.
+  int64 suppression_duration_seconds = 4;
+  string installation_id = 5;
+}
+
+// RecordedPlanCancellation describes the native cancellation, not an approval.
+message RecordedPlanCancellation {
+  string subject = 1;
+  string reason = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+
+// CancelPlanResponse is a scoped command result, not the complete REST Plan.
+// Success follows all requested native effects, including suppression creation.
+// Cancellation, Change Request cancellation and suppression are sequential.
+message CancelPlanResponse {
+  PlanSummary plan = 1;
+  RecordedPlanCancellation cancellation = 2;
+  string change_request_id = 3;
+}
+
+// PlanCancellationOutcome is error evidence, never a retry permit. It is emitted
+// only after the native command completed but its response could not be mapped.
+// Absent details mean an unknown outcome, never proof that no write occurred:
+// native command errors may follow a persisted cancellation or other effect.
+message PlanCancellationOutcome {
+  string plan_id = 1;
+  bool command_completed = 2;
+}
