@@ -17,6 +17,10 @@ if (!Number.isInteger(port) || port <= 0) {
 
 const MODEL = "simulated-model";
 const ROUND = /Round \d+ of this turn: your reply and the tool results/;
+// Only the opt-in planning fixture can hold a reply. These counters witness
+// a real cancelled HTTP call; the production model transport is unchanged.
+const planningRepo = process.env.CONDUIT_SIMULATION_PLANNING_REPO || "";
+const planning = { started: 0, active: 0, disconnected: 0, expired: 0 };
 
 function reply(prompt) {
   if (!ROUND.test(prompt))
@@ -45,6 +49,12 @@ const server = http.createServer((request, response) => {
       response.end(JSON.stringify(body));
     };
     if (
+      planningRepo &&
+      request.method === "GET" &&
+      request.url === "/planning-fixture"
+    )
+      return send(200, planning);
+    if (
       request.method !== "POST" ||
       !request.url?.endsWith("/chat/completions")
     )
@@ -57,6 +67,22 @@ const server = http.createServer((request, response) => {
         .join("\n");
     } catch {
       return send(400, { error: { message: "body is not JSON" } });
+    }
+    if (planningRepo && prompt.includes(`Repository: ${planningRepo}\n`)) {
+      planning.started++;
+      planning.active++;
+      const deadline = setTimeout(() => {
+        planning.expired++;
+        send(504, {
+          error: { message: "Planning cancellation fixture expired." },
+        });
+      }, 60_000);
+      response.once("close", () => {
+        clearTimeout(deadline);
+        planning.active--;
+        if (!response.writableEnded) planning.disconnected++;
+      });
+      return;
     }
     // Long enough that a browser sees the tool call before the answer.
     setTimeout(

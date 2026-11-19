@@ -81,7 +81,7 @@ jobs:
         env:
           CONDUIT_SIMULATION_EVIDENCE_DIR: artifacts/native-console/healthy
         run: |
-          ./scripts/simulate-console.sh --with-packaging 2>&1 | tee artifacts/native-console/healthy.log
+          ./scripts/simulate-console.sh --with-packaging --with-planning 2>&1 | tee artifacts/native-console/healthy.log
       - name: Qualify Git workspace history and fork
         env:
           CONDUIT_SIMULATION_PORT: "8109"
