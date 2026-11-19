@@ -10,6 +10,7 @@ import (
 
 // These errors preserve native input/configuration outcomes for typed adapters.
 var (
+	ErrInvalidSpaceQuery         = errors.New("invalid query encoding")
 	ErrInvalidSpaceSelection     = errors.New("spaceId must name one native Space identity")
 	ErrSpaceSelectionUnavailable = errors.New("native Space selection is not configured")
 )
@@ -34,20 +35,15 @@ var nativeSpaceSelectionID = regexp.MustCompile(`^space_[a-f0-9]{32}$`)
 // Space selection narrows existing resource authority. The trusted composition
 // callback must establish a readable persisted Space, even for an empty page.
 func selectedSpace(w http.ResponseWriter, r *http.Request, principal Principal, options HandlerOptions) (string, bool) {
-	query, err := url.ParseQuery(r.URL.RawQuery)
+	id, err := parseSpaceSelection(r.URL.RawQuery)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid query encoding"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return "", false
 	}
-	values, present := query["spaceId"]
-	if !present {
+	if id == nil {
 		return "", true
 	}
-	if len(values) != 1 || !nativeSpaceSelectionID.MatchString(values[0]) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "spaceId must name one native Space identity"})
-		return "", false
-	}
-	if err := authorizeIndexSpaceSelection(r.Context(), principal, options, values[0]); err != nil {
+	if err := authorizeIndexSpaceSelection(r.Context(), principal, options, *id); err != nil {
 		if errors.Is(err, ErrSpaceSelectionUnavailable) {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
 			return "", false
@@ -55,8 +51,25 @@ func selectedSpace(w http.ResponseWriter, r *http.Request, principal Principal, 
 		writeLifecycleError(w, err)
 		return "", false
 	}
-	return values[0], true
+	return *id, true
 }
+
+// parseSpaceSelection preserves absence separately from a present empty value.
+func parseSpaceSelection(rawQuery string) (*string, error) {
+	query, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return nil, ErrInvalidSpaceQuery
+	}
+	values, present := query["spaceId"]
+	if !present {
+		return nil, nil
+	}
+	if len(values) != 1 || !nativeSpaceSelectionID.MatchString(values[0]) {
+		return nil, ErrInvalidSpaceSelection
+	}
+	return &values[0], nil
+}
+
 func reservePublicationSpace(w http.ResponseWriter, r *http.Request, principal Principal, options HandlerOptions, product string) bool {
 	id, ok := selectedSpace(w, r, principal, options)
 	if !ok {
