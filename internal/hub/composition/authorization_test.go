@@ -86,6 +86,9 @@ const (
 // valid request below. Accepting protocol/validation errors instead would not
 // demonstrate an authorization refusal after the resource check was removed.
 func bodyFor(pattern string) string {
+	if pattern == "POST /conduit.environments.v1.EnvironmentObservationService/GetEnvironmentReportedState" {
+		return `{"environment":"` + fixtureEnvironment + `"}`
+	}
 	if pattern == "POST /v1/rollouts" {
 		return `{"action":"create","id":"authorization-probe","product":"` + fixtureProduct + `","version":"1","waves":[{"name":"first","environments":["` + fixtureEnvironment + `"],"gate":"health"}]}`
 	}

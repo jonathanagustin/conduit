@@ -51,6 +51,105 @@ message ListProductSummariesResponse {
 }
 ```
 
+## environment_observation.proto
+
+[proto/conduit/environments/v1/environment_observation.proto](https://github.com/jonathanagustin/conduit/blob/main/proto/conduit/environments/v1/environment_observation.proto)
+
+```protobuf
+syntax = "proto3";
+package conduit.environments.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/jonathanagustin/conduit/gen/go/conduit/environments/v1;environmentsv1";
+
+// EnvironmentObservationService reads reported evidence, never desired state or
+// execution credentials. REST remains supported; no automatic fallback applies.
+service EnvironmentObservationService {
+  // GetEnvironmentReportedState is GET /v1/environments/{environmentID}/reported-state.
+  // It requires ReadResource on that Environment, including secret references.
+  rpc GetEnvironmentReportedState(GetEnvironmentReportedStateRequest) returns (GetEnvironmentReportedStateResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message GetEnvironmentReportedStateRequest {
+  string environment = 1;
+}
+
+// An absent observation timestamp represents native zero/unknown time; no
+// current timestamp is invented. Open status strings retain native vocabulary.
+message ReportedEnvironmentState {
+  string environment = 1;
+  string agent_id = 2;
+  string plan_id = 3;
+  google.protobuf.Timestamp observed_at = 4;
+  repeated ReportedEntity entities = 5;
+  repeated ReportedSecretReference secrets = 6;
+  uint64 revision = 7;
+}
+
+message ReportedEntity {
+  string installation_id = 1;
+  string product = 2;
+  string version = 3;
+  string release_digest = 4;
+  string namespace = 5;
+  string config_digest = 6;
+  string health = 7;
+  string rollout_status = 8;
+  string config_status = 9;
+  string lifecycle = 10;
+  google.protobuf.Timestamp observed_at = 11;
+  // Presence distinguishes no health detail from an observed empty detail.
+  EntityHealthDetails health_details = 12;
+}
+
+message EntityHealthDetails {
+  string quorum = 1;
+  repeated EntityNodeHealth nodes = 2;
+}
+
+message EntityNodeHealth {
+  string node_id = 1;
+  string product_version = 2;
+  string result = 3;
+  repeated EntityContainerHealth containers = 4;
+}
+
+message EntityContainerHealth {
+  string container_id = 1;
+  bool liveness = 2;
+  bool readiness = 3;
+  string result = 4;
+  repeated HealthCheck checks = 5;
+}
+
+message HealthCheck {
+  string id = 1;
+  string message = 2;
+  string result = 3;
+  // JSON encoding of the native arbitrary params map, preserving numbers without
+  // a protobuf Struct/double conversion. Native nil encodes as JSON null.
+  bytes params_json = 4;
+}
+
+// Metadata only: the native report contains provider references and key names,
+// not secret values. This is still private Environment inventory.
+message ReportedSecretReference {
+  string assignment = 1;
+  string namespace = 2;
+  int64 revision = 3;
+  string provider_ref = 4;
+  string kubernetes_secret_name = 5;
+  repeated string keys = 6;
+}
+
+message GetEnvironmentReportedStateResponse {
+  ReportedEnvironmentState reported = 1;
+}
+```
+
 ## environment_summary.proto
 
 [proto/conduit/environments/v1/environment_summary.proto](https://github.com/jonathanagustin/conduit/blob/main/proto/conduit/environments/v1/environment_summary.proto)
