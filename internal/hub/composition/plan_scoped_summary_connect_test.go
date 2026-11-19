@@ -35,6 +35,7 @@ func postScopedPlanSummaries(handler http.Handler, actor, represented, body stri
 
 func TestScopedPlanSummaryConnectMatchesNativeVisibilitySpacesAndPages(t *testing.T) {
 	f := newSpaceIndexFixture(t, controlplane.NewMemoryRepository(), spacememory.New())
+	cursorBoundSeen := false
 	for _, actor := range []string{"admin", "reader", "reviewer", "outsider"} {
 		for _, space := range []string{f.first, f.second} {
 			query := url.Values{"view": {"summary"}, "spaceId": {space}, "limit": {"1"}, "search": {" plan "}}
@@ -80,8 +81,22 @@ func TestScopedPlanSummaryConnectMatchesNativeVisibilitySpacesAndPages(t *testin
 					other = f.second
 				}
 				changed, _ := json.Marshal(map[string]any{"spaceId": other, "limit": 1, "cursor": page.NextCursor, "search": query.Get("search")})
-				if refused := postScopedPlanSummaries(f.handler, actor, "", string(changed)); refused.Code != 400 {
-					t.Fatalf("changed Space accepted: %d %s", refused.Code, refused.Body)
+				nativeChangedQuery, _ := url.ParseQuery(query.Encode())
+				nativeChangedQuery.Set("spaceId", other)
+				nativeChangedQuery.Set("cursor", page.NextCursor)
+				nativeChanged := spaceRequest(f.handler, actor, http.MethodGet, "/v1/plans?"+nativeChangedQuery.Encode(), "")
+				wantStatus := nativeChanged.Code
+				switch wantStatus {
+				case http.StatusUnprocessableEntity:
+					wantStatus = http.StatusBadRequest
+					cursorBoundSeen = true
+				case http.StatusForbidden, http.StatusNotFound:
+					// Selection authorization must precede cursor validation, as in REST.
+				default:
+					t.Fatalf("unexpected native changed-Space result: %d %s", nativeChanged.Code, nativeChanged.Body)
+				}
+				if refused := postScopedPlanSummaries(f.handler, actor, "", string(changed)); refused.Code != wantStatus {
+					t.Fatalf("changed Space refusal order: REST%d %s RPC%d %s", nativeChanged.Code, nativeChanged.Body, refused.Code, refused.Body)
 				}
 				changed, _ = json.Marshal(map[string]any{"spaceId": space, "limit": 1, "cursor": page.NextCursor, "search": "different"})
 				if refused := postScopedPlanSummaries(f.handler, actor, "", string(changed)); refused.Code != 400 {
@@ -93,6 +108,9 @@ func TestScopedPlanSummaryConnectMatchesNativeVisibilitySpacesAndPages(t *testin
 				t.Fatal("pagination did not terminate")
 			}
 		}
+	}
+	if !cursorBoundSeen {
+		t.Fatal("no readable-Space cursor binding witnessed")
 	}
 }
 
