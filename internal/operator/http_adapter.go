@@ -166,7 +166,7 @@ func (adapter *HTTPControlPlane) ListEntities(ctx context.Context, environment s
 	var response struct {
 		Entities []controlplane.Entity `json:"entities"`
 	}
-	err := adapter.request(ctx, http.MethodGet, "/v1/environments/"+url.PathEscape(environment)+"/entities", nil, &response)
+	err := adapter.request(ctx, http.MethodGet, adapter.withSpaceSelection("/v1/environments/"+url.PathEscape(environment)+"/entities"), nil, &response)
 	return response.Entities, err
 }
 
@@ -221,13 +221,13 @@ func (adapter *HTTPControlPlane) ListProductReleases(ctx context.Context, produc
 	var response struct {
 		Releases []controlplane.Release `json:"releases"`
 	}
-	err := adapter.request(ctx, http.MethodGet, "/v1/products/"+url.PathEscape(product)+"/releases", nil, &response)
+	err := adapter.request(ctx, http.MethodGet, adapter.withSpaceSelection("/v1/products/"+url.PathEscape(product)+"/releases"), nil, &response)
 	return response.Releases, err
 }
 
 func (adapter *HTTPControlPlane) GetProductRelease(ctx context.Context, product, version string) (controlplane.Release, error) {
 	var result controlplane.Release
-	err := adapter.request(ctx, http.MethodGet, "/v1/products/"+url.PathEscape(product)+"/releases/"+url.PathEscape(version), nil, &result)
+	err := adapter.request(ctx, http.MethodGet, adapter.withSpaceSelection("/v1/products/"+url.PathEscape(product)+"/releases/"+url.PathEscape(version)), nil, &result)
 	return result, err
 }
 
