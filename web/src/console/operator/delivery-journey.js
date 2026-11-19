@@ -437,7 +437,9 @@ export function decisionMarkup(plan, review, panel, { picker = "" } = {}) {
   if (action.phase === "success") {
     const result = action.result || {};
     const body =
-      result.kind === "conduit.plan-approval/v1" ? result.plan || {} : result;
+      result.kind === "conduit.plan-approval/v1"
+        ? result.plan || {}
+        : result.changeRequest || result;
     return `<section class="so-panel p-3 space-y-2" data-dj-panel="decide">${head}${outcomeMarkup(
       "ok",
       [

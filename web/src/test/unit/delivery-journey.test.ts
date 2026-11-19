@@ -173,6 +173,27 @@ describe("proposalMarkup", () => {
 });
 
 describe("decisionMarkup", () => {
+  it("shows the recorded rejection instead of the response envelope or awaiting Plan", () => {
+    const html = decisionMarkup(
+      null,
+      {},
+      {
+        action: {
+          phase: "success",
+          request: { summary: [["Decision", "reject"]] },
+          result: {
+            changeRequest: { id: "cr-reviewed", status: "REJECTED" },
+            plan: { id: "plan-unexecuted", status: "AWAITING_APPROVAL" },
+          },
+        },
+      },
+    );
+    expect(html).toContain("The Hub recorded the reject.");
+    expect(html).toContain("cr-reviewed is now REJECTED.");
+    expect(html).not.toContain("status unavailable");
+    expect(html).not.toContain("CANCELLED");
+  });
+
   const panel = { action: idleAction(), draft: { rationale: "reviewed" } };
 
   it("disables Approve and Reject for the author, with the reason", () => {

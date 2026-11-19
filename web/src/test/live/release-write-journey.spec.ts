@@ -240,6 +240,7 @@ test("a plan is proposed in the console and the author cannot approve it", async
   );
   await expect(decide.locator("[data-dj-review]")).toHaveCount(0);
   await expect(decide.getByRole("button", { name: "Approve" })).toBeDisabled();
+  await expect(decide.getByRole("button", { name: "Reject" })).toBeDisabled();
 });
 
 test("a second identity approves the plan in the console", async ({
@@ -623,4 +624,152 @@ test("maintenance review previews without persistence and submits only the confi
     `Change request ${receipt.changeRequestId}`,
   );
   await expect(save).toBeDisabled();
+});
+
+test("a reviewed Change Request rejection is confirmed once and retained on the real Hub", async ({
+  page,
+}) => {
+  await openWorkbench(page);
+  const team = await read<Record<string, any>>(page, "/v1/teams/reviewers");
+  await send(
+    page.request,
+    hubURL(page, "/v1/teams/reviewers"),
+    "PUT",
+    "operator",
+    {
+      ...team,
+      memberUsers: [
+        ...new Set([...(team.memberUsers ?? []), "operator", "proposer"]),
+      ],
+    },
+  );
+  const seeded = (await plans(page)).find(
+    (plan) => plan.desiredState?.environment?.id === ENVIRONMENT,
+  );
+  expect(seeded, "a real seeded desired state").toBeTruthy();
+  const fleet = await read<{
+    installations: { product: string; observedVersion: string }[];
+  }>(page, "/v1/fleet/installations?limit=200");
+  const observed = fleet.installations.find(
+    (row) => row.product === PRODUCT,
+  )?.observedVersion;
+  const version = observed === TARGET ? "0.1.0" : TARGET;
+  const catalog = await read<{
+    products: { product: string; releases: Record<string, any>[] }[];
+  }>(page, "/v1/products?limit=20");
+  const targetRelease = catalog.products
+    .find((row) => row.product === PRODUCT)
+    ?.releases.find((release) => release["version"] === version);
+  expect(
+    targetRelease,
+    "the selected version has actual catalog coordinates",
+  ).toBeTruthy();
+  const state = structuredClone(seeded!.desiredState);
+  state.releases = [
+    ...state.releases.filter(
+      (release) =>
+        !(release["product"] === PRODUCT && release["version"] === version),
+    ),
+    targetRelease!,
+  ];
+  state.environment.generation = `live-rejection-${Date.now().toString(16)}`;
+  state.entities.find((entity) => entity.name === ENTITY)!.version = version;
+  const proposed = (await send(
+    page.request,
+    hubURL(page, "/v1/plans"),
+    "POST",
+    "proposer",
+    state,
+  )) as PlanRecord;
+  expect(proposed.status).toBe("AWAITING_APPROVAL");
+  expect(proposed.changeRequestId).toBeTruthy();
+  const path = `/v1/change-requests/${proposed.changeRequestId}`;
+  type Change = {
+    id: string;
+    planId: string;
+    status: string;
+    author: { username: string };
+    reviews?: { subject: string; decision: string; rationale: string }[];
+  };
+  const pending = await read<Change>(page, path);
+  expect(pending).toMatchObject({
+    id: proposed.changeRequestId,
+    planId: proposed.id,
+    status: "PENDING_APPROVALS",
+    author: { username: "proposer" },
+  });
+  const writes: unknown[] = [];
+  page.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === `${path}/reject`
+    ) {
+      writes.push(request.postDataJSON());
+    }
+  });
+  await page.reload();
+  await openArea(page, "Releases", "Plans");
+  await page
+    .locator("#main-workspace [data-release-plan]")
+    .selectOption(proposed.id);
+  const panel = page.locator('#main-workspace [data-dj-panel="decide"]');
+  await expect(panel).toContainText(proposed.id);
+  const reject = panel.locator('[data-dj-review="reject"]');
+  await expect(reject).toBeDisabled();
+  const reason = `Reject unapproved configuration — ${proposed.id}`;
+  await panel
+    .locator('[data-dj-field="rationale"]')
+    .fill("Discard this draft rejection");
+  await reject.click();
+  await expect(panel.locator("[data-dj-request]")).toContainText(
+    `POST ${path}/reject`,
+  );
+  expect(writes).toHaveLength(0);
+  expect((await read<Change>(page, path)).status).toBe("PENDING_APPROVALS");
+  await panel.locator("[data-dj-cancel]").click();
+  await expect(panel.locator("[data-dj-confirm]")).toHaveCount(0);
+  expect(writes).toHaveLength(0);
+  await panel.locator('[data-dj-field="rationale"]').fill(reason);
+  await panel.locator('[data-dj-review="reject"]').click();
+  await expect(panel.locator("[data-dj-confirm-step]")).toContainText(
+    proposed.id,
+  );
+  await expect(panel.locator("[data-dj-confirm-step]")).toContainText(
+    ENVIRONMENT,
+  );
+  await expect(panel.locator("[data-dj-request]")).toContainText(reason);
+  expect(writes).toHaveLength(0);
+  expect((await read<Change>(page, path)).reviews ?? []).toEqual([]);
+  await panel.locator("[data-dj-confirm]").click();
+  await expect(panel.locator("[data-dj-outcome]")).toHaveAttribute(
+    "data-dj-outcome",
+    "ok",
+  );
+  await expect(panel.locator("[data-dj-outcome]")).toContainText(
+    "The Hub recorded the reject.",
+  );
+  await expect(panel.locator("[data-dj-outcome]")).toContainText("REJECTED");
+  expect(writes).toEqual([{ rationale: reason }]);
+  const rejected = await read<Change>(page, path);
+  expect(rejected).toMatchObject({
+    id: pending.id,
+    planId: proposed.id,
+    status: "REJECTED",
+    author: pending.author,
+  });
+  expect(rejected.reviews).toEqual([
+    expect.objectContaining({
+      subject: "operator",
+      decision: "REJECT",
+      rationale: reason,
+    }),
+  ]);
+  const plan = await read<PlanRecord & { cancellation?: unknown }>(
+    page,
+    `/v1/plans/${proposed.id}`,
+  );
+  expect(plan.status).toBe("AWAITING_APPROVAL");
+  expect(plan.cancellation).toBeFalsy();
+  await page.reload();
+  expect((await read<Change>(page, path)).reviews).toEqual(rejected.reviews);
 });
