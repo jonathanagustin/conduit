@@ -15,6 +15,13 @@ import (
 	graphqlports "github.com/jonathanagustin/conduit/internal/apollographql/ports"
 )
 
+// graphQLProjectionReader supplies only snapshots used by the read binder.
+// Governance and compatibility projections are supplied separately.
+type graphQLProjectionReader interface {
+	OverviewProjectionReader
+	ListBundles(context.Context, string) ([]BundleEnvelope, error)
+}
+
 // registerApolloGraphQL mounts the Apollo-shaped GraphQL interface.
 //
 // Two things are worth noting at the mount point, because they are easy to lose
@@ -33,7 +40,7 @@ import (
 func registerApolloGraphQL(
 	mux *http.ServeMux,
 	api *apolloPublicAPI,
-	repository Repository,
+	repository graphQLProjectionReader,
 	governance *GovernanceService,
 	configuration HandlerOptions,
 ) error {
