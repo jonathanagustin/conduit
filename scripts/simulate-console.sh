@@ -28,6 +28,7 @@
 #   ./scripts/simulate-console.sh                      # embedded assistant shell
 #   ./scripts/simulate-console.sh --with-workspace-git  # local Git history/fork
 #   ./scripts/simulate-console.sh --with-workspace-recorded # recorded runtime actions
+#   ./scripts/simulate-console.sh --with-notifications # disposable PostgreSQL, no delivery
 #   ./scripts/simulate-console.sh --keep               # leave the Hub running
 set -euo pipefail
 
@@ -37,6 +38,7 @@ simulate_agent=1
 with_packaging=0
 with_workspace_git=0
 with_workspace_recorded=0
+with_notifications=0
 with_planning=0
 # Which desired state to seed, and so which branch of the simulator the Agent
 # takes. Each scenario has its own spec file because their assertions contradict
@@ -60,6 +62,7 @@ while [ "$#" -gt 0 ]; do
     --with-packaging) with_packaging=1; shift ;;
     --with-workspace-git) with_workspace_git=1; shift ;;
     --with-workspace-recorded) with_workspace_recorded=1; shift ;;
+    --with-notifications) with_notifications=1; shift ;;
     --with-planning) with_planning=1; shift ;;
     *) break ;;
   esac
@@ -84,6 +87,10 @@ if [ "${with_planning}" -eq 1 ] && [ "${scenario}" != healthy ]; then
   echo "simulate: --with-planning requires the healthy scenario" >&2
   exit 2
 fi
+if [ "${with_notifications}" -eq 1 ] && [ "${scenario}" != healthy ]; then
+  echo "simulate: --with-notifications requires the healthy scenario" >&2
+  exit 2
+fi
 
 port="${CONDUIT_SIMULATION_PORT:-8099}"
 hub_url="http://127.0.0.1:${port}"
@@ -98,6 +105,9 @@ planning_repo=""
 planning_source_host=""
 packaging_pid=""
 temporal_pid=""
+postgres_engine=""
+postgres_name=""
+hub_command=()
 packaging_run=""
 evidence_dir="${CONDUIT_SIMULATION_EVIDENCE_DIR:-}"
 workspace_git_root=""
@@ -112,8 +122,12 @@ cleanup() {
       wait "${pid}" 2>/dev/null || true
     done
   fi
+  if [ -n "${postgres_name}" ]; then
+    "${postgres_engine}" logs "${postgres_name}" >"${work}/postgres.log" 2>&1 || true
+    if [ "${keep}" -eq 0 ]; then "${postgres_engine}" rm -f -v "${postgres_name}" >/dev/null 2>&1 || true; fi
+  fi
   if [ "${status}" -ne 0 ]; then
-    for log in hub agent model source packaging temporal; do
+    for log in hub agent model source packaging temporal postgres; do
       [ -s "${work}/${log}.log" ] || continue
       echo "--- ${log} log ---" >&2
       tail -40 "${work}/${log}.log" >&2
@@ -121,7 +135,7 @@ cleanup() {
   fi
   if [ -n "${evidence_dir}" ]; then
     mkdir -p "${evidence_dir}"
-    for log in hub agent model source packaging temporal; do
+    for log in hub agent model source packaging temporal postgres; do
       if [ -f "${work}/${log}.log" ]; then cp "${work}/${log}.log" "${evidence_dir}/${log}.log"; fi
     done
     if [ -f "${work}/packaging-status.json" ]; then cp "${work}/packaging-status.json" "${evidence_dir}/packaging-status.json"; fi
@@ -130,6 +144,38 @@ cleanup() {
   return "${status}"
 }
 trap cleanup EXIT
+
+# The native notification routes exist only in durable repository mode. Use
+# the same immutable PostgreSQL image as test-postgres-repository.sh and own
+# only this newly created container; never reuse a developer's database.
+if [ "${with_notifications}" -eq 1 ]; then
+  source "${repo_root}/scripts/lib/development-host.sh"
+  postgres_engine="$(conduit_container_engine)"
+  postgres_candidate="conduit-notifications-$(basename "${work}")"
+  "${postgres_engine}" run --rm --detach --name "${postgres_candidate}" \
+    --env POSTGRES_PASSWORD=conduit_test --env POSTGRES_USER=conduit --env POSTGRES_DB=conduit_test \
+    --publish 127.0.0.1::5432 \
+    postgres@sha256:a1d02e4bd40c94d3bf2bdd3678c137388e76d9efcd23c285e9429d336a834b44 >/dev/null
+  postgres_name="${postgres_candidate}"
+  postgres_ready=0
+  for _ in $(seq 1 90); do
+    if "${postgres_engine}" exec "${postgres_name}" pg_isready --username conduit --dbname conduit_test >/dev/null 2>&1; then
+      postgres_ready=$((postgres_ready + 1))
+      [ "${postgres_ready}" -ge 3 ] && break
+    else postgres_ready=0; fi
+    sleep 1
+  done
+  [ "${postgres_ready}" -ge 3 ] || { echo "simulate: notification PostgreSQL never became consistently ready" >&2; exit 1; }
+  postgres_port="$("${postgres_engine}" port "${postgres_name}" 5432/tcp | awk -F: '/127[.]0[.]0[.]1/ {print $NF; exit}')"
+  [[ "${postgres_port}" =~ ^[0-9]+$ ]] || { echo "simulate: notification PostgreSQL port is unavailable" >&2; exit 1; }
+  (umask 077; printf 'postgres://conduit:conduit_test@127.0.0.1:%s/conduit_test?sslmode=disable\n' "${postgres_port}" >"${work}/postgres-dsn")
+  # No outbound transport or credential can be inherited into this fixture.
+  hub_command=(env -u NOTIFICATION_WEBHOOK_URL -u NOTIFICATION_WEBHOOK_TIMEOUT -u NOTIFICATION_DELIVERY_LOG \
+    -u NOTIFICATION_SMTP_ADDRESS -u NOTIFICATION_SMTP_FROM -u NOTIFICATION_SMTP_USERNAME_FILE \
+    -u NOTIFICATION_SMTP_PASSWORD_FILE -u NOTIFICATION_SMTP_TLS_MODE -u NOTIFICATION_SMTP_CA_FILE \
+    -u NOTIFICATION_SLACK_TOKEN_FILE -u NOTIFICATION_NATIVE_TIMEOUT \
+    REPOSITORY_KIND=postgres "POSTGRES_DSN_FILE=${work}/postgres-dsn")
+fi
 
 # The loopback Hub must not be reached through an ambient egress proxy, which is
 # present in some development sandboxes and swallows the connection silently.
@@ -253,7 +299,7 @@ LISTEN_ADDRESS="127.0.0.1:${port}" \
   CONDUIT_MODEL_BASE_URL="http://127.0.0.1:${model_port}/v1" \
   CONDUIT_MODEL_NAME=simulated-model \
   CONDUIT_SOURCE_ALLOWED_HOSTS="${planning_source_host:-${CONDUIT_SOURCE_ALLOWED_HOSTS:-}}" \
-  "${work}/hub" >"${work}/hub.log" 2>&1 &
+  "${hub_command[@]}" "${work}/hub" >"${work}/hub.log" 2>&1 &
 hub_pid=$!
 
 for _ in $(seq 1 40); do
@@ -309,6 +355,7 @@ fi
 if [ "${keep}" -eq 1 ]; then
   echo "simulate: Hub left running at ${hub_url}/console/ (pid ${hub_pid}, data ${work})"
   echo "simulate: stop it with: kill ${hub_pid} ${agent_pid} ${model_pid} ${source_pid} ${packaging_pid} ${temporal_pid}"
+  if [ -n "${postgres_name}" ]; then echo "simulate: remove its disposable database with: ${postgres_engine} rm -f -v ${postgres_name}"; fi
   exit 0
 fi
 
@@ -323,6 +370,7 @@ if [ "${with_workspace_git}" -eq 1 ]; then
   specs="${specs/workspace-metadata.spec.ts/workspace-git.spec.ts}"
 fi
 if [ "${with_workspace_recorded}" -eq 1 ]; then specs="${specs} workspace-runtime.spec.ts"; fi
+if [ "${with_notifications}" -eq 1 ]; then specs="${specs} notification-settings.spec.ts"; fi
 if [ "${with_packaging}" -eq 1 ]; then specs="${specs} packaging-feedback.spec.ts packaging-proposal.spec.ts"; fi
 if [ "${with_planning}" -eq 1 ]; then specs="${specs} planning-cancellation.spec.ts"; fi
 for spec in ${specs}; do
@@ -333,5 +381,6 @@ done
 # shellcheck disable=SC2086 # specs is a space-separated list of file names
 CONDUIT_HUB_URL="${hub_url}/console/" CONDUIT_SIMULATED_PLAN="${plan_id}" CONDUIT_SIMULATED_PACKAGING_RUN="${packaging_run}" \
   CONDUIT_SIMULATED_WORKSPACE_RUNTIME="${workspace_runtime}" \
+  CONDUIT_SIMULATED_NOTIFICATIONS="${with_notifications}" \
   CONDUIT_SIMULATED_PLANNING_REPO="${planning_repo}" CONDUIT_SIMULATED_MODEL_ORIGIN="http://127.0.0.1:${model_port}" \
   pnpm --dir "${repo_root}/web" exec playwright test --config playwright.live.config.ts ${specs} "$@"

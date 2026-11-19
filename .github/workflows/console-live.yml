@@ -96,6 +96,12 @@ jobs:
           CONDUIT_SIMULATION_EVIDENCE_DIR: artifacts/native-console/workspace-recorded
         run: |
           ./scripts/simulate-console.sh --with-workspace-recorded --grep 'recorded workspace runtime actions' 2>&1 | tee artifacts/native-console/workspace-recorded.log
+      - name: Qualify durable notification settings
+        env:
+          CONDUIT_SIMULATION_PORT: "8129"
+          CONDUIT_SIMULATION_EVIDENCE_DIR: artifacts/native-console/notifications
+        run: |
+          ./scripts/simulate-console.sh --with-notifications --no-agent --grep 'native notification settings' 2>&1 | tee artifacts/native-console/notifications.log
       - name: Retain native journey evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
