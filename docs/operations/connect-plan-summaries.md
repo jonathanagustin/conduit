@@ -74,10 +74,12 @@ the existing one-MiB read bound. Plan detail, approve and cancel remain REST.
 
 ## Selected Space in the CLI
 
-The current Plan summary proto has no Space selector. A CLI/operator caller with
-an explicit selected Space refuses Connect before making a network request or
-emitting output; it does not silently issue an unscoped read or replay over
-REST. Select REST explicitly for Space-scoped Plan lists. That native client
-preserves the selected Space together with filters and cursor on every page.
-Adding a scoped typed selector and authorization/grouping parity remains follow-on
-contract work; this refusal is not a claim that scoped RPC is implemented.
+The unscoped summary method has no Space selector. An explicit selected Space
+with Connect uses the distinct `PlanScopedReadService/ListPlanSummariesInSpace`
+procedure and validates the echoed Space before accepting any rows. An older
+Hub that does not serve that procedure fails without output or an automatic
+unscoped/REST replay. Select REST explicitly when using an older Hub; the REST
+client retains Space and filters across all cursor pages. REST remains default.
+
+The [scoped read note](connect-plan-scoped-summaries.md) describes authorization,
+grouping and response binding. No Space membership grants Plan read authority.

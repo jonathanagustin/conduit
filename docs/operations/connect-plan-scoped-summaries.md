@@ -40,6 +40,18 @@ delegating carriers and private-field exclusion with REST; transport fixtures
 check lifecycle redaction and all-or-error mapping. These tests require executed
 runtime qualification; their presence alone is not a pass.
 
-Existing callers are unchanged in this slice. Scoped generated callers and
-operator/console migration remain #394/#823 work; unsupported Hubs must never
-trigger an automatic unscoped or REST fallback.
+With an explicit selected Space, CLI `plan list --read-transport connect` uses
+only this procedure. Unscoped Connect reads keep the existing service. The
+configured HTTP/TLS/identity client, timeout and one-MiB response bound are shared;
+filters, requested limit and cursor are retained on every page. The client binds
+the echoed Space and requires a nonnil page before processing row metadata.
+An unsupported procedure, missing/mismatched echo, mapping/refusal failure or
+cursor cycle discards the full aggregate. No unscoped or REST fallback occurs.
+REST remains default, and console caller migration remains separate.
+
+Actual Hub CLI fixtures compare 201 selected rows across two pages in
+JSON/YAML/table/CSV, with an excluded readable Environment and an ungranted
+principal. Response controls cover missing/wrong echo or page, later-page scope
+mismatch/refusal, cursor cycles and oversized responses. TLS/bearer/redirect,
+request deadline/cancellation and unsupported-Hub refusal tests cover the new
+procedure. These tests must execute before caller qualification is claimed.
