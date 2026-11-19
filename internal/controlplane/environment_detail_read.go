@@ -2,8 +2,17 @@ package controlplane
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+// ErrInvalidEnvironmentDetailInput distinguishes selection decoding failures
+// from native lifecycle errors returned by a Space authorization callback.
+var ErrInvalidEnvironmentDetailInput = errors.New("invalid Environment detail input")
+
+// ErrEnvironmentDetailUnavailable identifies only a missing native Space
+// capability, retaining lifecycle categories for callback/catalog failures.
+var ErrEnvironmentDetailUnavailable = errors.New("Environment detail unavailable")
 
 // environmentDetailSpaceError retains which existing Space boundary failed so
 // REST can keep its error-only input/configuration bodies without relabeling a
@@ -15,6 +24,18 @@ type environmentDetailSpaceError struct {
 
 func (err *environmentDetailSpaceError) Error() string { return err.err.Error() }
 func (err *environmentDetailSpaceError) Unwrap() error { return err.err }
+
+func (err *environmentDetailSpaceError) Is(target error) bool {
+	switch target {
+	case ErrInvalidEnvironmentDetailInput:
+		return err.stage == "decode"
+	case ErrEnvironmentDetailUnavailable:
+		return err.stage == "authorize" && errors.Is(err.err, ErrSpaceSelectionUnavailable) ||
+			err.stage == "membership" && errors.Is(err.err, ErrSpaceMembershipUnavailable)
+	default:
+		return false
+	}
+}
 
 // ReadAuthorizedEnvironmentDetail shares the full native REST read with wire
 // adapters. Callers authenticate the original carrier first. selectSpace is a

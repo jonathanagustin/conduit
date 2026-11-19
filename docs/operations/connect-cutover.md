@@ -26,6 +26,7 @@ including reads. A read encoded as POST is not a governed state change.
 | `GET /v1/fleet/installations` | `conduit.fleet.v1.FleetReadService/ListFleetInstallations` | Dual-served filtered Fleet projection; current CLI and console callers remain REST |
 | `GET /v1/environments?view=summary` | `conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries` | CLI `environment list --view summary --read-transport connect`; full list stays REST |
 | `GET /v1/environments/{environmentID}/reported-state` | `conduit.environments.v1.EnvironmentObservationService/GetEnvironmentReportedState` | CLI `environment reported-state --read-transport connect`; REST remains the default; failures are not replayed |
+| `GET /v1/environments/{environmentID}` | `conduit.environments.v1.EnvironmentDetailService/GetEnvironment` | Dual-served full native configuration/report read with optional Space selection; existing callers remain REST |
 | `GET /v1/authorization-audit?view=events` | `conduit.governance.v1.AuthorizationAuditReadService/ListAuthorizationAuditEvents` | Bounded dual-serve adapter; existing callers remain REST |
 | `GET /v1/notifications/events` | `conduit.notifications.v1.NotificationService/ListNotificationEvents` | Generated Audit notification client |
 
@@ -40,6 +41,10 @@ These are Conduit-native contracts. See [overview](connect-reporting-overview.md
 [Fleet installations](connect-fleet-installations.md) for their bounded behavior.
 The map does not imply that all Hub routes have RPC equivalents.
 
+[The full Environment detail contract](connect-environment-detail.md) now has
+an explicitly mounted authorized adapter. Its current callers remain REST;
+caller qualification remains #394 work.
+
 ## Remaining contracts and callers
 
 The Environment summary adapter reuses the native Environment/Space query and
@@ -48,7 +53,7 @@ records the narrow projection, presence and authority boundaries. The CLI's
 explicit summary view can select Connect; console and full Environment callers
 remain REST. #394 stays open for the remaining migration.
 
-Known follow-ons are full Environment index/detail, full Plan index/detail, change-request approve/reject,
+Known contract follow-ons are full Environment index, full Plan index/detail, change-request approve/reject,
 and audit-chain export. [Audit event reads](connect-audit-events.md) share the
 native administrator gate and pagination; caller migration remains separate. Governed packaging rerun/cancel already have REST
 routes but no methods in the current packaging proto.
