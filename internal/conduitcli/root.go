@@ -481,7 +481,7 @@ func planCommand(state *commandState) *cobra.Command {
 	approve.Flags().StringVar(&rationale, "rationale", "", "review rationale")
 	approve.Flags().StringVar(&approvalTransport, "write-transport", "rest", "Approval transport: rest (full Plan) or connect (conduit.plan-approval/v1 receipt); failures are not replayed")
 	command.AddCommand(approve)
-	var reason string
+	var reason, cancellationTransport string
 	cancel := &cobra.Command{
 		Use:   "cancel PLAN_ID",
 		Short: "Cancel a Plan before or during execution",
@@ -490,12 +490,11 @@ func planCommand(state *commandState) *cobra.Command {
 			if strings.TrimSpace(reason) == "" {
 				return fmt.Errorf("--reason is required")
 			}
-			return state.execute(command, func(service Service) (any, error) {
-				return planView(service.CancelPlan(command.Context(), args[0], reason))
-			})
+			return executePlanCancellation(command, state, args[0], reason, cancellationTransport)
 		},
 	}
 	cancel.Flags().StringVar(&reason, "reason", "", "cancellation reason")
+	cancel.Flags().StringVar(&cancellationTransport, "write-transport", "rest", "Cancellation transport: rest (full Plan) or connect (conduit.plan-cancellation/v1 receipt); failures are not replayed")
 	command.AddCommand(cancel)
 	return command
 }
