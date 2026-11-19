@@ -123,8 +123,9 @@ func TestEnvironmentCatalogConnectMatchesFullNativePagesAndDetailRecords(t *test
 func TestEnvironmentCatalogConnectAuthenticatesBeforeDecodeAndLimitsMethod(t *testing.T) {
 	store := &detailReadCounter{Repository: controlplane.NewMemoryRepository()}
 	handler := NewHubHandler(store, controlplane.HandlerOptions{AllowInsecureOperatorIdentityHeaders: true})
-	response := catalogRequest(handler, "", "", `{`)
-	if response.Code != 401 && response.Code != 403 {
+	secure := NewHubHandler(store, controlplane.HandlerOptions{})
+	response := catalogRequest(secure, "", "", `{`)
+	if response.Code != 401 {
 		t.Fatalf("anonymous decode preceded auth: %d %s", response.Code, response.Body)
 	}
 	if store.reads != 0 {
