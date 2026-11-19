@@ -377,11 +377,11 @@ func readProductManifest(path string) (productmanifest.Manifest, error) {
 		return productmanifest.Manifest{}, fmt.Errorf("open Product manifest: %w", err)
 	}
 	defer file.Close()
-	manifest, errs, err := controlplane.DecodeApolloProductManifest(file)
+	manifest, err := productmanifest.Decode(file)
 	if err != nil {
 		return productmanifest.Manifest{}, err
 	}
-	if len(errs) > 0 {
+	if errs := productmanifest.ValidatePackaging(manifest); len(errs) > 0 {
 		return productmanifest.Manifest{}, controlplane.ValidationErrors(errs)
 	}
 	return manifest, nil
