@@ -403,6 +403,7 @@ func (w *stalledWriter) Write([]byte) (int, error) {
 }
 func TestSSEStalledClientHasBoundedWriteAndReplay(t *testing.T) {
 	fixture := setup(t)
+	normalWriteWindow := fixture.handler.writeWindow
 	fixture.handler.writeWindow = 20 * time.Millisecond
 	ctx := context.WithValue(context.Background(), operatorKey{}, "alice")
 	root, err := fixture.service.Open(ctx, "")
@@ -418,6 +419,10 @@ func TestSSEStalledClientHasBoundedWriteAndReplay(t *testing.T) {
 	if elapsed := time.Since(started); elapsed > time.Second || !writer.timedOut || writer.cleared {
 		t.Fatalf("stalled write not bounded or deadline cleared before response finalization: %v %+v", elapsed, writer)
 	}
+	// The stalled-writer phase above retains its strict 20ms deadline. Replay is
+	// a separate real-network assertion and uses the ordinary transport window,
+	// rather than requiring response headers to arrive in 20ms on a loaded host.
+	fixture.handler.writeWindow = normalWriteWindow
 	srv := server(t, fixture)
 	response := connect(t, srv, "alice", cursor)
 	frame := readEvent(t, bufio.NewReader(response.Body))
