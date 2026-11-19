@@ -138,6 +138,7 @@ import {
 export function mountOperator(host, options) {
   let disposed = false;
   let disposeGlobe = () => {};
+  let disposeKit = () => {};
   const windowBindings = createMountBindings(window);
   const actions = windowBindings.bindings;
   const notifyOperator = () => {
@@ -4866,6 +4867,7 @@ export function mountOperator(host, options) {
 
   let previousScreen = "";
   function renderMainWorkspace() {
+    disposeKit();
     disposeGlobe();
     const focusedAreaTab = document.activeElement
       ?.closest("#main-workspace [data-area-tab]")
@@ -5199,7 +5201,10 @@ export function mountOperator(host, options) {
       };
     });
     const waves = wavesFromRecords(state.hub?.promotions);
-    bindKit(root, waves.pucks.length ? { pucks: waves.pucks } : null);
+    disposeKit = bindKit(
+      root,
+      waves.pucks.length ? { pucks: waves.pucks } : null,
+    );
   }
 
   function renderApp({
@@ -5356,6 +5361,7 @@ export function mountOperator(host, options) {
   renderApp();
   return () => {
     disposed = true;
+    disposeKit();
     disposeGlobe();
     engineerFocus.dispose();
     notifications.dispose();
