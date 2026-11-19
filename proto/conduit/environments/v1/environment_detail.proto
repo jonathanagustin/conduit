@@ -1,0 +1,161 @@
+syntax = "proto3";
+package conduit.environments.v1;
+
+import "conduit/environments/v1/environment_observation.proto";
+import "conduit/environments/v1/environment_summary.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/jonathanagustin/conduit/gen/go/conduit/environments/v1;environmentsv1";
+
+// EnvironmentDetailService declares the existing full native Environment read.
+// This contract is not registered until its authorized adapter is mounted.
+// It adds no approval, execution, credential or resource-grant authority.
+service EnvironmentDetailService {
+  // GetEnvironment corresponds to GET /v1/environments/{environmentID}.
+  // Preserve original-carrier resource authority before Space membership reads.
+  rpc GetEnvironment(GetEnvironmentRequest) returns (GetEnvironmentResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message GetEnvironmentRequest {
+  // Literal native identity; do not replace it with a minted or inferred ID.
+  string environment = 1;
+  // Absence is unscoped. Present empty/invalid selection remains invalid.
+  // Selection narrows existing resource access and grants none by itself.
+  optional string space_id = 2;
+}
+
+message GetEnvironmentResponse {
+  // Present on success; a missing Environment is a native not-found outcome.
+  EnvironmentRecord record = 1;
+}
+
+// EnvironmentRecord carries the existing detail read, not a desired Entity list.
+message EnvironmentRecord {
+  Environment environment = 1;
+  // Presence distinguishes no report from an observed empty report.
+  ReportedEnvironmentState reported = 2;
+  SpokeLiveness spoke = 3;
+}
+
+// Environment is raw native configuration, not effective defaults or readiness.
+message Environment {
+  string id = 1;
+  // Opaque generation; never parse it as a numeric revision.
+  string generation = 2;
+  string package_architecture = 3;
+  string connection_setting = 4;
+  string declared_state_source = 5;
+  string default_release_channel = 6;
+  map<string, string> labels = 7;
+  // Exact JSON object bytes for the native arbitrary configuration map. Do not convert numbers through protobuf Struct or wrap the whole Environment as JSON.
+  bytes config_json = 8;
+  repeated NamespaceTarget namespaces = 9;
+  ArtifactSecurityPolicy artifact_security_policy = 10;
+  ArtifactAvailabilityPolicy artifact_availability_policy = 11;
+  repeated ArtifactRegistryAssignment artifact_registries = 12;
+  repeated ExternalSecretAssignment secrets = 13;
+  bool automatic_security_recall = 14;
+  VulnerabilityUpgradePolicy vulnerability_upgrades = 15;
+  int64 auto_suppression_threshold = 16;
+  MaintenancePolicy maintenance = 17;
+  HelmExecutionDefaults helm_execution = 18;
+}
+
+// MaintenancePolicy retains configured windows and recorded overrides.
+message MaintenancePolicy {
+  WeeklyMaintenanceWindow downtime = 1;
+  WeeklyMaintenanceWindow no_downtime = 2;
+  repeated MaintenanceOverride overrides = 3;
+}
+
+// ImagePrePullPolicy retains the native default when absent; present false is an explicit opt-out.
+message ImagePrePullPolicy {
+  bool enabled = 1;
+  int64 timeout_seconds = 2;
+}
+
+message HelmExecutionDefaults {
+  string default_rollout_strategy = 1;
+  int64 install_resource_readiness_timeout_seconds = 2;
+  int64 upgrade_resource_readiness_timeout_seconds = 3;
+  ImagePrePullPolicy image_pre_pull = 4;
+}
+
+// ArtifactSecurityPolicy retains raw scan policy values without resolving freshness defaults.
+message ArtifactSecurityPolicy {
+  string required_outcome = 1;
+  int64 maximum_scan_age_seconds = 2;
+}
+
+message ArtifactAvailabilityPolicy {
+  string required_outcome = 1;
+}
+
+message VulnerabilityUpgradePolicy {
+  bool allow_recalled_for_vulnerabilities = 1;
+  int64 rescan_sla_seconds = 2;
+}
+
+// ArtifactRegistryAssignment carries references and classification, not credential material.
+message ArtifactRegistryAssignment {
+  string id = 1;
+  string url = 2;
+  string type = 3;
+  int64 revision = 4;
+  repeated string mirrors = 5;
+  string authentication = 6;
+  string credential_ref = 7;
+  string image_pull_secret_name = 8;
+}
+
+// ExternalSecretAssignment identifies Environment-side material; the Hub does not dereference it.
+message ExternalSecretAssignment {
+  string name = 1;
+  int64 revision = 2;
+  string provider_ref = 3;
+  string kubernetes_secret_name = 4;
+  repeated string keys = 5;
+}
+
+// NamespaceTarget retains native flags and installed version/configuration observations.
+message NamespaceTarget {
+  string rid = 1;
+  string name = 2;
+  string description = 3;
+  // Presence retains the distinction between absent and explicit false.
+  optional bool deletion_protected = 4;
+  string enrollment_rid = 5;
+  repeated Organization organizations = 6;
+  bool trashed = 7;
+  bool ontology_count_valid = 8;
+  map<string, InstalledTarget> installed = 9;
+}
+
+message Organization {
+  string display_name = 1;
+  string primary_hostname = 2;
+}
+
+message InstalledTarget {
+  string version = 1;
+  string config_digest = 2;
+}
+
+message WeeklyMaintenanceWindow {
+  string time_zone = 1;
+  repeated string intervals = 2;
+}
+
+// MaintenanceOverride carries recorded review metadata, not approval authority.
+message MaintenanceOverride {
+  string installation_id = 1;
+  string type = 2;
+  google.protobuf.Timestamp starts_at = 3;
+  google.protobuf.Timestamp ends_at = 4;
+  string reason = 5;
+  // Existing recorded reviewer metadata; never use it as the request principal.
+  string approved_by = 6;
+}
+

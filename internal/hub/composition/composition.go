@@ -174,6 +174,7 @@ func NewHub(
 	handler = mountProductSummaryConnect(handler, repository, options)
 	handler = mountEnvironmentSummaryConnect(handler, repository, options)
 	handler = mountEnvironmentObservationConnect(handler, repository, options)
+	handler = mountEnvironmentDetailConnect(handler, repository, options)
 	handler = mountAuthorizationAuditConnect(handler, repository, options)
 	handler = mountAdminStatus(handler, repository, options, hubOptions)
 	handler = mountAttachments(handler, repository, options, hubOptions.Attachments)
