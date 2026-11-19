@@ -12,6 +12,7 @@ import (
 
 	"go.yaml.in/yaml/v4"
 
+	"github.com/jonathanagustin/conduit/internal/apollo/productconfiguration"
 	subst "github.com/jonathanagustin/conduit/internal/apollo/substitution"
 )
 
@@ -1051,62 +1052,12 @@ func ApolloAugmentProducedDiscovery(entry ApolloDiscoveryProduces, host string) 
 	return payload, true
 }
 
-// ApolloGeneratedSecretsKey is the configuration block an override may not
-// touch.
-const ApolloGeneratedSecretsKey = "generated_secrets"
+// ApolloGeneratedSecretsKey retains the source name for the protected document block.
+const ApolloGeneratedSecretsKey = productconfiguration.GeneratedSecretsKey
 
-// MergeApolloConfigurationOverrides merges an installation's overrides onto a
-// Product's configuration. Maps merge recursively; every other kind of value,
-// lists included, is replaced wholesale, because merging two lists has no
-// meaning the Product author could have predicted.
-//
-// generated_secrets is refused rather than merged. Overwriting a generated
-// secret's declaration rotates the value under a running installation, which
-// presents as an outage or as data encrypted under a key nobody holds.
+// MergeApolloConfigurationOverrides delegates compatibility document overlay semantics.
 func MergeApolloConfigurationOverrides(base, override map[string]any) (map[string]any, error) {
-	if _, exists := override[ApolloGeneratedSecretsKey]; exists {
-		return nil, fmt.Errorf("configuration override must not set %s", ApolloGeneratedSecretsKey)
-	}
-	return mergeApolloMaps(base, override), nil
-}
-
-func mergeApolloMaps(base, override map[string]any) map[string]any {
-	merged := make(map[string]any, len(base)+len(override))
-	for key, value := range base {
-		merged[key] = value
-	}
-	for key, value := range override {
-		existing, exists := merged[key]
-		if !exists {
-			merged[key] = value
-			continue
-		}
-		existingMap, existingIsMap := apolloAsStringMap(existing)
-		valueMap, valueIsMap := apolloAsStringMap(value)
-		if existingIsMap && valueIsMap {
-			merged[key] = mergeApolloMaps(existingMap, valueMap)
-			continue
-		}
-		merged[key] = value
-	}
-	return merged
-}
-
-// apolloAsStringMap normalizes both map spellings a YAML decoder can produce, so
-// a merge does not depend on which decoder built the tree.
-func apolloAsStringMap(value any) (map[string]any, bool) {
-	switch typed := value.(type) {
-	case map[string]any:
-		return typed, true
-	case map[any]any:
-		converted := make(map[string]any, len(typed))
-		for key, child := range typed {
-			converted[fmt.Sprint(key)] = child
-		}
-		return converted, true
-	default:
-		return nil, false
-	}
+	return productconfiguration.MergeOverrides(base, override)
 }
 
 var (
