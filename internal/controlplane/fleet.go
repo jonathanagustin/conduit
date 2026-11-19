@@ -21,6 +21,13 @@ type (
 	FleetProjection   = reporting.FleetProjection
 )
 
+// FleetProjectionReader supplies only the two durable snapshots used by the
+// native Fleet projection. Commands, approvals and repository mutation are absent.
+type FleetProjectionReader interface {
+	ListPlans(context.Context, string) ([]PlanRecord, error)
+	ListEnvironmentReports(context.Context) ([]EnvironmentReport, error)
+}
+
 // BuildFleetProjection reads the fleet and hands it to Reporting.
 //
 // The reading stays here because the repository does, and the projection does
@@ -28,12 +35,12 @@ type (
 // That is the direction that keeps the dependency one-way — the monolith knows
 // about the context, and the context knows nothing about the monolith.
 func BuildFleetProjection(
-	ctx context.Context, repository Repository, query FleetQuery, now time.Time,
+	ctx context.Context, repository FleetProjectionReader, query FleetQuery, now time.Time,
 ) (FleetProjection, error) {
 	return buildFleetProjection(ctx, repository, query, now, nil)
 }
 
-func buildFleetProjection(ctx context.Context, repository Repository, query FleetQuery, now time.Time, retainEnvironment func(string) bool) (FleetProjection, error) {
+func buildFleetProjection(ctx context.Context, repository FleetProjectionReader, query FleetQuery, now time.Time, retainEnvironment func(string) bool) (FleetProjection, error) {
 	if now.IsZero() {
 		now = time.Now()
 	}
