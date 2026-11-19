@@ -42,7 +42,7 @@ func ReadAuthorizedEnvironmentSummaryPage(ctx context.Context, repository Reposi
 // listAuthorizedEnvironmentCatalogInSpace preserves the native index visibility
 // before any search, pagination, totals or summary projection. Space membership
 // narrows the result; it never grants read authority over an Environment.
-func listAuthorizedEnvironmentCatalogInSpace(ctx context.Context, repository Repository, governance *GovernanceService, principal Principal, options HandlerOptions, space indexSpace) ([]EnvironmentCatalogRecord, error) {
+func listAuthorizedEnvironmentCatalogInSpace(ctx context.Context, repository EnvironmentCatalogReader, governance *GovernanceService, principal Principal, options HandlerOptions, space indexSpace) ([]EnvironmentCatalogRecord, error) {
 	records, err := ListEnvironmentCatalog(ctx, repository)
 	if err != nil {
 		return nil, err

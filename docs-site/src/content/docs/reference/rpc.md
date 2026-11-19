@@ -51,6 +51,54 @@ message ListProductSummariesResponse {
 }
 ```
 
+## environment_catalog.proto
+
+[proto/conduit/environments/v1/environment_catalog.proto](https://github.com/jonathanagustin/conduit/blob/main/proto/conduit/environments/v1/environment_catalog.proto)
+
+```protobuf
+syntax = "proto3";
+package conduit.environments.v1;
+
+import "conduit/environments/v1/environment_detail.proto";
+
+option go_package = "github.com/jonathanagustin/conduit/gen/go/conduit/environments/v1;environmentsv1";
+
+// EnvironmentCatalogService declares the full native Environment index.
+// It reuses the full record without changing existing summary/detail services.
+// Declaration does not mount a method or grant resource/Space authority.
+service EnvironmentCatalogService {
+  // ListEnvironments corresponds to GET /v1/environments with absent/full view.
+  // Filter by original-carrier resource authority and readable Space membership
+  // before search, totals and cursor pagination. Membership grants no authority.
+  rpc ListEnvironments(ListEnvironmentsRequest) returns (ListEnvironmentsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+// ListEnvironmentsRequest selects the full projection, not summary view.
+message ListEnvironmentsRequest {
+  string search = 1;
+  string cursor = 2;
+  // Absent uses the native full-list default of 20; present must be 1 through 20.
+  // The summary index's 100/200 limits do not apply to this full-record method.
+  optional int32 limit = 3;
+  // Absence is unscoped; present empty/invalid selection remains invalid.
+  optional string space_id = 4;
+}
+
+// ListEnvironmentsResponse retains native full-record pagination metadata.
+message ListEnvironmentsResponse {
+  repeated EnvironmentRecord environments = 1;
+  // Counts only readable records matching search within the selected grouping.
+  int64 total = 2;
+  int32 page_size = 3;
+  int32 limit = 4;
+  string next_cursor = 5;
+  string previous_cursor = 6;
+  bool has_previous = 7;
+}
+```
+
 ## environment_detail.proto
 
 [proto/conduit/environments/v1/environment_detail.proto](https://github.com/jonathanagustin/conduit/blob/main/proto/conduit/environments/v1/environment_detail.proto)
