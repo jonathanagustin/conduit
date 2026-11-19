@@ -39,10 +39,13 @@ func legacyDiagnostic(err error) error {
 	result := &yaml.TypeError{Errors: append([]string(nil), typed.Errors...)}
 	for i, message := range result.Errors {
 		for current, legacy := range legacyTypeNames {
-			for _, prefix := range []string{" in type ", " into "} {
-				suffix := prefix + "productmanifest." + current
-				if strings.HasSuffix(message, suffix) {
-					result.Errors[i] = strings.TrimSuffix(message, suffix) + prefix + "controlplane." + legacy
+			for _, diagnostic := range []string{" in type ", " into "} {
+				for _, wrapper := range []string{"", "*", "[]", "map[string]"} {
+					prefix := diagnostic + wrapper
+					suffix := prefix + "productmanifest." + current
+					if strings.HasSuffix(message, suffix) {
+						result.Errors[i] = strings.TrimSuffix(message, suffix) + prefix + "controlplane." + legacy
+					}
 				}
 			}
 		}

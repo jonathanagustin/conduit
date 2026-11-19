@@ -87,6 +87,8 @@ func TestStrictBoundaryAndLegacyDiagnostics(t *testing.T) {
 		{"unknown: true\n", "field unknown not found in type controlplane.ApolloProductManifest"},
 		{"extensions:\n  helm-chart:\n    unknown: true\n", "field unknown not found in type controlplane.ApolloManifestHelmChart"},
 		{"[one, two]\n", "into controlplane.ApolloProductManifest"},
+		{"extensions:\n  artifacts: wrong\n", "into []controlplane.ApolloManifestArtifact"},
+		{"extensions:\n  volumes-v2: wrong\n", "into map[string]controlplane.ApolloManifestVolume"},
 		{"extensions:\n  volumes-v2:\n    data:\n      volume-type:\n        durable-volume:\n          unknown: true\n", "field unknown not found in type controlplane.ApolloDurableVolume"},
 	} {
 		_, err := Decode(strings.NewReader(tt.input))
