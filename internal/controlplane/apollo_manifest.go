@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/apollo/productmanifest"
+	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 )
 
 // ApolloProductManifest preserves source callers while the document lives at its compatibility boundary.
@@ -178,21 +179,9 @@ func ExecutableReleaseFromApolloManifest(manifest ApolloProductManifest) (Releas
 	return release, nil
 }
 
+// artifactFromImmutableOCIReference retains the shared Product-import entry point.
 func artifactFromImmutableOCIReference(reference string) (Artifact, bool) {
-	reference = strings.TrimPrefix(strings.TrimSpace(reference), "oci://")
-	parts := strings.Split(reference, "@")
-	if len(parts) != 2 || !digestPattern.MatchString(parts[1]) {
-		return Artifact{}, false
-	}
-	colon, slash := strings.LastIndex(parts[0], ":"), strings.LastIndex(parts[0], "/")
-	if colon <= slash || colon == len(parts[0])-1 {
-		return Artifact{}, false
-	}
-	artifact := Artifact{Repository: parts[0][:colon], Tag: parts[0][colon+1:], Digest: parts[1]}
-	if artifact.Repository == "" || artifact.Tag == "latest" {
-		return Artifact{}, false
-	}
-	return artifact, true
+	return catalog.ParseImmutableArtifactReference(reference)
 }
 
 func validateApolloManifestRange(path, minimum, maximum string, required bool, errs *[]ValidationError) {
