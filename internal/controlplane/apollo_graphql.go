@@ -2,13 +2,10 @@ package controlplane
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
-	apollo "github.com/jonathanagustin/conduit/internal/apollo"
-	apolloapp "github.com/jonathanagustin/conduit/internal/apollo/application"
-
 	"github.com/jonathanagustin/conduit/internal/apollographql/adapters/authorizedprojection"
+	"github.com/jonathanagustin/conduit/internal/apollographql/adapters/compatibilityprojection"
 	"github.com/jonathanagustin/conduit/internal/apollographql/adapters/httpgraphql"
 	"github.com/jonathanagustin/conduit/internal/apollographql/adapters/nativegrouping"
 	graphqlapp "github.com/jonathanagustin/conduit/internal/apollographql/application"
@@ -114,69 +111,5 @@ func apolloProjectionOrNil(ctx context.Context, api *apolloPublicAPI) graphqlpor
 	if api == nil || api.application == nil {
 		return nil
 	}
-	return apolloProjectionAdapter{ctx: ctx, service: api.application}
-}
-
-// apolloProjectionAdapter translates the Apollo application's error kinds into
-// the one distinction the GraphQL port draws: a record that is absent, versus a
-// failure to answer.
-//
-// It exists because the two contexts spell "not found" differently and neither
-// should learn the other's spelling. The port declares ErrRecordNotFound; the
-// Apollo application declares Error{Kind: NotFound}; this is the composition
-// point that already binds them, so it is where the translation belongs.
-//
-// Everything that is not a not-found passes through unchanged, so the resolver
-// propagates it. That is the direction that matters: before this, the resolver
-// turned every error into a null, and a store that was down was served as an
-// environment that does not exist.
-// The request's context is carried on the struct because the GraphQL projection
-// port takes none and the resolver has none to give: the reads it fronts now
-// reach the repository, and a query the client abandoned should not outlive it.
-// The projection is already bound per request, so this is the context of the
-// request being answered and not a longer-lived one.
-type apolloProjectionAdapter struct {
-	ctx     context.Context
-	service *apolloapp.Service
-}
-
-func (adapter apolloProjectionAdapter) ListEnvironments() (apollo.ListEnvironmentsResponse, error) {
-	return adapter.service.ListEnvironments(adapter.ctx)
-}
-
-func (adapter apolloProjectionAdapter) ListInstallations(rid string) (apollo.ListInstallationsResponse, error) {
-	return adapter.service.ListInstallations(adapter.ctx, rid)
-}
-
-func (adapter apolloProjectionAdapter) ListProducts() (apollo.ListProductsResponse, error) {
-	return adapter.service.ListProducts(), nil
-}
-
-func (adapter apolloProjectionAdapter) ListReleases(product string) (apollo.ListReleasesResponse, error) {
-	return adapter.service.ListReleases(adapter.ctx, product)
-}
-
-func (adapter apolloProjectionAdapter) GetEnvironment(rid string) (apollo.Environment, error) {
-	value, err := adapter.service.GetEnvironment(adapter.ctx, rid)
-	return value, apolloProjectionError(err)
-}
-
-func (adapter apolloProjectionAdapter) GetProduct(product string) (apollo.Product, error) {
-	value, err := adapter.service.GetProduct(product)
-	return value, apolloProjectionError(err)
-}
-
-func (adapter apolloProjectionAdapter) GetRelease(product, version string) (apollo.Release, error) {
-	value, err := adapter.service.GetRelease(adapter.ctx, product, version)
-	return value, apolloProjectionError(err)
-}
-
-func apolloProjectionError(err error) error {
-	if err == nil {
-		return nil
-	}
-	if apolloapp.IsKind(err, apolloapp.NotFound) {
-		return fmt.Errorf("%w: %s", graphqlports.ErrRecordNotFound, err.Error())
-	}
-	return err
+	return compatibilityprojection.New(ctx, api.application)
 }
