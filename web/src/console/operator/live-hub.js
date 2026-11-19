@@ -1704,7 +1704,7 @@ export function renderLiveProposal(root, state) {
           state.hub = state.hub || {};
           state.hub.modelProposal = {
             error:
-              body.error || "The local model CLI did not return a proposal.",
+              body.error || "The configured model did not return a proposal.",
           };
         } else {
           state.hub.modelProposal = body;
@@ -1712,7 +1712,7 @@ export function renderLiveProposal(root, state) {
         renderLiveProposal(root, state);
       } catch {
         if (error)
-          error.textContent = "The local model CLI did not return a proposal.";
+          error.textContent = "The configured model did not return a proposal.";
       }
     });
   });

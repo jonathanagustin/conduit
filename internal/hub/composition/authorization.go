@@ -561,7 +561,7 @@ func HubRouteAuthorization() []RouteAuthorization {
 		{Pattern: "POST /v1/app-generations",
 			Decision: DecisionOperatorSelf, Detail: "requireOperatorPrincipal; stores the generation under that operator, runs the gates, and does not approve; there is no shared catalog"},
 		{Pattern: "POST /v1/packaging-runs/{runID}/model-proposal",
-			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; asks the configured local model CLI for one proposal, then the packaging gate, and does not approve"},
+			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal plus recorded target Environment ReadResource; unreadable targets are not found before configured model dispatch; packaging gate and separate human review remain required"},
 		{Pattern: "POST /v1/assistant/tools",
 			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; runs one bounded tool, validates and audits it, and requires explicit confirmation for writes; an eligible human approval dispatches only the exact bound supported action"},
 		{Pattern: "POST /v1/mcp",

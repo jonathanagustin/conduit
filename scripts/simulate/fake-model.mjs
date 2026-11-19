@@ -21,6 +21,8 @@ const ROUND = /Round \d+ of this turn: your reply and the tool results/;
 // a real cancelled HTTP call; the production model transport is unchanged.
 const planningRepo = process.env.CONDUIT_SIMULATION_PLANNING_REPO || "";
 const planning = { started: 0, active: 0, disconnected: 0, expired: 0 };
+const packagingRun = process.env.CONDUIT_SIMULATION_PACKAGING_RUN || "";
+const packaging = { calls: 0 };
 
 function reply(prompt) {
   if (!ROUND.test(prompt))
@@ -55,6 +57,12 @@ const server = http.createServer((request, response) => {
     )
       return send(200, planning);
     if (
+      packagingRun &&
+      request.method === "GET" &&
+      request.url === "/packaging-fixture"
+    )
+      return send(200, packaging);
+    if (
       request.method !== "POST" ||
       !request.url?.endsWith("/chat/completions")
     )
@@ -84,6 +92,24 @@ const server = http.createServer((request, response) => {
       });
       return;
     }
+    let proposal;
+    if (
+      packagingRun &&
+      prompt.includes(`Packaging run: ${packagingRun}\n`) &&
+      prompt.includes("memory limit must not exceed 1Gi")
+    ) {
+      packaging.calls++;
+      if (packaging.calls >= 3)
+        return send(503, {
+          error: { message: "Fixture provider unavailable" },
+        });
+      proposal = {
+        field: "memory",
+        value: packaging.calls === 1 ? "512Mi" : "2Gi",
+        rationale:
+          "Recorded fixture proposal; separate human review is required.",
+      };
+    }
     // Long enough that a browser sees the tool call before the answer.
     setTimeout(
       () =>
@@ -97,7 +123,7 @@ const server = http.createServer((request, response) => {
               finish_reason: "stop",
               message: {
                 role: "assistant",
-                content: JSON.stringify(reply(prompt)),
+                content: JSON.stringify(proposal || reply(prompt)),
               },
             },
           ],

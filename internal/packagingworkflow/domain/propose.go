@@ -20,9 +20,9 @@ const MemoryCeilingMiB = 1024
 const MemoryGateRule = "memory limit must not exceed 1Gi"
 
 var (
-	ErrModelUnavailable = errors.New("local model CLI is not configured")
-	ErrModelTimeout     = errors.New("local model CLI timed out")
-	ErrModelFailed      = errors.New("local model CLI failed")
+	ErrModelUnavailable = errors.New("model is not configured")
+	ErrModelTimeout     = errors.New("model call timed out")
+	ErrModelFailed      = errors.New("model call failed")
 	ErrProposalInvalid  = errors.New("proposal is not valid")
 )
 

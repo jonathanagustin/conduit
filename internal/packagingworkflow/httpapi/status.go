@@ -41,7 +41,7 @@ type Reader interface {
 type Authorize func(*http.Request) error
 
 // Config is the route's dependencies. Visible is the per-row check for the
-// index and the history. Permit is the governance decision for cancel and
+// index, history and model target. Permit is the governance decision for cancel and
 // rerun. The single-run route stays any authenticated operator.
 type Config struct {
 	Reader       Reader

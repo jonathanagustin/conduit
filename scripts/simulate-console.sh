@@ -207,7 +207,7 @@ if [ "${with_planning}" -eq 1 ]; then
   curl -fsS --noproxy '*' --max-time 2 "${planning_repo}/HEAD" >"${work}/source-head.txt"
   grep -qx 'ref: refs/heads/main' "${work}/source-head.txt"
 fi
-CONDUIT_SIMULATION_PLANNING_REPO="${planning_repo}" node "${repo_root}/scripts/simulate/fake-model.mjs" "${model_port}" >"${work}/model.log" 2>&1 &
+CONDUIT_SIMULATION_PLANNING_REPO="${planning_repo}" CONDUIT_SIMULATION_PACKAGING_RUN="${packaging_run}" node "${repo_root}/scripts/simulate/fake-model.mjs" "${model_port}" >"${work}/model.log" 2>&1 &
 model_pid=$!
 for _ in $(seq 1 40); do
   grep -q "listening" "${work}/model.log" 2>/dev/null && break
@@ -311,7 +311,7 @@ esac
 if [ "${with_workspace_git}" -eq 1 ]; then
   specs="${specs/workspace-metadata.spec.ts/workspace-git.spec.ts}"
 fi
-if [ "${with_packaging}" -eq 1 ]; then specs="${specs} packaging-feedback.spec.ts"; fi
+if [ "${with_packaging}" -eq 1 ]; then specs="${specs} packaging-feedback.spec.ts packaging-proposal.spec.ts"; fi
 if [ "${with_planning}" -eq 1 ]; then specs="${specs} planning-cancellation.spec.ts"; fi
 for spec in ${specs}; do
   [ -f "${repo_root}/web/src/test/live/${spec}" ] ||
