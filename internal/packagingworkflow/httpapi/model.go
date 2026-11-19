@@ -101,5 +101,11 @@ func modelRunEnvironment(cfg Config, writer http.ResponseWriter, request *http.R
 		writeError(writer, http.StatusConflict, "recorded packaging target is unavailable; no proposal was requested")
 		return "", false
 	}
+	// Model dispatch can disclose recorded facts and open a pending change.
+	// Reuse catalog/history visibility on this exact snapshot before either.
+	if !cfg.allows(request, run.TargetPlanRef) {
+		writeError(writer, http.StatusNotFound, "packaging run not found")
+		return "", false
+	}
 	return environment, true
 }

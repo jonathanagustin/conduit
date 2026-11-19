@@ -241,7 +241,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `POST /v1/offline-bundles` | `operator-grant` | No native schema |
 | `POST /v1/packaging-runs/{runID}/cancel` | `operator-grant` | [docs/operations/packaging-runs.openapi.yaml](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/packaging-runs.openapi.yaml) |
 | `POST /v1/packaging-runs/{runID}/feedback` | `operator-any` | No native schema |
-| `POST /v1/packaging-runs/{runID}/model-proposal` | `operator-any` | No native schema |
+| `POST /v1/packaging-runs/{runID}/model-proposal` | `operator-grant` | No native schema |
 | `POST /v1/packaging-runs/{runID}/rerun` | `operator-grant` | [docs/operations/packaging-runs.openapi.yaml](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/packaging-runs.openapi.yaml) |
 | `POST /v1/planning-sessions` | `operator-self` | [api/planning-sessions.yaml](https://github.com/jonathanagustin/conduit/blob/main/api/planning-sessions.yaml) |
 | `POST /v1/planning-sessions/{sessionID}/accept` | `operator-self` | [api/planning-sessions.yaml](https://github.com/jonathanagustin/conduit/blob/main/api/planning-sessions.yaml) |

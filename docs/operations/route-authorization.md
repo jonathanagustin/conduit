@@ -330,3 +330,19 @@ response; it cannot be replaced with invented progress. Anonymous requests get
 401 and authenticated callers lacking stream eligibility get 403 before source
 reads or subscriber allocation. See [live-event delivery](live-event-delivery-journal.md)
 for replica ownership, source polling, replay and remaining coverage limits.
+
+## Packaging model dispatch
+
+`POST /v1/packaging-runs/{runID}/model-proposal` requires an authenticated
+operator and `ReadResource` on the Environment in the recorded run's target.
+The same visibility hook filters the packaging catalog and history. Missing
+visibility or an unreadable target returns 404 before model dispatch, attachment
+resolution, or pending change creation. The target and author come from the
+recorded snapshot and authenticated request; the caller cannot override them.
+The legacy single-run detail route remains authenticated-only.
+
+The configured HTTP model proposes a memory value. The deterministic 1Gi gate
+blocks oversized values; a passing proposal opens a change request held for
+separate human review. Neither outcome approves or advances the packaging run.
+The native console simulation uses a scripted HTTP provider and a recorded
+Temporal fixture; it does not qualify model quality or deployment execution.

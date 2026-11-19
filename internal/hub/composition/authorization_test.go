@@ -684,6 +684,10 @@ func seedFixture(t *testing.T, handler http.Handler, repository controlplane.Rep
 // entry is a route whose refusal this test does not witness -- and the floor
 // above fails if the list grows past a quarter of the surface.
 var refusedBeforeTheDecision = map[string]int{
+	// This matrix has no packaging run reader. A real unreadable target is
+	// separately covered before model dispatch by the model HTTP tests and
+	// the native packaging-proposal browser journey.
+	"POST /v1/packaging-runs/{runID}/model-proposal": http.StatusNotFound,
 	// The record in the path does not exist.
 	"GET /v1/module-installations/{installationID}/update":            http.StatusNotFound,
 	"GET /v1/plans/{planID}":                                          http.StatusNotFound,

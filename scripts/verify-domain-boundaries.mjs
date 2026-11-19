@@ -92,8 +92,8 @@ for (const path of filesBelow(join(root, "internal"))) {
 // The CLI owns document input and must use the owning manifest validator.
 // Native lifecycle errors and Environment types still legitimately use the facade.
 const cliWorkflow = readFileSync(join(root, "internal/conduitcli/workflow.go"), "utf8");
-if (/\bcontrolplane\.ValidateApolloProductManifest\s*\(/.test(cliWorkflow)) {
-  failures.push("CLI Helm initializer re-enters the legacy manifest validator delegate");
+if (/\bcontrolplane\.(?:DecodeApolloProductManifest|ValidateApolloProductManifest)\s*\(/.test(cliWorkflow)) {
+  failures.push("CLI Product reader or Helm initializer re-enters the legacy manifest codec or validator delegate");
 }
 const cliDefinition = readFileSync(join(root, "internal/conduitcli/product_release_commands.go"), "utf8");
 if (/\bcontrolplane\.(?:ApolloProductDefinition|DecodeApolloProductDefinitionWithTemplates)\b/.test(cliDefinition)) {
@@ -101,6 +101,10 @@ if (/\bcontrolplane\.(?:ApolloProductDefinition|DecodeApolloProductDefinitionWit
 }
 const apolloAdapter = readFileSync(join(root, "internal/controlplane/apollo_openapi_adapter.go"), "utf8");
 const cliSettings = readFileSync(join(root, "internal/conduitcli/apollo_coverage_commands.go"), "utf8");
+const cliArchive = readFileSync(join(root, "internal/conduitcli/product_tgz.go"), "utf8");
+if (/\bcontrolplane\.(?:DecodeApolloProductManifest|ValidateApolloProductManifest)\s*\(/.test(cliArchive)) {
+  failures.push("CLI Product archive reader re-enters the legacy manifest codec or validator delegate");
+}
 if (/\bcontrolplane\.(?:DecodeApolloEnvironmentSettings|EncodeApolloEnvironmentSettings)\b/.test(cliSettings)) {
   failures.push("CLI settings reader re-enters the legacy settings codec delegate");
 }

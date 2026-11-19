@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jonathanagustin/conduit/internal/apollo/productmanifest"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"go.yaml.in/yaml/v4"
 )
@@ -169,11 +170,11 @@ func decodeHelmProductTGZ(archivePath string) (controlplane.HelmProductReleaseBu
 	if !manifestPresent || !valuesPresent {
 		return controlplane.HelmProductReleaseBundle{}, errors.New("Product TGZ requires deployment/manifest.yml and deployment/values.yaml")
 	}
-	manifest, errs, err := controlplane.DecodeApolloProductManifest(bytes.NewReader(manifestBytes))
+	manifest, err := productmanifest.Decode(bytes.NewReader(manifestBytes))
 	if err != nil {
 		return controlplane.HelmProductReleaseBundle{}, err
 	}
-	if len(errs) > 0 {
+	if errs := productmanifest.ValidatePackaging(manifest); len(errs) > 0 {
 		return controlplane.HelmProductReleaseBundle{}, controlplane.ValidationErrors(errs)
 	}
 	if root != manifest.ProductName+"-"+manifest.ProductVersion {
