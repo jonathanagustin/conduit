@@ -137,6 +137,7 @@ import {
 
 export function mountOperator(host, options) {
   let disposed = false;
+  let omnibarFocusTimer;
   let disposeGlobe = () => {};
   let disposeKit = () => {};
   const windowBindings = createMountBindings(window);
@@ -4557,8 +4558,11 @@ export function mountOperator(host, options) {
     state.cmdSelectedIdx = 0;
     state.cmdCategory = "All";
     renderConduitModals();
-    setTimeout(() => {
-      const el = document.getElementById("conduit-omnibar-inp");
+    clearTimeout(omnibarFocusTimer);
+    omnibarFocusTimer = setTimeout(() => {
+      omnibarFocusTimer = undefined;
+      if (disposed || !state.cmdOmnibarOpen || !host.isConnected) return;
+      const el = host.querySelector("#conduit-omnibar-inp");
       if (el) el.focus();
     }, 20);
   }
@@ -5174,6 +5178,8 @@ export function mountOperator(host, options) {
   renderApp();
   return () => {
     disposed = true;
+    clearTimeout(omnibarFocusTimer);
+    omnibarFocusTimer = undefined;
     disposeCopyButtons();
     disposeKit();
     disposeGlobe();
