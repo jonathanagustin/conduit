@@ -133,3 +133,117 @@ test("planning Stop cancels the exact native owner turn and another actor cannot
   expect(recorded.plan).toEqual(initial.plan);
   expect(recorded.inspection).toEqual(initial.inspection);
 });
+
+test("planning intake creates the exact native session through the browser composer", async ({
+  page,
+}, testInfo) => {
+  await page.goto("./#s01-intake");
+  const origin = new URL(page.url()).origin;
+  const flow = page.locator("#main-workspace [data-plan-flow]");
+  const fixture = async () => {
+    const response = await page.request.get(`${modelOrigin}/planning-fixture`);
+    expect(response.ok()).toBe(true);
+    return response.json();
+  };
+  const before = await fixture();
+  expect(before.active).toBe(0);
+  expect(before.expired).toBe(0);
+  const creates: unknown[] = [];
+  page.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/v1/planning-sessions"
+    )
+      creates.push(request.postDataJSON());
+  });
+  await expect(flow.getByLabel("Repository URL")).toBeEnabled();
+  await flow
+    .getByLabel("Message", { exact: true })
+    .fill("Inspect the reviewed fixture source.");
+  await flow.locator("[data-plan-send]").click();
+  await expect(flow.locator("[data-plan-error]")).toContainText(
+    "Enter a repository URL and a ref.",
+  );
+  expect(creates).toEqual([]);
+  expect(await fixture()).toEqual(before);
+  await flow.getByLabel("Repository URL").fill(repository);
+  await flow.getByLabel("Ref", { exact: true }).fill("reviewed-ref");
+  const createdResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/v1/planning-sessions",
+  );
+  const running = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/v1/agent-runs",
+  );
+  await flow.locator("[data-plan-send]").click();
+  const created = await createdResponse;
+  expect(created.status()).toBe(201);
+  const initial = await created.json();
+  expect(initial.id).toBeTruthy();
+  expect(initial.intake).toMatchObject({
+    repoUrl: repository,
+    ref: "reviewed-ref",
+  });
+  expect(creates).toEqual([{ repoUrl: repository, ref: "reviewed-ref" }]);
+  const input = (await running).postDataJSON();
+  expect(input.threadId).toBe(initial.id);
+  expect(input.runId).toMatch(/^[0-9a-f-]{36}$/);
+  const sessionPath = `${origin}/v1/planning-sessions/${encodeURIComponent(initial.id)}`;
+  const peer = await page.request.get(sessionPath, {
+    headers: { "X-Platform-Subject": "proposer" },
+  });
+  expect(peer.status()).toBe(404);
+  await expect(flow.getByLabel("Repository URL")).toHaveValue(repository);
+  await expect(flow.getByLabel("Ref", { exact: true })).toHaveValue(
+    "reviewed-ref",
+  );
+  await expect(flow.getByLabel("Repository URL")).toBeDisabled();
+  await expect
+    .poll(async () => (await fixture()).active, { timeout: 20_000 })
+    .toBe(1);
+  const cancelPath = `${sessionPath}/turns/${encodeURIComponent(input.runId)}/cancel`;
+  const acknowledged = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" && response.url() === cancelPath,
+  );
+  await flow.locator("[data-plan-stop]").click();
+  const stopped = await acknowledged;
+  expect(stopped.ok(), await stopped.text()).toBe(true);
+  const receipt = await stopped.json();
+  expect(receipt).toMatchObject({
+    runId: input.runId,
+    valueTier: "CONDUIT_NATIVE",
+  });
+  expect(["cancellation_requested", "cancelled"]).toContain(receipt.state);
+  await expect
+    .poll(async () => (await fixture()).disconnected)
+    .toBe(before.disconnected + 1);
+  expect(await fixture()).toEqual({
+    started: before.started + 1,
+    active: 0,
+    disconnected: before.disconnected + 1,
+    expired: before.expired,
+  });
+  const readback = await page.request.get(sessionPath);
+  expect(readback.ok()).toBe(true);
+  const recorded = await readback.json();
+  expect(recorded.id).toBe(initial.id);
+  expect(recorded.intake).toEqual(initial.intake);
+  expect(recorded.plan).toEqual(initial.plan);
+  expect(recorded.binding).toEqual(initial.binding);
+  expect(recorded.computeReceipt).toEqual(initial.computeReceipt);
+  await page.goto(`./#s01-intake/${encodeURIComponent(initial.id)}`);
+  await expect(flow.getByLabel("Repository URL")).toHaveValue(repository);
+  await expect(flow.getByLabel("Ref", { exact: true })).toHaveValue(
+    "reviewed-ref",
+  );
+  await testInfo.attach("native-planning-intake-receipts", {
+    contentType: "application/json",
+    body: Buffer.from(
+      JSON.stringify({ initial, input, receipt, recorded, creates }, null, 2),
+    ),
+  });
+});
