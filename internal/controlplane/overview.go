@@ -42,10 +42,20 @@ const (
 // shown, and neither means there is nothing in it.
 var errOverviewPanelUnavailable = errors.New("overview panel unavailable to this reader")
 
+// OverviewProjectionReader is the snapshot capability used by Reporting.
+// Governance is supplied separately; no commands or leases belong in this port.
+type OverviewProjectionReader interface {
+	ListPlans(context.Context, string) ([]PlanRecord, error)
+	GetChangeRequest(context.Context, string) (ChangeRequest, error)
+	ListChangeRequests(context.Context, string) ([]ChangeRequest, error)
+	ListEnvironmentReports(context.Context) ([]EnvironmentReport, error)
+	ListPromotions(context.Context, string) ([]PromotionRecord, error)
+}
+
 // overviewSource answers Reporting's port over the repository, filtering every
 // record by what this principal may read.
 type overviewSource struct {
-	repository    Repository
+	repository    OverviewProjectionReader
 	governance    *GovernanceService
 	principal     Principal
 	configuration HandlerOptions
@@ -164,7 +174,7 @@ func (source *overviewSource) VisiblePromotions(ctx context.Context) ([]reportin
 // Reporting.
 func BuildOverviewProjection(
 	ctx context.Context,
-	repository Repository,
+	repository OverviewProjectionReader,
 	governance *GovernanceService,
 	principal Principal,
 	configuration HandlerOptions,
@@ -180,7 +190,7 @@ func BuildOverviewProjection(
 // Reporting's port comment warns against.
 func newOverviewSource(
 	ctx context.Context,
-	repository Repository,
+	repository OverviewProjectionReader,
 	governance *GovernanceService,
 	principal Principal,
 	configuration HandlerOptions,
