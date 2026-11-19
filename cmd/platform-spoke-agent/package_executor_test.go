@@ -136,3 +136,26 @@ func TestUnconfiguredSpokeRunsHelmAndBlocksPackages(t *testing.T) {
 		t.Fatalf("package step on an unconfigured Spoke: %v (helm applied %d)", err, helm.applied)
 	}
 }
+
+func TestPackageExecutorUDSPackageStatusIsExplicitAndReadOnly(t *testing.T) {
+	for _, value := range []string{"", "false", "true", " true "} {
+		environment := map[string]string{"PACKAGE_EXECUTOR_ENABLED": "true", "PACKAGE_PUBLISHER_CERTIFICATE_ISSUER": testIssuer, "PACKAGE_PUBLISHER_CERTIFICATE_IDENTITY": testIdentity, "UDS_REQUIRE_PACKAGE_STATUS": value}
+		configured, err := packageExecutorFromEnvironment(environmentOf(environment))
+		if err != nil {
+			t.Fatal(err)
+		}
+		executor := configured.(uds.Executor)
+		if executor.RequirePackageStatus != (strings.TrimSpace(value) == "true") || executor.PackageManifestPath != "" {
+			t.Fatalf("status option changed mutation configuration: %+v", executor)
+		}
+	}
+	for _, value := range []string{"yes", "TRUE", "1"} {
+		configured, err := packageExecutorFromEnvironment(environmentOf(map[string]string{"PACKAGE_EXECUTOR_ENABLED": "true", "PACKAGE_PUBLISHER_CERTIFICATE_ISSUER": testIssuer, "PACKAGE_PUBLISHER_CERTIFICATE_IDENTITY": testIdentity, "UDS_REQUIRE_PACKAGE_STATUS": value}))
+		if err == nil || configured != nil || !strings.Contains(err.Error(), "UDS_REQUIRE_PACKAGE_STATUS") {
+			t.Fatalf("invalid status switch accepted: %v %v", configured, err)
+		}
+	}
+	if configured, err := packageExecutorFromEnvironment(environmentOf(map[string]string{"UDS_REQUIRE_PACKAGE_STATUS": "true"})); err == nil || configured != nil {
+		t.Fatal("status setting silently enabled or configured a disabled executor")
+	}
+}
