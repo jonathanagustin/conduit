@@ -36,6 +36,11 @@ func DecodeApolloEnvironmentSettings(contents string) (ApolloEnvironmentSettings
 	return settingsshape.Decode(contents)
 }
 
+// validateApolloEnvironmentSettings retains the internal call site during extraction.
+func validateApolloEnvironmentSettings(settings ApolloEnvironmentSettings) ValidationErrors {
+	return settingsshape.Validate(settings)
+}
+
 // EncodeApolloEnvironmentSettings retains the legacy entry point for the codec.
 func EncodeApolloEnvironmentSettings(settings ApolloEnvironmentSettings) (string, error) {
 	return settingsshape.Encode(settings)
