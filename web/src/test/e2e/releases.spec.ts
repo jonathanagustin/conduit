@@ -218,12 +218,9 @@ test("an index past the read bound lists what was read and says more exist", asy
     return route.fulfill({ json: {} });
   });
   await hydrate(page);
-  await page.goto("/console/");
-  await page.evaluate(() =>
-    (window as unknown as { switchScreen: (id: string) => void }).switchScreen(
-      "s16-approvals-board",
-    ),
-  );
+  // Enter through the supported route; React may not have mounted the legacy
+  // action exports when the document's load event fires.
+  await page.goto("/console/#s16-approvals-board");
   const board = page.locator("[data-approvals-board]");
   await expect(board).toContainText("Needs review · 20");
   await expect(board).toContainText("bulk-plan-0-19");

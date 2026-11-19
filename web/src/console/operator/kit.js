@@ -579,14 +579,30 @@ export function areaObject(hub, screen, selection = {}) {
   return null;
 }
 
-export function bindKit(root, store) {
+export function bindKit(root, store, platform = window) {
+  let active = true;
+  const removals = [];
+  let stopDrag = () => {};
+  const listen = (target, type, handler, options) => {
+    target.addEventListener(type, handler, options);
+    removals.push(() => target.removeEventListener(type, handler, options));
+  };
+  const dispose = () => {
+    if (!active) return;
+    active = false;
+    stopDrag();
+    for (const remove of removals) remove();
+    removals.length = 0;
+  };
   const frame = root.querySelector("[data-lineage]");
   if (frame) {
     let scale = 1;
     const svg = frame.querySelector("svg");
-    frame.addEventListener(
+    listen(
+      frame,
       "wheel",
       (event) => {
+        if (!active) return;
         event.preventDefault();
         scale = Math.min(
           2.4,
@@ -597,13 +613,17 @@ export function bindKit(root, store) {
       { passive: false },
     );
   }
-  if (!store) return;
+  if (!store) return dispose;
   root.querySelectorAll("[data-puck]").forEach((puckEl) => {
-    puckEl.addEventListener("pointerdown", (event) => {
+    listen(puckEl, "pointerdown", (event) => {
+      if (!active) return;
+      stopDrag();
       const id = puckEl.getAttribute("data-puck");
       const origin = event.clientX;
       const start = Number(puckEl.getAttribute("data-start"));
+      let dragging = true;
       const move = (ev) => {
+        if (!active || !dragging) return;
         store.pucks = movePuck(
           store.pucks,
           id,
@@ -616,11 +636,17 @@ export function bindKit(root, store) {
         puckEl.setAttribute("data-start", String(next.startHourUtc));
       };
       const up = () => {
-        window.removeEventListener("pointermove", move);
-        window.removeEventListener("pointerup", up);
+        dragging = false;
+        platform.removeEventListener("pointermove", move);
+        platform.removeEventListener("pointerup", up);
+        platform.removeEventListener("pointercancel", up);
+        if (stopDrag === up) stopDrag = () => {};
       };
-      window.addEventListener("pointermove", move);
-      window.addEventListener("pointerup", up);
+      stopDrag = up;
+      platform.addEventListener("pointermove", move);
+      platform.addEventListener("pointerup", up);
+      platform.addEventListener("pointercancel", up);
     });
   });
+  return dispose;
 }
