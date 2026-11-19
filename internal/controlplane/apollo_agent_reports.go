@@ -23,7 +23,7 @@ type apolloAgentReportStore interface {
 	updateApolloAgentReports(context.Context, string, apolloAgentReportOperation) error
 }
 
-func (port apolloReportingPort) UpdateAgentReports(ctx context.Context, environment string, patch apolloapp.AgentReportPatch, project func(apolloapp.AgentReportSnapshot) (*environments.Report, error)) error {
+func (port environmentReportingProjectionPort) UpdateAgentReports(ctx context.Context, environment string, patch apolloapp.AgentReportPatch, project func(apolloapp.AgentReportSnapshot) (*environments.Report, error)) error {
 	if !dnsLabelPattern.MatchString(environment) {
 		return ErrNotFound
 	}
@@ -56,7 +56,7 @@ func (port apolloReportingPort) UpdateAgentReports(ctx context.Context, environm
 				return raw, nil, fmt.Errorf("decode Apollo health: %w", err)
 			}
 		}
-		scoped := apolloReportingPort{repository: repository}
+		scoped := environmentReportingProjectionPort{repository: repository}
 		snapshot.Plan, err = scoped.LatestPlan(ctx, environment)
 		if err != nil {
 			return raw, nil, err

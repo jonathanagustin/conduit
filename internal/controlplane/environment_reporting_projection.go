@@ -6,12 +6,20 @@ import (
 	environments "github.com/jonathanagustin/conduit/internal/environments/domain"
 )
 
-// apolloReportingPort narrows lifecycle state to reviewed Plan projections and
+// environmentReportingProjectionPort narrows lifecycle state to reviewed Plan projections and
 // normalized Environment reports. The Apollo package never imports PlanRecord,
 // Repository, or any control-plane implementation type.
-type apolloReportingPort struct{ repository Repository }
+type environmentReportingProjectionRepository interface {
+	ListPlans(context.Context, string) ([]PlanRecord, error)
+	GetEnvironmentReport(context.Context, string) (environments.Report, error)
+	PutEnvironmentReport(context.Context, environments.Report) (environments.Report, error)
+}
 
-func (port apolloReportingPort) LatestPlan(ctx context.Context, environment string) (environments.PlanProjection, error) {
+type environmentReportingProjectionPort struct {
+	repository environmentReportingProjectionRepository
+}
+
+func (port environmentReportingProjectionPort) LatestPlan(ctx context.Context, environment string) (environments.PlanProjection, error) {
 	plans, err := port.repository.ListPlans(ctx, environment)
 	if err != nil || len(plans) == 0 {
 		return environments.PlanProjection{}, err
@@ -27,10 +35,10 @@ func (port apolloReportingPort) LatestPlan(ctx context.Context, environment stri
 	return projection, nil
 }
 
-func (port apolloReportingPort) GetReport(ctx context.Context, environment string) (environments.Report, error) {
+func (port environmentReportingProjectionPort) GetReport(ctx context.Context, environment string) (environments.Report, error) {
 	return port.repository.GetEnvironmentReport(ctx, environment)
 }
 
-func (port apolloReportingPort) PutReport(ctx context.Context, report environments.Report) (environments.Report, error) {
+func (port environmentReportingProjectionPort) PutReport(ctx context.Context, report environments.Report) (environments.Report, error) {
 	return port.repository.PutEnvironmentReport(ctx, report)
 }

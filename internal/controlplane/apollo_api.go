@@ -27,7 +27,7 @@ func newApolloPublicAPI(repository Repository, governance *GovernanceService, co
 	service, err := apolloapp.New(
 		context.Background(),
 		publicationCatalogPort{repository: repository},
-		apolloReportingPort{repository: repository},
+		environmentReportingProjectionPort{repository: repository},
 		releaseLifecycleProjectionPort{repository: repository},
 		environmentInventoryProjectionPort{repository: repository},
 	)
