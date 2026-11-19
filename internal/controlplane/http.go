@@ -608,29 +608,31 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 	mux.HandleFunc("GET /v1/environments/{environmentID}", func(w http.ResponseWriter, request *http.Request) {
 		principal, ok := requireOperatorPrincipal(w, request, governance, configuration)
 		environment := request.PathValue("environmentID")
-		if !ok || !requireResourceOperation(w, request, governance, principal, configuration, environmentRID(environment), OperationReadResource) {
+		if !ok {
 			return
 		}
-		space, selected := selectedIndexSpace(w, request, principal, configuration)
-		if !selected {
-			return
-		}
-		if !requireIndexSpaceMatch(w, space.environment(environment)) {
-			return
-		}
-		records, err := ListEnvironmentCatalog(request.Context(), repository)
+		record, err := ReadAuthorizedEnvironmentDetail(request.Context(), repository, governance, principal, configuration, environment, func() (*string, error) {
+			return parseSpaceSelection(request.URL.RawQuery)
+		}, time.Now)
 		if err != nil {
-			writeLifecycleError(w, err)
+			var selection *environmentDetailSpaceError
+			if errors.As(err, &selection) {
+				switch {
+				case selection.stage == "decode":
+					writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+				case selection.stage == "authorize" && errors.Is(err, ErrSpaceSelectionUnavailable), selection.stage == "membership" && errors.Is(err, ErrSpaceMembershipUnavailable):
+					writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
+				case selection.stage == "membership":
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				default:
+					writeLifecycleError(w, err)
+				}
+			} else {
+				writeLifecycleError(w, err)
+			}
 			return
 		}
-		for _, record := range records {
-			if record.Environment.ID == environment {
-				record.Spoke = spokeLiveness(record.Reported, time.Now().UTC())
-				writeJSON(w, http.StatusOK, record)
-				return
-			}
-		}
-		writeLifecycleError(w, ErrNotFound)
+		writeJSON(w, http.StatusOK, record)
 	})
 	mux.HandleFunc("GET /v1/environments/{environmentID}/entities", func(w http.ResponseWriter, request *http.Request) {
 		principal, ok := requireOperatorPrincipal(w, request, governance, configuration)
