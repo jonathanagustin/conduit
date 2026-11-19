@@ -29,5 +29,5 @@ type environmentInventoryProjectionPort struct {
 }
 
 func (port environmentInventoryProjectionPort) EnvironmentInventory(ctx context.Context) ([]environments.CompatibilityProjection, error) {
-	return (environmentapp.ProjectionReader{Source: environmentProjectionSource{repository: port.repository}}).EnvironmentInventory(ctx)
+	return (environmentapp.ProjectionReader{Source: environmentProjectionSource(port)}).EnvironmentInventory(ctx)
 }

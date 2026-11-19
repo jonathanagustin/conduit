@@ -22,5 +22,5 @@ type releaseLifecycleProjectionPort struct {
 }
 
 func (port releaseLifecycleProjectionPort) ReleaseLifecycle(ctx context.Context) (environments.ReleaseLifecycle, error) {
-	return (environmentapp.ProjectionReader{Source: environmentProjectionSource{repository: port.repository}}).ReleaseLifecycle(ctx)
+	return (environmentapp.ProjectionReader{Source: environmentProjectionSource(port)}).ReleaseLifecycle(ctx)
 }
