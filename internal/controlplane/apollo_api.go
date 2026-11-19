@@ -200,7 +200,3 @@ func parseMavenCoordinate(coordinate string) (string, string, string, bool) {
 	}
 	return parts[0], parts[1], parts[2], true
 }
-
-func validApolloRepositoryURL(value string) bool {
-	return strings.HasPrefix(value, "https://") || strings.HasPrefix(value, "oci://")
-}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 	validationdomain "github.com/jonathanagustin/conduit/internal/validation/domain"
 )
 
@@ -171,8 +172,8 @@ const (
 	planActionUninstall = "uninstall"
 	PlanActionUnmanage  = "unmanage"
 
-	RolloutManageRollout      = "manageRollout"
-	RolloutApplyChangesNoWait = "applyChangesNoWait"
+	RolloutManageRollout      = catalog.RolloutManageRollout
+	RolloutApplyChangesNoWait = catalog.RolloutApplyChangesNoWait
 )
 
 type HealthTarget struct {
