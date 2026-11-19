@@ -3,6 +3,8 @@ package controlplane
 import (
 	"encoding/json"
 	"time"
+
+	validationdomain "github.com/jonathanagustin/conduit/internal/validation/domain"
 )
 
 // DesiredState is the reviewed, exact state for one environment. Git stores
@@ -188,7 +190,5 @@ type HealthObservation struct {
 	Details        EntityHealthDetails `json:"details"`
 }
 
-type ValidationError struct {
-	Path    string `json:"path"`
-	Message string `json:"message"`
-}
+// ValidationError retains the legacy source name for a native diagnostic.
+type ValidationError = validationdomain.Problem

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	validationdomain "github.com/jonathanagustin/conduit/internal/validation/domain"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -318,15 +319,8 @@ func DecodeModuleDefinition(reader io.Reader) (ModuleDefinition, error) {
 	return definition, nil
 }
 
-type ValidationErrors []ValidationError
-
-func (errs ValidationErrors) Error() string {
-	parts := make([]string, len(errs))
-	for index, err := range errs {
-		parts[index] = err.Path + ": " + err.Message
-	}
-	return strings.Join(parts, "; ")
-}
+// ValidationErrors retains the legacy source name and aggregate error behavior.
+type ValidationErrors = validationdomain.Problems
 
 var moduleNamePattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`)
 

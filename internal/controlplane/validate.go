@@ -8,15 +8,17 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	validationdomain "github.com/jonathanagustin/conduit/internal/validation/domain"
 )
 
 var (
-	coordinatePattern                  = regexp.MustCompile(`^[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+$`)
+	coordinatePattern                  = regexp.MustCompile(validationdomain.ProductCoordinateExpression)
 	digestPattern                      = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
-	dnsLabelPattern                    = regexp.MustCompile(`^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$`)
+	dnsLabelPattern                    = regexp.MustCompile(validationdomain.DNSLabelExpression)
 	identifierPattern                  = regexp.MustCompile(`^[A-Za-z0-9_.:-]+$`)
-	releaseChannelPattern              = regexp.MustCompile(`^[A-Z][A-Z0-9_-]*$`)
-	dependencyGroupPattern             = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
+	releaseChannelPattern              = regexp.MustCompile(validationdomain.ReleaseChannelExpression)
+	dependencyGroupPattern             = regexp.MustCompile(validationdomain.DependencyGroupExpression)
 	registryHostPattern                = regexp.MustCompile(`^[A-Za-z0-9.-]+(?::[0-9]+)?$`)
 	defaultHostnameTemplatePattern     = regexp.MustCompile(`^\{\{\s*default_hostname\s*(?:\(\s*organizationName\s*:\s*"[^"]+"\s*\))?\s*\}\}$`)
 	defaultHostnameTemplateFindPattern = regexp.MustCompile(`\{\{\s*default_hostname\s*(?:\(\s*organizationName\s*:\s*"[^"]+"\s*\))?\s*\}\}`)
