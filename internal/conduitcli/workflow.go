@@ -222,7 +222,7 @@ func initializeHelmChartManifest(options helmChartInitOptions) (helmChartInitRes
 	if errs := controlplane.ValidateApolloProductManifest(manifest); len(errs) > 0 {
 		return helmChartInitResult{}, controlplane.ValidationErrors(errs)
 	}
-	if _, err := controlplane.ExecutableReleaseFromApolloManifest(manifest); err != nil {
+	if _, err := productmanifest.ExecutableRelease(manifest); err != nil {
 		return helmChartInitResult{}, fmt.Errorf("Conduit executable Product manifest: %w", err)
 	}
 	encoded, err := yaml.Marshal(manifest)

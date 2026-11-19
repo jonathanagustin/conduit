@@ -36,7 +36,7 @@
     "internal/conduitcli/space_commands.go": "857ed2a14f2a5aa381fa433f840470dd1a0ce884ecb43fd860332398273dad4b",
     "internal/conduitcli/tables.go": "e0f46c50c352cd48d51b3fcff8a0e8faa372c7a46fa12ea79095384b2b59f0eb",
     "internal/conduitcli/temporary_maintenance_commands.go": "48f1453a1b17567269f494816d6b3aafe11853927fa98540facc3944f43f5a8c",
-    "internal/conduitcli/workflow.go": "da2625d987b689c0700eea562f484e826dcb79b65d5ccad82074bffb22498161",
+    "internal/conduitcli/workflow.go": "b17f094fdc6ac55741388bdc9e4c83042cd4e30820720fe26cf5df1c24618ed6",
     "internal/conduitcli/yaml_output.go": "627d4b6a5d756d4b4552f90d88cf88b18a0876aa9a2d423ba809d0b7c4e75d7b",
     "internal/hub/composition/authorization.go": "e7f982e29eac6f6620623bae9165a40b38bf785465584879bd124a41116e3b6e",
     "proto/conduit/catalog/v1/product_summary.proto": "4a3183ca3853ffa955bb294ec5b08de329327530529e406050ec8253d951eb3a",

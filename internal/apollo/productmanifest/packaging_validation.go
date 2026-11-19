@@ -12,7 +12,7 @@ import (
 var packagingCoordinatePattern = regexp.MustCompile(validationdomain.ProductCoordinateExpression)
 
 // ValidatePackaging retains the stricter Helm manifest document checks.
-// Exact-digest Release conversion and execution admission remain native.
+// Catalog owns exact-reference grammar and Release values; execution admission remains native.
 func ValidatePackaging(manifest Manifest) []validationdomain.Problem {
 	errs := make([]validationdomain.Problem, 0)
 	add := func(path, message string) {
