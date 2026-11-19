@@ -11,6 +11,15 @@ import (
 	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 )
 
+// compatibilityProjectionRepository composes only the existing publication,
+// asset-retention and Environment projection capabilities used by this facade.
+// Governance remains a separate service; lifecycle commands and leases are absent.
+type compatibilityProjectionRepository interface {
+	publicationCatalogRepository
+	publicationAssetWriter
+	environmentReportingProjectionRepository
+}
+
 // apolloPublicAPI is the outer anti-corruption adapter. Identity and governance
 // stay at the HTTP edge; generated DTO translation and compatibility state live
 // in the Apollo application context behind Catalog and Environment ports.
@@ -22,7 +31,7 @@ type apolloPublicAPI struct {
 	application         *apolloapp.Service
 }
 
-func newApolloPublicAPI(repository Repository, governance *GovernanceService, configuration HandlerOptions) *apolloPublicAPI {
+func newApolloPublicAPI(repository compatibilityProjectionRepository, governance *GovernanceService, configuration HandlerOptions) *apolloPublicAPI {
 	api := &apolloPublicAPI{publicationAssets: repository, governance: governance, configuration: configuration}
 	service, err := apolloapp.New(
 		context.Background(),
