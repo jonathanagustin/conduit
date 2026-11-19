@@ -112,7 +112,7 @@ func TestEnvironmentSummaryCLIKeepsFullDefaultAndRejectsUnsupportedSelections(t 
 	for _, args := range []struct {
 		view, mode string
 		extra      []string
-	}{{"full", "connect", nil}, {"other", "rest", nil}, {"full", "rest", []string{"--search", "dev"}}, {"summary", "other", nil}} {
+	}{{"full", "connect", []string{"--search", "dev"}}, {"other", "rest", nil}, {"full", "rest", []string{"--search", "dev"}}, {"summary", "other", nil}} {
 		before := calls
 		output, err := executeEnvironmentRead(t, server.URL, args.view, args.mode, "json", args.extra...)
 		if err == nil || calls != before || output != "" {

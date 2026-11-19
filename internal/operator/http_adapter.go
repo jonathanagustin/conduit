@@ -145,6 +145,9 @@ func (adapter *HTTPControlPlane) ListProductPublications(
 }
 
 func (adapter *HTTPControlPlane) ListEnvironments(ctx context.Context) ([]controlplane.EnvironmentCatalogRecord, error) {
+	if adapter.environmentReadTransport == "connect" {
+		return adapter.listEnvironmentsConnect(ctx)
+	}
 	return listCatalogPages(ctx, adapter, adapter.withSpaceSelection("/v1/environments"), func(page catalogPageEnvelope[controlplane.EnvironmentCatalogRecord]) []controlplane.EnvironmentCatalogRecord {
 		return page.Environments
 	})
