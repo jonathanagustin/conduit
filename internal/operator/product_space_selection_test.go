@@ -106,6 +106,9 @@ func TestFullProductRESTClientUsesProductMembershipWithoutGrantingAuthority(t *t
 				memberships.Add(1)
 				return controlplane.SpaceIndexMembership{ProductIDs: []string{"com.example:inside"}, EnvironmentIDs: []string{"env-outside"}}, nil
 			}})
+			// Handler construction initializes compatibility projections. Measure
+			// only catalog reads caused by the following client request.
+			store.reads.Store(0)
 			server := httptest.NewServer(hub)
 			defer server.Close()
 			adapter, err := NewHTTPControlPlane(server.URL, server.Client())
