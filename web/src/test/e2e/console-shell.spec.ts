@@ -959,6 +959,9 @@ test("personal token examples require opt-in and discard simulated credentials o
   ).toHaveCount(0);
   await expect(workspace.locator("#pref-token-name")).toHaveValue("");
   await page.reload();
+  await page.waitForFunction(
+    () => typeof Reflect.get(window, "switchScreen") === "function",
+  );
   await page.evaluate(() =>
     Reflect.get(window, "switchScreen")("adm01-user-prefs"),
   );

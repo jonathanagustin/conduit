@@ -37,7 +37,7 @@ test("native notification settings preserve owner boundaries and authoritative r
   });
   await page.locator('.kit-subnav [data-ntf-view="contacts"]').click();
   const form = page.locator('[data-ntf-form="save-contact"]');
-  await form.getByLabel("Kind", { exact: true }).selectOption("EMAIL");
+  await form.locator("[data-ntf-contact-kind]").selectOption("EMAIL");
   await expect(
     form.getByRole("button", { name: "Save contact", exact: true }),
   ).toBeDisabled();
