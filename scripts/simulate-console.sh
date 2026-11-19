@@ -14,9 +14,9 @@
 # the embedded bundle, not a Vite preview. There is no stub anywhere in the
 # loop.
 #
-# Not a CI gate. It needs a Go toolchain, a browser, and a free port, and it is
-# slower than the stubbed suite by the cost of a Hub build. Run it when the
-# transport between console and Hub is what is in question.
+# Run locally when the transport between console and Hub is in question.
+# The separate Native console journeys workflow also invokes this harness;
+# scripts/test-console.sh retains its independent mocked browser suite.
 #
 # The scenarios still seed a Hub. Every scenario opens the same shell check: the
 # embedded bundle hydrates the tenant bootstrap and says the local Codex bridge
