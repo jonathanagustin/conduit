@@ -23,7 +23,7 @@ including reads. A read encoded as POST is not a governed state change.
 | `POST /v1/plans/{planID}/approvals` | `conduit.plans.v1.PlanApprovalService/ApprovePlan` | Generated active operator delivery/approval panels and legacy helper; explicit CLI `plan approve --write-transport connect` returns a versioned receipt; CLI default remains REST, no automatic retry |
 | `GET /v1/plans?view=summary` | `conduit.plans.v1.PlanReadService/ListPlanSummaries` | Explicit CLI `plan list --read-transport connect`; default remains REST |
 | `GET /v1/environments?view=summary` | `conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries` | CLI `environment list --view summary --read-transport connect`; full list stays REST |
-| `GET /v1/environments/{environmentID}/reported-state` | `conduit.environments.v1.EnvironmentObservationService/GetEnvironmentReportedState` | Full typed reported-state dual serving; existing callers remain REST |
+| `GET /v1/environments/{environmentID}/reported-state` | `conduit.environments.v1.EnvironmentObservationService/GetEnvironmentReportedState` | CLI `environment reported-state --read-transport connect`; REST remains the default; failures are not replayed |
 | `GET /v1/authorization-audit?view=events` | `conduit.governance.v1.AuthorizationAuditReadService/ListAuthorizationAuditEvents` | Bounded dual-serve adapter; existing callers remain REST |
 | `GET /v1/notifications/events` | `conduit.notifications.v1.NotificationService/ListNotificationEvents` | Generated Audit notification client |
 
