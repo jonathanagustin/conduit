@@ -171,7 +171,7 @@ func (adapter *HTTPControlPlane) ListEntities(ctx context.Context, environment s
 }
 
 func (adapter *HTTPControlPlane) ListProducts(ctx context.Context) ([]controlplane.ProductCatalogRecord, error) {
-	return listCatalogPages(ctx, adapter, "/v1/products", func(page catalogPageEnvelope[controlplane.ProductCatalogRecord]) []controlplane.ProductCatalogRecord {
+	return listCatalogPages(ctx, adapter, adapter.withSpaceSelection("/v1/products"), func(page catalogPageEnvelope[controlplane.ProductCatalogRecord]) []controlplane.ProductCatalogRecord {
 		return page.Products
 	})
 }

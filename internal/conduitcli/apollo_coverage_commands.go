@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/jonathanagustin/conduit/internal/apollo/environmentsettings"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/spf13/cobra"
 )
@@ -136,7 +137,7 @@ func environmentSettingGetCommand(state *commandState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			encoded, err := controlplane.EncodeApolloEnvironmentSettings(
+			encoded, err := environmentsettings.Encode(
 				controlplane.ApolloEnvironmentSettingsFromDesiredState(desired),
 			)
 			if err != nil {
@@ -172,9 +173,9 @@ func environmentSettingEditCommand(state *commandState) *cobra.Command {
 			document := content
 			if settingsFile != "" {
 				// Read as text rather than through decodeDocument: the settings
-				// document is handed to DecodeApolloEnvironmentSettings, which owns
-				// its schema and rejects unknown keys. Round-tripping it through a
-				// generic YAML decode first would drop that strictness.
+				// document is handed to the owning settings codec, which validates
+				// modelled fields and preserves unknown keys. A generic decode
+				// must not replace that document handling.
 				raw, readErr := os.ReadFile(settingsFile)
 				if readErr != nil {
 					return fmt.Errorf("open settings document: %w", readErr)
@@ -184,7 +185,7 @@ func environmentSettingEditCommand(state *commandState) *cobra.Command {
 				}
 				document = string(raw)
 			}
-			settings, err := controlplane.DecodeApolloEnvironmentSettings(document)
+			settings, err := environmentsettings.Decode(document)
 			if err != nil {
 				return err
 			}
