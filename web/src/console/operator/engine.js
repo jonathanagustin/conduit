@@ -1023,10 +1023,18 @@ export function mountOperator(host, options) {
       window.dispatchEvent(
         new CustomEvent("conduit-assistant-draft", { detail: draft }),
       );
-      if (draft.accepted)
-        requestAnimationFrame(() =>
-          root.querySelector("#right-chat-rail textarea")?.focus(),
-        );
+      if (draft.accepted) {
+        const composer = host.querySelector("#right-chat-rail textarea");
+        requestAnimationFrame(() => {
+          if (
+            !disposed &&
+            host.isConnected &&
+            composer?.isConnected &&
+            host.contains(composer)
+          )
+            composer.focus();
+        });
+      }
       return draft.accepted;
     },
   });
