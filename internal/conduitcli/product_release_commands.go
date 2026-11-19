@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"github.com/jonathanagustin/conduit/internal/apollo/productmanifest"
 	"io"
 	"mime"
 	"os"
@@ -319,7 +320,7 @@ func productReleaseTerraformCommand(state *commandState) *cobra.Command {
 	return command
 }
 
-func validateManifestCoordinate(manifest controlplane.ApolloProductManifest, coordinate string) error {
+func validateManifestCoordinate(manifest productmanifest.Manifest, coordinate string) error {
 	expected := manifest.ProductGroup + ":" + manifest.ProductName + ":" + manifest.ProductVersion
 	if coordinate != "" && coordinate != expected {
 		return fmt.Errorf("manifest coordinate %s does not match %s", expected, coordinate)
