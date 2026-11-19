@@ -21,6 +21,11 @@ func (adapter *HTTPControlPlane) SetPlanReadTransport(mode string) error {
 }
 
 func (adapter *HTTPControlPlane) listPlanSummariesConnect(ctx context.Context, query PlanListQuery) (PlanListResult, error) {
+	// The current summary contract cannot carry a Space selector. Never silently
+	// widen a selected-Space read or replay it over another transport.
+	if adapter.spaceID != "" {
+		return PlanListResult{}, fmt.Errorf("Connect Plan summary Space selection is unavailable; select REST explicitly")
+	}
 	client := plansv1connect.NewPlanReadServiceClient(connect.NewClient(connecthttp.NewTransport(adapter.client, adapter.baseURL.String(), connecthttp.WithReadMaxBytes(maxOperatorResponseBytes))))
 	limit := int32(200)
 	request := &plansv1.ListPlanSummariesRequest{Limit: &limit, Environment: query.Environment, Status: query.Status, InstallationId: query.InstallationID, Search: query.Search}

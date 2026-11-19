@@ -71,3 +71,13 @@ The RPC adapter returns the existing CLI summary DTO and output formats, with
 exact uint64 revisions and nanosecond timestamps. Page metadata, timestamps and
 native integer conversions are checked before output. Each response retains
 the existing one-MiB read bound. Plan detail, approve and cancel remain REST.
+
+## Selected Space in the CLI
+
+The current Plan summary proto has no Space selector. A CLI/operator caller with
+an explicit selected Space refuses Connect before making a network request or
+emitting output; it does not silently issue an unscoped read or replay over
+REST. Select REST explicitly for Space-scoped Plan lists. That native client
+preserves the selected Space together with filters and cursor on every page.
+Adding a scoped typed selector and authorization/grouping parity remains follow-on
+contract work; this refusal is not a claim that scoped RPC is implemented.
