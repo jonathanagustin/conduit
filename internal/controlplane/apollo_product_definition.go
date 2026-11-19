@@ -228,10 +228,6 @@ func definitionValidationInput(definition ApolloProductDefinition) productdefini
 	return productdefinition.Input{Manifest: definition.Manifest, Configuration: definition.Configuration, Templates: definition.Templates}
 }
 
-func validateApolloProductConfiguration(definition ApolloProductDefinition) []ValidationError {
-	return productdefinition.ValidateConfiguration(definitionValidationInput(definition))
-}
-
 // ValidateApolloVolumeOverride retains the existing compatibility entry point.
 func ValidateApolloVolumeOverride(name, current, override string) error {
 	return productdefinition.ValidateVolumeOverride(name, current, override)
