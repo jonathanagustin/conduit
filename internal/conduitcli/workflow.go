@@ -219,7 +219,7 @@ func initializeHelmChartManifest(options helmChartInitOptions) (helmChartInitRes
 			HelmChart: &productmanifest.HelmChart{Name: options.Name, Version: options.Version, RepositoryURL: options.RepositoryURL},
 		},
 	}
-	if errs := controlplane.ValidateApolloProductManifest(manifest); len(errs) > 0 {
+	if errs := productmanifest.ValidatePackaging(manifest); len(errs) > 0 {
 		return helmChartInitResult{}, controlplane.ValidationErrors(errs)
 	}
 	if _, err := productmanifest.ExecutableRelease(manifest); err != nil {

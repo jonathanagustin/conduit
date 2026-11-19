@@ -19,6 +19,7 @@ try {
   cpSync(join(sourceRoot, "scripts/verify-domain-boundaries.mjs"), join(fixture, "scripts/verify-domain-boundaries.mjs"));
   write("internal/hub/composition/composition.go", 'package composition\nimport "example/internal/controlplane"\n');
   write("internal/controlplane/apollo_openapi_adapter.go", "package controlplane\n");
+  write("internal/conduitcli/workflow.go", "package conduitcli\nfunc initialize(){ productmanifest.ValidatePackaging(manifest) }\n");
   write("internal/apollo/application/service.go", "package application\n");
   write("internal/apollo/workloadmetadata/metadata.go", 'package workloadmetadata\nimport "go.yaml.in/yaml/v4"\n');
   write("internal/delivery/reconciliation/application/worker.go", "package application\n");
@@ -32,6 +33,7 @@ try {
   if (!run().includes("PASS domain boundaries")) throw new Error("native Environment snapshot fixture did not pass");
 
   const controls = [
+    ["internal/conduitcli/workflow.go", "package conduitcli\nfunc initialize(){ controlplane.ValidateApolloProductManifest(manifest) }\n", "package conduitcli\nfunc initialize(){ productmanifest.ValidatePackaging(manifest) }\n"],
     ["internal/delivery/rollout/adapters/catalogadapter/dependencies.go", 'package catalogadapter\nimport legacy "example/internal/controlplane"\n', null],
     ["internal/controlplane/overview.go", 'package controlplane\nimport "example/internal/apollo"\n', null],
     ["internal/controlplane/plan_visibility.go", 'package controlplane\nimport "example/internal/apollographql"\n', null],
