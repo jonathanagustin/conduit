@@ -37,6 +37,13 @@ for (const path of filesBelow(join(root, "internal"))) {
       }
     }
   }
+  if (local.startsWith("internal/delivery/rollout/adapters/catalogadapter/")) {
+    for (const dependency of dependencies) {
+      if (/\/internal\/controlplane(?:\/|$)/.test(dependency)) {
+        failures.push(`${local}: rollout Catalog adapter imports legacy control plane ${dependency}`);
+      }
+    }
+  }
   if (local.startsWith("internal/environments/application/")) {
     for (const dependency of dependencies) {
       if (/\/internal\/(controlplane|apollo|apollographql)(?:\/|$)/.test(dependency)) {
