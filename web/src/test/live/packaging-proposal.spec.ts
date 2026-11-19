@@ -115,7 +115,7 @@ test("packaging model proposals enforce visibility and deterministic gates witho
   const blockedReceipt = await blocked.json();
   expect(blockedReceipt).toMatchObject({
     runId,
-    outcome: "FAIL",
+    outcome: "FAIL_REQUIRED",
     proposal: { field: "memory", value: "2Gi" },
   });
   expect(blockedReceipt.changeRequestId).toBeUndefined();
