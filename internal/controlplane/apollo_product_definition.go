@@ -142,15 +142,7 @@ func ApolloManagedFileMountPath(productName string) string {
 
 // ApolloProductDefinition is the manifest/configuration pair for one Product
 // version, plus the template files that pair refers to.
-type ApolloProductDefinition struct {
-	Manifest      ApolloProductManifest      `json:"manifest"`
-	Configuration ApolloProductConfiguration `json:"configuration"`
-	// Templates are the file names present under deployment/templates, without
-	// the directory prefix. A tmpl managed file whose template is missing is a
-	// definition that renders an empty configuration file at install time, so
-	// the names travel with the pair rather than being checked separately.
-	Templates []string `json:"templates,omitempty"`
-}
+type ApolloProductDefinition = productdefinition.Definition
 
 // ApolloProductConfiguration retains source callers while its document lives in compatibility.
 type ApolloProductConfiguration = productconfiguration.Configuration
@@ -202,18 +194,7 @@ func DecodeApolloProductDefinition(manifest, configuration io.Reader) (ApolloPro
 func DecodeApolloProductDefinitionWithTemplates(
 	manifest, configuration io.Reader, templates []string,
 ) (ApolloProductDefinition, []ValidationError, error) {
-	decoded, _, err := DecodeApolloProductManifest(manifest)
-	if err != nil {
-		return ApolloProductDefinition{}, nil, err
-	}
-	decodedConfiguration, err := DecodeApolloProductConfiguration(configuration)
-	if err != nil {
-		return ApolloProductDefinition{}, nil, err
-	}
-	definition := ApolloProductDefinition{
-		Manifest: decoded, Configuration: decodedConfiguration, Templates: templates,
-	}
-	return definition, ValidateApolloProductDefinition(definition), nil
+	return productdefinition.Decode(manifest, configuration, templates)
 }
 
 // ValidateApolloProductDefinition validates the pair. Manifest packaging rules
