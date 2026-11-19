@@ -95,6 +95,9 @@ func bodyFor(pattern string) string {
 	if pattern == "POST /v1/blackouts" {
 		return `{"action":"declare","environment":"` + fixtureEnvironment + `","reason":"reviewed authorization probe","startsAt":"2026-11-18T12:00:00Z","endsAt":"2026-11-18T13:00:00Z","confirm":true}`
 	}
+	if pattern == "POST /conduit.plans.v1.PlanCancellationService/CancelPlan" {
+		return `{"planId":"approval-authorization-probe","reason":"reviewed fixture"}`
+	}
 	if pattern == "POST /conduit.plans.v1.PlanApprovalService/ApprovePlan" {
 		return `{"planId":"approval-authorization-probe","rationale":"reviewed fixture"}`
 	}
@@ -335,7 +338,7 @@ func TestEveryGrantedRouteRefusesAPrincipalHoldingNothing(t *testing.T) {
 	// routes answer 404 before they ever consult a grant, and the assertion
 	// below would be about the fixture rather than about authorization.
 	seedFixture(t, handler, repository)
-	// The approval command reads its Plan before checking Environment Operate.
+	// Plan approval and cancellation read their Plan before checking Environment Operate.
 	// Supply a CR-less Plan so this row witnesses the real permission decision.
 	if _, err := repository.CreatePlan(t.Context(), controlplane.PlanRecord{
 		ID: "approval-authorization-probe", Plan: controlplane.Plan{Environment: fixtureEnvironment},

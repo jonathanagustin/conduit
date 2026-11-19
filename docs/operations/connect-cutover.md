@@ -20,6 +20,7 @@ including reads. A read encoded as POST is not a governed state change.
 | `GET /v1/packaging-runs/{runID}` | `conduit.packaging.v1.PackagingRunService/GetPackagingRun` | Generated detail client; CLI `run get RUN_ID --read-transport connect` (REST default) |
 | `GET /v1/packaging-runs/{runID}/events` | `conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents` | Generated history client for operator refresh |
 | `GET /v1/products?view=summary` | `conduit.catalog.v1.ProductReadService/ListProductSummaries` | Generated legacy name-only summary helper; full-catalog operator reads remain REST |
+| `POST /v1/plans/{planID}/cancel` | `conduit.plans.v1.PlanCancellationService/CancelPlan` | Dual-served native cancellation; existing callers remain REST; no automatic retry or replay |
 | `POST /v1/plans/{planID}/approvals` | `conduit.plans.v1.PlanApprovalService/ApprovePlan` | Generated active operator delivery/approval panels and legacy helper; explicit CLI `plan approve --write-transport connect` returns a versioned receipt; CLI default remains REST, no automatic retry |
 | `GET /v1/plans?view=summary` | `conduit.plans.v1.PlanReadService/ListPlanSummaries` | Explicit CLI `plan list --read-transport connect`; default remains REST |
 | `GET /v1/environments?view=summary` | `conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries` | CLI `environment list --view summary --read-transport connect`; full list stays REST |
@@ -33,7 +34,8 @@ These are Conduit-native contracts. See [overview](connect-reporting-overview.md
 [event history](connect-packaging-events.md) and
 [Plan summaries](connect-plan-summaries.md) and
 [Product summaries](connect-product-summaries.md) and
-[Plan approval](connect-plan-approval.md) for their bounded behavior.
+[Plan approval](connect-plan-approval.md) and
+[Plan cancellation](connect-plan-cancellation.md) for their bounded behavior.
 The map does not imply that all Hub routes have RPC equivalents.
 
 ## Remaining contracts and callers
@@ -44,8 +46,8 @@ records the narrow projection, presence and authority boundaries. The CLI's
 explicit summary view can select Connect; console and full Environment callers
 remain REST. #394 stays open for the remaining migration.
 
-Known follow-ons are full environment detail/reported-state, fleet
-installations, full Plan index/detail/cancel, change-request approve/reject,
+Known follow-ons are full Environment index/detail, fleet
+installations, full Plan index/detail, change-request approve/reject,
 and audit-chain export. [Audit event reads](connect-audit-events.md) share the
 native administrator gate and pagination; caller migration remains separate. Governed packaging rerun/cancel already have REST
 routes but no methods in the current packaging proto.
