@@ -155,3 +155,190 @@ test("workspace metadata upgrades and forks require reviewed owner coordinates o
   expect(forbidden.status()).toBe(403);
   expect(await read(page, path)).toEqual(upgraded);
 });
+
+test("workspace review submission requires owner confirmation and opens only a separate human review", async ({
+  page,
+}) => {
+  await page.goto("./");
+  const title = `Live review metadata ${Date.now().toString(16)}`;
+  const created = await page.request.post(
+    new URL("/v1/dev-workspaces", page.url()).toString(),
+    {
+      data: {
+        profileId: "live-metadata-only",
+        environmentId: "dev-use2",
+        title,
+      },
+    },
+  );
+  expect(created.status()).toBe(201);
+  const original = (await created.json()) as Workspace;
+  const path = `/v1/dev-workspaces/${original.workspaceId}`;
+  // These are explicitly reviewed synthetic metadata coordinates, not a claim
+  // that a file tree was upgraded or an artifact was built/signed.
+  const upgraded = await page.request.post(
+    new URL(`${path}/upgrade`, page.url()).toString(),
+    {
+      data: {
+        sourceDigest: "sha256:" + "b".repeat(64),
+        templateVersion: "review-metadata-v1",
+        toolVersions: "recorded-tools-v1",
+      },
+    },
+  );
+  expect(upgraded.status()).toBe(200);
+  const workspace = (await read(page, path)) as Workspace;
+  expect(workspace).toMatchObject({
+    owner: "operator",
+    sourceDigest: "sha256:" + "b".repeat(64),
+    status: "stopped",
+  });
+  expect(workspace.proposalRevision).not.toBe(original.proposalRevision);
+  const listChanges = async () =>
+    (await read(page, "/v1/change-requests?limit=200")).changeRequests as {
+      id: string;
+    }[];
+  const changeIDs = async () =>
+    (await listChanges()).map((row) => row.id).sort();
+  const planIDs = async () => {
+    const ids: string[] = [];
+    let cursor = "";
+    const seen = new Set<string>();
+    do {
+      const listed = await read(
+        page,
+        `/v1/plans?limit=20&cursor=${encodeURIComponent(cursor)}`,
+      );
+      ids.push(...(listed.plans as { id: string }[]).map((row) => row.id));
+      cursor = listed.nextCursor || "";
+      if (cursor) {
+        expect(seen.has(cursor), "Plan cursor must advance").toBe(false);
+        seen.add(cursor);
+        expect(seen.size).toBeLessThan(20);
+      }
+    } while (cursor);
+    return ids.sort();
+  };
+  const beforeChanges = await changeIDs();
+  const beforePlans = await planIDs();
+  const body = {
+    title: "Review recorded workspace metadata",
+    description: "A separate human review; no approval or execution.",
+    approve: false,
+  };
+  const nonOwner = await page.request.post(
+    new URL(`${path}/submit`, page.url()).toString(),
+    {
+      headers: { "X-Platform-Subject": "proposer" },
+      data: body,
+    },
+  );
+  expect(nonOwner.status()).toBe(403);
+  const selfApproval = await page.request.post(
+    new URL(`${path}/submit`, page.url()).toString(),
+    { data: { ...body, approve: true } },
+  );
+  expect(selfApproval.status()).toBe(403);
+  expect(await changeIDs()).toEqual(beforeChanges);
+  expect(await planIDs()).toEqual(beforePlans);
+  const writes: unknown[] = [];
+  page.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === `${path}/submit`
+    )
+      writes.push(request.postDataJSON());
+  });
+  await page.goto("./#s12-lifecycle");
+  await page
+    .getByRole("button", { name: `${title} · stopped`, exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Stage separate review", exact: true })
+    .click();
+  const form = page.locator("[data-ws-confirm]");
+  await expect(form).toContainText(workspace.workspaceId);
+  await expect(form).toContainText(workspace.owner);
+  await expect(form).toContainText(workspace.proposalRevision);
+  await expect(form).toContainText(workspace.sourceDigest!);
+  await form.getByLabel("Title", { exact: true }).fill(body.title);
+  await form
+    .getByLabel("Review description", { exact: true })
+    .fill("Discarded description");
+  const confirm = form.getByRole("checkbox");
+  const submit = form.getByRole("button", {
+    name: "Confirm workspace action",
+    exact: true,
+  });
+  await expect(submit).toBeDisabled();
+  await form.evaluate((node) =>
+    node.dispatchEvent(
+      new Event("submit", { bubbles: true, cancelable: true }),
+    ),
+  );
+  expect(writes).toEqual([]);
+  expect(await changeIDs()).toEqual(beforeChanges);
+  await confirm.check();
+  await form
+    .getByLabel("Review description", { exact: true })
+    .fill(body.description);
+  await expect(confirm).not.toBeChecked();
+  await expect(submit).toBeDisabled();
+  expect(writes).toEqual([]);
+  await confirm.check();
+  const response = page.waitForResponse(
+    (reply) =>
+      reply.request().method() === "POST" &&
+      new URL(reply.url()).pathname === `${path}/submit`,
+  );
+  await submit.click();
+  const answer = await response;
+  expect(answer.status()).toBe(202);
+  const receipt = (await answer.json()) as {
+    changeRequestId: string;
+    status: string;
+  };
+  expect(receipt.status).toBe("PENDING_APPROVALS");
+  expect(receipt.changeRequestId).toBeTruthy();
+  expect(writes).toEqual([body]);
+  await expect(page.locator("[data-workspace-studio]")).toContainText(
+    `Review request ${receipt.changeRequestId} · PENDING_APPROVALS`,
+  );
+  await expect(page.locator("[data-workspace-studio]")).toContainText(
+    "No approval or Plan execution was granted.",
+  );
+  const request = await read(
+    page,
+    `/v1/change-requests/${receipt.changeRequestId}`,
+  );
+  expect(request).toMatchObject({
+    id: receipt.changeRequestId,
+    targetKind: "WORKSPACE",
+    environment: workspace.environmentId,
+    title: body.title,
+    description: body.description,
+    status: "PENDING_APPROVALS",
+    author: { username: "operator" },
+    requirementsSatisfied: false,
+  });
+  expect(request.targetId).toMatch(
+    new RegExp(`^${workspace.workspaceId}@${workspace.proposalRevision}:`),
+  );
+  expect(request.changes[0].request.config).toEqual({
+    workspaceId: workspace.workspaceId,
+    revision: workspace.proposalRevision,
+    sourceDigest: workspace.sourceDigest,
+  });
+  expect(request.requirements.length).toBeGreaterThan(0);
+  expect(request.reviews ?? []).toEqual([]);
+  expect(request.planId || "").toBe("");
+  expect(await changeIDs()).toEqual(
+    [...beforeChanges, receipt.changeRequestId].sort(),
+  );
+  expect(await planIDs()).toEqual(beforePlans);
+  expect(await read(page, path)).toEqual(workspace);
+  await page.reload();
+  expect(
+    (await read(page, `/v1/change-requests/${receipt.changeRequestId}`)).status,
+  ).toBe("PENDING_APPROVALS");
+});
