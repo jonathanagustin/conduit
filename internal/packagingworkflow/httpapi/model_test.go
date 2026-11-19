@@ -39,9 +39,16 @@ func TestModelProposalUsesTheRecordedEnvironmentAndAuthenticatedAuthor(t *testin
 	reader := &modelRunReader{run: domain.RunStatus{RunID: "run-east", TargetPlanRef: "environment-east/sample-app"}}
 	model := &observingModel{}
 	mux := http.NewServeMux()
-	Register(mux, Config{Authorize: func(*http.Request) error { return nil }, Reader: reader, Model: model, OperatorName: func(*http.Request) string { return "signed-in-reviewer" }})
+	Register(mux, Config{Authorize: func(*http.Request) error { return nil }, Reader: reader, Model: model, Visible: func(request *http.Request, environment string) bool {
+		if environment != "environment-east" || request.Header.Get("X-Test-Carrier") != "original" {
+			t.Errorf("visibility lost recorded target or caller: %s %s", environment, request.Header.Get("X-Test-Carrier"))
+		}
+		return true
+	}, OperatorName: func(*http.Request) string { return "signed-in-reviewer" }})
 	response := httptest.NewRecorder()
-	mux.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/packaging-runs/run-east/model-proposal", strings.NewReader(`{"attachmentSha256":["reviewed-attachment"]}`)))
+	request := httptest.NewRequest(http.MethodPost, "/v1/packaging-runs/run-east/model-proposal", strings.NewReader(`{"attachmentSha256":["reviewed-attachment"]}`))
+	request.Header.Set("X-Test-Carrier", "original")
+	mux.ServeHTTP(response, request)
 	if response.Code != 200 || len(model.calls) != 1 {
 		t.Fatalf("status=%d calls=%d body=%s", response.Code, len(model.calls), response.Body.String())
 	}
@@ -91,7 +98,7 @@ func TestModelProposalRefusesCallerTargetOverridesAndAdditionalBodies(t *testing
 			reader := &modelRunReader{run: domain.RunStatus{RunID: "selected", TargetPlanRef: "east/app"}}
 			model := &observingModel{}
 			mux := http.NewServeMux()
-			Register(mux, Config{Authorize: func(*http.Request) error { return nil }, Reader: reader, Model: model})
+			Register(mux, Config{Authorize: func(*http.Request) error { return nil }, Reader: reader, Model: model, Visible: func(*http.Request, string) bool { return true }})
 			response := httptest.NewRecorder()
 			mux.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/packaging-runs/selected/model-proposal", strings.NewReader(body)))
 			if response.Code != 400 || len(model.calls) != 0 {
@@ -111,7 +118,7 @@ func TestModelProposalKeepsAnonymousAndUnavailableModelRefusals(t *testing.T) {
 			authorize = func(*http.Request) error { return StatusError{Status: 401, Message: "unauthorized"} }
 		}
 		mux := http.NewServeMux()
-		Register(mux, Config{Authorize: authorize, Reader: reader})
+		Register(mux, Config{Authorize: authorize, Reader: reader, Visible: func(*http.Request, string) bool { return true }})
 		response := httptest.NewRecorder()
 		mux.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/packaging-runs/selected/model-proposal", strings.NewReader(`{}`)))
 		if response.Code != want {
@@ -120,5 +127,55 @@ func TestModelProposalKeepsAnonymousAndUnavailableModelRefusals(t *testing.T) {
 		if anonymous && reader.reads != 0 {
 			t.Fatal("anonymous request read run state")
 		}
+	}
+}
+
+func TestModelProposalRequiresRecordedTargetVisibilityBeforeDispatch(t *testing.T) {
+	for _, tc := range []struct {
+		name                string
+		configured, visible bool
+		status, calls       int
+	}{
+		{name: "missing visibility refuses", status: 404},
+		{name: "unreadable target refuses", configured: true, status: 404},
+		{name: "readable target dispatches", configured: true, visible: true, status: 200, calls: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reader := &modelRunReader{run: domain.RunStatus{RunID: "selected", TargetPlanRef: "east/app"}}
+			model := &observingModel{}
+			checks := 0
+			cfg := Config{Authorize: func(*http.Request) error { return nil }, Reader: reader, Model: model, OperatorName: func(r *http.Request) string { return r.Header.Get("X-Test-Carrier") }}
+			if tc.configured {
+				cfg.Visible = func(r *http.Request, environment string) bool {
+					checks++
+					if environment != "east" || r.Header.Get("X-Test-Carrier") != "original" {
+						t.Error("recorded target or original caller changed")
+					}
+					return tc.visible
+				}
+			}
+			mux := http.NewServeMux()
+			Register(mux, cfg)
+			request := httptest.NewRequest(http.MethodPost, "/v1/packaging-runs/selected/model-proposal", strings.NewReader(`{}`))
+			request.Header.Set("X-Test-Carrier", "original")
+			response := httptest.NewRecorder()
+			mux.ServeHTTP(response, request)
+			if response.Code != tc.status || len(model.calls) != tc.calls || reader.reads != 1 {
+				t.Fatalf("status%d calls%d reads%d body%s", response.Code, len(model.calls), reader.reads, response.Body.String())
+			}
+			wantChecks := 0
+			if tc.configured {
+				wantChecks = 1
+			}
+			if checks != wantChecks {
+				t.Fatalf("visibility checks%d want%d", checks, wantChecks)
+			}
+			if tc.calls == 1 && (model.calls[0].environment != "east" || model.calls[0].author != "original") {
+				t.Fatal("dispatch changed target or author")
+			}
+			if tc.calls == 0 && (strings.Contains(response.Body.String(), "east") || strings.Contains(response.Body.String(), "original")) {
+				t.Fatal("refusal leaked private target or caller")
+			}
+		})
 	}
 }
