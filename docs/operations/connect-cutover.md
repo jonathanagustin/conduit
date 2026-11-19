@@ -26,6 +26,7 @@ including reads. A read encoded as POST is not a governed state change.
 | `GET /v1/fleet/installations` | `conduit.fleet.v1.FleetReadService/ListFleetInstallations` | Dual-served filtered Fleet projection; current CLI and console callers remain REST |
 | `GET /v1/environments?view=summary` | `conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries` | CLI `environment list --view summary --read-transport connect`; full list stays REST |
 | `GET /v1/environments/{environmentID}/reported-state` | `conduit.environments.v1.EnvironmentObservationService/GetEnvironmentReportedState` | CLI `environment reported-state --read-transport connect`; REST remains the default; failures are not replayed |
+| `GET /v1/environments/{environmentID}` | `conduit.environments.v1.EnvironmentDetailService/GetEnvironment` | Dual-served full native configuration/report read with optional Space selection; existing callers remain REST |
 | `GET /v1/authorization-audit?view=events` | `conduit.governance.v1.AuthorizationAuditReadService/ListAuthorizationAuditEvents` | Bounded dual-serve adapter; existing callers remain REST |
 | `GET /v1/notifications/events` | `conduit.notifications.v1.NotificationService/ListNotificationEvents` | Generated Audit notification client |
 
@@ -40,16 +41,9 @@ These are Conduit-native contracts. See [overview](connect-reporting-overview.md
 [Fleet installations](connect-fleet-installations.md) for their bounded behavior.
 The map does not imply that all Hub routes have RPC equivalents.
 
-## Declared contracts awaiting adapters
-
-| Existing REST route | Declared RPC | Status |
-| --- | --- | --- |
-| `GET /v1/environments/{environmentID}` | `conduit.environments.v1.EnvironmentDetailService/GetEnvironment` | Contract only; no runtime registration or caller migration |
-
-[The full Environment detail contract](connect-environment-detail.md) carries
-native configuration and reuses reported-state/liveness messages. Its handler
-and caller qualification remain #392/#394 work; REST remains the supported
-transport for this read.
+[The full Environment detail contract](connect-environment-detail.md) now has
+an explicitly mounted authorized adapter. Its current callers remain REST;
+caller qualification remains #394 work.
 
 ## Remaining contracts and callers
 

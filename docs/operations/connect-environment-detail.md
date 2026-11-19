@@ -1,8 +1,8 @@
 # Full native Environment detail contract
 
-Status: declared contract only (#391). No EnvironmentDetailService adapter is
-mounted, and no caller uses this RPC. REST remains supported; #392 owns the
-authorized handler and #394 owns caller migration. No deprecation is activated.
+Status: the full detail adapter is explicitly mounted beside REST (#392).
+Current callers remain REST; #394 owns opt-in caller migration. No deprecation
+or automatic fallback is activated.
 
 `conduit.environments.v1.EnvironmentDetailService/GetEnvironment` corresponds to
 `GET /v1/environments/{environmentID}` in main
@@ -13,14 +13,14 @@ extension derived from the native route and model, not a private Apollo schema.
 
 ## Native field ownership
 
-| Contract shape | Native source |
-| --- | --- |
-| Environment and MaintenancePolicy | `internal/controlplane/model.go` |
-| Namespace, organization, installed target, registry/secret assignment and policy messages | `internal/environments/domain/configuration.go` |
-| WeeklyMaintenanceWindow | `internal/catalog/domain/release.go` |
-| MaintenanceOverride | `internal/delivery/plan/plan.go` (`Override`) |
-| EnvironmentRecord and reused SpokeLiveness | `internal/controlplane/catalog_projection.go` |
-| Reused ReportedEnvironmentState | Existing `environment_observation.proto` and its native reported-state mapping |
+| Contract shape                                                                            | Native source                                                                  |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Environment and MaintenancePolicy                                                         | `internal/controlplane/model.go`                                               |
+| Namespace, organization, installed target, registry/secret assignment and policy messages | `internal/environments/domain/configuration.go`                                |
+| WeeklyMaintenanceWindow                                                                   | `internal/catalog/domain/release.go`                                           |
+| MaintenanceOverride                                                                       | `internal/delivery/plan/plan.go` (`Override`)                                  |
+| EnvironmentRecord and reused SpokeLiveness                                                | `internal/controlplane/catalog_projection.go`                                  |
+| Reused ReportedEnvironmentState                                                           | Existing `environment_observation.proto` and its native reported-state mapping |
 
 All 18 native Environment fields and their 13 nested configuration types are
 represented. `scripts/verify-environment-detail-contract.py` compares the built
@@ -50,9 +50,9 @@ Timestamp messages retain instants; reported zero/unknown time follows the
 existing reported-state contract, with no invented current timestamp. These
 wire representations are not byte-identical REST JSON.
 
-## Requirements before serving
+## Serving requirements
 
-The future adapter must authenticate before decoding, preserve the original
+The adapter must authenticate before decoding, preserve the original
 carrier and represented identity, and reuse native resource authorization.
 Resource authority precedes optional Space validation and membership reads;
 Space membership only narrows access. Omitted Space selection differs from a
@@ -61,9 +61,24 @@ selection outcomes must retain their native categories and store-access order.
 No request field supplies a principal, grant, approval or execution credential.
 Recorded `approved_by` in a maintenance override is response metadata.
 
-Before registration, compare seeded REST/RPC values and errors for authorized,
+Compare seeded REST/RPC values and errors for authorized,
 anonymous, delegated, outsider and administrator callers; selected/mismatched
 Spaces; missing reports; explicit false and absent policies; large integers;
 JSON configuration and timestamps. Verify authority and Space refusal before
-private reads. That runtime parity remains #392 work, and declaration alone
-supplies none of its evidence.
+private reads. The adapter tests cover those boundaries; each promoted tree
+still requires its actual validation results. Other remaining Hub methods stay tracked in #392.
+
+## Native read and transport boundary
+
+`ReadAuthorizedEnvironmentDetail` is shared with the REST route. It checks the
+original carrier's Environment ReadResource authority once, then decodes and
+authorizes optional Space selection, loads membership, and rejects a mismatch
+before reading the catalog. The catalog port exposes only existing Plan/report
+reads. Liveness samples the clock after reading the matching record.
+
+The Connect route authenticates before decoding, accepts only the contracted
+POST, and is explicitly registered in the Hub authorization matrix. Input,
+permission, missing-resource and unconfigured-Space outcomes map to typed codes;
+internal diagnostics are redacted. The adapter projects raw native fields and
+reuses the reported-state mapper. No secret provider is called, no default is
+resolved, and recorded override reviewer metadata grants no authority.

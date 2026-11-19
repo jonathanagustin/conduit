@@ -38,7 +38,7 @@
     "internal/conduitcli/temporary_maintenance_commands.go": "48f1453a1b17567269f494816d6b3aafe11853927fa98540facc3944f43f5a8c",
     "internal/conduitcli/workflow.go": "da2625d987b689c0700eea562f484e826dcb79b65d5ccad82074bffb22498161",
     "internal/conduitcli/yaml_output.go": "627d4b6a5d756d4b4552f90d88cf88b18a0876aa9a2d423ba809d0b7c4e75d7b",
-    "internal/hub/composition/authorization.go": "bc9f19323f7903d086c9fec3b68f4be22252f57d76876af7e8aaa1123a590b5f",
+    "internal/hub/composition/authorization.go": "e7f982e29eac6f6620623bae9165a40b38bf785465584879bd124a41116e3b6e",
     "proto/conduit/catalog/v1/product_summary.proto": "4a3183ca3853ffa955bb294ec5b08de329327530529e406050ec8253d951eb3a",
     "proto/conduit/environments/v1/environment_detail.proto": "51bbb4f426ae359baa2e9d0c46061a2fd5842a4e556644fd74bfe1df638ea6b6",
     "proto/conduit/environments/v1/environment_observation.proto": "da3f2f16127b9401ebd3286c4411816a86e8704d6eed4a69e24f90ea785a9aea",
@@ -52,7 +52,7 @@
     "proto/conduit/plans/v1/plan_summary.proto": "da4392c59f27257bf61eac5b6016fe6ff130808ac37988ecc1ad9a6cfeab6f16",
     "proto/conduit/reporting/v1/overview.proto": "760a2ac1df0d12a1e7eecd8f71f7e098d311020c65048be9f2bb650cb7d621e1"
   },
-  "registeredRoutes": 271,
+  "registeredRoutes": 272,
   "routesWithNativeOpenAPI": 28,
   "nativeOpenAPIOperations": 28,
   "protoContracts": 12,
