@@ -247,3 +247,102 @@ test("planning intake creates the exact native session through the browser compo
     ),
   });
 });
+
+test("planning recovery reads the native owner snapshot without repeating a failed provider turn", async ({
+  page,
+}) => {
+  await page.goto("./#s01-intake");
+  const origin = new URL(page.url()).origin;
+  expect(repository).toMatch(
+    /^http:\/\/127\.0\.0\.1:\d+\/planning-cancel\.git$/,
+  );
+  expect(modelOrigin).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+  const calls = async () => {
+    const r = await page.request.get(`${modelOrigin}/planning-failure-fixture`);
+    expect(r.ok(), await r.text()).toBe(true);
+    return (await r.json()).calls as number;
+  };
+  const baseline = await calls();
+  // Session creation is setup; failure, recovery and the stream are native UI actions.
+  const created = await page.request.post(`${origin}/v1/planning-sessions`, {
+    data: { repoUrl: repository, ref: "reviewed-ref" },
+  });
+  expect(created.status(), await created.text()).toBe(201);
+  const initial = await created.json();
+  const sessionPath = `${origin}/v1/planning-sessions/${encodeURIComponent(initial.id)}`;
+  await page.goto(`./#s01-intake/${encodeURIComponent(initial.id)}`);
+  const flow = page.locator("#main-workspace [data-plan-flow]");
+  await expect(flow.getByLabel("Repository URL")).toHaveValue(repository);
+  await expect(flow.getByLabel("Ref", { exact: true })).toHaveValue(
+    "reviewed-ref",
+  );
+  const firstRun = page.waitForRequest(
+    (r) =>
+      r.method() === "POST" && new URL(r.url()).pathname === "/v1/agent-runs",
+  );
+  await flow
+    .getByLabel("Message", { exact: true })
+    .fill("CONDUIT_NATIVE_RECOVERY_FAILURE: inspect the local fixture.");
+  await flow.locator("[data-plan-send]").click();
+  const failed = (await firstRun).postDataJSON();
+  expect(failed.threadId).toBe(initial.id);
+  await expect(flow.locator("[data-plan-error]")).toBeVisible();
+  await expect(flow.locator("[data-plan-recover]")).toBeVisible();
+  const failures = await calls();
+  expect(failures).toBeGreaterThan(baseline);
+  const beforeResponse = await page.request.get(sessionPath);
+  expect(beforeResponse.ok(), await beforeResponse.text()).toBe(true);
+  const before = await beforeResponse.json();
+  expect(before.binding).toBeFalsy();
+  const writes: string[] = [];
+  page.on("request", (r) => {
+    if (r.method() === "POST") writes.push(new URL(r.url()).pathname);
+  });
+  const recovering = page.waitForRequest(
+    (r) =>
+      r.method() === "POST" && new URL(r.url()).pathname === "/v1/agent-runs",
+  );
+  const recovered = page.waitForResponse(
+    (r) =>
+      r.request().method() === "POST" &&
+      new URL(r.url()).pathname === "/v1/agent-runs",
+  );
+  await flow.locator("[data-plan-recover]").click();
+  const input = (await recovering).postDataJSON();
+  expect(input.threadId).toBe(initial.id);
+  expect(input.runId).toMatch(/^[0-9a-f-]{36}$/);
+  expect(input.runId).not.toBe(failed.runId);
+  expect(input.forwardedProps).toEqual({ conduit: { mode: "snapshot" } });
+  expect(input.resume).toBeUndefined();
+  const receipt = await recovered;
+  expect(receipt.status()).toBe(200);
+  expect(receipt.headers()["content-type"]).toContain("text/event-stream");
+  const stream = await receipt.text();
+  for (const event of ["RUN_STARTED", "STATE_SNAPSHOT", "RUN_FINISHED"])
+    expect(stream).toContain(event);
+  expect(stream).not.toContain("RUN_ERROR");
+  await expect(flow.locator("[data-plan-recover]")).toHaveCount(0);
+  await expect(flow.locator("[data-plan-error]")).toHaveCount(0);
+  const peer = await page.request.post(`${origin}/v1/agent-runs`, {
+    headers: { "X-Platform-Subject": "other-operator" },
+    data: input,
+  });
+  expect(peer.status()).toBe(404);
+  const afterResponse = await page.request.get(sessionPath);
+  expect(afterResponse.ok(), await afterResponse.text()).toBe(true);
+  const after = await afterResponse.json();
+  for (const key of [
+    "id",
+    "intake",
+    "answers",
+    "plan",
+    "inspection",
+    "binding",
+    "resolvedCommit",
+    "compute",
+  ]) {
+    expect(after[key]).toEqual(before[key]);
+  }
+  expect(await calls()).toBe(failures);
+  expect(writes).toEqual(["/v1/agent-runs"]);
+});
