@@ -1109,9 +1109,22 @@ test("the rail no longer offers the memory proposal the Hub refuses", async ({
       }),
   );
   await page.goto("/console/#s08-staged-run");
+  await expect(
+    page.getByRole("heading", { name: "run-1", exact: true }),
+  ).toBeVisible();
   await page.getByTitle("Toggle right chat panel").click();
+  await expect(
+    rail(page).locator('[data-assistant-threads="ready"]'),
+  ).toBeVisible();
+  await expect(
+    rail(page).getByTitle("Remove PackagingRun run-1"),
+  ).toBeVisible();
   await rail(page).locator('[data-set-mode="ontology"]').click();
-  await expect(rail(page).locator("[data-assistant-actions]")).toBeVisible();
+  // A populated, governed action proves the mode and context are ready;
+  // an empty flex container has no visibility guarantee across browsers.
+  await expect(
+    rail(page).getByRole("button", { name: "Add eval case", exact: true }),
+  ).toBeVisible();
   await expect(
     rail(page).getByRole("button", { name: "Propose memory" }),
   ).toHaveCount(0);
