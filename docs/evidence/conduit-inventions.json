@@ -437,9 +437,9 @@
     {
       "id": "packagevalidation.EvidenceAdmission",
       "what": "Native one-use validation evidence admission with current authority facts, canonical signed-document retention and atomic audit/challenge consumption obligations.",
-      "why": "A signed claim alone does not supply current authorization, one-use storage or deployment permission. The application records verified evidence only; a process-local reference adapter demonstrates the port without pretending to be durable production authority.",
+      "why": "A signed claim alone does not supply current authorization, one-use storage or deployment permission. The application records verified evidence only. A process-local reference and an uncomposed PostgreSQL adapter implement the same port; neither configures live producer, tenant or deployment authority.",
       "displacedBy": "a reviewed recipient-side validation evidence admission and atomic challenge/audit contract.",
-      "riskIfWrong": "The memory reference loses state on restart and is not shared across replicas or connected to live Hub facts. Durable transactional adapters, actual profile compilation, current governance and final handoff integration remain required before production use."
+      "riskIfWrong": "The memory reference loses state on restart. The PostgreSQL adapter requires an authorizer locking current trusted facts in the same SQL transaction and actual database qualification; it is not connected to live Hub facts. Actual profile compilation, producer/signing custody, current governance and final handoff integration remain required before production use."
     },
     {
       "id": "debugsessions.RequestLifecycle",
