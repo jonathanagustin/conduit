@@ -38,10 +38,11 @@
     "internal/conduitcli/temporary_maintenance_commands.go": "48f1453a1b17567269f494816d6b3aafe11853927fa98540facc3944f43f5a8c",
     "internal/conduitcli/workflow.go": "97e104b08f4f0dd8b226b24b80f11752fbdd358b13c53da449f2851e5f205443",
     "internal/conduitcli/yaml_output.go": "627d4b6a5d756d4b4552f90d88cf88b18a0876aa9a2d423ba809d0b7c4e75d7b",
-    "internal/hub/composition/authorization.go": "85cc9cd3f5f486da0482c801905ecea0b7e81011d06f5afff9250acec5211815",
+    "internal/hub/composition/authorization.go": "bc9f19323f7903d086c9fec3b68f4be22252f57d76876af7e8aaa1123a590b5f",
     "proto/conduit/catalog/v1/product_summary.proto": "4a3183ca3853ffa955bb294ec5b08de329327530529e406050ec8253d951eb3a",
     "proto/conduit/environments/v1/environment_observation.proto": "da3f2f16127b9401ebd3286c4411816a86e8704d6eed4a69e24f90ea785a9aea",
     "proto/conduit/environments/v1/environment_summary.proto": "6cdbd3af682ba579aeee7a1a69f446a26e5d1bf096a6c920922adc1ed2dbd7e7",
+    "proto/conduit/fleet/v1/fleet.proto": "cdde281a1aaa633c573374e58102c4b383d60f4bf080797f61da58034851d15c",
     "proto/conduit/governance/v1/authorization_audit.proto": "c53c4a08cbc1944a1be9469fa6ef1f24d0968051351dd57e7f0e3d76e3cd8f2a",
     "proto/conduit/notifications/v1/notification_event.proto": "0b1d7b0c38ad4ac66c00606781ee2650a8dc7f501a87b64d5e474e249f85a6e4",
     "proto/conduit/packaging/v1/packaging_run.proto": "3c286a6ebdf69cb806f2460f71dcb8e7ca061070f2966b1766f384e29c02613e",
@@ -50,9 +51,9 @@
     "proto/conduit/plans/v1/plan_summary.proto": "da4392c59f27257bf61eac5b6016fe6ff130808ac37988ecc1ad9a6cfeab6f16",
     "proto/conduit/reporting/v1/overview.proto": "760a2ac1df0d12a1e7eecd8f71f7e098d311020c65048be9f2bb650cb7d621e1"
   },
-  "registeredRoutes": 270,
+  "registeredRoutes": 271,
   "routesWithNativeOpenAPI": 28,
   "nativeOpenAPIOperations": 28,
-  "protoContracts": 10,
+  "protoContracts": 11,
   "cliCommands": 178
 }

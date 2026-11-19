@@ -23,6 +23,7 @@ including reads. A read encoded as POST is not a governed state change.
 | `POST /v1/plans/{planID}/cancel` | `conduit.plans.v1.PlanCancellationService/CancelPlan` | Dual-served native cancellation; explicit CLI `plan cancel --write-transport connect` emits a versioned receipt; default and console callers remain REST; no automatic retry or replay |
 | `POST /v1/plans/{planID}/approvals` | `conduit.plans.v1.PlanApprovalService/ApprovePlan` | Generated active operator delivery/approval panels and legacy helper; explicit CLI `plan approve --write-transport connect` returns a versioned receipt; CLI default remains REST, no automatic retry |
 | `GET /v1/plans?view=summary` | `conduit.plans.v1.PlanReadService/ListPlanSummaries` | Explicit CLI `plan list --read-transport connect`; default remains REST |
+| `GET /v1/fleet/installations` | `conduit.fleet.v1.FleetReadService/ListFleetInstallations` | Dual-served filtered Fleet projection; current CLI and console callers remain REST |
 | `GET /v1/environments?view=summary` | `conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries` | CLI `environment list --view summary --read-transport connect`; full list stays REST |
 | `GET /v1/environments/{environmentID}/reported-state` | `conduit.environments.v1.EnvironmentObservationService/GetEnvironmentReportedState` | CLI `environment reported-state --read-transport connect`; REST remains the default; failures are not replayed |
 | `GET /v1/authorization-audit?view=events` | `conduit.governance.v1.AuthorizationAuditReadService/ListAuthorizationAuditEvents` | Bounded dual-serve adapter; existing callers remain REST |
@@ -35,7 +36,8 @@ These are Conduit-native contracts. See [overview](connect-reporting-overview.md
 [Plan summaries](connect-plan-summaries.md) and
 [Product summaries](connect-product-summaries.md) and
 [Plan approval](connect-plan-approval.md) and
-[Plan cancellation](connect-plan-cancellation.md) for their bounded behavior.
+[Plan cancellation](connect-plan-cancellation.md) and
+[Fleet installations](connect-fleet-installations.md) for their bounded behavior.
 The map does not imply that all Hub routes have RPC equivalents.
 
 ## Remaining contracts and callers
@@ -46,8 +48,7 @@ records the narrow projection, presence and authority boundaries. The CLI's
 explicit summary view can select Connect; console and full Environment callers
 remain REST. #394 stays open for the remaining migration.
 
-Known follow-ons are full Environment index/detail, fleet
-installations, full Plan index/detail, change-request approve/reject,
+Known follow-ons are full Environment index/detail, full Plan index/detail, change-request approve/reject,
 and audit-chain export. [Audit event reads](connect-audit-events.md) share the
 native administrator gate and pagination; caller migration remains separate. Governed packaging rerun/cancel already have REST
 routes but no methods in the current packaging proto.
