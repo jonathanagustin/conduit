@@ -123,9 +123,15 @@ func TestRESTPlanListUsesNativeSpaceMembershipAndRefusals(t *testing.T) {
 	}
 }
 
-func TestConnectPlanListRefusesUnrepresentableSpaceWithoutNetwork(t *testing.T) {
+func TestConnectPlanListRefusesUnsupportedScopedProcedureWithoutFallback(t *testing.T) {
 	var calls atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { calls.Add(1) }))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if r.Method != "POST" || r.URL.Path != "/conduit.plans.v1.PlanScopedReadService/ListPlanSummariesInSpace" {
+			t.Errorf("unscoped/fallback request: %s %s", r.Method, r.URL.Path)
+		}
+		http.NotFound(w, r)
+	}))
 	defer server.Close()
 	adapter, err := NewHTTPControlPlane(server.URL, server.Client())
 	if err != nil {
@@ -138,7 +144,7 @@ func TestConnectPlanListRefusesUnrepresentableSpaceWithoutNetwork(t *testing.T) 
 		t.Fatal(err)
 	}
 	result, err := adapter.ListPlans(t.Context(), PlanListQuery{})
-	if err == nil || !strings.Contains(err.Error(), "Space selection is unavailable") || calls.Load() != 0 || len(result.Plans) != 0 || result.Total != 0 {
+	if err == nil || calls.Load() != 1 || len(result.Plans) != 0 || result.Total != 0 {
 		t.Fatalf("silently unscoped/replayed: %+v %v calls%d", result, err, calls.Load())
 	}
 }

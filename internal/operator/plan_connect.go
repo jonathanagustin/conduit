@@ -21,21 +21,36 @@ func (adapter *HTTPControlPlane) SetPlanReadTransport(mode string) error {
 }
 
 func (adapter *HTTPControlPlane) listPlanSummariesConnect(ctx context.Context, query PlanListQuery) (PlanListResult, error) {
-	// The current summary contract cannot carry a Space selector. Never silently
-	// widen a selected-Space read or replay it over another transport.
-	if adapter.spaceID != "" {
-		return PlanListResult{}, fmt.Errorf("Connect Plan summary Space selection is unavailable; select REST explicitly")
-	}
-	client := plansv1connect.NewPlanReadServiceClient(connect.NewClient(connecthttp.NewTransport(adapter.client, adapter.baseURL.String(), connecthttp.WithReadMaxBytes(maxOperatorResponseBytes))))
+	// Capture selection for every page and response binding in this operation.
+	spaceID := adapter.spaceID
+	transport := connect.NewClient(connecthttp.NewTransport(adapter.client, adapter.baseURL.String(), connecthttp.WithReadMaxBytes(maxOperatorResponseBytes)))
+	client := plansv1connect.NewPlanReadServiceClient(transport)
+	scoped := plansv1connect.NewPlanScopedReadServiceClient(transport)
 	limit := int32(200)
 	request := &plansv1.ListPlanSummariesRequest{Limit: &limit, Environment: query.Environment, Status: query.Status, InstallationId: query.InstallationID, Search: query.Search}
 	result := PlanListResult{Plans: []controlplane.PlanSummary{}}
 	seen := map[string]bool{}
 	maximum := int64(^uint(0) >> 1)
 	for {
-		page, err := client.ListPlanSummaries(ctx, request)
-		if err != nil {
-			return PlanListResult{}, err
+		var page *plansv1.ListPlanSummariesResponse
+		if spaceID != "" {
+			response, err := scoped.ListPlanSummariesInSpace(ctx, &plansv1.ListPlanSummariesInSpaceRequest{SpaceId: spaceID, Limit: request.Limit, Cursor: request.Cursor, Environment: request.Environment, Status: request.Status, InstallationId: request.InstallationId, Search: request.Search})
+			if err != nil {
+				return PlanListResult{}, err
+			}
+			if response == nil || response.SpaceId != spaceID || response.Page == nil {
+				return PlanListResult{}, fmt.Errorf("operator control plane returned an invalid scoped Plan summary selection")
+			}
+			page = response.Page
+		} else {
+			var err error
+			page, err = client.ListPlanSummaries(ctx, request)
+			if err != nil {
+				return PlanListResult{}, err
+			}
+		}
+		if page == nil {
+			return PlanListResult{}, fmt.Errorf("operator control plane returned an invalid Plan summary page")
 		}
 		if page.Total < int64(len(page.Plans)) || page.Total > maximum || page.Limit < 1 || page.Limit > 200 || len(page.Plans) > int(page.Limit) || int(page.PageSize) != len(page.Plans) {
 			return PlanListResult{}, fmt.Errorf("operator control plane returned an invalid Plan summary page")
