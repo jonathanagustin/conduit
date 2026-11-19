@@ -34,6 +34,7 @@ keep=0
 simulate_agent=1
 with_packaging=0
 with_workspace_git=0
+with_planning=0
 # Which desired state to seed, and so which branch of the simulator the Agent
 # takes. Each scenario has its own spec file because their assertions contradict
 # one another by design: a Hub carrying a failed Plan cannot also satisfy
@@ -55,6 +56,7 @@ while [ "$#" -gt 0 ]; do
     --no-agent) simulate_agent=0; shift ;;
     --with-packaging) with_packaging=1; shift ;;
     --with-workspace-git) with_workspace_git=1; shift ;;
+    --with-planning) with_planning=1; shift ;;
     *) break ;;
   esac
 done
@@ -68,6 +70,10 @@ if [ "${with_workspace_git}" -eq 1 ] && [ "${scenario}" != healthy ]; then
   echo "simulate: --with-workspace-git requires the healthy scenario" >&2
   exit 2
 fi
+if [ "${with_planning}" -eq 1 ] && [ "${scenario}" != healthy ]; then
+  echo "simulate: --with-planning requires the healthy scenario" >&2
+  exit 2
+fi
 
 port="${CONDUIT_SIMULATION_PORT:-8099}"
 hub_url="http://127.0.0.1:${port}"
@@ -77,6 +83,9 @@ model_port="${CONDUIT_SIMULATION_MODEL_PORT:-$((port + 1))}"
 hub_pid=""
 agent_pid=""
 model_pid=""
+source_pid=""
+planning_repo=""
+planning_source_host=""
 packaging_pid=""
 temporal_pid=""
 packaging_run=""
@@ -87,14 +96,14 @@ if [ "${with_workspace_git}" -eq 1 ]; then workspace_git_root="${work}/workspace
 cleanup() {
   local status=$?
   if [ "${keep}" -eq 0 ]; then
-    for pid in "${agent_pid}" "${hub_pid}" "${model_pid}" "${packaging_pid}" "${temporal_pid}"; do
+    for pid in "${agent_pid}" "${hub_pid}" "${model_pid}" "${source_pid}" "${packaging_pid}" "${temporal_pid}"; do
       [ -n "${pid}" ] || continue
       kill "${pid}" 2>/dev/null || true
       wait "${pid}" 2>/dev/null || true
     done
   fi
   if [ "${status}" -ne 0 ]; then
-    for log in hub agent model packaging temporal; do
+    for log in hub agent model source packaging temporal; do
       [ -s "${work}/${log}.log" ] || continue
       echo "--- ${log} log ---" >&2
       tail -40 "${work}/${log}.log" >&2
@@ -102,7 +111,7 @@ cleanup() {
   fi
   if [ -n "${evidence_dir}" ]; then
     mkdir -p "${evidence_dir}"
-    for log in hub agent model packaging temporal; do
+    for log in hub agent model source packaging temporal; do
       if [ -f "${work}/${log}.log" ]; then cp "${work}/${log}.log" "${evidence_dir}/${log}.log"; fi
     done
     if [ -f "${work}/packaging-status.json" ]; then cp "${work}/packaging-status.json" "${evidence_dir}/packaging-status.json"; fi
@@ -174,7 +183,31 @@ fi
 # the thread store, the event stream -- is the Hub's own. Plain http is accepted
 # without an opt-in because the address is loopback.
 echo "simulate: starting the stand-in model on 127.0.0.1:${model_port}"
-node "${repo_root}/scripts/simulate/fake-model.mjs" "${model_port}" >"${work}/model.log" 2>&1 &
+if [ "${with_planning}" -eq 1 ]; then
+  mkdir -p "${work}/sources"
+  git init --quiet --initial-branch=main "${work}/planning-source"
+  printf '%s\n' '# Local planning cancellation fixture' >"${work}/planning-source/README.md"
+  git -C "${work}/planning-source" add README.md
+  git -C "${work}/planning-source" -c user.name=Fixture -c user.email=fixture@example.invalid commit --quiet -m 'test: seed planning cancellation fixture'
+  git -C "${work}/planning-source" branch reviewed-ref
+  git clone --quiet --bare "${work}/planning-source" "${work}/sources/planning-cancel.git"
+  git -C "${work}/sources/planning-cancel.git" update-server-info
+  python3 -u -m http.server 0 --bind 127.0.0.1 --directory "${work}/sources" >"${work}/source.log" 2>&1 &
+  source_pid=$!
+  source_ready=0
+  for _ in $(seq 1 40); do
+    kill -0 "${source_pid}" 2>/dev/null || { echo "simulate: planning source server exited" >&2; exit 1; }
+    source_port="$(awk '/^Serving HTTP on 127\.0\.0\.1 port [0-9]+ / { print $6; exit }' "${work}/source.log")"
+    if [ -n "${source_port}" ]; then source_ready=1; break; fi
+    sleep 0.25
+  done
+  [ "${source_ready}" -eq 1 ] || { echo "simulate: planning source server unavailable" >&2; exit 1; }
+  planning_source_host="127.0.0.1:${source_port}"
+  planning_repo="http://${planning_source_host}/planning-cancel.git"
+  curl -fsS --noproxy '*' --max-time 2 "${planning_repo}/HEAD" >"${work}/source-head.txt"
+  grep -qx 'ref: refs/heads/main' "${work}/source-head.txt"
+fi
+CONDUIT_SIMULATION_PLANNING_REPO="${planning_repo}" node "${repo_root}/scripts/simulate/fake-model.mjs" "${model_port}" >"${work}/model.log" 2>&1 &
 model_pid=$!
 for _ in $(seq 1 40); do
   grep -q "listening" "${work}/model.log" 2>/dev/null && break
@@ -208,6 +241,7 @@ LISTEN_ADDRESS="127.0.0.1:${port}" \
   PLATFORM_BOOTSTRAP_ADMINISTRATORS=proposer,operator \
   CONDUIT_MODEL_BASE_URL="http://127.0.0.1:${model_port}/v1" \
   CONDUIT_MODEL_NAME=simulated-model \
+  CONDUIT_SOURCE_ALLOWED_HOSTS="${planning_source_host:-${CONDUIT_SOURCE_ALLOWED_HOSTS:-}}" \
   "${work}/hub" >"${work}/hub.log" 2>&1 &
 hub_pid=$!
 
@@ -263,7 +297,7 @@ fi
 
 if [ "${keep}" -eq 1 ]; then
   echo "simulate: Hub left running at ${hub_url}/console/ (pid ${hub_pid}, data ${work})"
-  echo "simulate: stop it with: kill ${hub_pid} ${agent_pid} ${model_pid} ${packaging_pid} ${temporal_pid}"
+  echo "simulate: stop it with: kill ${hub_pid} ${agent_pid} ${model_pid} ${source_pid} ${packaging_pid} ${temporal_pid}"
   exit 0
 fi
 
@@ -278,6 +312,7 @@ if [ "${with_workspace_git}" -eq 1 ]; then
   specs="${specs/workspace-metadata.spec.ts/workspace-git.spec.ts}"
 fi
 if [ "${with_packaging}" -eq 1 ]; then specs="${specs} packaging-feedback.spec.ts"; fi
+if [ "${with_planning}" -eq 1 ]; then specs="${specs} planning-cancellation.spec.ts"; fi
 for spec in ${specs}; do
   [ -f "${repo_root}/web/src/test/live/${spec}" ] ||
     { echo "simulate: scenario '${scenario}' has no spec file ${spec}" >&2; exit 1; }
@@ -285,4 +320,5 @@ done
 
 # shellcheck disable=SC2086 # specs is a space-separated list of file names
 CONDUIT_HUB_URL="${hub_url}/console/" CONDUIT_SIMULATED_PLAN="${plan_id}" CONDUIT_SIMULATED_PACKAGING_RUN="${packaging_run}" \
+  CONDUIT_SIMULATED_PLANNING_REPO="${planning_repo}" CONDUIT_SIMULATED_MODEL_ORIGIN="http://127.0.0.1:${model_port}" \
   pnpm --dir "${repo_root}/web" exec playwright test --config playwright.live.config.ts ${specs} "$@"

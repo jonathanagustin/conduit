@@ -55,6 +55,45 @@ function json(status: number, body: unknown) {
 }
 
 describe("planning flow state", () => {
+  it("shows recorded source intake for a linked session without replacing draft values", () => {
+    const draft = {
+      ...emptyPlanning(),
+      repoUrl: "https://draft.example/wrong",
+      ref: "unsubmitted",
+    };
+    const bound = {
+      ...draft,
+      session: {
+        ...session(),
+        intake: {
+          repoUrl: "https://recorded.example/app?x=<bound>",
+          ref: "reviewed&ref",
+        },
+      },
+    };
+    const html = planningMarkup(bound);
+    const field = (id: string) =>
+      html.match(new RegExp(`<input[^>]+id="${id}"[^>]*>`))?.[0] || "";
+    expect(field("plan-repo")).toContain(
+      'value="https://recorded.example/app?x=&lt;bound&gt;"',
+    );
+    expect(field("plan-ref")).toContain('value="reviewed&amp;ref"');
+    expect(field("plan-repo")).toContain(" disabled");
+    expect(field("plan-ref")).toContain(" disabled");
+    expect(bound.repoUrl).toBe(draft.repoUrl);
+    expect(bound.ref).toBe(draft.ref);
+    const editable = planningMarkup(draft);
+    expect(editable).toContain('value="https://draft.example/wrong"');
+    expect(editable).toContain('value="unsubmitted"');
+    const unknown = planningMarkup({
+      ...draft,
+      session: { ...session(), intake: {} },
+    });
+    expect(unknown.match(/<input[^>]+id="plan-ref"[^>]*>/)?.[0]).toContain(
+      'value=""',
+    );
+  });
+
   it("starts empty with no session and no sample content", () => {
     const html = planningMarkup(emptyPlanning());
     expect(html).toContain("data-plan-composer");

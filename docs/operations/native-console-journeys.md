@@ -15,7 +15,7 @@ The commands are also available locally:
 
 ```sh
 ./scripts/fetch-temporal-cli.sh
-./scripts/simulate-console.sh --with-packaging
+./scripts/simulate-console.sh --with-packaging --with-planning
 ./scripts/simulate-console.sh --with-workspace-git --grep 'Git workspace history and confirmed fork'
 ```
 
@@ -25,6 +25,13 @@ Temporal CLI and a recorded-fixture workflow. The second command covers the
 existing Git-backed workspace history/fork journey; the healthy scenario uses
 the separate metadata adapter. A missing fixture, refused response or failed
 assertion fails verification rather than counting an empty catalog as success.
+
+The opt-in planning cancellation case serves a tiny Git fixture on loopback.
+Only that exact source host is admitted to the simulated Hub; production source
+policy is unchanged. The stand-in model holds that repository's response while
+the browser tests native owner-scoped cancellation and refusal for another
+actor. Fixture counters witness a real pending model request and its closed
+connection; they do not stand in for a Hub response or model-quality score.
 
 Set `CONDUIT_SIMULATION_EVIDENCE_DIR` to retain Hub, simulated Agent, model and
 packaging/Temporal logs when those processes run. Hosted artifacts retain these
