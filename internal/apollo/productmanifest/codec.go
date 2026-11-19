@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 
+	"github.com/jonathanagustin/conduit/internal/apollo/yamldiagnostics"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -28,32 +28,8 @@ func Decode(reader io.Reader) (Manifest, error) {
 	return manifest, nil
 }
 
-// Moving a Go type must not change the existing YAML diagnostic contract.
-// Rewrite only the terminal type label emitted by yaml, never user input.
-// Keep structured load errors and their underlying causes available to errors.As/Is.
 func legacyDiagnostic(err error) error {
-	var typed *yaml.LoadErrors
-	if !errors.As(err, &typed) {
-		return err
-	}
-	result := &yaml.LoadErrors{Errors: make([]*yaml.LoadError, len(typed.Errors))}
-	for i, detail := range typed.Errors {
-		copy := *detail
-		result.Errors[i] = &copy
-		message := detail.Message
-		for current, legacy := range legacyTypeNames {
-			for _, diagnostic := range []string{" in type ", " into "} {
-				for _, wrapper := range []string{"", "*", "[]", "map[string]"} {
-					prefix := diagnostic + wrapper
-					suffix := prefix + "productmanifest." + current
-					if strings.HasSuffix(message, suffix) {
-						copy.Message = strings.TrimSuffix(message, suffix) + prefix + "controlplane." + legacy
-					}
-				}
-			}
-		}
-	}
-	return result
+	return yamldiagnostics.Rewrite(err, "productmanifest", "controlplane", legacyTypeNames)
 }
 
 var legacyTypeNames = map[string]string{
