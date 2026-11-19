@@ -125,6 +125,40 @@ export function attachControl(reason, id = "intake") {
   </span>`;
 }
 
+const chromeSnapshots = new WeakMap();
+
+// A file chooser retains its input node while open. Replacing that node during
+// an unrelated chrome refresh loses the selection before its change can bubble.
+// Identity or input-constraint changes deliberately invalidate that context.
+export function updateAttachmentChrome(root, markup, scope) {
+  if (!root) return;
+  const previous = chromeSnapshots.get(root);
+  if (previous && previous.markup === markup && previous.scope === scope)
+    return;
+  const inputs =
+    previous && previous.scope === scope
+      ? [...root.querySelectorAll('input[type="file"][data-attach-input]')]
+      : [];
+  root.innerHTML = markup;
+  for (const input of inputs) {
+    const replacement = [
+      ...root.querySelectorAll('input[type="file"][data-attach-input]'),
+    ].find(
+      (candidate) =>
+        candidate.getAttribute("data-attach-input") ===
+        input.getAttribute("data-attach-input"),
+    );
+    if (
+      replacement &&
+      replacement.accept === input.accept &&
+      replacement.multiple === input.multiple &&
+      replacement.disabled === input.disabled
+    )
+      replacement.replaceWith(input);
+  }
+  chromeSnapshots.set(root, { markup, scope });
+}
+
 // bindAttach wires every Attach control under root. state.attachments holds
 // { items, error, reason }. onChange re-renders after a load or an upload.
 export function bindAttach(root, state, onChange, fetchImpl = fetch) {

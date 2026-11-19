@@ -125,6 +125,7 @@ import {
 import {
   bindAttach,
   ensureLoaded as ensureAttachments,
+  updateAttachmentChrome,
 } from "./attachments.js";
 import {
   areaObject,
@@ -1864,7 +1865,14 @@ export function mountOperator(host, options) {
       }).join("");
     }
     const chrome = rail.querySelector("[data-assistant-chrome]");
-    if (chrome) chrome.innerHTML = assistantChrome(state);
+    updateAttachmentChrome(
+      chrome,
+      assistantChrome(state),
+      JSON.stringify([
+        state.reviewOperatorActor || "",
+        state.reviewOperatorName || "",
+      ]),
+    );
     bindAttach(rail, state, renderChatRail);
     ensureAttachments(state, renderChatRail);
     const results = rail.querySelector("[data-assistant-results]");

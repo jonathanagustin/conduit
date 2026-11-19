@@ -7,6 +7,7 @@ test("attachment uploads retain exact bytes, owner visibility and native refusal
   page,
 }) => {
   await page.goto("./");
+  await expect(page.locator("#operator-name")).toHaveText("operator");
   await page.getByTitle("Toggle right chat panel").click();
   await expect(page.getByLabel("Message input")).toBeVisible();
   const rail = page.locator("#right-chat-rail");
@@ -38,11 +39,21 @@ test("attachment uploads retain exact bytes, owner visibility and native refusal
       (response) =>
         response.request().method() === "POST" && response.url() === endpoint,
     );
-    await input().setInputFiles({
-      name,
-      mimeType: "text/plain",
-      buffer: bytes,
-    });
+    const file = { name, mimeType: "text/plain", buffer: bytes };
+    if (upload === 0) {
+      const opened = page.waitForEvent("filechooser");
+      await rail.locator('[data-attach-button="assistant"]').click();
+      const chooser = await opened;
+      // Trigger actual chrome replacement while the browser owns a picker.
+      // A detached original input cannot deliver this selection to the Hub.
+      await rail.locator('[data-set-mode="ontology"]').click();
+      expect(await chooser.element().evaluate((node) => node.isConnected)).toBe(
+        true,
+      );
+      await chooser.setFiles(file);
+    } else {
+      await input().setInputFiles(file);
+    }
     const response = await completed;
     expect(response.status(), await response.text()).toBe(201);
     expect(await response.json()).toMatchObject(expected);
