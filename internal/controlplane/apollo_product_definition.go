@@ -98,9 +98,9 @@ const ApolloDefaultRandomStringLength = 16
 // because each one is a documented promise about what an installation gets, and
 // a reader checking that promise should find one place to look.
 const (
-	ApolloDefaultReplication = 2
-	ApolloDefaultCPU         = "0.25"
-	ApolloDefaultMemory      = "1G"
+	ApolloDefaultReplication = productconfiguration.DefaultReplication
+	ApolloDefaultCPU         = productconfiguration.DefaultCPU
+	ApolloDefaultMemory      = productconfiguration.DefaultMemory
 	// ApolloDefaultEndpointPath is what an endpoint serves when it names no path.
 	ApolloDefaultEndpointPath = productconfiguration.DefaultEndpointPath
 )
@@ -934,42 +934,14 @@ func validateApolloResourceQuantities(
 	return cpu, memory
 }
 
-// ApolloEffectiveResources fills in what a definition left unsaid. A lone limit
-// becomes its own request, so a Product that states only a ceiling is scheduled
-// against that ceiling rather than against the platform default.
+// ApolloEffectiveResources retains the existing configuration default resolver.
 func ApolloEffectiveResources(resources *ApolloResourceRequirements) ApolloResourceRequirements {
-	requests := ApolloResourceQuantities{}
-	limits := ApolloResourceQuantities{}
-	if resources != nil {
-		if resources.Requests != nil {
-			requests = *resources.Requests
-		}
-		if resources.Limits != nil {
-			limits = *resources.Limits
-		}
-	}
-	if requests.CPU == "" {
-		requests.CPU = limits.CPU
-	}
-	if requests.Memory == "" {
-		requests.Memory = limits.Memory
-	}
-	if requests.CPU == "" {
-		requests.CPU = ApolloDefaultCPU
-	}
-	if requests.Memory == "" {
-		requests.Memory = ApolloDefaultMemory
-	}
-	return ApolloResourceRequirements{Requests: &requests, Limits: &limits}
+	return productconfiguration.EffectiveResources(resources)
 }
 
-// ApolloEffectiveReplication is the replica count an installation runs at when
-// neither the definition nor its overrides state one.
+// ApolloEffectiveReplication retains explicit replica counts, including zero.
 func ApolloEffectiveReplication(replication *ApolloReplication) int {
-	if replication == nil || replication.Desired == nil {
-		return ApolloDefaultReplication
-	}
-	return *replication.Desired
+	return productconfiguration.EffectiveReplication(replication)
 }
 
 func sortedKeys[Value any](values map[string]Value) []string {
