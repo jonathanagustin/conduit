@@ -137,6 +137,7 @@ test("Command Center uses recorded sites and drafts context without writes", asy
   await expect(composer).toHaveValue(
     /course of action for Environment cc-unmapped/,
   );
+  await expect(composer).toBeFocused();
   await composer.fill("My unsent notes");
   await object
     .getByRole("button", { name: "Share in chat", exact: true })
@@ -162,6 +163,41 @@ test("Command Center uses recorded sites and drafts context without writes", asy
       "Context could not be added. Review the existing assistant draft first.",
     ),
   ).toHaveCount(0);
+  // Delay the real action's focus frame while its composer is replaced.
+  // A newly mounted composer must retain the user's current focus.
+  await object
+    .getByRole("button", { name: "Ask", exact: true })
+    .evaluate((button) => {
+      const frames: FrameRequestCallback[] = [];
+      const originalFrame = window.requestAnimationFrame;
+      window.requestAnimationFrame = (callback) => {
+        frames.push(callback);
+        return 0;
+      };
+      try {
+        (button as HTMLButtonElement).click();
+      } finally {
+        window.requestAnimationFrame = originalFrame;
+      }
+      const composer = document.querySelector("#right-chat-rail textarea");
+      if (!composer || frames.length !== 1)
+        throw new Error("context focus frame missing");
+      const replacement = composer.cloneNode(true) as HTMLTextAreaElement;
+      replacement.id = "replacement-context-composer";
+      composer.replaceWith(replacement);
+      const current = document.createElement("button");
+      current.textContent = "Current focus";
+      document.body.append(current);
+      current.focus();
+      try {
+        for (const frame of frames) frame(performance.now());
+        if (document.activeElement !== current)
+          throw new Error("stale context frame stole focus");
+      } finally {
+        replacement.replaceWith(composer);
+        current.remove();
+      }
+    });
   await page.screenshot({
     path: testInfo.outputPath("command-center-geography.png"),
     fullPage: false,
