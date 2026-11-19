@@ -131,3 +131,12 @@ remain unchanged so this extraction does not migrate or relabel retained evidenc
 Memory/file/PostgreSQL transaction locking, rollback and dynamic refusal of
 non-atomic stores remain mandatory. The remaining compatibility facades and
 product-definition shapes still require extraction; this does not finish #428.
+
+The published Environment settings document shape and its CEL diff-path
+calculation now live in `apollo/environmentsettings`, a compatibility leaf with
+no control-plane import. Source-compatible aliases retain the existing core
+call sites while DesiredState conversion and native validation remain at that
+edge. Unknown YAML nodes, explicit false versus absent fields, installation
+addition/removal paths, sorted policy paths and wire field names are retained.
+This separates the transport vocabulary without claiming that the remaining
+settings command adapter or product-definition schemas have been extracted.
