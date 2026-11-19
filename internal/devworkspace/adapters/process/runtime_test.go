@@ -17,11 +17,14 @@ import (
 func TestFailedStartDoubleStartAndStopAfterCrash(t *testing.T) {
 	dir := t.TempDir()
 	marker := filepath.Join(dir, "starts")
-	runtime := New([]string{"sh", "-c", "echo $$ >> " + marker + "; sleep 30"}, nil)
+	runtime := New([]string{"sh", "-c", `echo $$ >> "$1"; exec sleep 30`, "preview-test", marker}, nil)
 	workspace := domain.Workspace{ID: "wsp_one", Owner: "ada"}
-	failing := New([]string{"false"}, nil)
-	if _, err := failing.Start(context.Background(), workspace); err == nil {
-		t.Fatal("failed start was accepted")
+	stopFixture(t, runtime, workspace.ID)
+	// A failed OS spawn is an unconditional refusal, unlike an asynchronously
+	// exiting child whose Wait observation can follow Start's grace window.
+	failing := New([]string{filepath.Join(dir, "missing-preview-command")}, nil)
+	if failed, err := failing.Start(context.Background(), workspace); !errors.Is(err, domain.ErrInvalid) || failed.Status != domain.StatusFailed {
+		t.Fatalf("failed spawn = %#v %v", failed, err)
 	}
 	first, err := runtime.Start(context.Background(), workspace)
 	if err != nil || first.Status != domain.StatusRunning {
@@ -31,9 +34,22 @@ func TestFailedStartDoubleStartAndStopAfterCrash(t *testing.T) {
 	if err != nil || second.ID != first.ID {
 		t.Fatalf("second start = %#v %v", second, err)
 	}
-	body, err := os.ReadFile(marker)
-	if err != nil {
-		t.Fatal(err)
+	// The marker is the fixture's readiness signal; Start acknowledges a process,
+	// not arbitrary application readiness within a fixed scheduler interval.
+	var body []byte
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		body, err = os.ReadFile(marker)
+		if err == nil && len(body) > 0 {
+			break
+		}
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			t.Fatal(err)
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("fixture did not write readiness marker: %v", err)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 	if lines := strings.Count(string(body), "\n"); lines != 1 {
 		t.Fatalf("start count = %d\n%s", lines, body)
@@ -41,11 +57,30 @@ func TestFailedStartDoubleStartAndStopAfterCrash(t *testing.T) {
 	if _, err := runtime.Stop(context.Background(), workspace.ID); err != nil {
 		t.Fatal(err)
 	}
-	crashing := New([]string{"sh", "-c", "echo password=hunter2; sleep 0.2; exit 1"}, nil)
+	crashSignal := filepath.Join(dir, "exit-preview")
+	crashing := New([]string{"sh", "-c", `echo password=hunter2; while [ ! -f "$1" ]; do sleep 0.01; done; exit 1`, "crash-test", crashSignal}, nil)
 	crashSpace := domain.Workspace{ID: "wsp_crash", Owner: "ada"}
+	stopFixture(t, crashing, crashSpace.ID)
 	started, err := crashing.Start(context.Background(), crashSpace)
 	if err != nil || started.Status != domain.StatusRunning {
 		t.Fatalf("crash start = %#v %v", started, err)
+	}
+	// Observe the fixture output before signalling its exit; do not race a
+	// natural 200ms exit against Start's 150ms observation window.
+	var page domain.LogPage
+	deadline = time.Now().Add(5 * time.Second)
+	for {
+		page, err = crashing.Logs(context.Background(), crashSpace.ID, "", 20)
+		if err == nil && len(page.Lines) > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("fixture emitted no startup log: %#v %v", page, err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err := os.WriteFile(crashSignal, []byte("exit"), 0600); err != nil {
+		t.Fatal(err)
 	}
 	if err := crashing.Crash(crashSpace.ID); err != nil {
 		t.Fatal(err)
@@ -58,8 +93,7 @@ func TestFailedStartDoubleStartAndStopAfterCrash(t *testing.T) {
 	if err != nil || stopped.Status != domain.StatusStopped {
 		t.Fatalf("stop after crash = %#v %v", stopped, err)
 	}
-	deadline := time.Now().Add(time.Second)
-	var page domain.LogPage
+	deadline = time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
 		page, err = crashing.Logs(context.Background(), crashSpace.ID, "", 20)
 		if err == nil && len(page.Lines) > 0 {
@@ -75,6 +109,47 @@ func TestFailedStartDoubleStartAndStopAfterCrash(t *testing.T) {
 	}
 	if InheritedSecret(CommandEnv()) {
 		t.Fatal("child environment inherited a credential")
+	}
+}
+
+func stopFixture(t *testing.T, runtime *Runtime, id string) {
+	t.Helper()
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, err := runtime.Stop(ctx, id); err != nil {
+			t.Errorf("fixture cleanup: %v", err)
+		}
+	})
+}
+
+func TestImmediateExitEventuallyReportsFailed(t *testing.T) {
+	runtime := New([]string{"false"}, nil)
+	workspace := domain.Workspace{ID: "wsp_exit", Owner: "ada"}
+	stopFixture(t, runtime, workspace.ID)
+	started, err := runtime.Start(t.Context(), workspace)
+	if err != nil && (!errors.Is(err, domain.ErrInvalid) || started.Status != domain.StatusFailed) {
+		t.Fatalf("start = %#v %v", started, err)
+	}
+	if err == nil && started.Status != domain.StatusRunning && started.Status != domain.StatusStarting {
+		t.Fatalf("unexpected provisional status: %#v", started)
+	}
+	runtime.mu.Lock()
+	entry := runtime.runs[workspace.ID]
+	runtime.mu.Unlock()
+	if entry == nil {
+		t.Fatal("fixture did not launch a tracked child")
+	}
+	// Wait for this owned child's exit observation rather than assuming its OS
+	// execution and waiter goroutine both finish before the startup grace timer.
+	select {
+	case <-entry.done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("child exit was not observed")
+	}
+	status, err := runtime.Status(t.Context(), workspace.ID)
+	if err != nil || status.Status != domain.StatusFailed || status.Failure == "" {
+		t.Fatalf("exited child = %#v %v", status, err)
 	}
 }
 
