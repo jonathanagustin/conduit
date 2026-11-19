@@ -9,9 +9,11 @@ and is not yet composed into packaging handoff.
 ## Trusted transaction boundary
 
 `internal/packagevalidation/adapters/postgres` implements the existing
-`ports.Authority`. Its required authorizer receives the same SQL transaction
+`ports.Authority`. Its required authorizer receives the Store-selected setup, update, admission or
+historical-read operation and the same SQL transaction
 used for attempt lookup, verification, admission, audit and challenge consumption.
-An integration must authenticate the original caller and lock current trusted
+An integration must distinguish permissions for each operation, authenticate
+the original caller and lock current trusted
 owner, target and policy facts through that transaction until commit. It must
 not use an independent pool transaction for those decisions, re-enter the Store,
 or accept attempt/policy setup from generated output. Run/revision locators must

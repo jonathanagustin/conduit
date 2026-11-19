@@ -22,6 +22,7 @@ import (
 )
 
 type ownerKey struct{}
+type readOnlyKey struct{}
 
 var errDenied = errors.New("fixture caller denied")
 
@@ -70,7 +71,10 @@ func freshDSN(t *testing.T) string {
 	t.Cleanup(drop)
 	return fresh
 }
-func authorizeOwner(ctx context.Context, tx *sql.Tx, loc ports.Locator) error {
+func authorizeOwner(ctx context.Context, tx *sql.Tx, action Action, loc ports.Locator) error {
+	if ctx.Value(readOnlyKey{}) == true && action != ActionReadAdmission {
+		return errDenied
+	}
 	var owner, commit string
 	if err := tx.QueryRowContext(ctx, `SELECT owner FROM validation_fixture_owners WHERE run_id=$1 AND revision=$2 FOR SHARE`, loc.RunID, loc.ProposalRevision).Scan(&owner); err != nil {
 		return errDenied
@@ -356,4 +360,29 @@ func TestPostgresAuthorityRejectsForgedCallbackAndCancelledWrite(t *testing.T) {
 			counts(t, s, loc, 0)
 		})
 	}
+}
+
+func TestPostgresReadPermissionCannotAdmitOrChangeTrustedFacts(t *testing.T) {
+	s, service, _, ctx, loc, attempt, raw := fixture(t)
+	reader := context.WithValue(ctx, readOnlyKey{}, true)
+	if _, err := s.GetAdmission(reader, loc); !errors.Is(err, ErrMissing) {
+		t.Fatalf("read scope unavailable: %v", err)
+	}
+	if _, err := service.Admit(reader, loc, raw); !errors.Is(err, errDenied) {
+		t.Fatalf("read scope admitted: %v", err)
+	}
+	if err := s.Cancel(reader, loc); !errors.Is(err, errDenied) {
+		t.Fatalf("read scope cancelled: %v", err)
+	}
+	if err := s.SetAttempt(reader, loc, attempt); !errors.Is(err, errDenied) {
+		t.Fatalf("read scope changed setup: %v", err)
+	}
+	counts(t, s, loc, 0)
+	if _, err := service.Admit(ctx, loc, raw); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.GetAdmission(reader, loc); err != nil {
+		t.Fatal(err)
+	}
+	counts(t, s, loc, 1)
 }

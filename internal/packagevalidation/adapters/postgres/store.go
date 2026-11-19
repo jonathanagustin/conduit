@@ -28,7 +28,18 @@ var ErrUsed = errors.New("validation challenge already consumed")
 // owner/target/policy facts through tx until commit. It must not open another
 // transaction or re-enter Store. This required integration port is not a default
 // permit: an uncomposed store must not be exposed to receipt producers.
-type Authorize func(context.Context, *sql.Tx, ports.Locator) error
+type Authorize func(context.Context, *sql.Tx, Action, ports.Locator) error
+
+// Action is chosen by Store, never by a supplied receipt. Authorizers must
+// distinguish historical reads, evidence admission and trusted owner controls.
+type Action string
+
+const (
+	ActionSetAttempt    Action = "SET_ATTEMPT"
+	ActionUpdateAttempt Action = "UPDATE_ATTEMPT"
+	ActionAdmitEvidence Action = "ADMIT_EVIDENCE"
+	ActionReadAdmission Action = "READ_ADMISSION"
+)
 
 type Store struct {
 	db        *sql.DB
@@ -89,7 +100,7 @@ func (s *Store) Close() error { return s.db.Close() }
 // transaction serializes one exact locator even before its row exists. The
 // mandatory authorizer runs before attempt lookup and holds its locks through
 // this transaction. Hash collisions only serialize unrelated locators.
-func (s *Store) transaction(ctx context.Context, loc ports.Locator, work func(*sql.Tx) error) error {
+func (s *Store) transaction(ctx context.Context, action Action, loc ports.Locator, work func(*sql.Tx) error) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -108,7 +119,7 @@ func (s *Store) transaction(ctx context.Context, loc ports.Locator, work func(*s
 	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, Component+":"+string(scope)); err != nil {
 		return err
 	}
-	if err = s.authorize(ctx, tx, loc); err != nil {
+	if err = s.authorize(ctx, tx, action, loc); err != nil {
 		return err
 	}
 	if err = work(tx); err != nil {
@@ -157,7 +168,7 @@ func (s *Store) SetAttempt(ctx context.Context, loc ports.Locator, a ports.Attem
 	if err != nil {
 		return err
 	}
-	return s.transaction(ctx, loc, func(tx *sql.Tx) error {
+	return s.transaction(ctx, ActionSetAttempt, loc, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `INSERT INTO conduit_validation_attempts(run_id,proposal_revision,challenge,payload) VALUES($1,$2,$3,$4)`, loc.RunID, loc.ProposalRevision, a.Manifest.Challenge, raw)
 		return err
 	})
@@ -169,7 +180,7 @@ func (s *Store) Update(ctx context.Context, loc ports.Locator, change func(*port
 	if change == nil {
 		return domain.ErrInvalid
 	}
-	return s.transaction(ctx, loc, func(tx *sql.Tx) error {
+	return s.transaction(ctx, ActionUpdateAttempt, loc, func(tx *sql.Tx) error {
 		old, err := readAttempt(ctx, tx, loc)
 		if err != nil {
 			return err
@@ -211,7 +222,7 @@ func (s *Store) UseAttempt(ctx context.Context, loc ports.Locator, verify func(p
 		return ports.Admission{}, domain.ErrInvalid
 	}
 	var result ports.Admission
-	err := s.transaction(ctx, loc, func(tx *sql.Tx) error {
+	err := s.transaction(ctx, ActionAdmitEvidence, loc, func(tx *sql.Tx) error {
 		attempt, err := readAttempt(ctx, tx, loc)
 		if err != nil {
 			return err
@@ -280,7 +291,7 @@ func (s *Store) UseAttempt(ctx context.Context, loc ports.Locator, verify func(p
 // or permission to deploy. Final handoff must revalidate current facts/expiry.
 func (s *Store) GetAdmission(ctx context.Context, loc ports.Locator) (ports.Admission, error) {
 	var result ports.Admission
-	err := s.transaction(ctx, loc, func(tx *sql.Tx) error {
+	err := s.transaction(ctx, ActionReadAdmission, loc, func(tx *sql.Tx) error {
 		var raw []byte
 		err := tx.QueryRowContext(ctx, `SELECT payload FROM conduit_validation_admissions WHERE run_id=$1 AND proposal_revision=$2`, loc.RunID, loc.ProposalRevision).Scan(&raw)
 		if errors.Is(err, sql.ErrNoRows) {
