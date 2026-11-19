@@ -206,7 +206,7 @@ func ValidateApolloProductDefinition(definition ApolloProductDefinition) []Valid
 
 // definitionValidationInput keeps the legacy carrier and its decoding identity intact.
 func definitionValidationInput(definition ApolloProductDefinition) productdefinition.Input {
-	return productdefinition.Input{Manifest: definition.Manifest, Configuration: definition.Configuration, Templates: definition.Templates}
+	return productdefinition.Input(definition)
 }
 
 // ValidateApolloVolumeOverride retains the existing compatibility entry point.
