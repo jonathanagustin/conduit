@@ -35,6 +35,15 @@ func catalogRequest(handler http.Handler, actor, represented, body string) *http
 
 func TestEnvironmentCatalogConnectMatchesFullNativePagesAndDetailRecords(t *testing.T) {
 	f := newSpaceIndexFixture(t, controlplane.NewMemoryRepository(), spacememory.New())
+	desired := controlplane.DesiredState{Environment: controlplane.Environment{
+		ID: "e-full-config", Generation: "opaque:revision", Config: map[string]any{"literal": "<raw>", "nested": map[string]any{"enabled": false}},
+		Labels: map[string]string{"owner": "native"}, AutomaticSecurityRecall: true, AutoSuppressionThreshold: 7,
+		Namespaces: []controlplane.NamespaceTarget{{RID: "namespace", Name: "ns", DeletionProtected: new(false)}},
+	}}
+	if _, err := f.repository.CreatePlan(t.Context(), controlplane.PlanRecord{ID: "full-config-plan", DesiredState: &desired, Plan: controlplane.Plan{Environment: "e-full-config"}}); err != nil {
+		t.Fatal(err)
+	}
+
 	for _, actor := range []string{"admin", "reader", "outsider"} {
 		for _, space := range []string{"", f.first, f.second} {
 			q := url.Values{"view": {"full"}, "limit": {"1"}, "search": {" "}}
