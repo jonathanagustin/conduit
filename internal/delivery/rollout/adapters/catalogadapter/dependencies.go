@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/jonathanagustin/conduit/internal/controlplane"
+	"github.com/jonathanagustin/conduit/internal/apollo/productmanifest"
 	"github.com/jonathanagustin/conduit/internal/delivery/rollout/domain"
 )
 
@@ -33,7 +33,7 @@ type Installation struct {
 // different problem, caught where entities are read.
 func Dependencies(
 	installations []Installation,
-	manifests map[string]controlplane.ApolloProductManifest,
+	manifests map[string]productmanifest.Manifest,
 ) ([]domain.Dependency, error) {
 	// Product to the steps installing it, per lane. The lane is part of the key
 	// because that is the scope a dependency is satisfied in.
