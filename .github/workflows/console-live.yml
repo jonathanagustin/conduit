@@ -88,6 +88,14 @@ jobs:
           CONDUIT_SIMULATION_EVIDENCE_DIR: artifacts/native-console/workspace-git
         run: |
           ./scripts/simulate-console.sh --with-workspace-git --grep 'Git workspace history and confirmed fork' 2>&1 | tee artifacts/native-console/workspace-git.log
+      # This lane exercises a recorded runtime, not a process. Keep its receipt
+      # distinct from Git history and the healthy journeys.
+      - name: Qualify recorded workspace runtime actions
+        env:
+          CONDUIT_SIMULATION_PORT: "8119"
+          CONDUIT_SIMULATION_EVIDENCE_DIR: artifacts/native-console/workspace-recorded
+        run: |
+          ./scripts/simulate-console.sh --with-workspace-recorded --grep 'recorded workspace runtime actions' 2>&1 | tee artifacts/native-console/workspace-recorded.log
       - name: Retain native journey evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

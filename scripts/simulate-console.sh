@@ -11,8 +11,9 @@
 #
 # So this builds the Hub, runs it, seeds it through its own API, and points the
 # browser at the console the Hub itself serves from internal/consoleui/dist --
-# the embedded bundle, not a Vite preview. There is no stub anywhere in the
-# loop.
+# the embedded bundle, not a Vite preview. Hub responses are not intercepted.
+# The model/Agent are stand-ins; opt-in recorded workspace runtime is metadata
+# only and proves no process execution or isolation.
 #
 # Run locally when the transport between console and Hub is in question.
 # The separate Native console journeys workflow also invokes this harness;
@@ -26,6 +27,7 @@
 # turn loop and thread store (assistant-turns.spec.ts) with a stand-in model.
 #   ./scripts/simulate-console.sh                      # embedded assistant shell
 #   ./scripts/simulate-console.sh --with-workspace-git  # local Git history/fork
+#   ./scripts/simulate-console.sh --with-workspace-recorded # recorded runtime actions
 #   ./scripts/simulate-console.sh --keep               # leave the Hub running
 set -euo pipefail
 
@@ -34,6 +36,7 @@ keep=0
 simulate_agent=1
 with_packaging=0
 with_workspace_git=0
+with_workspace_recorded=0
 with_planning=0
 # Which desired state to seed, and so which branch of the simulator the Agent
 # takes. Each scenario has its own spec file because their assertions contradict
@@ -56,6 +59,7 @@ while [ "$#" -gt 0 ]; do
     --no-agent) simulate_agent=0; shift ;;
     --with-packaging) with_packaging=1; shift ;;
     --with-workspace-git) with_workspace_git=1; shift ;;
+    --with-workspace-recorded) with_workspace_recorded=1; shift ;;
     --with-planning) with_planning=1; shift ;;
     *) break ;;
   esac
@@ -70,6 +74,12 @@ if [ "${with_workspace_git}" -eq 1 ] && [ "${scenario}" != healthy ]; then
   echo "simulate: --with-workspace-git requires the healthy scenario" >&2
   exit 2
 fi
+if [ "${with_workspace_recorded}" -eq 1 ] && { [ "${scenario}" != healthy ] || [ "${with_workspace_git}" -eq 1 ]; }; then
+  echo "simulate: --with-workspace-recorded requires healthy without --with-workspace-git" >&2
+  exit 2
+fi
+workspace_runtime="${DEVWORKSPACE_RUNTIME:-}"
+if [ "${with_workspace_recorded}" -eq 1 ]; then workspace_runtime=recorded; fi
 if [ "${with_planning}" -eq 1 ] && [ "${scenario}" != healthy ]; then
   echo "simulate: --with-planning requires the healthy scenario" >&2
   exit 2
@@ -235,6 +245,7 @@ LISTEN_ADDRESS="127.0.0.1:${port}" \
   RATE_LIMIT_ANONYMOUS_BURST=600 \
   DATA_DIRECTORY="${work}/data" \
   DEVWORKSPACE_GIT_ROOT="${workspace_git_root}" \
+  DEVWORKSPACE_RUNTIME="${workspace_runtime}" \
   ALLOW_INSECURE_OPERATOR_IDENTITY_HEADERS=true \
   ALLOW_INSECURE_AGENT_IDENTITY_HEADERS=true \
   ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY=true \
@@ -311,6 +322,7 @@ esac
 if [ "${with_workspace_git}" -eq 1 ]; then
   specs="${specs/workspace-metadata.spec.ts/workspace-git.spec.ts}"
 fi
+if [ "${with_workspace_recorded}" -eq 1 ]; then specs="${specs} workspace-runtime.spec.ts"; fi
 if [ "${with_packaging}" -eq 1 ]; then specs="${specs} packaging-feedback.spec.ts"; fi
 if [ "${with_planning}" -eq 1 ]; then specs="${specs} planning-cancellation.spec.ts"; fi
 for spec in ${specs}; do
@@ -320,5 +332,6 @@ done
 
 # shellcheck disable=SC2086 # specs is a space-separated list of file names
 CONDUIT_HUB_URL="${hub_url}/console/" CONDUIT_SIMULATED_PLAN="${plan_id}" CONDUIT_SIMULATED_PACKAGING_RUN="${packaging_run}" \
+  CONDUIT_SIMULATED_WORKSPACE_RUNTIME="${workspace_runtime}" \
   CONDUIT_SIMULATED_PLANNING_REPO="${planning_repo}" CONDUIT_SIMULATED_MODEL_ORIGIN="http://127.0.0.1:${model_port}" \
   pnpm --dir "${repo_root}/web" exec playwright test --config playwright.live.config.ts ${specs} "$@"
