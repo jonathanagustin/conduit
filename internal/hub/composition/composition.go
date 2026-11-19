@@ -169,6 +169,7 @@ func NewHub(
 	handler = mountReportingConnect(handler, repository, options)
 	handler = mountFleetReadConnect(handler, repository, options)
 	handler = mountPlanSummaryConnect(handler, repository, options)
+	handler = mountPlanScopedSummaryConnect(handler, repository, options)
 	handler = mountPlanApprovalConnect(handler, repository, options)
 	handler = mountPlanCancellationConnect(handler, repository, options)
 	handler = mountProductSummaryConnect(handler, repository, options)

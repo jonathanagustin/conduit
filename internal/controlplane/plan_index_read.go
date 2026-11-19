@@ -11,6 +11,12 @@ import (
 // independently of repository failures with potentially private diagnostics.
 var ErrInvalidPlanSummaryQuery = errors.New("invalid Plan summary query")
 
+// PlanIndexReader is the read-only native index and visibility input.
+type PlanIndexReader interface {
+	ListPlans(context.Context, string) ([]PlanRecord, error)
+	GetChangeRequest(context.Context, string) (ChangeRequest, error)
+}
+
 type planIndexPageError struct{ cause error }
 
 func (err planIndexPageError) Error() string { return err.cause.Error() }
@@ -44,11 +50,20 @@ func ReadAuthorizedPlanSummaryPage(
 	if err := validatePlanSummaryLimit(limit); err != nil {
 		return PlanSummaryPage{}, err
 	}
+	query = normalizePlanSummaryQuery(query)
+	page, err := readAuthorizedPlanPage(ctx, repository, governance, principal, options, query, cursor, limit)
+	return planSummaryPageResult(page, err)
+}
+
+func normalizePlanSummaryQuery(query PlanQuery) PlanQuery {
 	query.View = "summary"
 	query.Environment = strings.TrimSpace(query.Environment)
 	query.Status = strings.TrimSpace(query.Status)
 	query.InstallationID = strings.TrimSpace(query.InstallationID)
-	page, err := readAuthorizedPlanPage(ctx, repository, governance, principal, options, query, cursor, limit)
+	return query
+}
+
+func planSummaryPageResult(page PlanPage, err error) (PlanSummaryPage, error) {
 	var pagination planIndexPageError
 	if errors.As(err, &pagination) {
 		return PlanSummaryPage{}, fmt.Errorf("%w: %v", ErrInvalidPlanSummaryQuery, err)
@@ -60,13 +75,13 @@ func ReadAuthorizedPlanSummaryPage(
 }
 
 func readAuthorizedPlanPage(
-	ctx context.Context, repository Repository, governance *GovernanceService,
+	ctx context.Context, repository PlanIndexReader, governance *GovernanceService,
 	principal Principal, options HandlerOptions, query PlanQuery, cursor string, limit int,
 ) (PlanPage, error) {
 	return readAuthorizedPlanPageInSpace(ctx, repository, governance, principal, options, query, cursor, limit, indexSpace{})
 }
 
-func readAuthorizedPlanPageInSpace(ctx context.Context, repository Repository, governance *GovernanceService, principal Principal, options HandlerOptions, query PlanQuery, cursor string, limit int, space indexSpace) (PlanPage, error) {
+func readAuthorizedPlanPageInSpace(ctx context.Context, repository PlanIndexReader, governance *GovernanceService, principal Principal, options HandlerOptions, query PlanQuery, cursor string, limit int, space indexSpace) (PlanPage, error) {
 	records, err := repository.ListPlans(ctx, "")
 	if err != nil {
 		return PlanPage{}, err

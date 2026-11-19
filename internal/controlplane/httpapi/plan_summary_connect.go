@@ -77,6 +77,10 @@ func (s *planSummaryService) ListPlanSummaries(ctx context.Context, request *pla
 		}
 		return nil, connect.NewError(connect.CodeInternal, "Plan summary index unavailable")
 	}
+	return planSummaryPageMessage(page)
+}
+
+func planSummaryPageMessage(page controlplane.PlanSummaryPage) (*plansv1.ListPlanSummariesResponse, error) {
 	out := &plansv1.ListPlanSummariesResponse{
 		Total: int64(page.Total), PageSize: int32(page.PageSize), Limit: int32(page.Limit),
 		NextCursor: page.NextCursor, PreviousCursor: page.PreviousCursor, HasPrevious: page.HasPrevious,
