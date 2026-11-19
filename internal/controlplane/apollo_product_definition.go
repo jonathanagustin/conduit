@@ -3,12 +3,12 @@ package controlplane
 import (
 	"fmt"
 	"io"
-	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/jonathanagustin/conduit/internal/apollo/productconfiguration"
 	"github.com/jonathanagustin/conduit/internal/apollo/productdefinition"
+	"github.com/jonathanagustin/conduit/internal/apollo/productmanifest"
 )
 
 // A Product Definition is the pair of documents a Product ships: manifest.yml
@@ -62,10 +62,10 @@ const (
 // Quorum requirements: how many replicas must be available for the Product to
 // answer correctly.
 const (
-	ApolloQuorumAll            = "all"
-	ApolloQuorumAllButOne      = "all-but-one"
-	ApolloQuorumAny            = "any"
-	ApolloQuorumSimpleMajority = "simple-majority"
+	ApolloQuorumAll            = productmanifest.QuorumAll
+	ApolloQuorumAllButOne      = productmanifest.QuorumAllButOne
+	ApolloQuorumAny            = productmanifest.QuorumAny
+	ApolloQuorumSimpleMajority = productmanifest.QuorumSimpleMajority
 
 	// ApolloDefaultQuorumRequirement is what a Product gets by staying silent.
 	ApolloDefaultQuorumRequirement = ApolloQuorumAllButOne
@@ -74,8 +74,8 @@ const (
 // Upgrade strategies: what the platform may do to those replicas to move
 // versions.
 const (
-	ApolloUpgradeStrategyRolling  = "rolling"
-	ApolloUpgradeStrategyShutdown = "shutdown"
+	ApolloUpgradeStrategyRolling  = productmanifest.UpgradeStrategyRolling
+	ApolloUpgradeStrategyShutdown = productmanifest.UpgradeStrategyShutdown
 )
 
 // Generated secret types.
@@ -334,8 +334,6 @@ func MergeApolloConfigurationOverrides(base, override map[string]any) (map[strin
 	return productconfiguration.MergeOverrides(base, override)
 }
 
-var apolloVolumeNamePattern = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
-
 // parseApolloMemory retains the existing comparison-only quantity entry point.
 func parseApolloMemory(value string) (float64, bool) {
 	return productconfiguration.ParseMemory(value)
@@ -354,13 +352,4 @@ func ApolloEffectiveResources(resources *ApolloResourceRequirements) ApolloResou
 // ApolloEffectiveReplication retains explicit replica counts, including zero.
 func ApolloEffectiveReplication(replication *ApolloReplication) int {
 	return productconfiguration.EffectiveReplication(replication)
-}
-
-func sortedKeys[Value any](values map[string]Value) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }
