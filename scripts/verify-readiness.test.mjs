@@ -42,7 +42,7 @@ test('stale dates, forged bounds and closed tracker snapshots fail',async t => {
     [record=>{record.reviewedAt='2026-02-31';},/review dates must be real/],
     [record=>{record.maximumAgeDays='forever';},/maximumAgeDays must be a bounded positive integer/],
     [record=>{record.issueSnapshotAt='2026-08-17T00:00:00Z';},/committed issue-state snapshot is stale or invalid/],
-    [record=>{record.issues[0].state='closed';},/active tracker #[0-9]+ is absent or closed/],
+    [record=>{record.issues.find(issue=>issue.number===record.contractPrerequisite).state='closed';},/active tracker #[0-9]+ is absent or closed/],
     [record=>{record.gaps.pop();},/each historical gap number 1 through 9/],
   ]){
     const {root,record,save}=await fixture(t);mutate(record);save();

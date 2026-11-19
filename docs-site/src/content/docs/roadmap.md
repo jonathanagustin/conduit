@@ -6,7 +6,7 @@ sidebar:
   order: 5
 ---
 
-Generated from the same reviewed issue evidence as [Readiness](/conduit/readiness/), observed at `2026-11-18T19:34:32Z`. GitHub issues are the current tracker; this is a dated index, not a project board or a release promise.
+Generated from the same reviewed issue evidence as [Readiness](/conduit/readiness/), observed at `2026-11-19T01:51:16Z`. GitHub issues are the current tracker; this is a dated index, not a project board or a release promise.
 
 ## AI execution and assurance
 
@@ -26,7 +26,7 @@ Generated from the same reviewed issue evidence as [Readiness](/conduit/readines
 
 ## Dependency and build-closure qualification
 
-[#581](https://github.com/jonathanagustin/conduit/issues/581), [#590](https://github.com/jonathanagustin/conduit/issues/590), [#1053](https://github.com/jonathanagustin/conduit/issues/1053).
+[#581](https://github.com/jonathanagustin/conduit/issues/581), [#590](https://github.com/jonathanagustin/conduit/issues/590).
 
 ## Decisions and deployment evidence
 
