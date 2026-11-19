@@ -66,7 +66,7 @@ for (const path of filesBelow(join(root, "internal"))) {
       }
     }
   }
-  if (local.startsWith("internal/apollo/")) {
+  if (local.startsWith("internal/apollo/") || local.startsWith("internal/apollographql/")) {
     for (const dependency of dependencies) {
       if (dependency.includes("/internal/controlplane")) {
         failures.push(`${local}: Apollo bounded context imports legacy control plane ${dependency}`);

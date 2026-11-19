@@ -140,3 +140,12 @@ edge. Unknown YAML nodes, explicit false versus absent fields, installation
 addition/removal paths, sorted policy paths and wire field names are retained.
 This separates the transport vocabulary without claiming that the remaining
 settings command adapter or product-definition schemas have been extracted.
+
+The request-bound compatibility-to-GraphQL projection translation now lives in
+`apollographql/adapters/compatibilityprojection` behind its seven-method read
+interface. Core route composition retains principal/resource authorization and
+passes the authenticated request context. Only classified compatibility Get
+not-found errors become the GraphQL absence sentinel; listing failures and all
+other errors retain their original identity. The two cached Product reads keep
+their existing context-free application signatures. The remaining route binder
+and compatibility command facade still require extraction.
