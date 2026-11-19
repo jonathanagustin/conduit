@@ -358,6 +358,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorGrant, Detail: "native operatorClaims + ResolvePrincipal; shared ReadAuthorizedEnvironmentDetail checks original-carrier ReadResource before Space selection, membership and full catalog reads; no write or execution"},
 		{Pattern: "POST /conduit.environments.v1.EnvironmentObservationService/GetEnvironmentReportedState",
 			Decision: DecisionOperatorGrant, Detail: "native operatorClaims + ResolvePrincipal; shared ReadAuthorizedEnvironmentReport checks the original carrier ReadResource on the Environment before report access; no write or Space selection"},
+		{Pattern: "POST /conduit.environments.v1.EnvironmentCatalogService/ListEnvironments",
+			Decision: DecisionOperatorFiltered, Detail: "original operator carrier; resource read and readable Space membership before full-record pagination"},
 		{Pattern: "POST /conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries",
 			Decision: DecisionOperatorFiltered, Detail: "native operatorClaims + ResolvePrincipal; shared Environment resource authorization and readable Space membership before pagination/counting; no write or execution"},
 		{Pattern: "GET /v1/products",
