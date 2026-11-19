@@ -101,6 +101,10 @@ if (/\bcontrolplane\.(?:ApolloProductDefinition|DecodeApolloProductDefinitionWit
 }
 const apolloAdapter = readFileSync(join(root, "internal/controlplane/apollo_openapi_adapter.go"), "utf8");
 const cliSettings = readFileSync(join(root, "internal/conduitcli/apollo_coverage_commands.go"), "utf8");
+const cliArchive = readFileSync(join(root, "internal/conduitcli/product_tgz.go"), "utf8");
+if (/\bcontrolplane\.(?:DecodeApolloProductManifest|ValidateApolloProductManifest)\s*\(/.test(cliArchive)) {
+  failures.push("CLI Product archive reader re-enters the legacy manifest codec or validator delegate");
+}
 if (/\bcontrolplane\.(?:DecodeApolloEnvironmentSettings|EncodeApolloEnvironmentSettings)\b/.test(cliSettings)) {
   failures.push("CLI settings reader re-enters the legacy settings codec delegate");
 }

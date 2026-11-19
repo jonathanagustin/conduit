@@ -25,7 +25,7 @@
     "internal/conduitcli/plan_cancellation_connect.go": "3b2c24ee378a557a788536291acfe9388aa948179e6456c4131d6c73769cbebc",
     "internal/conduitcli/product_download_commands.go": "5ec4689abb77417dcbd8ea0dcad1258183e2363c930057af014bcc2dde823261",
     "internal/conduitcli/product_release_commands.go": "4f984ed032ba1898f0ef21473ad7fcaf79097a5264633a01dffb86e691e4f119",
-    "internal/conduitcli/product_tgz.go": "ccda6b53690a72281ffc894e17911c10940a04bd2ed728abedc44fec8bc6b11d",
+    "internal/conduitcli/product_tgz.go": "e5d124e0d84381c9fadbd5887082e5cbca9c44c76925cdacab624a93a8138da4",
     "internal/conduitcli/profiles.go": "99517f8c10603740298ca65d02284953a51b0d3008e83b0908fe93bcf94a78af",
     "internal/conduitcli/promotion_commands.go": "6ca38e8da9966dd1b67ad14e5398eba245710ffd6055f002923b1ad897de921d",
     "internal/conduitcli/refresh.go": "4d59384bd177c8f7eaf81c0f9007b11e2e0feabc2bf7f442cca62155c1c12e82",
