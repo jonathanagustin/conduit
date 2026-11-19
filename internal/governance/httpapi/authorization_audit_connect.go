@@ -14,21 +14,25 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+const AuthorizationAuditChainConnectRoute = "POST /conduit.governance.v1.AuthorizationAuditChainReadService/ListAuthorizationAuditChain"
+
 const AuthorizationAuditConnectRoute = "POST /conduit.governance.v1.AuthorizationAuditReadService/ListAuthorizationAuditEvents"
 
 // AuthorizationAuditConfig binds an original authenticated administrator carrier.
 type AuthorizationAuditConfig struct {
 	Authorize func(*http.Request) (context.Context, error)
 	Read      func(context.Context, application.AuditEventReadQuery) (application.AuditEventReadPage, error)
+	ReadChain func(context.Context, application.AuditChainReadQuery) (application.AuditChainReadPage, error)
 }
 
 // RegisterAuthorizationAuditConnect authorizes before decoding the request.
 func RegisterAuthorizationAuditConnect(mux *http.ServeMux, cfg AuthorizationAuditConfig) {
 	server := connect.NewServer()
 	governancev1connect.RegisterAuthorizationAuditReadServiceHandler(server, &auditReadService{cfg: cfg})
+	governancev1connect.RegisterAuthorizationAuditChainReadServiceHandler(server, &auditReadService{cfg: cfg})
 	rpc := http.NewServeMux()
 	connecthttp.Mount(rpc, server)
-	mux.Handle(AuthorizationAuditConnectRoute, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	authorized := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var ctx context.Context
 		err := application.ErrAuditReadUnauthenticated
 		if cfg.Authorize != nil {
@@ -43,7 +47,9 @@ func RegisterAuthorizationAuditConnect(mux *http.ServeMux, cfg AuthorizationAudi
 			return
 		}
 		rpc.ServeHTTP(w, r.WithContext(ctx))
-	}))
+	})
+	mux.Handle(AuthorizationAuditConnectRoute, authorized)
+	mux.Handle(AuthorizationAuditChainConnectRoute, authorized)
 }
 
 type auditReadService struct{ cfg AuthorizationAuditConfig }
@@ -112,6 +118,53 @@ func (s *auditReadService) ListAuthorizationAuditEvents(ctx context.Context, r *
 			}
 		}
 		out.Events = append(out.Events, event)
+	}
+	return out, nil
+}
+
+func (s *auditReadService) ListAuthorizationAuditChain(ctx context.Context, r *governancev1.ListAuthorizationAuditChainRequest) (*governancev1.ListAuthorizationAuditChainResponse, error) {
+	q := application.AuditChainReadQuery{Cursor: r.Cursor, ResourceRID: r.ResourceRid, Descending: r.Descending}
+	if r.Limit != nil {
+		n := int(*r.Limit)
+		q.Limit = &n
+	}
+	if r.Since != nil {
+		if r.Since.CheckValid() != nil {
+			return nil, auditReadError(application.ErrInvalidAuditRead)
+		}
+		t := r.Since.AsTime()
+		q.Since = &t
+	}
+	if r.Until != nil {
+		if r.Until.CheckValid() != nil {
+			return nil, auditReadError(application.ErrInvalidAuditRead)
+		}
+		t := r.Until.AsTime()
+		q.Until = &t
+	}
+	if s.cfg.ReadChain == nil {
+		return nil, auditReadError(errors.New("unavailable"))
+	}
+	page, err := s.cfg.ReadChain(ctx, q)
+	if err != nil {
+		return nil, auditReadError(err)
+	}
+	out := &governancev1.ListAuthorizationAuditChainResponse{Total: int64(page.Total), PageSize: int32(page.PageSize), Limit: int32(page.Limit), NextCursor: page.NextCursor, HasPrevious: page.HasPrevious}
+	for _, e := range page.Entries {
+		entry := &governancev1.AuthorizationAuditChainEntry{Sequence: e.Sequence, Id: e.ID, Actor: e.Actor, Action: e.Action, Decision: e.Decision, PreviousDigest: e.PreviousDigest, Digest: e.Digest, ResourceRid: e.ResourceRID, Origin: e.Origin, Payload: e.Payload}
+		if len(e.Context) > 0 {
+			entry.ContextJson, err = json.Marshal(e.Context)
+			if err != nil {
+				return nil, auditReadError(err)
+			}
+		}
+		if !e.CreatedAt.IsZero() {
+			entry.CreatedAt = timestamppb.New(e.CreatedAt)
+			if err = entry.CreatedAt.CheckValid(); err != nil {
+				return nil, auditReadError(err)
+			}
+		}
+		out.Entries = append(out.Entries, entry)
 	}
 	return out, nil
 }

@@ -5,7 +5,7 @@ description: The shipped route and authorization register, including explicit na
 
 Generated from `internal/hub/composition/authorization.go`; this is a route and access-decision inventory, not a substitute for request/response schemas. Compatibility adapter paths are listed by their shipped names; this does not claim a private upstream protocol. The [native API reference](/conduit/reference/native-api/) renders the available schemas. [#391](https://github.com/jonathanagustin/conduit/issues/391) owns the uncontracted remainder.
 
-274 registered patterns; 28 match a native OpenAPI operation. These counts are generated, and include method-not-allowed fallback patterns. Protobuf methods are documented separately and are not counted as additional REST schemas.
+275 registered patterns; 28 match a native OpenAPI operation. These counts are generated, and include method-not-allowed fallback patterns. Protobuf methods are documented separately and are not counted as additional REST schemas.
 
 | Registered route | Access decision | Native OpenAPI contract |
 | --- | --- | --- |
@@ -160,6 +160,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `POST /conduit.environments.v1.EnvironmentObservationService/GetEnvironmentReportedState` | `operator-grant` | No native schema |
 | `POST /conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries` | `operator-filtered` | No native schema |
 | `POST /conduit.fleet.v1.FleetReadService/ListFleetInstallations` | `operator-filtered` | No native schema |
+| `POST /conduit.governance.v1.AuthorizationAuditChainReadService/ListAuthorizationAuditChain` | `operator-grant` | No native schema |
 | `POST /conduit.governance.v1.AuthorizationAuditReadService/ListAuthorizationAuditEvents` | `operator-grant` | No native schema |
 | `POST /conduit.notifications.v1.NotificationService/ListNotificationEvents` | `operator-grant` | No native schema |
 | `POST /conduit.packaging.v1.PackagingRunService/GetPackagingRun` | `operator-any` | No native schema |

@@ -30,6 +30,7 @@ including reads. A read encoded as POST is not a governed state change.
 | `GET /v1/environments/{environmentID}/reported-state` | `conduit.environments.v1.EnvironmentObservationService/GetEnvironmentReportedState` | CLI `environment reported-state --read-transport connect`; REST remains the default; failures are not replayed |
 | `GET /v1/environments/{environmentID}` | `conduit.environments.v1.EnvironmentDetailService/GetEnvironment` | CLI `environment get --read-transport connect` selects the full typed read with optional Space selection; REST remains the default; failures are not replayed |
 | `GET /v1/authorization-audit?view=events` | `conduit.governance.v1.AuthorizationAuditReadService/ListAuthorizationAuditEvents` | Bounded dual-serve adapter; existing callers remain REST |
+| `GET /v1/authorization-audit?view=chain` | `conduit.governance.v1.AuthorizationAuditChainReadService/ListAuthorizationAuditChain` | Filtered projection only; existing callers remain REST; no archive custody authority |
 | `GET /v1/notifications/events` | `conduit.notifications.v1.NotificationService/ListNotificationEvents` | Generated Audit notification client |
 
 These are Conduit-native contracts. See [overview](connect-reporting-overview.md),

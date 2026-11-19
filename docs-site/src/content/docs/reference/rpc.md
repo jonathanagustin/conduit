@@ -603,6 +603,52 @@ message ListAuthorizationAuditEventsResponse {
   // Forward seek only. No previous cursor is issued.
   bool has_previous = 6;
 }
+
+// AuthorizationAuditChainReadService serves the native filtered chain projection.
+// This is not the persisted ledger, a trust anchor or archive custody authority.
+// A separate procedure makes older Hubs refuse rather than ignore a view selector.
+service AuthorizationAuditChainReadService {
+  rpc ListAuthorizationAuditChain(ListAuthorizationAuditChainRequest) returns (ListAuthorizationAuditChainResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message ListAuthorizationAuditChainRequest {
+  // Absent uses 100; explicit limits must be 1..200.
+  optional int32 limit = 1;
+  // Opaque native cursor bound to this projection, resource, time bounds and order.
+  string cursor = 2;
+  string resource_rid = 3;
+  google.protobuf.Timestamp since = 4;
+  google.protobuf.Timestamp until = 5;
+  bool descending = 6;
+}
+
+message AuthorizationAuditChainEntry {
+  uint64 sequence = 1;
+  string id = 2;
+  string actor = 3;
+  string action = 4;
+  string decision = 5;
+  string previous_digest = 6;
+  string digest = 7;
+  google.protobuf.Timestamp created_at = 8;
+  // Optional display context, not a digest input. Exact JSON avoids number loss.
+  bytes context_json = 9;
+  string resource_rid = 10;
+  string origin = 11;
+  // Exact native projection digest material, not a persisted ledger archive.
+  bytes payload = 12;
+}
+
+message ListAuthorizationAuditChainResponse {
+  repeated AuthorizationAuditChainEntry entries = 1;
+  int64 total = 2;
+  int32 page_size = 3;
+  int32 limit = 4;
+  string next_cursor = 5;
+  bool has_previous = 6;
+}
 ```
 
 ## notification_event.proto
