@@ -5,7 +5,7 @@ description: The shipped route and authorization register, including explicit na
 
 Generated from `internal/hub/composition/authorization.go`; this is a route and access-decision inventory, not a substitute for request/response schemas. Compatibility adapter paths are listed by their shipped names; this does not claim a private upstream protocol. The [native API reference](/conduit/reference/native-api/) renders the available schemas. [#391](https://github.com/jonathanagustin/conduit/issues/391) owns the uncontracted remainder.
 
-273 registered patterns; 28 match a native OpenAPI operation. These counts are generated, and include method-not-allowed fallback patterns. Protobuf methods are documented separately and are not counted as additional REST schemas.
+274 registered patterns; 28 match a native OpenAPI operation. These counts are generated, and include method-not-allowed fallback patterns. Protobuf methods are documented separately and are not counted as additional REST schemas.
 
 | Registered route | Access decision | Native OpenAPI contract |
 | --- | --- | --- |
@@ -168,6 +168,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `POST /conduit.plans.v1.PlanApprovalService/ApprovePlan` | `operator-grant` | No native schema |
 | `POST /conduit.plans.v1.PlanCancellationService/CancelPlan` | `operator-grant` | No native schema |
 | `POST /conduit.plans.v1.PlanReadService/ListPlanSummaries` | `operator-filtered` | No native schema |
+| `POST /conduit.plans.v1.PlanScopedReadService/ListPlanSummariesInSpace` | `operator-filtered` | No native schema |
 | `POST /conduit.reporting.v1.ReportingService/GetOverview` | `operator-filtered` | No native schema |
 | `POST /v1/adapted-plans/{adapter}` | `operator-grant` | No native schema |
 | `POST /v1/agent-runs` | `operator-self` | No native schema |

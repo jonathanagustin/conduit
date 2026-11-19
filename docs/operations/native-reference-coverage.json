@@ -38,7 +38,7 @@
     "internal/conduitcli/temporary_maintenance_commands.go": "48f1453a1b17567269f494816d6b3aafe11853927fa98540facc3944f43f5a8c",
     "internal/conduitcli/workflow.go": "3b0457054f8491b6d358bfeda36fc4d4a8fdd9b46e16bbe4de5161479b97b87f",
     "internal/conduitcli/yaml_output.go": "627d4b6a5d756d4b4552f90d88cf88b18a0876aa9a2d423ba809d0b7c4e75d7b",
-    "internal/hub/composition/authorization.go": "4a1b3c924a1672ef65bb58e24410755451b9b5084ea2f556a9fd77f593802508",
+    "internal/hub/composition/authorization.go": "85eee363437a9fc68f0da668b1d8993ce77ff654cc0f22f6124af5f3afbb5bb2",
     "proto/conduit/catalog/v1/product_summary.proto": "4a3183ca3853ffa955bb294ec5b08de329327530529e406050ec8253d951eb3a",
     "proto/conduit/environments/v1/environment_catalog.proto": "402ec60cadff88eeb74854624387d7e6876115ef92e702e0c39c5d714dd77355",
     "proto/conduit/environments/v1/environment_detail.proto": "51bbb4f426ae359baa2e9d0c46061a2fd5842a4e556644fd74bfe1df638ea6b6",
@@ -50,12 +50,13 @@
     "proto/conduit/packaging/v1/packaging_run.proto": "3c286a6ebdf69cb806f2460f71dcb8e7ca061070f2966b1766f384e29c02613e",
     "proto/conduit/plans/v1/plan_approval.proto": "13337bd87dd8c2685be051260b6fb4d5e92e5ef8d5eba1f870d1ca70c7919a6b",
     "proto/conduit/plans/v1/plan_cancellation.proto": "24a946a391cae75af1a093d43e876a77614a43943b6b54efab734d9859b29d77",
+    "proto/conduit/plans/v1/plan_scoped_summary.proto": "bcdcca662cee7e5a6ac0c95db2c871fccd3b8bd3bfea0162fb2675eb1b33a795",
     "proto/conduit/plans/v1/plan_summary.proto": "da4392c59f27257bf61eac5b6016fe6ff130808ac37988ecc1ad9a6cfeab6f16",
     "proto/conduit/reporting/v1/overview.proto": "760a2ac1df0d12a1e7eecd8f71f7e098d311020c65048be9f2bb650cb7d621e1"
   },
-  "registeredRoutes": 273,
+  "registeredRoutes": 274,
   "routesWithNativeOpenAPI": 28,
   "nativeOpenAPIOperations": 28,
-  "protoContracts": 13,
+  "protoContracts": 14,
   "cliCommands": 178
 }

@@ -1,0 +1,39 @@
+syntax = "proto3";
+package conduit.plans.v1;
+
+import "conduit/plans/v1/plan_summary.proto";
+
+option go_package = "github.com/jonathanagustin/conduit/gen/go/conduit/plans/v1;plansv1";
+
+// PlanScopedReadService is a separate native read capability. An older Hub
+// refuses this procedure rather than ignoring an unknown Space selector on the
+// unscoped procedure. Declaration alone mounts no route or resource authority.
+service PlanScopedReadService {
+  // ListPlanSummariesInSpace reads GET /v1/plans?view=summary&spaceId=SPACE.
+  // Authorize the original carrier's selected persisted Space before private
+  // membership and Plan reads. Membership narrows visibility; it grants none.
+  rpc ListPlanSummariesInSpace(ListPlanSummariesInSpaceRequest) returns (ListPlanSummariesInSpaceResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message ListPlanSummariesInSpaceRequest {
+  // Required native identity; absent/empty/invalid values are input failures.
+  string space_id = 1;
+  // Absent uses the native summary default 100; present must be 1 through 200.
+  optional int32 limit = 2;
+  // Existing opaque cursor, bound to filters and this Space; not a snapshot.
+  string cursor = 3;
+  string environment = 4;
+  string status = 5;
+  string installation_id = 6;
+  string search = 7;
+}
+
+message ListPlanSummariesInSpaceResponse {
+  // Echo the validated selection. Clients bind it before accepting any rows;
+  // this is a grouping coordinate, not a grant or a delegated identity.
+  string space_id = 1;
+  // Existing summary fields and native current-visibility pagination metadata.
+  ListPlanSummariesResponse page = 2;
+}

@@ -346,6 +346,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorGrant, Detail: "native operatorClaims + ResolvePrincipal; shared ApprovePlanAsOperator applies linked Change Request reviewer policy or Environment Operate, preserves original carrier audit identity and recorded approval on handoff failure; no execution credential"},
 		{Pattern: "POST /conduit.fleet.v1.FleetReadService/ListFleetInstallations",
 			Decision: DecisionOperatorFiltered, Detail: "native operatorClaims + ResolvePrincipal; ReadAuthorizedFleetPage applies current Space membership and original-carrier Environment visibility before projection, summaries, facets and cursor pagination; no Fleet action or approval authority"},
+		{Pattern: "POST /conduit.plans.v1.PlanScopedReadService/ListPlanSummariesInSpace",
+			Decision: DecisionOperatorFiltered, Detail: "original operator carrier; readable persisted Space membership narrows existing Plan visibility before pagination"},
 		{Pattern: "POST /conduit.plans.v1.PlanReadService/ListPlanSummaries",
 			Decision: DecisionOperatorFiltered, Detail: "native operatorClaims + ResolvePrincipal; shared canReadPlan before filtering/counting and native summary seek pagination; no lease or approval"},
 		{Pattern: "GET /v1/plans",
