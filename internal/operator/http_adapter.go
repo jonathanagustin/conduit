@@ -420,7 +420,7 @@ func (adapter *HTTPControlPlane) CancelPlan(ctx context.Context, id, reason stri
 
 func (adapter *HTTPControlPlane) GetPlan(ctx context.Context, id string) (controlplane.PlanRecord, error) {
 	var record controlplane.PlanRecord
-	err := adapter.request(ctx, http.MethodGet, "/v1/plans/"+url.PathEscape(id), nil, &record)
+	err := adapter.request(ctx, http.MethodGet, adapter.withSpaceSelection("/v1/plans/"+url.PathEscape(id)), nil, &record)
 	return record, err
 }
 
