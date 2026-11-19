@@ -28,7 +28,14 @@ try {
   write("internal/catalog/ports/ports.go", 'package ports\nimport "example/internal/catalog/domain"\n');
   if (!run().includes("PASS domain boundaries")) throw new Error("native port-to-domain fixture did not pass");
 
+  write("internal/environments/application/projection_reader.go", 'package application\nimport "example/internal/environments/domain"\n');
+  if (!run().includes("PASS domain boundaries")) throw new Error("native Environment snapshot fixture did not pass");
+
   const controls = [
+    ["internal/environments/application/projection_reader.go", 'package application\nimport "example/internal/controlplane"\n', 'package application\nimport "example/internal/environments/domain"\n'],
+    ["internal/environments/application/reference.go", 'package application\nimport adapter "example/internal/apollo/application"\n', null],
+    ["internal/environments/application/raw.go", 'package application\nimport `example/internal/apollographql`\n', null],
+    ["internal/controlplane/environment_projection_source.go", 'package controlplane\nimport "example/internal/apollo"\n', null],
     ["internal/catalog/ports/ports.go", 'package ports\nimport "example/internal/catalog/adapters/postgres"\n', 'package ports\nimport "example/internal/catalog/domain"\n'],
     ["internal/catalog/application/direct.go", 'package application\nimport repo "example/internal/catalog/adapters"\n', null],
     ["internal/catalog/ports/raw.go", 'package ports\nimport (\n repo `example/internal/catalog/adapters/postgres`\n)\n', null],
@@ -52,7 +59,7 @@ try {
     if (original === null) rmSync(join(fixture, path));
     else write(path, original);
   }
-  console.log(`PASS domain boundary regression: positive=2 planted=${controls.length} caught=${controls.length}`);
+  console.log(`PASS domain boundary regression: positive=3 planted=${controls.length} caught=${controls.length}`);
 } finally {
   rmSync(fixture, { recursive: true, force: true });
 }
