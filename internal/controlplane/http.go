@@ -2589,10 +2589,10 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 	mux.HandleFunc("GET /v1/environments/{environmentID}/reported-state", func(w http.ResponseWriter, request *http.Request) {
 		principal, ok := requireOperatorPrincipal(w, request, governance, configuration)
 		environment := request.PathValue("environmentID")
-		if !ok || !requireResourceOperation(w, request, governance, principal, configuration, environmentRID(environment), OperationReadResource) {
+		if !ok {
 			return
 		}
-		report, err := repository.GetEnvironmentReport(request.Context(), environment)
+		report, err := ReadAuthorizedEnvironmentReport(request.Context(), repository, governance, principal, configuration, environment)
 		if err != nil {
 			writeLifecycleError(w, err)
 			return
