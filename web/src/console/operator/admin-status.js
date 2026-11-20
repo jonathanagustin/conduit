@@ -1,3 +1,5 @@
+import { createAdminAIGovernance } from "./admin-ai-governance.js";
+
 const links = new Set([
   "area-packaging",
   "rm07-change-requests",
@@ -60,6 +62,7 @@ export function adminStatusHTML(snapshot) {
       })
       .join("")}</tbody></table></section>
     <section class="so-panel p-3 space-y-2"><h3>Stored audit chain</h3><p>${esc(audit.status)} · ${Number.isFinite(audit.chainLength) ? `${esc(audit.chainLength)} entries` : "Length unavailable"}</p><p>${audit.verifiedAt ? `Checked ${esc(new Date(audit.verifiedAt).toLocaleString())}` : "Verification time unavailable"}</p><p>${esc(audit.detail)}</p><button type="button" class="kit-btn" data-admin-open="au01-audit">Open audit records</button></section>
+    <div data-admin-ai-governance-slot><section class="so-panel p-3 space-y-2"><h3>AI model governance &amp; audited transcripts</h3><p>Fleet-wide model usage, daily call/token budgets, and cryptographically verified audited transcript exports.</p><button type="button" class="kit-btn" data-admin-ai-load>Load AI governance</button></section></div>
   </div>`;
 }
 
@@ -68,6 +71,7 @@ export function createAdminStatus({
   fetchImpl = fetch,
   navigate = () => {},
 } = {}) {
+  const aiGovernance = createAdminAIGovernance({ fetchImpl });
   let revision = 0,
     controller = null;
   async function render(root) {
@@ -79,6 +83,11 @@ export function createAdminStatus({
     root.onclick = (event) => {
       if (event.target?.closest?.("[data-admin-refresh]")) {
         void render(root);
+        return;
+      }
+      if (event.target?.closest?.("[data-admin-ai-load]")) {
+        const slot = root.querySelector("[data-admin-ai-governance-slot]");
+        if (slot) void aiGovernance.mount(slot, controller?.signal);
         return;
       }
       const button = event.target?.closest?.("[data-admin-open]");
