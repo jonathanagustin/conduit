@@ -126,6 +126,11 @@ conventions; no cluster run has shown either, and no rule has been evaluated.
 
 ## Tool versions used here
 
+These install observations retain their original 1.0.0 inputs. The active
+validation/construction target is now 1.0.1; see
+[`zarf-1.0.1-qualification.md`](zarf-1.0.1-qualification.md). That patch
+qualification does not upgrade or requalify these cluster observations.
+
 - Zarf CLI `v1.0.0` for package create, lint, and the plain install.
 - UDS CLI `v0.41.0`, pinned by checksum in the Trunk gate
   (`Install pinned UDS CLI` in `.github/workflows/platform-ci.yml`). On the
@@ -493,7 +498,7 @@ and [Zarf config lookup](https://github.com/zarf-dev/zarf/blob/356f4b6041346854e
 Run the bounded native conformance check with previously verified binaries:
 
 ```sh
-ZARF_BIN=/verified/zarf-v1.0.0 UDS_BIN=/verified/uds-v0.41.0 \
+ZARF_BIN=/verified/zarf-v1.0.1 UDS_BIN=/verified/uds-v0.41.0 \
   scripts/test-uds-executor.sh
 ```
 

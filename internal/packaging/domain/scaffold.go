@@ -12,7 +12,7 @@ import (
 
 const ScaffoldProfile = "internal-stateless/v1"
 const ExistingResourcesProfile = "internal-existing-resources/v1"
-const ZarfVersion = "1.0.0"
+const ZarfVersion = "1.0.1"
 const UDSCommit = "9c808fd0af6bd0dca138da05f4a0d4785f109c32"
 
 type ExistingClaim struct {

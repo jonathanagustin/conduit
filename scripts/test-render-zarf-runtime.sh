@@ -30,7 +30,7 @@ for image in ghcr.io/example/hub:latest "$hub,OTHER=injected" "$hub'" "\$(touch 
 done
 cat > "$work/failing-zarf" <<'STUB'
 #!/bin/sh
-if [ "$1" = version ]; then echo v1.0.0; else exit 1; fi
+if [ "$1" = version ]; then echo v1.0.1; else exit 1; fi
 STUB
 chmod +x "$work/failing-zarf"
 if ZARF_BIN="$work/failing-zarf" "$render" "$work/failed" 0.0.0 "$hub" "$spoke" > "$work/failed.log" 2>&1; then

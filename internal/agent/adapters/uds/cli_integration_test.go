@@ -47,8 +47,8 @@ func TestPinnedCLIRejectsUntrustedBundleAndIsolatesConfiguration(t *testing.T) {
 		}
 		return out
 	}
-	if out := string(run(zarf, "version")); !strings.Contains(out, "v1.0.0") {
-		t.Fatalf("expected Zarf v1.0.0, got %s", out)
+	if out := string(run(zarf, "version")); strings.TrimSpace(out) != "v1.0.1" {
+		t.Fatalf("expected Zarf v1.0.1, got %s", out)
 	}
 	if out := string(run(uds, "version")); !strings.Contains(out, "v0.41.0") {
 		t.Fatalf("expected UDS v0.41.0, got %s", out)

@@ -1,5 +1,9 @@
 # Zarf 1.0 qualification candidate
 
+The original 1.0.0 qualification below is retained as historical evidence.
+The active 1.0.1 patch qualification is tracked in
+[`zarf-1.0.1-qualification.md`](zarf-1.0.1-qualification.md).
+
 Issue [#652](https://github.com/jonathanagustin/conduit/issues/652) tracks the
 coordinated developer, CI, schema and package migration. This candidate has
 scoped local evidence; complete exact-head CI remains a promotion gate. It

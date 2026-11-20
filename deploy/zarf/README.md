@@ -14,7 +14,7 @@ existing cluster was initialized with the default `all` policy, change that
 policy or label every consumer-owned application namespace
 `zarf.dev/agent=ignore` before starting Conduit.
 
-The pinned Zarf v1.0.0 init archive already carries the required internal OCI
+The previously qualified Zarf v1.0.0 init archive already carries the required internal OCI
 registry (OCI Distribution `registry` 3.1.1) and Zarf Agent. It also carries
 optional K3s 1.34.3+k3s1 and Gitea 1.24.6 components. On a bare supported Linux
 host, initialize all three facilities with:
@@ -352,7 +352,10 @@ what another would require, without deciding. `task zarf:lint`,
 `task zarf:create`, `task uds:create` and `task zarf:lifecycle` wrap the
 commands on this page.
 
-Conduit pins Zarf v1.0.0 for package validation and construction. Package
+Conduit pins Zarf v1.0.1 for package validation and construction.
+[Patch qualification](../../docs/operations/zarf-1.0.1-qualification.md)
+keeps the prior init/cluster evidence separate; a 1.0.1 init upgrade has not
+been qualified here. Package
 creation runs once for `amd64` and once for `arm64`; both bundled images
 are addressed by the exact platform-manifest digest selected from a pinned OCI
 index, and Zarf produces its normal image SBOM inventory. The release workflow

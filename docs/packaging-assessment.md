@@ -131,9 +131,9 @@ Pins and references:
 - Generator profile: internal-stateless/v1. Its exact input is included in the
   artifacts, so changing source evidence, target pins or parameters changes the
   artifact digest. This digest is a review identifier, NOT a release signature. The verifier accepts trusted generated input, not arbitrary externally supplied templates.
-- Zarf v1.0.0 (the declared v1beta1 scaffold target):
-  https://raw.githubusercontent.com/zarf-dev/zarf/v1.0.0/zarf.schema.json
-  Save as zarf-v1.0.0.json. SHA-256
+- Zarf v1.0.1 (the declared v1beta1 scaffold target):
+  https://raw.githubusercontent.com/zarf-dev/zarf/v1.0.1/zarf.schema.json
+  Save as zarf-v1.0.1.json. SHA-256
   ffb43dc23c17491a48e081c2ea5fe763089cf746b4d2a7beb162dd82b2b9273d.
   The v1beta1 images field contains objects with a name; local charts use local.path and inherit the Chart.yaml version.
 - UDS Core commit 9c808fd0af6bd0dca138da05f4a0d4785f109c32:

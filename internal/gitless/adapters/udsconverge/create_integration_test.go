@@ -67,8 +67,8 @@ func TestRenderedBundlesCreateWithPinnedCLI(t *testing.T) {
 	if got := strings.TrimSpace(string(run(t, work, uds, "version"))); got != "v"+udsschema.CLIVersion {
 		t.Fatalf("UDS CLI = %q; want v%s", got, udsschema.CLIVersion)
 	}
-	if got := strings.TrimSpace(string(run(t, work, zarf, "version"))); got != "v1.0.0" {
-		t.Fatalf("Zarf = %q; want v1.0.0", got)
+	if got := strings.TrimSpace(string(run(t, work, zarf, "version"))); got != "v1.0.1" {
+		t.Fatalf("Zarf = %q; want v1.0.1", got)
 	}
 	writeBundleFixture(t, filepath.Join(work, "zarf.yaml"), []byte(`kind: ZarfPackageConfig
 metadata:
