@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	planningapp "github.com/jonathanagustin/conduit/internal/planning/application"
@@ -38,8 +39,10 @@ func TestGovernedOnboardPackagingFromSource(t *testing.T) {
 		"Dockerfile": "FROM ubuntu:latest\nUSER root\n",
 	})
 	gitRoot := t.TempDir()
+	registry := ensureLocalRegistry(t)
 	t.Setenv("CONDUIT_IMAGE_BUILDER", "docker")
 	t.Setenv("CONDUIT_PACKAGING_BUILD", "scratch")
+	t.Setenv("CONDUIT_LOCAL_REGISTRY", registry)
 	t.Setenv("DEVWORKSPACE_GIT_ROOT", gitRoot)
 	repository := controlplane.NewMemoryRepository()
 	opts := controlplane.HandlerOptions{
@@ -75,12 +78,30 @@ func TestGovernedOnboardPackagingFromSource(t *testing.T) {
 		t.Fatalf("workspace: %d %s", workspace.Code, workspace.Body.String())
 	}
 	digest, _ := row["artifactDigest"].(string)
-	observed, err := exec.Command("docker", "image", "inspect", "--format", "{{.Id}}", "conduit/fixtureapp:local").Output()
+	tag := registry + "/fixtureapp:local"
+	engineID, err := exec.Command("docker", "image", "inspect", "--format", "{{.Id}}", tag).Output()
 	if err != nil {
 		t.Fatalf("docker inspect: %v", err)
 	}
-	if digest == "" || digest != strings.TrimSpace(string(observed)) || !strings.HasPrefix(digest, "sha256:") {
-		t.Fatalf("artifact digest %q, engine id %q", digest, strings.TrimSpace(string(observed)))
+	repoRaw, err := exec.Command("docker", "image", "inspect", "--format", "{{json .RepoDigests}}", tag).Output()
+	if err != nil {
+		t.Fatalf("repo digests: %v", err)
+	}
+	var repoDigests []string
+	if json.Unmarshal(repoRaw, &repoDigests) != nil {
+		t.Fatalf("repo digests: %s", repoRaw)
+	}
+	if digest == "" || digest == strings.TrimSpace(string(engineID)) || !strings.Contains(digest, "@sha256:") {
+		t.Fatalf("artifact digest %q is not a registry pin; engine id %q", digest, strings.TrimSpace(string(engineID)))
+	}
+	found := false
+	for _, item := range repoDigests {
+		if item == digest {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("artifact digest %q is not a recorded repo digest %v", digest, repoDigests)
 	}
 	repo := filepath.Join(gitRoot, "workspaces", wsID, "repo")
 	dockerfile, err := os.ReadFile(filepath.Join(repo, "Dockerfile"))
@@ -122,4 +143,40 @@ func TestGovernedOnboardPackagingFromSource(t *testing.T) {
 	if row["validationOutcome"] != "PASS" {
 		t.Fatalf("validation outcome %#v", row["validationOutcome"])
 	}
+}
+
+func ensureLocalRegistry(t *testing.T) string {
+	t.Helper()
+	const registry = "127.0.0.1:5000"
+	if registryUp(registry) {
+		return registry
+	}
+	cmd := exec.Command("docker", "run", "--detach", "--name", "conduit-packaging-registry", "--publish", "127.0.0.1:5000:5000",
+		"registry@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("start registry: %v\n%s", err, out)
+	}
+	t.Cleanup(func() {
+		_ = exec.Command("docker", "rm", "-f", "conduit-packaging-registry").Run()
+	})
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		if registryUp(registry) {
+			return registry
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	t.Fatal("registry did not answer on 127.0.0.1:5000")
+	return registry
+}
+
+func registryUp(registry string) bool {
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get("http://" + registry + "/v2/")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode < 500
 }

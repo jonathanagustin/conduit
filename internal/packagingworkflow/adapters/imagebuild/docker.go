@@ -1,5 +1,6 @@
 // Package imagebuild builds and inspects an image with the local container
-// engine. The digest is the engine's image id after the build. A caller-supplied
+// engine, then pushes it. The pin is the repository@sha256 reference the
+// registry records. The engine image id is not that pin. A caller-supplied
 // digest is not accepted.
 package imagebuild
 
@@ -85,7 +86,46 @@ func (builder Docker) BuildImage(ctx context.Context, dir string, logOut io.Writ
 	return tag, nil
 }
 
-// InspectImage reads the local image. Digest is the engine image id.
+// Publish pushes tag and returns the repository@sha256 reference the registry
+// recorded. The engine image id is not returned.
+func (builder Docker) Publish(ctx context.Context, tag string) (string, error) {
+	tag = strings.TrimSpace(tag)
+	repo, ok := registryRepository(tag)
+	if !ok {
+		return "", fmt.Errorf("image tag %s is not a registry reference", tag)
+	}
+	cmd := exec.CommandContext(ctx, builder.binary(), "push", tag)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		text := strings.TrimSpace(string(out))
+		if text == "" {
+			text = err.Error()
+		}
+		if strings.Contains(text, "HTTP response to HTTPS client") || strings.Contains(text, "server gave HTTP response") {
+			return "", fmt.Errorf("docker refused to push %s over HTTP. Allow that registry as insecure and start it, then retry: %s", tag, text)
+		}
+		return "", fmt.Errorf("docker push failed: %s", text)
+	}
+	inspect := exec.CommandContext(ctx, builder.binary(), "image", "inspect", "--format", "{{json .RepoDigests}}", tag)
+	raw, err := inspect.Output()
+	if err != nil {
+		return "", fmt.Errorf("push did not record a repository digest: %w", err)
+	}
+	var digests []string
+	if err := json.Unmarshal(raw, &digests); err != nil {
+		return "", fmt.Errorf("push did not record a repository digest")
+	}
+	for _, item := range digests {
+		name, digest, found := strings.Cut(item, "@")
+		if found && name == repo && digestPattern(digest) {
+			return name + "@" + digest, nil
+		}
+	}
+	return "", fmt.Errorf("push did not record a repository digest for %s", repo)
+}
+
+// InspectImage reads the local image. Digest is the engine image id until
+// Publish replaces it with the registry digest.
 func (builder Docker) InspectImage(ctx context.Context, ref string) (domain.ImageInspect, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
@@ -168,6 +208,18 @@ func ResolvePinned(ctx context.Context, bin, ref string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("base image has no repo digest")
+}
+
+func registryRepository(tag string) (string, bool) {
+	slash := strings.LastIndex(tag, "/")
+	if slash <= 0 {
+		return "", false
+	}
+	colon := strings.LastIndex(tag, ":")
+	if colon < slash {
+		return tag, true
+	}
+	return tag[:colon], true
 }
 
 func digestPattern(value string) bool {

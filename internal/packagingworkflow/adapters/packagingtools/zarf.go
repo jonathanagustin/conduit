@@ -19,8 +19,9 @@ const defaultZarfTimeout = 2 * time.Minute
 
 // ZarfRunner runs zarf package checks against a work directory.
 type ZarfRunner struct {
-	Binary  string
-	Timeout time.Duration
+	Binary    string
+	Timeout   time.Duration
+	PlainHTTP bool
 }
 
 // LookZarf finds the operator-selected zarf binary. ZARF_BIN wins, then PATH.
@@ -98,7 +99,11 @@ func (runner ZarfRunner) Create(ctx context.Context, dir, outDir string) (archiv
 			_ = os.RemoveAll(job)
 		}
 	}()
-	if err := runner.run(ctx, dir, "package", "create", ".", "--confirm", "--skip-sbom", "--architecture", arch, "--output", job); err != nil {
+	args := []string{"package", "create", ".", "--confirm", "--skip-sbom", "--architecture", arch, "--output", job}
+	if runner.PlainHTTP {
+		args = append(args, "--plain-http")
+	}
+	if err := runner.run(ctx, dir, args...); err != nil {
 		return "", err
 	}
 	entries, err := os.ReadDir(job)

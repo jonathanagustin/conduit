@@ -82,21 +82,40 @@ func (packager WorkspacePackager) Governed(ctx context.Context, req GovernedRequ
 		result.Error = result.Reason
 		return result, nil
 	}
+	pinnedRef := builtRef
+	if publisher, ok := packager.Builder.(ImagePublisher); ok {
+		pinnedRef, err = publisher.Publish(ctx, builtRef)
+		if err != nil {
+			result.Outcome = string(domain.OutcomeFailRequired)
+			result.Reason = err.Error()
+			result.Error = result.Reason
+			return result, nil
+		}
+	}
 	inspected, err := packager.Inspector.InspectImage(ctx, builtRef)
 	if err != nil {
 		result.Error = err.Error()
 		return result, nil
 	}
-	if !strings.HasPrefix(inspected.Digest, "sha256:") || len(inspected.Digest) != len("sha256:")+64 {
+	name, digest, pinned := strings.Cut(pinnedRef, "@")
+	if pinned && name != "" && digestPattern(digest) {
+		inspected.Ref = pinnedRef
+		inspected.Digest = digest
+	}
+	if !digestPattern(inspected.Digest) {
 		result.Error = "image inspection returned no digest"
 		return result, nil
 	}
 	result.ImageInspect = &inspected
-	packager.streamf("pinned image digest %s\n", inspected.Digest)
+	recorded := inspected.Digest
+	if strings.Contains(inspected.Ref, "@sha256:") {
+		recorded = inspected.Ref
+	}
+	packager.streamf("pinned image digest %s\n", recorded)
 	packageInput := input
 	packageInput.Task = domain.TaskPackage
 	packageInput.ImageDigest = inspected.Digest
-	packageInput.ImageRef = builtRef
+	packageInput.ImageRef = inspected.Ref
 	packageProposal, packageProvenance, err := packager.Writer.ProposePackage(ctx, packageInput)
 	if err != nil {
 		result.Error = err.Error()
@@ -104,6 +123,10 @@ func (packager WorkspacePackager) Governed(ctx context.Context, req GovernedRequ
 	}
 	if !strings.Contains(packageProposal.Zarf, inspected.Digest) || !strings.Contains(packageProposal.CR, inspected.Digest) {
 		result.Error = "package files do not pin the observed image digest"
+		return result, nil
+	}
+	if strings.Contains(recorded, "@sha256:") && !strings.Contains(packageProposal.Zarf, recorded) {
+		result.Error = "package files do not reference the registry digest"
 		return result, nil
 	}
 	if reason := packager.Checks.PackageCR(packageProposal.CR); reason != "" {
@@ -142,7 +165,7 @@ func (packager WorkspacePackager) Governed(ctx context.Context, req GovernedRequ
 	result.Proposal.Dockerignore = proposal.Dockerignore
 	result.Provenance = packageProvenance
 	result.Provenance.DockerfileSHA256 = domain.DigestText([]byte(proposal.Dockerfile))
-	result.Provenance.ImageDigest = inspected.Digest
+	result.Provenance.ImageDigest = recorded
 	result.Provenance.ResolvedCommit = head
 	result.Provenance.RepoURL = req.RepoURL
 	result.Provenance.ToolCalls = append(provenance.ToolCalls, domain.ToolCallRecord{Name: "inspect_image"})
@@ -156,4 +179,16 @@ func (packager WorkspacePackager) Governed(ctx context.Context, req GovernedRequ
 		}
 	}
 	return result, nil
+}
+
+func digestPattern(value string) bool {
+	if !strings.HasPrefix(value, "sha256:") || len(value) != len("sha256:")+64 {
+		return false
+	}
+	for _, r := range value[len("sha256:"):] {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
 }
