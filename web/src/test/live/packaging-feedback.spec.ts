@@ -64,6 +64,18 @@ test("packaging review notes retain exact input without approving the real waiti
     await form.locator('[name="target"]').selectOption(target);
     await form.getByLabel("Selector", { exact: true }).fill(body.selector);
     await form.getByLabel("Note", { exact: true }).fill(body.note);
+    // Force an ordinary read refresh after entry. It must not replace a
+    // reviewed draft with the default empty form or record any feedback.
+    await page.evaluate(async () => {
+      await Reflect.get(window, "state").liveHub.refresh();
+    });
+    await expect(form.locator('[name="target"]')).toHaveValue(body.target);
+    await expect(form.getByLabel("Selector", { exact: true })).toHaveValue(
+      body.selector,
+    );
+    await expect(form.getByLabel("Note", { exact: true })).toHaveValue(
+      body.note,
+    );
     // Draft edits do not write; the labeled Record action is the commit point.
     expect(
       (await read<{ items: ReviewNote[] }>(page, "/feedback")).items,

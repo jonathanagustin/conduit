@@ -227,3 +227,11 @@ wrong-Plan or unrecorded details remain unknown. Error messages direct the calle
 to refresh and preserve the mapped status without displaying server diagnostics.
 No command failure is automatically replayed over REST, and REST deprecation is
 not activated.
+
+## Unsent review input during refresh
+
+Packaging review-note fields remain an in-memory draft for their exact run while
+read refreshes replace the view. A native identity change clears those drafts.
+Acknowledging one recorded note clears only the submitted draft; a later edit is
+retained. Only the explicit Record action posts feedback, and recorded notes stay
+in the existing Hub store. Refresh adds no approval or execution authority.

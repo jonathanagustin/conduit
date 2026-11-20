@@ -403,6 +403,7 @@ export function createLiveHub({
   let refreshing = 0,
     refreshGeneration = 0;
   let identityKey = "";
+  const reviewNoteDrafts = new Map();
   let activeViewKey = "";
   let ensuredViewKey = "";
   let ensuredDataKey = "";
@@ -526,6 +527,7 @@ export function createLiveHub({
   function partition(nextKey) {
     if (nextKey === identityKey) return;
     identityKey = nextKey;
+    reviewNoteDrafts.clear();
     operations.reset();
     stream.start("");
     state.hub = {
@@ -1134,6 +1136,12 @@ export function createLiveHub({
   }
 
   function reviewNotes(runID) {
+    const draft = reviewNoteDrafts.get(runID) || {
+      target: "step",
+      selector: "",
+      note: "",
+      error: "",
+    };
     const notes = (hub(state).feedbackByRun || {})[runID] || [];
     const rows = notes
       .map(
@@ -1151,42 +1159,67 @@ export function createLiveHub({
        <form data-run="${esc(runID)}" class="grid gap-2">
          <label class="text-[12px] text-[var(--text-2)]">Element
            <select name="target" class="mt-1 w-full bg-[var(--bg-1)] border border-[var(--border-subtle)] text-[var(--text-1)] text-[12px] p-1">
-             <option value="step">step</option>
-             <option value="file">file</option>
-             <option value="manifest">manifest</option>
+             <option value="step" ${draft.target === "step" ? "selected" : ""}>step</option>
+             <option value="file" ${draft.target === "file" ? "selected" : ""}>file</option>
+             <option value="manifest" ${draft.target === "manifest" ? "selected" : ""}>manifest</option>
            </select>
          </label>
          <label class="text-[12px] text-[var(--text-2)]">Selector
-           <input name="selector" class="mt-1 w-full bg-[var(--bg-1)] border border-[var(--border-subtle)] text-[var(--text-1)] text-[12px] p-1" placeholder="gate or field" />
+           <input name="selector" class="mt-1 w-full bg-[var(--bg-1)] border border-[var(--border-subtle)] text-[var(--text-1)] text-[12px] p-1" placeholder="gate or field" value="${esc(draft.selector)}" />
          </label>
          <label class="text-[12px] text-[var(--text-2)]">Note
            <textarea name="note" class="mt-1 w-full bg-[var(--bg-1)] border border-[var(--border-subtle)] text-[var(--text-1)] text-[12px] p-1" rows="2"></textarea>
          </label>
          <button type="submit" class="so-btn so-btn-sm justify-self-start">Record review note</button>
-         <p data-error class="text-[12px] text-[var(--text-1)]"></p>
+         <p data-error class="text-[12px] text-[var(--text-1)]">${esc(draft.error)}</p>
        </form>`,
     );
   }
 
   function bindReviewNotes(root) {
     root.querySelectorAll("form[data-run]").forEach((form) => {
+      const runID = form.getAttribute("data-run") || "";
+      const owner = identityKey;
+      const noteInput = form.querySelector('[name="note"]');
+      if (noteInput) noteInput.value = reviewNoteDrafts.get(runID)?.note || "";
+      const capture = () => {
+        const data = new FormData(form);
+        const draft = {
+          target: String(data.get("target") || ""),
+          selector: String(data.get("selector") || ""),
+          note: String(data.get("note") || ""),
+          error: "",
+        };
+        if (owner === identityKey) reviewNoteDrafts.set(runID, draft);
+        return draft;
+      };
+      form.addEventListener("input", capture);
+      form.addEventListener("change", capture);
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const data = new FormData(form);
-        const runID = form.getAttribute("data-run") || "";
+        if (owner !== identityKey) return;
+        const draft = capture();
         const error = form.querySelector("[data-error]");
         try {
           await postJSON(
             `/v1/packaging-runs/${encodeURIComponent(runID)}/feedback`,
             {
-              target: String(data.get("target") || ""),
-              selector: String(data.get("selector") || ""),
-              note: String(data.get("note") || ""),
+              target: draft.target,
+              selector: draft.selector,
+              note: draft.note,
             },
           );
+          if (owner !== identityKey) return;
+          // A later edit is a different draft, even while Record is pending.
+          if (reviewNoteDrafts.get(runID) === draft)
+            reviewNoteDrafts.delete(runID);
           await refresh();
         } catch {
-          if (error) error.textContent = "The note was not recorded.";
+          if (owner !== identityKey || reviewNoteDrafts.get(runID) !== draft)
+            return;
+          draft.error = "The note was not recorded.";
+          if (error) error.textContent = draft.error;
+          render();
         }
       });
     });
