@@ -346,3 +346,92 @@ test("planning recovery reads the native owner snapshot without repeating a fail
   expect(await calls()).toBe(failures);
   expect(writes).toEqual(["/v1/agent-runs"]);
 });
+
+test("planning Accept binds the exact native reviewed source and plan without compute", async ({
+  page,
+}) => {
+  await page.goto("./#s01-intake");
+  const origin = new URL(page.url()).origin;
+  expect(repository).toMatch(
+    /^http:\/\/127\.0\.0\.1:\d+\/planning-cancel\.git$/,
+  );
+  expect(modelOrigin).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+  const calls = async () => {
+    const r = await page.request.get(`${modelOrigin}/planning-accept-fixture`);
+    expect(r.ok(), await r.text()).toBe(true);
+    return r.json() as Promise<{
+      inspect: number;
+      questions: number;
+      plan: number;
+    }>;
+  };
+  const baseline = await calls();
+  const created = await page.request.post(`${origin}/v1/planning-sessions`, {
+    data: { repoUrl: repository, ref: "reviewed-ref" },
+  });
+  expect(created.status(), await created.text()).toBe(201);
+  const initial = await created.json();
+  const path = `${origin}/v1/planning-sessions/${encodeURIComponent(initial.id)}`;
+  await page.goto(`./#s01-intake/${encodeURIComponent(initial.id)}`);
+  const flow = page.locator("#main-workspace [data-plan-flow]");
+  await expect(flow.getByLabel("Repository URL")).toHaveValue(repository);
+  const message =
+    "CONDUIT_NATIVE_ACCEPT_FIXTURE: prepare a review-only plan for this local source.";
+  await flow.getByLabel("Message", { exact: true }).fill(message);
+  await flow.locator("[data-plan-send]").click();
+  await expect(flow.locator("[data-plan-accept]")).toBeEnabled({
+    timeout: 30_000,
+  });
+  await expect(flow.locator("[data-plan-error]")).toHaveCount(0);
+  const reviewedResponse = await page.request.get(path);
+  expect(reviewedResponse.ok(), await reviewedResponse.text()).toBe(true);
+  const reviewed = await reviewedResponse.json();
+  expect(reviewed.resolvedCommit).toMatch(/^[0-9a-f]{40}$/);
+  expect(reviewed.plan.sha256).toMatch(/^[0-9a-f]{64}$/);
+  expect(JSON.parse(reviewed.plan.text).summary).toContain(
+    "CONDUIT_NATIVE_ACCEPT_FIXTURE",
+  );
+  expect(reviewed.inspection.toolCalls).toEqual(
+    expect.arrayContaining(["inspect_repo", "read_file"]),
+  );
+  expect(reviewed.binding).toBeFalsy();
+  const before = await calls();
+  expect(before).toEqual({
+    inspect: baseline.inspect + 2,
+    questions: baseline.questions + 2,
+    plan: baseline.plan + 2,
+  });
+  const refused = await page.request.post(`${path}/accept`, {
+    headers: { "X-Platform-Subject": "other-operator" },
+    data: {},
+  });
+  expect(refused.status()).toBe(404);
+  const writes: string[] = [];
+  page.on("request", (r) => {
+    if (r.method() === "POST") writes.push(new URL(r.url()).pathname);
+  });
+  const accepted = page.waitForResponse(
+    (r) => r.request().method() === "POST" && r.url() === `${path}/accept`,
+  );
+  await flow.locator("[data-plan-accept]").click();
+  const receipt = await accepted;
+  expect(receipt.status(), await receipt.text()).toBe(200);
+  expect(receipt.request().postDataJSON()).toEqual({});
+  const recorded = await receipt.json();
+  expect(recorded.binding.profile).toEqual(reviewed.profile);
+  expect(recorded.binding.intake).toEqual({ ...reviewed.intake, message });
+  expect(recorded.binding.resolvedCommit).toBe(reviewed.resolvedCommit);
+  expect(recorded.binding.model).toBe(reviewed.model);
+  expect(recorded.binding.plan).toEqual(reviewed.plan);
+  expect(Number.isFinite(Date.parse(recorded.binding.acceptedAt))).toBe(true);
+  expect(recorded.compute).toBeFalsy();
+  await expect(flow.locator("[data-plan-accept]")).toHaveCount(0);
+  const readback = await page.request.get(path);
+  expect(readback.ok()).toBe(true);
+  expect((await readback.json()).binding).toEqual(recorded.binding);
+  await page.reload();
+  await expect(page.locator("[data-plan-accept]")).toHaveCount(0);
+  await expect(page.locator("[data-plan-compute]")).toBeVisible();
+  expect(await calls()).toEqual(before);
+  expect(writes).toEqual([`${new URL(path).pathname}/accept`]);
+});
