@@ -62,7 +62,7 @@ func TestPlanningNeedsGitAndSaysSo(t *testing.T) {
 	if got["aiPlanning"].Status != Unavailable || !strings.Contains(got["aiPlanning"].Detail, "binary not found: git") {
 		t.Fatalf("planning without git = %+v", got["aiPlanning"])
 	}
-	if got["aiAppGeneration"].Status != Unavailable || !strings.Contains(got["aiAppGeneration"].Detail, "binary not found: docker, go") {
+	if got["aiAppGeneration"].Status != Unavailable || !strings.Contains(got["aiAppGeneration"].Detail, "binary not found: docker") {
 		t.Fatalf("app generation without go and docker = %+v", got["aiAppGeneration"])
 	}
 	// The assistant and packaging proposals need only the model.
@@ -114,5 +114,37 @@ func TestPackagingComputeReportsEachMissingPrerequisite(t *testing.T) {
 	withModel := byID(AIComponents(AIFacts{ProviderKind: ProviderHTTP, ImageBuilderAdmitted: true, WorkspaceRootSet: true, Tools: allTools}))["aiPackagingCompute"]
 	if withModel.Status != Configured || !strings.Contains(withModel.Detail, "model provider (kind http)") {
 		t.Fatalf("ready with a model = %+v", withModel)
+	}
+}
+
+func TestAppGenerationReportsShapeSpecificPrerequisites(t *testing.T) {
+	for _, tc := range []struct {
+		name, provider string
+		tools          map[string]bool
+		want           string
+		python         bool
+	}{
+		{"python without compiler", ProviderHTTP, map[string]bool{"docker": true}, Configured, true},
+		{"all shapes", ProviderHTTP, map[string]bool{"docker": true, "go": true}, Configured, false},
+		{"compiler without engine", ProviderHTTP, map[string]bool{"go": true}, Unavailable, false},
+		{"no tools", ProviderHTTP, map[string]bool{}, Unavailable, false},
+		{"recorded without compiler", ProviderNone, map[string]bool{"docker": true}, Unconfigured, false},
+		{"invalid provider", ProviderInvalid, map[string]bool{"docker": true}, Unavailable, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := byID(AIComponents(AIFacts{ProviderKind: tc.provider, Tools: tc.tools, ConfigError: "invalid provider"}))["aiAppGeneration"]
+			if c.Status != tc.want {
+				t.Fatalf("status=%s want=%s detail=%s", c.Status, tc.want, c.Detail)
+			}
+			if strings.Contains(c.Detail, "Python build prerequisites are present") != tc.python {
+				t.Fatalf("Python prerequisite claim incorrect: %s", c.Detail)
+			}
+			if !tc.tools["go"] && !strings.Contains(c.Detail, "Go/HTML builds and the recorded Go demonstration also require go") {
+				t.Fatalf("missing compiler limits not reported: %s", c.Detail)
+			}
+			if c.Status == Available {
+				t.Fatal("presence check claimed liveness")
+			}
+		})
 	}
 }

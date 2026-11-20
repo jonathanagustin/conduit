@@ -72,7 +72,11 @@ image:
   with `main.go` or `index.html` gets the same `503` there, after the model
   call, because the shape is not known before the reply.
 - `composition.AppGenerationBuildExecutor()` returns the same fact as
-  `{Available, Detail}`. The admin status page does not show it yet.
+  `{Available, Detail}`. The startup log and authenticated admin summary report
+  model and build prerequisites. With an HTTP model and `docker` but no `go`,
+  they report Python build prerequisites present and the missing compiler for
+  Go/HTML and the recorded Go demonstration. `CONFIGURED` is a presence check,
+  not a provider/engine health probe or separate-worker qualification.
 
 Where the binaries exist, each build is isolated in these ways:
 

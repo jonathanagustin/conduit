@@ -162,7 +162,7 @@ No request leaves the cluster in this recipe. It is written from the configurati
 | `modelProvider` | Reports provider kind `none`, `http`, or `invalid` with a fixed safe reason. Retired command configuration is unavailable. |
 | `aiAssistant` | A model provider. |
 | `aiPlanning` | A model provider and `git`. |
-| `aiAppGeneration` | A model provider, `go` and `docker`. |
+| `aiAppGeneration` | A model provider and `docker`; Go/HTML builds also need `go`. A Python-only host reports the missing compiler explicitly. |
 | `aiPackagingProposals` | A model provider. |
 | `aiPackagingCompute` | `CONDUIT_IMAGE_BUILDER=docker`, `DEVWORKSPACE_GIT_ROOT`, and `docker`, `git` and `zarf`. It runs with or without a model. |
 
@@ -179,7 +179,7 @@ Configuring a model is not enough to run every AI capability from the shipped Hu
 | Assistant | Runs. | It needs only the HTTP endpoint. |
 | Packaging model proposals and intelligence live evals | Run. | They need only the HTTP endpoint. |
 | Planning turns | Do not run. | Each turn clones the repository with `git`, which is absent. The Hub Pod also has a read-only root filesystem and no writable temporary directory in the chart or the Zarf manifest, and the clone writes to one. |
-| App generation | Does not run with a model. | The gates run `go build` and `docker build`. With no model the recorded application is unchanged. |
+| App generation | Cannot build any shape. | Every shape needs `docker`, absent from the image. Go/HTML and the recorded Go demonstration also need `go`. |
 | Packaging compute after Accept | Does not run. | It needs `docker`, `git` and `zarf`, and the chart has no value for `CONDUIT_IMAGE_BUILDER` or `DEVWORKSPACE_GIT_ROOT`. |
 | A host model command | Refused in every profile. | Global/capability command settings fail explicitly, and the shared legacy executor cannot spawn a process. |
 | Workspace ACP agent | Does not run. | It needs Node and an agent binary. |

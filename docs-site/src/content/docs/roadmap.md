@@ -6,7 +6,7 @@ sidebar:
   order: 5
 ---
 
-Generated from the same reviewed issue evidence as [Readiness](/conduit/readiness/), observed at `2026-11-19T17:01:49Z`. GitHub issues are the current tracker; this is a dated index, not a project board or a release promise.
+Generated from the same reviewed issue evidence as [Readiness](/conduit/readiness/), observed at `2026-11-20T13:49:12Z`. GitHub issues are the current tracker; this is a dated index, not a project board or a release promise.
 
 ## AI execution and assurance
 
