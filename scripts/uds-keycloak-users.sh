@@ -88,12 +88,16 @@ read_field() {
   awk -F= -v key="${key}" '$1 == key { print substr($0, index($0, "=") + 1); exit }' "${users_file}"
 }
 
-# The UDS Core uds realm enforces a password policy (length 15, 2 special
-# characters, a digit, lower and upper case). Raw base64 only sometimes meets
-# it, so keep the random part alphanumeric and append a fixed policy-satisfying
-# tail: the entropy is the 32 random characters.
+# Satisfy the uds realm policy while retaining 192 bits of random entropy.
+# Check the entropy command separately: printf must never mask its failure.
 generate_password() {
-  printf '%s%s' "$(openssl rand -base64 36 | tr -d '\n=+/' | cut -c1-32)" '-#9aZ'
+  local random
+  random="$(openssl rand -hex 24)" || return 1
+  if [[ ! "${random}" =~ ^[0-9a-f]{48}$ ]]; then
+    echo "password entropy generation returned an invalid result" >&2
+    return 1
+  fi
+  printf '%s%s' "${random}" '-#9aZ'
 }
 
 mkdir -p "$(dirname "${users_file}")"
