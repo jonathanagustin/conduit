@@ -195,23 +195,32 @@ sudo docker tag "conduit-spoke-agent:${VERSION}" "localhost:5000/conduit-spoke-a
 sudo docker push "localhost:5000/conduit-hub:${VERSION}"
 sudo docker push "localhost:5000/conduit-spoke-agent:${VERSION}"
 HUB_IMAGE="$(sudo docker buildx imagetools inspect --format '{{json .Manifest}}' "localhost:5000/conduit-hub:${VERSION}" | python3 -c 'import json,sys; print("localhost:5000/conduit-hub@"+json.load(sys.stdin)["digest"])')"
+SPOKE_IMAGE="$(sudo docker buildx imagetools inspect --format '{{json .Manifest}}' "localhost:5000/conduit-spoke-agent:${VERSION}" | python3 -c 'import json,sys; print("localhost:5000/conduit-spoke-agent@"+json.load(sys.stdin)["digest"])')"
 ```
 
 `imagetools inspect` against a plain HTTP registry needs the daemon's
 registry config or a `crane` digest read. The command that produced the
 digests in the evidence log is the one to copy; do not invent a digest.
 
+`deploy/zarf` holds a package template (`zarf.tpl.yaml`), not a `zarf.yaml`,
+so `zarf package create deploy/zarf` fails with `open deploy/zarf/zarf.yaml: no
+such file`. Render the template into a build directory first; the version and
+both image references are baked in at that step, so the package needs no
+`--set` for them. `task zarf:create` does the same two steps.
+
 ```sh
-zarf package create deploy/zarf \
+./scripts/render-zarf-runtime.sh /tmp/conduit-zarf-src \
+  "${VERSION}" "${HUB_IMAGE}" "${SPOKE_IMAGE}"
+zarf package create /tmp/conduit-zarf-src/zarf.gen.yaml \
   --architecture amd64 \
   --confirm \
   --plain-http \
   --skip-sbom \
-  --output /tmp/conduit-zarf \
-  --set "PLATFORM_VERSION=${VERSION}" \
-  --set "HUB_IMAGE=${HUB_IMAGE}" \
-  --set "SPOKE_AGENT_IMAGE=${SPOKE_IMAGE}"
+  --output /tmp/conduit-zarf
 ```
+
+This sequence, with the same flags, produced the package deployed in
+[`uds-core-install-2026-11-20.txt`](../evidence/uds-core-install-2026-11-20.txt).
 
 `--skip-sbom` is a local-validation shortcut. A release package still
 generates the SBOM in the image workflow. The resulting archive is not a
@@ -277,6 +286,17 @@ when the check is done: `k3d cluster delete conduit-zarf`.
 
 ## UDS Core slim-dev, then the Package CR
 
+Live findings of 2026-11-20 (`docs/evidence/uds-core-install-2026-11-20.txt`)
+that contradict earlier text on this page: the deploy command no longer sets
+`OPERATOR_OIDC_CA_FILE`, because on Core 1.17.1 the `uds-trust-bundle`
+ConfigMap exists only in `istio-system` and the Hub refuses to start when the
+named file is missing (the tenant gateway certificate is publicly trusted).
+Core 1.17.1 puts Keycloak in ambient mode; where ambient cannot initialize,
+sidecar clients and the gateway get 503 from Keycloak and the Hub exits at
+OIDC discovery. Through the tenant gateway the Hub console currently returns
+503/400, because the gateway sends plain HTTP to the Hub's TLS port.
+
+
 Run this only after the plain cluster is gone. Slim-dev creates its own k3d
 cluster, initializes Zarf, and installs Istio, Keycloak, and Pepr. It does
 not install the Portal layer. See [Portal tiles](#portal-tiles).
@@ -294,7 +314,6 @@ uds zarf package deploy /tmp/conduit-zarf/zarf-package-platform-runtime-amd64-0.
   --set-variables OPERATOR_OIDC_CLIENT_ID=conduit-hub \
   --set-variables OPERATOR_OIDC_USERNAME_CLAIM=preferred_username \
   --set-variables OPERATOR_OIDC_GROUPS_CLAIM=groups \
-  --set-variables OPERATOR_OIDC_CA_FILE=/etc/ssl/platform-ca/ca-bundle.pem \
   --set-variables OPERATOR_OIDC_CLIENT_SECRET_FILE=/run/conduit-sso/client-secret
 
 uds zarf tools kubectl -n platform-system rollout status deploy/platform-delivery --timeout=180s

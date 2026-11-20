@@ -88,8 +88,16 @@ read_field() {
   awk -F= -v key="${key}" '$1 == key { print substr($0, index($0, "=") + 1); exit }' "${users_file}"
 }
 
+# Satisfy the uds realm policy while retaining 192 bits of random entropy.
+# Check the entropy command separately: printf must never mask its failure.
 generate_password() {
-  openssl rand -base64 24 | tr -d '\n'
+  local random
+  random="$(openssl rand -hex 24)" || return 1
+  if [[ ! "${random}" =~ ^[0-9a-f]{48}$ ]]; then
+    echo "password entropy generation returned an invalid result" >&2
+    return 1
+  fi
+  printf '%s%s' "${random}" '-#9aZ'
 }
 
 mkdir -p "$(dirname "${users_file}")"

@@ -181,4 +181,36 @@ if printf '%s\n' "${second}" | grep -F -- "${author_pw}" >/dev/null; then
   fail "author password appeared on the second run"
 fi
 
-echo "UDS Keycloak operator users script verified"
+# Policy requirements are deterministic; the random portion carries 192 bits.
+for password in "${author_pw}" "${reviewer_pw}"; do
+  [[ "${password}" =~ ^[0-9a-f]{48}-#9aZ$ ]] || fail "password must retain 192 random bits and satisfy the realm policy"
+done
+
+# An entropy failure or malformed success must fail before creating credentials
+# or contacting Keycloak. Rotation must also preserve the existing users file.
+cp "${users}" "${work}/original-users"
+for mode in failure empty short; do
+  cat >"${work}/bin/openssl" <<STUB
+#!/usr/bin/env bash
+case '${mode}' in
+  failure) printf '%s' partial; exit 19 ;;
+  empty) exit 0 ;;
+  short) printf '%s' abc; exit 0 ;;
+esac
+STUB
+  chmod 0755 "${work}/bin/openssl"
+  : >"${CURL_LOG}"
+  failed_users="${work}/failed-${mode}"
+  if CONDUIT_UDS_USERS_FILE="${failed_users}" UDS_KUBECTL=kubectl UDS_KEYCLOAK_URL=https://keycloak.uds.dev "${script}" >"${work}/entropy-output" 2>&1; then
+    fail "invalid entropy must refuse credential creation"
+  fi
+  [[ ! -e "${failed_users}" ]] || fail "invalid entropy wrote a users file"
+  [[ ! -s "${CURL_LOG}" ]] || fail "invalid entropy contacted Keycloak"
+  if CONDUIT_UDS_USERS_FILE="${users}" UDS_KUBECTL=kubectl UDS_KEYCLOAK_URL=https://keycloak.uds.dev "${script}" --rotate >"${work}/entropy-output" 2>&1; then
+    fail "invalid entropy must refuse rotation"
+  fi
+  cmp -s "${users}" "${work}/original-users" || fail "failed rotation changed existing credentials"
+  [[ ! -s "${CURL_LOG}" ]] || fail "failed rotation contacted Keycloak"
+done
+
+echo "UDS Keycloak operator users script verified (policy, reuse, secrecy and entropy failure/rotation controls)"

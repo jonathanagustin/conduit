@@ -1,0 +1,263 @@
+UDS Core slim-dev + Conduit platform-runtime 0.19.0 on a native k3s node, live evidence.
+Date: 2026-11-20. Branch claude/uds-core-evidence, base f050bcec (origin/main).
+Issues: #830, #829, #619 (and the executor facts on #836/#837/#832).
+Not an offline-bundle result: images and packages were pulled over the network.
+No tokens, passwords or private keys are in this file. Everything below was
+copied from command output in this session; lines marked [trimmed] were cut.
+
+=== ENVIRONMENT (VERIFIED) =====================================================
+Firecracker sandbox, 4 CPU, 15 GB RAM, kernel 6.18.44-fc-v726, cgroup v1.
+Docker 29.9.2 running with --iptables=false (not touched).
+Cluster: NATIVE k3s v1.36.3+k3s1 (node "vm"), NOT k3d. Booted with
+  marketplace ccw-k3s bootstrap-k3s.sh --verify (NO_PROXY, runc wrapper,
+  failCgroupV1 drop-in). Its --verify step reported
+  "FATAL: verify: pod create refused for 60s" because Pepr's admission
+  webhook (fail-closed) was down; the node was Ready.
+Tools: uds v0.41.0 (sha256 31cd710a...ad308), its vendored zarf v0.89.0,
+  zarf v0.82.0 (e3721100...bebd), helm v4.2.3 (aeb4645b...fcb573),
+  zarf v1.0.0 (c58cf024...2857, matches platform-ci.yml pin; used for create),
+  k3d v5.8.3 (dbaa79a7...3e853e, downloaded, used only for the probe below).
+
+PROVENANCE WARNING. On first look the node already carried a datastore from
+2026-11-17 ("AGE 3d10h"): UDS Core 1.17.1 (zarf packages init v0.82.0,
+core-base, core-identity-authorization) and an older platform-runtime 0.18.0
+with its Package CR. I did not install Core and have no record of the
+commands that did; its install is therefore INFERRED to be the 1.17.1
+slim-dev bundle (zarf package list below), not reproduced here. Everything
+about Conduit 0.19.0 below was built and deployed by me in this session.
+The bootstrap also moved the node binary to k3s v1.36.3 (was v1.34.3 in
+the datastore).
+
+=== Q1. Working cluster; pods run and logs return output =======================
+k3d was NOT achieved. Container egress on this Docker (no NAT, no iptables):
+  docker run --rm busybox:1.37 sh -c 'nslookup ghcr.io'
+    ;; connection timed out; no servers could be reached
+  user-defined network, curl https://ghcr.io/v2/ with the CA: http_code 000
+  Docker builds without --network host: npm "getaddrinfo EAI_AGAIN".
+A k3d node would have no egress. Enabling NAT means changing the host's
+iptables/dockerd, which I did not do. Native k3s (the cluster skill's
+preferred path) was used instead.
+Two sandbox fixes were needed after the k3s restart:
+  mount --make-rshared /   (istio-cni: 'path "/var/run/netns" is mounted on "/"
+                            but it is not a shared or slave mount')
+  AMBIENT_ENABLED=false on cm/istio-cni-config and ds/istio-cni-node (below).
+Proof pod:
+  kubectl run conduit-uds-check --image=busybox:1.37 -- sh -c 'echo conduit-uds-log-line-$(uname -r)'
+  kubectl logs conduit-uds-check  ->  conduit-uds-log-line-6.18.44-fc-v726
+
+=== AMBIENT MESH (recorded failure, by output) =================================
+With AMBIENT_ENABLED=true the node agent exits:
+  info cni-agent  creating host addressSet manager in the node netns
+  Error: failed to create ambient nodeagent service: error initializing mesh
+  dataplane: error initializing host addressSet manager: failed to Statfs
+  "/host/proc/1/ns/net": no such file or directory
+Every pod sandbox then failed:
+  plugin type="istio-cni" ... failed to contact node Istio CNI agent ...
+  dial unix /var/run/istio-cni/pluginevent.sock: connect: connection refused
+ztunnel stays 0/1 for the whole session:
+  warn inpod::workloadmanager failed to connect to the Istio CNI node agent
+  over "/var/run/ztunnel/ztunnel.sock" ... Connection refused
+Setting AMBIENT_ENABLED=false (what scripts/uds-up.sh does) lets sandboxes
+start. Consequence, not predicted by the repo docs: UDS Core 1.17.1 puts the
+keycloak namespace in ambient mode (istio.io/dataplane-mode=ambient, a
+keycloak-waypoint, istio.io/use-waypoint on Service keycloak-http). Sidecar
+clients send HBONE to <keycloak-pod>:15008, where nothing listens:
+  sidecar log: "delayed_connect_error:_Connection_refused" ... "10.42.0.25:15008"
+  connect_originate ... GET /realms/uds/... 503 URX,UF
+  nc from an unmeshed pod: 10.42.0.25:15008 closed, :8080 open
+So with ambient dead, Hub (sidecar) -> Keycloak and gateway -> Keycloak
+(sso.uds.dev) both return 503. The Hub then exits at startup with
+  ERROR configure operator OIDC identity error="discover OIDC issuer: 503
+  Service Unavailable: upstream connect error ..."
+EXPERIMENT (reversible, mine): removed label istio.io/dataplane-mode from ns
+keycloak, removed istio.io/use-waypoint and istio.io/ingress-use-waypoint from
+svc keycloak-http, deleted keycloak-0 (new pod has no ambient annotation).
+After that: Hub-labelled pod -> keycloak-http:8080 200, -> https://sso.uds.dev
+200, host -> gateway sso.uds.dev 200. To revert: re-add
+  kubectl label ns keycloak istio.io/dataplane-mode=ambient
+  kubectl -n keycloak label svc keycloak-http istio.io/use-waypoint=keycloak-waypoint istio.io/ingress-use-waypoint=true
+(and delete keycloak-0). Not reverted: the cluster was left in this state.
+
+=== Q2. UDS Core components (after the two fixes) ==============================
+zarf package list:  core-base 1.17.1, core-identity-authorization 1.17.1,
+  init v0.82.0 (agent-hook env ZARF_AGENT_MUTATION_POLICY=labeled),
+  platform-runtime (mine, below).
+Running 1/1: authservice, admin and tenant ingressgateway, istio-cni-node,
+  istiod, keycloak-0, keycloak-waypoint, coredns, local-path-provisioner,
+  pepr-uds-core x2, pepr-uds-core-watcher, zarf agent-hook x2, zarf-docker-registry.
+NOT Ready: ztunnel 0/1 (ambient, above). No metrics-server: kubectl top ->
+  "Metrics API not available".
+Resources at the end: free -m used 3330 MB of 16087, buff/cache 9267;
+  k3s-server RSS 1.1 GB, one java (Keycloak) 565 MB. Disk 6.3 GB free.
+
+=== Q3. Build, package, secrets, deploy ========================================
+Images: Hub from the repo Containerfile, via a /tmp copy whose only change is
+  FROM conduit-uds-{node,go}-ca (the same pinned digests plus the session CA
+  appended; docker build --network host) -> conduit-uds-hub:0.19.0,
+  digest localhost:5055/conduit-hub@sha256:1ce6b813a91fd7a0b3840fe48fadf63af779a09a644991a1e9a51d3eaf348531
+Spoke: Containerfile.agent was attempted twice (helm and kubectl compiled from
+  source in parallel) and killed by my disk guard at 3.1-3.4 GB free both
+  times. THIRD, different attempt = HYBRID image: `--target build` of
+  Containerfile.agent (builds platform-spoke-agent and platform-material-preparer
+  at f050bcec), copied over the pre-existing localhost:5001/conduit-spoke-agent:0.18.0
+  image (which supplies helm and kubectl, provenance unknown):
+  localhost:5055/conduit-spoke-agent@sha256:8141f6d47f937c756274657549583ada20364dbdd3fa71bdb4453a79918d3336
+  Spoke log: "starting platform Spoke agent version=0.19.0 commit=f050bcec...".
+  The Spoke image is therefore NOT a clean Containerfile.agent build.
+Package (docs say `zarf package create deploy/zarf`; that fails here, the
+  directory holds zarf.tpl.yaml, not zarf.yaml -> "open deploy/zarf/zarf.yaml: no such file"):
+  ./scripts/render-zarf-runtime.sh /tmp/agent-uds/pkgsrc 0.19.0 $HUB $SPOKE
+  zarf v1.0.0 package create /tmp/agent-uds/pkgsrc/zarf.gen.yaml --architecture amd64
+    --confirm --plain-http --skip-sbom   (SBOM skipped)
+  -> zarf-package-platform-runtime-amd64-0.19.0.tar.zst, 130847132 bytes
+Secrets: throwaway CA, Hub cert (SANs platform-delivery{,.platform-system.svc,
+  .platform-system.svc.cluster.local}), Agent cert with
+  URI:spiffe://platform.delivery/environment/example/agent/spoke-example,
+  Ed25519 PKCS#8 key; created in platform-system; material in /tmp only.
+Deploy command (CLI = uds zarf v0.89.0, native --values file):
+  uds zarf package deploy zarf-package-platform-runtime-amd64-0.19.0.tar.zst
+    --confirm --components uds --values <file>
+FINDING A (documented command fails): with the values the doc prescribes,
+  OPERATOR_OIDC_CA_FILE=/etc/ssl/platform-ca/ca-bundle.pem, the Hub dies
+    ERROR configure operator OIDC identity error="read OPERATOR_OIDC_CA_FILE:
+    open /etc/ssl/platform-ca/ca-bundle.pem: no such file or directory"
+  because the optional ConfigMap uds-trust-bundle is mounted from
+  platform-system but exists only in istio-system (key extra.pem, empty) on
+  this Core. The deploy blocked in the runtime component until my 420 s
+  timeout, never reaching `uds`. The tenant gateway cert is a PUBLIC
+  Sectigo wildcard (issuer "Sectigo Public Server Authentication CA DV R36",
+  SAN *.uds.dev), so no CA file is needed here.
+FINDING B (aborted deploy): re-running deploy after the timeout:
+  ERR unable to install chart another operation (install/upgrade/rollback) is
+  in progress: if you need to remove the failed chart, use `zarf package remove`
+  Remedy used: zarf package remove platform-runtime --confirm, redeploy.
+
+=== Q4. Package CR, policies, Hub, Spoke =======================================
+Deploy without OIDC, then with OIDC minus the CA file; both succeeded.
+kubectl -n platform-system get package:
+  platform-runtime Ready  SSO ["conduit-hub"]  ENDPOINTS ["conduit.uds.dev"]
+  NETWORK POLICIES 20  AUTHORIZATION POLICIES 5
+status: phase Ready, condition Ready=True reason ReconciliationComplete
+  "The package is ready for use.", meshMode "sidecar", retryAttempt 0.
+Namespace labels after: istio-injection=enabled, zarf.dev/agent=mutate.
+VirtualService platform-runtime-tenant-hub-console-through-the-tenant-gateway
+  gateways istio-tenant-gateway/tenant-gateway, host conduit.uds.dev,
+  destination platform-delivery...:8081 (no DestinationRule exists).
+Secret conduit-hub-sso: 1 key (client-secret). The 0.18.0-era Package had put
+  the whole Keycloak client representation (29 keys, no client-secret) there;
+  the current template `client-secret: clientField(secret)` fixes that.
+NetworkPolicies (20): deny default, dns x3, istiod, hub-to-{postgres,temporal,
+  model,oidc-issuer,oidc-issuer-through-the-tenant-gateway}, packaging-worker x2,
+  spoke-to-{hub,chart-registry,kubernetes-api}, ingress 8081 from tenant gateway,
+  ingress via gateway, kubelet probes, sidecar monitoring, spoke-to-hub.
+Hub log: "Platform delivery control plane listening address=:8081
+  secureAgentIdentity=true bundleSigner=9/FjkvUx1OEqm... version=0.19.0
+  commit=f050bcecfecc50bce06e478d62df1fdc9e5c4a6b"; /health/ready {"status":"ok"}.
+Spoke registered and polls: Hub log, caller=agent:
+  GET  /v1/environments/{environmentID}/health-targets                 200
+  POST /v1/environments/{environmentID}/maintenance-admission/leases   204
+  (first Spoke calls at startup: "connection reset by peer"/EOF, sidecar race,
+  then 200/204). 204 = poll accepted, no work offered. NO Plan was issued, so
+  a lease that carries work was NOT exercised.
+
+=== Q5. #829 network.allow, by connection test =================================
+Probe: pod in platform-system labelled app.kubernetes.io/name=platform-delivery
+(then platform-spoke-agent), sidecar injected, image curlimages/curl:8.11.1
+copied into the Zarf registry under the agent's tag (a pod in this namespace
+cannot pull from Docker Hub: Zarf rewrites it).
+  Hub -> Keycloak keycloak-http:8080 (policy allow-...-hub-to-the-oidc-issuer):
+     200 once Keycloak is not ambient (503/HBONE refused before)
+  Hub -> https://sso.uds.dev via tenant gateway (…-through-the-tenant-gateway): 200
+  Spoke -> http://zarf-docker-registry.zarf.svc.cluster.local:5000/v2/ : 401
+     (reachable; registry auth challenge). Same from a Hub-labelled pod: connection
+     refused by the policy (Hub has no registry allow, as designed).
+  Spoke -> https://zarf-docker-registry...:5000 : curl exit 35 (the registry
+     speaks plain HTTP; helm needs --plain-http, HELM_PLAIN_HTTP exists).
+  Keycloak: pods label app.kubernetes.io/name=keycloak, namespace keycloak, port
+  8080: matches the default. Registry: namespace zarf, label app=docker-registry,
+  port 5000: matches. Tenant gateway pods carry app=tenant-ingressgateway
+  in istio-tenant-gateway, port 443 (Service ports 80, 443).
+NOT shown: an actual `helm pull oci://` by the Spoke (needs a Plan), packaging
+worker / Temporal / model / Postgres allows (nothing deployed to test).
+
+=== Q6. #830 gateway -> Hub (sidecar mode) =====================================
+curl --noproxy '*' --resolve conduit.uds.dev:443:10.43.186.80 (tenant gateway ClusterIP)
+  https://conduit.uds.dev/console/     HTTP/2 503  "upstream connect error or
+                                        disconnect/reset before headers. reset reason: connection termination"
+  https://conduit.uds.dev/health/ready HTTP/2 503  (same)
+  https://conduit.uds.dev/v1/session   HTTP/2 400  "Client sent an HTTP request to an HTTPS server."
+  http://conduit.uds.dev/              301 -> https://conduit.uds.dev/
+The gateway terminates TLS (valid Sectigo cert) and forwards PLAINTEXT HTTP to
+the Hub's self-terminating TLS port 8081: the 400 body is the Hub's Go TLS
+listener. The browser console path through the gateway is therefore BROKEN as
+the Package CR stands; a backend-TLS origination mechanism is missing (no
+DestinationRule is generated, the Package expose entry has no field for it).
+Not attempted: a hand-written DestinationRule/PeerAuthentication fix.
+The Hub console itself works over a port-forward to svc/platform-delivery:8081
+(/health/ready 200).
+
+=== Q7. #619 users, bearer, login ==================================================
+scripts/uds-keycloak-users.sh, UDS_KEYCLOAK_URL=http://127.0.0.1:18080 (a
+port-forward to keycloak-0; the https://keycloak.uds.dev default was 503 while
+ambient was down). FINDING C: the script FAILED as shipped:
+  curl: (22) The requested URL returned error: 400
+because the uds realm enforces passwordPolicy length(15), specialChars(2),
+digits(1), lowerCase, upperCase, passwordHistory(5), forceExpiredPasswordChange(60)
+and the generated `openssl rand -base64 24` password has no guaranteed special
+characters ("invalidPasswordMinSpecialCharsMessage: must contain at least 2
+special characters"). Fixed in this branch; script test passes; both users
+conduit-author and conduit-reviewer then created in group conduit-operators.
+Tokens (grant_type=password, client admin-cli, Host: sso.uds.dev) carry
+  iss=https://sso.uds.dev/realms/uds  azp=admin-cli  groups=["/conduit-operators"]
+  aud=https://sso.uds.dev/admin/realms/uds
+Hub (OPERATOR_OIDC_ISSUER=https://sso.uds.dev/realms/uds, client conduit-hub):
+  GET /v1/session, no token                     401 {"error":"unauthorized"}
+  GET /v1/session, Bearer <author token>        401
+  GET /v1/session, Bearer <reviewer token>      401
+Both bearer tokens were REJECTED. Likely cause (INFERRED, not proven by a log
+line, the Hub logs only status=401): the verifier checks aud == conduit-hub
+(oidcverifier.go) and these tokens carry the admin API audience. A token for
+the conduit-hub client was not obtainable by password grant (client has
+directAccessGrants false). So "a Keycloak user token is accepted" is NOT established.
+GET /v1/auth/login: 302 to
+  https://sso.uds.dev/realms/uds/protocol/openid-connect/auth?client_id=conduit-hub
+  &code_challenge=<r>&code_challenge_method=S256&nonce=<r>
+  &redirect_uri=https%3A%2F%2Fconduit.uds.dev%2Fv1%2Fauth%2Fcallback
+  &response_type=code&scope=openid+profile+email&state=<r>
+  Set-Cookie: __Host-conduit-login=<r>; Path=/; Max-Age=600; HttpOnly; Secure; SameSite=Lax
+Following it with curl through the gateway to Keycloak and posting the author's
+credentials: Keycloak accepted the password and redirected to
+  /realms/uds/login-actions/required-action?execution=CONFIGURE_TOTP&client_id=conduit-hub
+i.e. a script-created user must enrol TOTP before any code is issued. The Hub
+callback was therefore never reached; sign-in completion is NOT established.
+
+=== Q8. remove behaviour, deployed-package Secret ==================================
+uds zarf package remove platform-runtime --confirm (on 0.18.0): "package
+successfully removed". After: namespace platform-system KEPT (label
+zarf.dev/agent=mutate; istio-injection label gone), PVC platform-delivery-state
+KEPT (Bound, 1Gi), the three hand-made TLS/signing Secrets KEPT, Package CR and
+conduit-hub-sso gone, zarf-package-platform-runtime Secret gone.
+Secret zarf/zarf-package-platform-runtime keys: cliVersion, data, deployedComponents,
+digest, generation, name, packageConnectivity. `data` holds the full package
+definition (incl. variable/constant DEFINITIONS); the applied variable values
+(e.g. "spoke-example") do NOT appear anywhere in it. This confirms the #836
+statement that Zarf does not record applied variables.
+CRD: packages.uds.dev (kubectl api-resources: packages pkg uds.dev/v1alpha1).
+
+=== NOT ESTABLISHED ===============================================================
+k3d cluster (no container egress); a clean Containerfile.agent Spoke build;
+who/how Core 1.17.1 was installed; a Plan reaching the Spoke (lease with work);
+helm pull oci:// by the Spoke; metrics/ServiceMonitor, packaging-worker,
+Postgres/Temporal/model allows; gateway -> Hub console working; bearer token
+accepted; completed browser sign-in; ambient mode working; the verify-flag
+behaviour of `uds deploy`/`uds inspect` (#836).
+
+=== DISCLAIMER ===================================================================
+This is a single-node native k3s on a sandbox kernel, with ambient disabled and
+Keycloak manually un-enrolled from the mesh, an unsigned package built with
+--skip-sbom, a hybrid Spoke image, and a Core install of unknown provenance.
+It does not show that Conduit works on a supported UDS Core deployment, that
+the Package is production-qualified, or anything about security posture. A
+Package phase of Ready and Running pods are not evidence of a working
+sign-in or console path; the sections above say which paths actually returned
+which output.
