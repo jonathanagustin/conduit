@@ -289,8 +289,14 @@ export function indexControlsMarkup(hub, screen, query, esc) {
       const definition = INDEX_DEFINITIONS[index];
       const page = hub?.indexPages?.[index];
       const filters = indexFilters(index, query);
+      // Keep the established empty Environment caption when its reader also
+      // supplies a known zero total. The exact total remains in page state.
+      const emptyEnvironmentTotal =
+        index === "environments" &&
+        page?.shown === 0 &&
+        (page.total === 0 || page.total === "0");
       const count = page
-        ? `Showing ${page.shown}${page.total === null ? "" : ` of ${page.total}`} ${definition.label} in this page.`
+        ? `Showing ${page.shown}${page.total === null || emptyEnvironmentTotal ? "" : ` of ${page.total}`} ${definition.label} in this page.`
         : `Loading ${definition.label}.`;
       return `<section class="so-panel kit-index-controls" data-index-controls="${index}" aria-label="${esc(definition.label)} pages">
       <form data-index-filter="${index}" class="kit-index-filters">${definition.filters.map((key) => `<label>${esc(FILTER_LABELS[key])}<input class="kit-input" name="${key}" value="${esc(filters[key])}" autocomplete="off" /></label>`).join("")}<button type="submit" class="so-btn so-btn-sm">Apply ${esc(definition.label)} filters</button></form>

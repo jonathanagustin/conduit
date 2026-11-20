@@ -546,3 +546,23 @@ it("generated Environment indexes hydrate configuration even without a report", 
     ),
   ).rejects.toThrow("Environment details unavailable");
 });
+
+it("retains empty Environment wording with an exact known zero total", () => {
+  const page = indexPage(
+    { environments: [], total: BigInt(0) },
+    "environments",
+    "/v1/environments?view=summary",
+  );
+  expect(page.total).toBe("0");
+  const markup = (total: string) =>
+    indexControlsMarkup(
+      { indexPages: { environments: { ...page, total } } },
+      "flt-environments",
+      new URLSearchParams(),
+      (value: unknown) => String(value),
+    );
+  expect(markup("0")).toContain("Showing 0 environments in this page.");
+  expect(markup("100")).toContain(
+    "Showing 0 of 100 environments in this page.",
+  );
+});
