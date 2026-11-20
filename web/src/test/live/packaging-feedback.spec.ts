@@ -357,12 +357,17 @@ test("assistant feedback reviews exact values before Confirm and records one nat
     return body.cases as Record<string, unknown>[];
   };
   const before = await catalog();
+  const currentTeam = await page.request.get(url("/v1/teams/Operator"));
+  let existing: Record<string, any> = {};
+  if (currentTeam.ok()) existing = await currentTeam.json();
+  else expect(currentTeam.status(), await currentTeam.text()).toBe(404);
   const team = await page.request.put(url("/v1/teams/Operator"), {
     data: {
+      ...existing,
       name: "Operator",
-      displayName: "Feedback fixture operators",
-      adminUsers: ["operator"],
-      memberUsers: ["operator"],
+      displayName: existing.displayName || "Feedback fixture operators",
+      adminUsers: [...new Set([...(existing.adminUsers || []), "operator"])],
+      memberUsers: [...new Set([...(existing.memberUsers || []), "operator"])],
     },
   });
   expect(team.ok(), await team.text()).toBe(true);
