@@ -28,6 +28,10 @@ cluster operating after the images are already present.
   that key read-only at `/run/conduit-sso`. Authservice is not attached.
   The Hub port is the Agent mTLS listener, and a proxy in front of it would
   break the Spoke.
+- Service mesh mode (`spec.network.serviceMesh.mode`), selected by
+  `UDS_SERVICE_MESH_MODE` (`sidecar` by default; `ambient` is also accepted by
+  the Zarf values schema). Neither mode has recorded live UDS Core tenant
+  gateway browser-session or Spoke lease evidence yet (#830).
 - Ingress from the tenant gateway (`istio-tenant-gateway` /
   `tenant-ingressgateway`) to the Hub on 8081, plus an `expose` entry on the
   tenant gateway at host `conduit`. The Hub speaks HTTPS on that port. The

@@ -287,7 +287,11 @@ abort "UDS Package must live in platform-system" unless uds_package.dig("metadat
 expose = uds_package.dig("spec", "network", "expose") || []
 hub_expose = expose.find { |item| item["gateway"] == "tenant" && item["service"] == "platform-delivery" && item["port"] == 8081 }
 abort "UDS Package must expose the Hub on the tenant gateway" unless hub_expose
-abort "UDS Package must use sidecar mesh mode when ambient is off" unless uds_package.dig("spec", "network", "serviceMesh", "mode") == "sidecar"
+mesh_mode = variables.find { |item| item["name"] == "UDS_SERVICE_MESH_MODE" }
+abort "UDS_SERVICE_MESH_MODE must default to sidecar and allow only sidecar or ambient" unless
+  mesh_mode && mesh_mode["default"] == "sidecar" && mesh_mode["pattern"] == "^(sidecar|ambient)$"
+abort "UDS Package serviceMesh.mode must come from UDS_SERVICE_MESH_MODE" unless
+  uds_package.dig("spec", "network", "serviceMesh", "mode") == "###ZARF_VAR_UDS_SERVICE_MESH_MODE###"
 abort "UDS Package must set the portal tile title on the Hub expose entry" unless hub_expose.dig("annotations", "uds.dev/title") == "Conduit"
 abort "Zarf package must set the portal tile title" unless definition.dig("metadata", "annotations", "dev.uds.title") == "Conduit"
 allows = uds_package.dig("spec", "network", "allow") || []

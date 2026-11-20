@@ -17,7 +17,7 @@ metadata:
 spec:
   network:
     serviceMesh:
-      mode: sidecar
+      mode: {{ .Values.UDS_SERVICE_MESH_MODE | toString | toJson }}
     expose:
       - description: Hub console through the tenant gateway
         service: platform-delivery
@@ -269,7 +269,7 @@ metadata:
 spec:
   network:
     serviceMesh:
-      mode: sidecar
+      mode: {{ .Values.UDS_SERVICE_MESH_MODE | toString | toJson }}
     expose:
       - description: Hub console through the tenant gateway
         service: platform-delivery

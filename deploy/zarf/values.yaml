@@ -75,6 +75,7 @@ MODEL_ALLOW_INSECURE_HTTP: false
 MODEL_SERVICE_NAMESPACE: conduit-model-unconfigured
 MODEL_SERVICE_NAME_LABEL: conduit-model-unconfigured
 UDS_METRICS: false
+UDS_SERVICE_MESH_MODE: sidecar
 rendered: {}
 
 # Opt-in HTTPS collector; no endpoint leaves both binaries and egress inert.
