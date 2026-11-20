@@ -126,5 +126,18 @@
       "defaultRegistryUrlTemplate": "https://x.ai/cli/stable",
       "format": "plain"
     }
-  }
+  },
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/examples/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/__fixtures__/**",
+    "**/.mise/locks/**",
+    "**/.config/mise/locks/**",
+    "internal/packagingworkflow/adapters/packagingtools/dockerfile_test.go"
+  ]
 }
