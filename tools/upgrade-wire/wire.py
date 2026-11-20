@@ -134,7 +134,9 @@ def archive_and_build(work, label, revision):
 
 def certificate(work, name, san, usage):
     common = ["openssl", "req", "-new", "-newkey", "rsa:2048", "-nodes", "-sha256",
-              "-subj", "/CN=" + name, "-addext", "subjectAltName=" + san,
+              "-subj", "/CN=" + name, "-addext", "basicConstraints=critical,CA:FALSE",
+              "-addext", "keyUsage=critical,digitalSignature,keyEncipherment",
+              "-addext", "subjectAltName=" + san,
               "-addext", "extendedKeyUsage=" + usage, "-keyout", str(work / (name + ".key")),
               "-out", str(work / (name + ".csr"))]
     subprocess.run(common, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
@@ -147,7 +149,10 @@ def certificate(work, name, san, usage):
 
 def tls_material(work, environment):
     subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-sha256", "-days", "1",
-                    "-subj", "/CN=wire-fixture", "-keyout", str(work / "ca.key"), "-out", str(work / "ca.crt")],
+                    "-subj", "/CN=wire-fixture",
+                    "-addext", "basicConstraints=critical,CA:TRUE",
+                    "-addext", "keyUsage=critical,keyCertSign,cRLSign",
+                    "-keyout", str(work / "ca.key"), "-out", str(work / "ca.crt")],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
     (work / "ca.key").chmod(0o600)
     certificate(work, "hub", "IP:127.0.0.1", "serverAuth")
