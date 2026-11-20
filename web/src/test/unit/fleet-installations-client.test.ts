@@ -1,8 +1,10 @@
-import { describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import {
   fetchFleetInstallations,
   fleetInstallationsTransport,
 } from "../../api/fleet-installations.js";
+import { listFleet } from "../../console/data/hub.js";
+afterEach(() => vi.unstubAllGlobals());
 const row = {
   environment: "env-a",
   installationId: "install-a",
@@ -246,5 +248,104 @@ describe("native Fleet generated reader", () => {
       ),
     ).rejects.toMatchObject({ status: 499 });
     expect(calls).toBe(1);
+  });
+});
+
+describe("legacy Fleet caller", () => {
+  function install(body: unknown, status = 200) {
+    vi.stubGlobal("window", { location: { origin: "http://hub.local" } });
+    const calls: Request[] = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      expect(input).toBeInstanceOf(Request);
+      const request = input as Request;
+      calls.push(request);
+      expect(request.url).toBe(
+        "http://hub.local/conduit.fleet.v1.FleetReadService/ListFleetInstallations",
+      );
+      expect(request.method).toBe("POST");
+      expect(request.credentials).toBe("same-origin");
+      expect(await request.json()).toEqual({ limit: 20 });
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    return calls;
+  }
+  it("preserves its row DTO and first-page limit without following cursors", async () => {
+    const calls = install(payload);
+    expect(await listFleet()).toEqual([
+      {
+        id: "install-a",
+        environment: "env-a",
+        product: "app",
+        health: "FUTURE_HEALTH",
+      },
+    ]);
+    expect(calls).toHaveLength(1);
+  });
+  it("retains an authorized empty projection", async () => {
+    const calls = install({
+      ...payload,
+      installations: [],
+      pageSize: 0,
+      summary: { total: "0" },
+    });
+    expect(await listFleet()).toEqual([]);
+    expect(calls).toHaveLength(1);
+  });
+  it.each([
+    [401, "unauthenticated", 401],
+    [403, "permission_denied", 403],
+    [404, "not_found", 404],
+    [501, "unimplemented", 501],
+  ] as const)(
+    "propagates refusal %i without replay",
+    async (status, code, expected) => {
+      const calls = install({ code, message: "refused" }, status);
+      await expect(listFleet()).rejects.toMatchObject({
+        name: "HubError",
+        status: expected,
+      });
+      expect(calls).toHaveLength(1);
+    },
+  );
+  it("refuses malformed rows instead of silently dropping them", async () => {
+    const calls = install({
+      ...payload,
+      installations: [{ ...row, installationId: "" }],
+    });
+    await expect(listFleet()).rejects.toMatchObject({
+      name: "HubError",
+      status: 502,
+    });
+    expect(calls).toHaveLength(1);
+  });
+  it("forwards cancellation without REST replay", async () => {
+    vi.stubGlobal("window", { location: { origin: "http://hub.local" } });
+    const controller = new AbortController();
+    let request: Request | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: Request) => {
+        request = input;
+        return new Promise<Response>((_, reject) => {
+          input.signal.addEventListener(
+            "abort",
+            () => reject(input.signal.reason),
+            { once: true },
+          );
+        });
+      }),
+    );
+    const result = listFleet(controller.signal);
+    await vi.waitFor(() => expect(request).toBeDefined());
+    controller.abort();
+    await expect(result).rejects.toMatchObject({
+      name: "HubError",
+      status: 499,
+    });
+    expect(request?.signal.aborted).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

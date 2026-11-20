@@ -1,4 +1,8 @@
 import {
+  fetchFleetInstallations,
+  fleetInstallationsTransport,
+} from "../../api/fleet-installations.js";
+import {
   fetchPackagingRunDetail,
   packagingRunTransport,
 } from "../../api/packaging-run.js";
@@ -605,32 +609,18 @@ export async function readOverview(): Promise<OverviewCounts> {
   };
 }
 
-export async function listFleet(): Promise<FleetRow[]> {
-  const body = await send("/v1/fleet/installations?limit=20");
-  const rows = Array.isArray(body["installations"])
-    ? body["installations"]
-    : [];
-  return rows.flatMap((row) => {
-    if (row === null || typeof row !== "object") return [];
-    const record = row as Record<string, unknown>;
-    const id =
-      typeof record["installationId"] === "string"
-        ? record["installationId"]
-        : "";
-    if (!id) return [];
-    return [
-      {
-        id,
-        environment:
-          typeof record["environment"] === "string"
-            ? record["environment"]
-            : "",
-        product: typeof record["product"] === "string" ? record["product"] : "",
-        health:
-          typeof record["health"] === "string" ? record["health"] : "UNKNOWN",
-      },
-    ];
-  });
+export async function listFleet(signal?: AbortSignal): Promise<FleetRow[]> {
+  const page = await fetchFleetInstallations(
+    fleetInstallationsTransport(window.location.origin),
+    signal,
+    "/v1/fleet/installations?limit=20",
+  );
+  return page.installations.map((row) => ({
+    id: row.installationId,
+    environment: row.environment,
+    product: row.product,
+    health: row.health,
+  }));
 }
 
 export async function rejectPlan(

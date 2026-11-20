@@ -5,8 +5,11 @@ The Hub dual-serves `GET /v1/fleet/installations` through the exact POST
 extension derived from the native projection and paginator at main commit
 `d17bf007c5f2c2303148da1bd88580618b95615d`, not a private Apollo protocol.
 Active operator installation refreshes use the generated Connect reader for
-initial loads, result windows and later refreshes. CLI and the legacy
-`web/src/console/data/hub.ts` Fleet helper remain REST.
+initial loads, result windows and later refreshes. The legacy
+`web/src/console/data/hub.ts` Fleet helper uses the same reader for its first
+20 rows, preserving its installation ID, Environment, Product and open health
+strings. It accepts cancellation and never follows a second page implicitly.
+CLI Fleet reads remain REST.
 
 ## Authority and query
 
