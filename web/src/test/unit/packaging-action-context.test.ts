@@ -41,6 +41,62 @@ const state = () => ({
   },
 });
 const response = (body: unknown, ok = true) => ({ ok, json: async () => body });
+// Project these existing semantic fixtures onto actual generated-client Requests.
+// Only the fixture callback sees a query URL; production never sends REST Fleet.
+function installFetch(mock: (url: string, options?: any) => Promise<any>) {
+  vi.stubGlobal("window", { location: { origin: "http://hub.local" } });
+  vi.stubGlobal(
+    "fetch",
+    async (input: RequestInfo | URL, options?: RequestInit) => {
+      if (!(input instanceof Request)) {
+        expect(String(input)).not.toMatch(/^\/v1\/fleet\/installations/);
+        return mock(String(input), options);
+      }
+      expect(input.url).toBe(
+        "http://hub.local/conduit.fleet.v1.FleetReadService/ListFleetInstallations",
+      );
+      expect(input.method).toBe("POST");
+      expect(input.credentials).toBe("same-origin");
+      const body = (await input.clone().json()) as Record<string, unknown>;
+      const query = new URLSearchParams();
+      const keys = ["environment", "installationId", "limit", "spaceId"];
+      for (const key of [
+        ...keys,
+        ...Object.keys(body).filter((key) => !keys.includes(key)),
+      ])
+        if (body[key] !== undefined) {
+          const value = body[key];
+          expect(["string", "number"]).toContain(typeof value);
+          query.set(
+            key,
+            typeof value === "string" ? value : JSON.stringify(value),
+          );
+        }
+      const result = await mock(`/v1/fleet/installations?${query}`, {
+        method: "POST",
+        signal: input.signal,
+      });
+      if (!result.ok)
+        return new Response(
+          JSON.stringify({
+            code: "permission_denied",
+            message: "Fleet fixture refused",
+          }),
+          { status: 403, headers: { "content-type": "application/json" } },
+        );
+      const value = await result.json();
+      return new Response(
+        JSON.stringify({
+          ...value,
+          generatedAt: "2026-11-20T01:00:00Z",
+          facets: {},
+          summary: { ...value.summary, total: String(value.summary.total) },
+        }),
+        { headers: { "content-type": "application/json" } },
+      );
+    },
+  );
+}
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -61,7 +117,7 @@ describe("fresh packaging action target", () => {
             ? response(page(), allowed)
             : response({ ok: true }),
       );
-      vi.stubGlobal("fetch", fetch);
+      installFetch(fetch);
       const result = await runAssistantAction(
         original,
         "propose-cancel",
@@ -103,7 +159,7 @@ describe("fresh packaging action target", () => {
             : { ok: true },
       ),
     );
-    vi.stubGlobal("fetch", fetch);
+    installFetch(fetch);
     const result = await runAssistantAction(
       original,
       "propose-cancel",
@@ -124,7 +180,7 @@ describe("fresh packaging action target", () => {
             : { ok: true },
       ),
     );
-    vi.stubGlobal("fetch", fetch);
+    installFetch(fetch);
     await runAssistantAction(
       original,
       "propose-rerun",
@@ -197,7 +253,7 @@ describe("fresh packaging action target", () => {
       const fetch = vi.fn(async (url: string) =>
         response(url.startsWith("/v1/packaging-runs/") ? run : value),
       );
-      vi.stubGlobal("fetch", fetch);
+      installFetch(fetch);
       expect(
         (
           await runAssistantAction(
@@ -216,7 +272,7 @@ describe("fresh packaging action target", () => {
         ? response(run)
         : response({}, false),
     );
-    vi.stubGlobal("fetch", fetch);
+    installFetch(fetch);
     expect(
       (
         await runAssistantAction(
@@ -235,7 +291,7 @@ describe("fresh packaging action target", () => {
   ] as const)
     it(`refuses a fresh run read with ${name}`, async () => {
       const fetch = vi.fn(async () => response({ ...run, ...patch }));
-      vi.stubGlobal("fetch", fetch);
+      installFetch(fetch);
       expect(
         (
           await runAssistantAction(
@@ -262,7 +318,7 @@ describe("fresh packaging action target", () => {
       }
       return response({ ok: true });
     });
-    vi.stubGlobal("fetch", fetch);
+    installFetch(fetch);
     const old = runAssistantAction(
       original,
       "propose-rerun",
@@ -302,7 +358,7 @@ describe("fresh packaging action target", () => {
         await gate;
         return response(page());
       });
-      vi.stubGlobal("fetch", fetch);
+      installFetch(fetch);
       const result = runAssistantAction(
         original,
         "propose-cancel",

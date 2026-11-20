@@ -38,30 +38,56 @@ describe("assistant supported actions", () => {
     expect(html).not.toContain("Propose memory");
   });
   it("binds a proposal to the selected run and matching installation", async () => {
-    const fetch = vi.fn(async (url: string, _options: { body?: string }) => ({
-      ok: true,
-      json: async () =>
-        url.startsWith("/v1/packaging-runs/")
-          ? { ...fixture().hub.packaging[0], configured: true }
-          : url.startsWith("/v1/fleet/installations?")
-            ? {
-                installations: [
-                  {
-                    environment: "env-a",
-                    installationId: "api",
-                    product: "acme:api",
-                    desiredVersion: "1",
-                  },
-                ],
-                summary: { total: 1 },
-                pageSize: 1,
-                limit: 1,
-              }
-            : { ok: true },
-    }));
+    vi.stubGlobal("window", { location: { origin: "http://hub.local" } });
+    const fetch = vi.fn(
+      async (input: RequestInfo | URL, _options?: RequestInit) => {
+        if (input instanceof Request) {
+          expect(input.url).toBe(
+            "http://hub.local/conduit.fleet.v1.FleetReadService/ListFleetInstallations",
+          );
+          expect(input.method).toBe("POST");
+          expect(input.credentials).toBe("same-origin");
+          expect(await input.json()).toEqual({
+            environment: "env-a",
+            installationId: "api",
+            limit: 1,
+          });
+          return new Response(
+            JSON.stringify({
+              installations: [
+                {
+                  environment: "env-a",
+                  installationId: "api",
+                  product: "acme:api",
+                  desiredVersion: "1",
+                },
+              ],
+              summary: { total: "1" },
+              facets: {},
+              generatedAt: "2026-11-20T01:00:00Z",
+              pageSize: 1,
+              limit: 1,
+            }),
+            { headers: { "content-type": "application/json" } },
+          );
+        }
+        expect(String(input)).not.toMatch(/^\/v1\/fleet\/installations/);
+        return {
+          ok: true,
+          json: async () =>
+            String(input).startsWith("/v1/packaging-runs/")
+              ? { ...fixture().hub.packaging[0], configured: true }
+              : { ok: true },
+        };
+      },
+    );
     vi.stubGlobal("fetch", fetch);
     await runAssistantAction(fixture(), "propose-cancel", "PackagingRun:run-a");
-    expect(JSON.parse(fetch.mock.calls[2][1].body!).arguments).toEqual({
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(fetch.mock.calls[2][0]).toBe("/v1/assistant/tools");
+    expect(
+      JSON.parse(fetch.mock.calls[2][1]!.body as string).arguments,
+    ).toEqual({
       actionId: "cancel_packaging_run",
       targetEntityId: "run-a",
       targetObjectType: "PackagingRun",
