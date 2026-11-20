@@ -230,6 +230,18 @@ describe("inspectorMarkup", () => {
     expect(html).toContain('<pre class="code-id');
     expect(html).toContain("&lt;script&gt;");
   });
+
+  it("renders an Ask AI handoff button only when a live object is loaded", () => {
+    const loaded = inspectorMarkup(model, { tab: "props" });
+    expect(loaded).toContain('data-inspector-ask-ai="Environment"');
+    expect(loaded).toContain('data-inspector-ask-key="dev"');
+    expect(inspectorMarkup({}, { tab: "props" })).not.toContain(
+      "data-inspector-ask-ai",
+    );
+    expect(inspectorMarkup({ loading: true }, { tab: "props" })).not.toContain(
+      "data-inspector-ask-ai",
+    );
+  });
 });
 
 describe("validateFor", () => {

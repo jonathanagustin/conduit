@@ -193,7 +193,7 @@ export function createOntologyGraph(ctx) {
     }
     if (!state.graphLoaded && !state.graphLoading) {
       state.graphLoading = true;
-      load();
+      void load();
     }
     const types = layout(state.graphTypes || []);
     const byName = new Map(types.map((type) => [type.apiName, type]));
@@ -217,17 +217,33 @@ export function createOntologyGraph(ctx) {
         </g>`;
       })
       .join("");
+    const hasRowActions =
+      typeof ctx.onInspect === "function" || typeof ctx.onAskAI === "function";
     const rows = (state.graphObjects || [])
       .map((object) => {
+        const rowKey = String(
+          object[selected?.primaryKey] ?? object.__primaryKey ?? "",
+        );
         const cells = (selected?.properties || [])
           .slice(0, 4)
           .map((key) => `<td>${esc(diffValue(object[key], key))}</td>`);
-        return `<tr><td class="font-semibold text-[var(--info-text)]">${esc(object[selected?.primaryKey] ?? object.__primaryKey ?? "")}</td>${cells.join("")}</tr>`;
+        const actionCell = hasRowActions
+          ? `<td class="whitespace-nowrap">${
+              typeof ctx.onInspect === "function"
+                ? `<button type="button" class="kit-tab" data-onclick="inspectOntologyGraphObject(${esc(JSON.stringify(selected?.apiName || ""))}, ${esc(JSON.stringify(rowKey))})"${rowKey ? "" : " disabled"}>Inspect</button>`
+                : ""
+            }${
+              typeof ctx.onAskAI === "function"
+                ? `<button type="button" class="kit-tab ml-1" data-onclick="askOntologyGraphObject(${esc(JSON.stringify(selected?.apiName || ""))}, ${esc(JSON.stringify(rowKey))})"${rowKey ? "" : " disabled"}>Ask AI</button>`
+                : ""
+            }</td>`
+          : "";
+        return `<tr><td class="font-semibold text-[var(--info-text)]">${esc(rowKey)}</td>${cells.join("")}${actionCell}</tr>`;
       })
       .join("");
-    const headers = ["Key", ...(selected?.properties || []).slice(0, 4)]
-      .map((key) => `<th>${esc(key)}</th>`)
-      .join("");
+    const headerColumns = ["Key", ...(selected?.properties || []).slice(0, 4)];
+    if (hasRowActions) headerColumns.push("Actions");
+    const headers = headerColumns.map((key) => `<th>${esc(key)}</th>`).join("");
     root.innerHTML = `
       <div class="so-view-enter flex flex-col gap-3 min-h-0 h-full">
         <div class="flex items-center justify-between gap-3">
@@ -252,7 +268,7 @@ export function createOntologyGraph(ctx) {
             <p role="status">${esc(state.graphObjectNote || "")}</p><div class="overflow-auto flex-1">
               <table class="so-table">
                 <thead><tr>${headers}</tr></thead>
-                <tbody>${rows || `<tr><td colspan="5" class="text-[var(--text-2)]">${esc(state.graphObjectNote || "Object page unavailable.")}</td></tr>`}</tbody>
+                <tbody>${rows || `<tr><td colspan="${headerColumns.length}" class="text-[var(--text-2)]">${esc(state.graphObjectNote || "Object page unavailable.")}</td></tr>`}</tbody>
               </table>
             </div>
           </div>
@@ -292,7 +308,17 @@ export function createOntologyGraph(ctx) {
       target.selectOntologyType = (apiName) => {
         if (!state.graphTypes.some((type) => type.apiName === apiName)) return;
         state.graphSelected = apiName;
-        Promise.resolve(loadObjects()).then(() => ctx.render());
+        void Promise.resolve(loadObjects()).then(() => ctx.render());
+      };
+      target.inspectOntologyGraphObject = (objectType, primaryKey) => {
+        if (typeof ctx.onInspect === "function" && objectType && primaryKey) {
+          ctx.onInspect(objectType, primaryKey);
+        }
+      };
+      target.askOntologyGraphObject = (objectType, primaryKey) => {
+        if (typeof ctx.onAskAI === "function" && objectType && primaryKey) {
+          ctx.onAskAI(objectType, primaryKey);
+        }
       };
       target.reloadOntologyGraph = () => {
         epoch++;
