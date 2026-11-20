@@ -54,6 +54,9 @@ func (adapter *HTTPControlPlane) MutateChangeRequestLabel(ctx context.Context, i
 	return result, err
 }
 func (adapter *HTTPControlPlane) ListChangeRequestComments(ctx context.Context, id string) ([]activity.Comment, error) {
+	if adapter.discussionReadTransport == "connect" {
+		return adapter.listChangeRequestCommentsConnect(ctx, id)
+	}
 	result := make([]activity.Comment, 0)
 	cursor := ""
 	seen := map[string]bool{}

@@ -47,6 +47,7 @@ func NewSPIFFEHTTPClient(source SPIFFEX509Source, expectedHubID string) (*http.C
 
 // HTTPControlPlane is an outbound adapter for the operator application port.
 type HTTPControlPlane struct {
+	discussionReadTransport  string
 	planReadTransport        string
 	environmentReadTransport string
 	packagingReadTransport   string

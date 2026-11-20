@@ -3,7 +3,12 @@
 Classification: Conduit extension. This read-only contract dual serves native
 `GET /v1/change-requests/{requestID}/comments` through
 `conduit.changeactivity.v1.ChangeRequestDiscussionReadService/ListChangeRequestComments`.
-Existing console and CLI callers remain REST. There is no automatic fallback.
+The native `changerequest comments REQUEST_RID --read-transport connect` CLI
+reader opts in explicitly; REST remains its default and console callers remain REST.
+There is no automatic fallback. The reader rejects foreign request IDs, invalid
+records or timestamps, wrong value tiers, oversized/short continuation pages,
+duplicate comment IDs, non-forward ordering and repeated cursors without partial
+output. It preserves the configured TLS, credential and timeout transport.
 An unconfigured or older Hub may return 404; that is not an empty discussion.
 
 The mounted adapter binds the original authenticated request before decoding the

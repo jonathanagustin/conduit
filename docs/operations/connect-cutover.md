@@ -32,7 +32,7 @@ including reads. A read encoded as POST is not a governed state change.
 | `GET /v1/authorization-audit?view=events` | `conduit.governance.v1.AuthorizationAuditReadService/ListAuthorizationAuditEvents` | Bounded dual-serve adapter; existing callers remain REST |
 | `GET /v1/authorization-audit?view=chain` | `conduit.governance.v1.AuthorizationAuditChainReadService/ListAuthorizationAuditChain` | Filtered projection only; existing callers remain REST; no archive custody authority |
 | `GET /v1/notifications/events` | `conduit.notifications.v1.NotificationService/ListNotificationEvents` | Generated Audit notification client |
-| `GET /v1/change-requests/{requestID}/comments` | `conduit.changeactivity.v1.ChangeRequestDiscussionReadService/ListChangeRequestComments` | Dual-served native eight-comment pages; existing callers remain REST; no automatic fallback |
+| `GET /v1/change-requests/{requestID}/comments` | `conduit.changeactivity.v1.ChangeRequestDiscussionReadService/ListChangeRequestComments` | Explicit CLI `changerequest comments REQUEST_RID --read-transport connect`; native eight-comment pages; REST default; no automatic fallback |
 
 These are Conduit-native contracts. See [overview](connect-reporting-overview.md),
 [packaging runs](connect-packaging-run.md),
