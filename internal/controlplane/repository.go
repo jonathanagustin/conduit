@@ -1004,15 +1004,15 @@ func (repository *FileRepository) Transaction(ctx context.Context, operation fun
 	}
 	repository.mu.Lock()
 	defer repository.mu.Unlock()
-	snapshot, err := os.MkdirTemp(filepath.Dir(repository.root), ".txn-")
+	if err := ensureDirectory(repository.root); err != nil {
+		return fmt.Errorf("ensure repository root: %w", err)
+	}
+	snapshot, err := os.MkdirTemp(repository.root, ".txn-")
 	if err != nil {
 		return fmt.Errorf("create repository transaction snapshot: %w", err)
 	}
-	committed := false
 	defer func() {
-		if !committed {
-			_ = os.RemoveAll(snapshot)
-		}
+		_ = os.RemoveAll(snapshot)
 	}()
 	if err := copyRepositoryTree(repository.root, snapshot); err != nil {
 		return fmt.Errorf("snapshot repository: %w", err)
@@ -1023,7 +1023,6 @@ func (repository *FileRepository) Transaction(ctx context.Context, operation fun
 	if err := replaceRepositoryTree(repository.root, snapshot); err != nil {
 		return err
 	}
-	committed = true
 	return nil
 }
 
@@ -2665,6 +2664,9 @@ func copyRepositoryTree(src, dst string) error {
 		if err != nil {
 			return err
 		}
+		if rel != "." && entry.IsDir() && strings.HasPrefix(entry.Name(), ".txn-") {
+			return filepath.SkipDir
+		}
 		target := filepath.Join(dst, rel)
 		if entry.IsDir() {
 			info, err := entry.Info()
@@ -2702,22 +2704,62 @@ func copyRegularFile(src, dst string) error {
 }
 
 func replaceRepositoryTree(root, snapshot string) error {
-	backup, err := os.MkdirTemp(filepath.Dir(root), ".txn-backup-")
+	backup, err := os.MkdirTemp(root, ".txn-backup-")
 	if err != nil {
 		return err
 	}
-	if err := os.Remove(backup); err != nil {
+	defer func() {
+		_ = os.RemoveAll(backup)
+	}()
+
+	rootEntries, err := os.ReadDir(root)
+	if err != nil {
 		return err
 	}
-	if err := os.Rename(root, backup); err != nil {
-		return err
-	}
-	if err := os.Rename(snapshot, root); err != nil {
-		if restoreErr := os.Rename(backup, root); restoreErr != nil {
-			return fmt.Errorf("commit repository transaction: %w; restore failed: %v", err, restoreErr)
+	var movedToBackup []string
+	for _, entry := range rootEntries {
+		name := entry.Name()
+		if strings.HasPrefix(name, ".txn-") {
+			continue
 		}
-		return fmt.Errorf("commit repository transaction: %w", err)
+		if err := os.Rename(filepath.Join(root, name), filepath.Join(backup, name)); err != nil {
+			for _, moved := range movedToBackup {
+				_ = os.Rename(filepath.Join(backup, moved), filepath.Join(root, moved))
+			}
+			return fmt.Errorf("stage repository backup: %w", err)
+		}
+		movedToBackup = append(movedToBackup, name)
 	}
-	_ = os.RemoveAll(backup)
+
+	snapshotEntries, err := os.ReadDir(snapshot)
+	if err != nil {
+		for _, moved := range movedToBackup {
+			_ = os.Rename(filepath.Join(backup, moved), filepath.Join(root, moved))
+		}
+		return err
+	}
+	var movedFromSnapshot []string
+	for _, entry := range snapshotEntries {
+		name := entry.Name()
+		if strings.HasPrefix(name, ".txn-") {
+			continue
+		}
+		if err := os.Rename(filepath.Join(snapshot, name), filepath.Join(root, name)); err != nil {
+			for _, moved := range movedFromSnapshot {
+				_ = os.RemoveAll(filepath.Join(root, moved))
+			}
+			var restoreErr error
+			for _, moved := range movedToBackup {
+				if rErr := os.Rename(filepath.Join(backup, moved), filepath.Join(root, moved)); rErr != nil && restoreErr == nil {
+					restoreErr = rErr
+				}
+			}
+			if restoreErr != nil {
+				return fmt.Errorf("commit repository transaction: %w; restore failed: %v", err, restoreErr)
+			}
+			return fmt.Errorf("commit repository transaction: %w", err)
+		}
+		movedFromSnapshot = append(movedFromSnapshot, name)
+	}
 	return nil
 }
