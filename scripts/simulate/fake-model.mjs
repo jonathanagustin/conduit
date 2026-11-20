@@ -21,6 +21,7 @@ const ROUND = /Round \d+ of this turn: your reply and the tool results/;
 // a real cancelled HTTP call; the production model transport is unchanged.
 const planningRepo = process.env.CONDUIT_SIMULATION_PLANNING_REPO || "";
 const planning = { started: 0, active: 0, disconnected: 0, expired: 0 };
+const planningFailure = { calls: 0 };
 const packagingRun = process.env.CONDUIT_SIMULATION_PACKAGING_RUN || "";
 const packaging = { calls: 0 };
 
@@ -57,6 +58,12 @@ const server = http.createServer((request, response) => {
     )
       return send(200, planning);
     if (
+      planningRepo &&
+      request.method === "GET" &&
+      request.url === "/planning-failure-fixture"
+    )
+      return send(200, planningFailure);
+    if (
       packagingRun &&
       request.method === "GET" &&
       request.url === "/packaging-fixture"
@@ -75,6 +82,16 @@ const server = http.createServer((request, response) => {
         .join("\n");
     } catch {
       return send(400, { error: { message: "body is not JSON" } });
+    }
+    if (
+      planningRepo &&
+      prompt.includes(`Repository: ${planningRepo}\n`) &&
+      prompt.includes("CONDUIT_NATIVE_RECOVERY_FAILURE")
+    ) {
+      planningFailure.calls++;
+      return send(503, {
+        error: { message: "Scripted planning recovery provider failure." },
+      });
     }
     if (planningRepo && prompt.includes(`Repository: ${planningRepo}\n`)) {
       planning.started++;
