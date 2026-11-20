@@ -22,6 +22,7 @@ const ROUND = /Round \d+ of this turn: your reply and the tool results/;
 const planningRepo = process.env.CONDUIT_SIMULATION_PLANNING_REPO || "";
 const planning = { started: 0, active: 0, disconnected: 0, expired: 0 };
 const planningAccept = { inspect: 0, questions: 0, plan: 0 };
+const planningAnswers = { inspect: 0, questions: 0, plan: 0 };
 const planningFailure = { calls: 0 };
 const packagingRun = process.env.CONDUIT_SIMULATION_PACKAGING_RUN || "";
 const packaging = { calls: 0 };
@@ -67,6 +68,12 @@ const server = http.createServer((request, response) => {
     if (
       planningRepo &&
       request.method === "GET" &&
+      request.url === "/planning-answers-fixture"
+    )
+      return send(200, planningAnswers);
+    if (
+      planningRepo &&
+      request.method === "GET" &&
       request.url === "/planning-accept-fixture"
     )
       return send(200, planningAccept);
@@ -103,7 +110,8 @@ const server = http.createServer((request, response) => {
     if (
       planningRepo &&
       prompt.includes(`Repository: ${planningRepo}\n`) &&
-      prompt.includes("CONDUIT_NATIVE_ACCEPT_FIXTURE")
+      (prompt.includes("CONDUIT_NATIVE_ACCEPT_FIXTURE") ||
+        prompt.includes("CONDUIT_NATIVE_ANSWER_FIXTURE"))
     ) {
       const phase = prompt.includes(
         "Write the packaging plan for this source repository.\n",
@@ -114,7 +122,8 @@ const server = http.createServer((request, response) => {
             )
           ? "questions"
           : "inspect";
-      planningAccept[phase]++;
+      const answersFixture = prompt.includes("CONDUIT_NATIVE_ANSWER_FIXTURE");
+      (answersFixture ? planningAnswers : planningAccept)[phase]++;
       let content;
       if (phase === "inspect" && !prompt.includes("inspect_repo: "))
         content = JSON.stringify({
@@ -131,11 +140,22 @@ const server = http.createServer((request, response) => {
         content =
           "The loopback fixture contains only README.md; no build files or runtime are established.";
       else if (phase === "questions")
-        content = JSON.stringify({ questions: [] });
+        content = JSON.stringify({
+          questions: answersFixture
+            ? [
+                {
+                  id: "fixture_mode",
+                  prompt: "Which fixture mode should be reviewed?",
+                  choices: ["review-only", "decline"],
+                },
+              ]
+            : [],
+        });
       else
         content = JSON.stringify({
-          summary:
-            "CONDUIT_NATIVE_ACCEPT_FIXTURE: review-only planning receipt",
+          summary: answersFixture
+            ? "CONDUIT_NATIVE_ANSWER_FIXTURE: reviewed answer receipt"
+            : "CONDUIT_NATIVE_ACCEPT_FIXTURE: review-only planning receipt",
           baseImage: "scratch (review fixture only)",
           buildSteps: ["Record this reviewed fixture; no build is executed."],
           ports: [],

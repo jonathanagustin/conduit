@@ -435,3 +435,124 @@ test("planning Accept binds the exact native reviewed source and plan without co
   expect(await calls()).toEqual(before);
   expect(writes).toEqual([`${new URL(path).pathname}/accept`]);
 });
+
+test("planning Needs Input submits the exact native owner answer without acceptance or compute", async ({
+  page,
+}) => {
+  await page.goto("./#s01-intake");
+  const origin = new URL(page.url()).origin;
+  expect(repository).toMatch(
+    /^http:\/\/127\.0\.0\.1:\d+\/planning-cancel\.git$/,
+  );
+  expect(modelOrigin).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+  const calls = async () => {
+    const r = await page.request.get(`${modelOrigin}/planning-answers-fixture`);
+    expect(r.ok(), await r.text()).toBe(true);
+    return r.json() as Promise<{
+      inspect: number;
+      questions: number;
+      plan: number;
+    }>;
+  };
+  const baseline = await calls();
+  const created = await page.request.post(`${origin}/v1/planning-sessions`, {
+    data: { repoUrl: repository, ref: "reviewed-ref" },
+  });
+  expect(created.status(), await created.text()).toBe(201);
+  const initial = await created.json();
+  const path = `${origin}/v1/planning-sessions/${encodeURIComponent(initial.id)}`;
+  await page.goto(`./#s01-intake/${encodeURIComponent(initial.id)}`);
+  const flow = page.locator("#main-workspace [data-plan-flow]");
+  await expect(flow.getByLabel("Repository URL")).toHaveValue(repository);
+  await flow
+    .getByLabel("Message", { exact: true })
+    .fill("CONDUIT_NATIVE_ANSWER_FIXTURE: ask for the reviewed fixture mode.");
+  await flow.locator("[data-plan-send]").click();
+  const section = flow.locator("[data-plan-needs-input]");
+  await expect(section.locator("[data-a2ui-form]")).toBeVisible();
+  const choice = section.getByLabel("Which fixture mode should be reviewed?", {
+    exact: true,
+  });
+  await expect(choice).toHaveValue("");
+  const submit = section.getByRole("button", {
+    name: "Submit answers",
+    exact: true,
+  });
+  await expect(submit).toBeEnabled();
+  const waitingResponse = await page.request.get(path);
+  expect(waitingResponse.ok()).toBe(true);
+  const waiting = await waitingResponse.json();
+  expect(waiting.answers).toEqual([]);
+  expect(waiting.plan).toBeFalsy();
+  expect(waiting.binding).toBeFalsy();
+  const writes: string[] = [];
+  page.on("request", (r) => {
+    if (r.method() === "POST") writes.push(new URL(r.url()).pathname);
+  });
+  await submit.click();
+  await expect(choice).toHaveAttribute("aria-invalid", "true");
+  expect(writes).toEqual([]);
+  expect(await calls()).toEqual({
+    inspect: baseline.inspect + 2,
+    questions: baseline.questions + 2,
+    plan: baseline.plan,
+  });
+  await choice.selectOption("review-only");
+  const request = page.waitForRequest(
+    (r) =>
+      r.method() === "POST" && new URL(r.url()).pathname === "/v1/agent-runs",
+  );
+  const response = page.waitForResponse(
+    (r) =>
+      r.request().method() === "POST" &&
+      new URL(r.url()).pathname === "/v1/agent-runs",
+  );
+  await submit.click();
+  const input = (await request).postDataJSON();
+  expect(input.threadId).toBe(initial.id);
+  expect(input.runId).toMatch(/^[0-9a-f-]{36}$/);
+  expect(input.resume).toHaveLength(1);
+  expect(input.resume[0]).toEqual({
+    interruptId: expect.stringMatching(/^needs-input:[0-9a-f]{32}$/),
+    status: "resolved",
+    payload: { "question:fixture_mode": "review-only" },
+  });
+  expect(input.forwardedProps.conduit.a2uiAction.action).toMatchObject({
+    name: "submit_needs_input",
+    sourceComponentId: "submit",
+    context: { "question:fixture_mode": "review-only" },
+  });
+  const receipt = await response;
+  expect(receipt.status()).toBe(200);
+  const stream = await receipt.text();
+  expect(stream).toContain("RUN_FINISHED");
+  expect(stream).not.toContain("RUN_ERROR");
+  await expect(flow.locator("[data-plan-accept]")).toBeEnabled({
+    timeout: 30_000,
+  });
+  await expect(flow.locator("[data-plan-needs-input]")).toHaveCount(0);
+  const readback = await page.request.get(path);
+  expect(readback.ok()).toBe(true);
+  const recorded = await readback.json();
+  expect(recorded.answers).toEqual([
+    { id: "fixture_mode", value: "review-only" },
+  ]);
+  expect(recorded.resolvedCommit).toBe(waiting.resolvedCommit);
+  expect(recorded.intake).toEqual(waiting.intake);
+  expect(JSON.parse(recorded.plan.text).summary).toContain(
+    "CONDUIT_NATIVE_ANSWER_FIXTURE",
+  );
+  expect(recorded.binding).toBeFalsy();
+  expect(recorded.compute).toBeFalsy();
+  const peer = await page.request.post(`${origin}/v1/agent-runs`, {
+    headers: { "X-Platform-Subject": "other-operator" },
+    data: input,
+  });
+  expect(peer.status()).toBe(404);
+  expect(await calls()).toEqual({
+    inspect: baseline.inspect + 2,
+    questions: baseline.questions + 2,
+    plan: baseline.plan + 2,
+  });
+  expect(writes).toEqual(["/v1/agent-runs"]);
+});
