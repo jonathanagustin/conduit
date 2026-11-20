@@ -324,7 +324,12 @@ test("environment hub scopes header, installations, blackout and timeline to sel
                 observedAt: "2026-11-15T10:00:00Z",
                 stale: false,
               },
-            ],
+            ].filter(
+              (installation) =>
+                !url.searchParams.get("environment") ||
+                installation.environment ===
+                  url.searchParams.get("environment"),
+            ),
           },
         });
       if (url.pathname === "/v1/blackouts")
