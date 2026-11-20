@@ -121,6 +121,37 @@ describe("assistant supported actions", () => {
       true,
     );
   });
+  it("shows only exact escaped feedback values at explicit confirmation", () => {
+    const html = resultCard({
+      tool: "governed_write",
+      needsConfirm: true,
+      elicitation: {
+        action: "add_eval_case",
+        targetId: "run-a",
+        justification: "Reviewed <img src=x onerror=alert(1)>",
+        value: "2Gi",
+        expectedOutcome: "FAIL_REQUIRED",
+        unrelated: "must-not-render",
+      },
+    });
+    expect(html).toContain('aria-label="Review feedback case"');
+    for (const value of ["run-a", "Reviewed &lt;img", "2Gi", "FAIL_REQUIRED"])
+      expect(html).toContain(value);
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("must-not-render");
+    expect(html).toContain("does not run an evaluation or approve packaging");
+    expect(html).toContain('data-confirm="1"');
+  });
+  it("does not retain a feedback confirmation after the result is applied", () => {
+    const html = resultCard({
+      tool: "governed_write",
+      applied: true,
+      objectId: "case-one",
+      elicitation: { action: "add_eval_case", justification: "old review" },
+    });
+    expect(html).not.toContain('aria-label="Review feedback case"');
+    expect(html).not.toContain("data-resume-write");
+  });
   it("distinguishes a cancel acknowledgement from observed cancellation", () => {
     const accepted = resultCard({
       tool: "governed_write",

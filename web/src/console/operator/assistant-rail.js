@@ -302,6 +302,23 @@ export function resultCard(result) {
 function formFor(result) {
   const fields = result.fields || [];
   if (!fields.length && !result.needsConfirm) return "";
+  const feedback =
+    result.needsConfirm && result.elicitation?.action === "add_eval_case"
+      ? result.elicitation
+      : null;
+  const review = feedback
+    ? `<section aria-label="Review feedback case"><div class="kit-section">Review feedback case</div><dl class="kit-kv">${[
+        ["Bound object", feedback.targetId],
+        ["Scenario", feedback.justification],
+        ["Memory value", feedback.value],
+        ["Expected outcome", feedback.expectedOutcome],
+      ]
+        .filter(([, value]) => typeof value === "string" && value.length > 0)
+        .map(([label, value]) => `<dt>${esc(label)}</dt><dd>${esc(value)}</dd>`)
+        .join(
+          "",
+        )}</dl><p class="kit-muted">Records feedback only; does not run an evaluation or approve packaging.</p></section>`
+    : "";
   const inputs = fields
     .map((field) => {
       if (field.options && field.options.length) {
@@ -315,7 +332,7 @@ function formFor(result) {
       return `<label class="kit-muted">${esc(field.label)}<input name="${esc(field.name)}" value="${esc(field.value || "")}" class="kit-input" /></label>`;
     })
     .join("");
-  return `<form data-elicit class="kit-card ${result.needsConfirm ? "kit-bar-ok" : "kit-bar-warn"} kit-tool">${result.needsConfirm ? "" : `<div class="kit-section">Required inputs</div>`}${inputs}<button type="button" data-resume-write="1" data-confirm="${result.needsConfirm ? "1" : "0"}" class="kit-btn kit-btn-sm kit-btn-ok">${result.needsConfirm ? "Confirm" : "Continue"}</button></form>`;
+  return `<form data-elicit class="kit-card ${result.needsConfirm ? "kit-bar-ok" : "kit-bar-warn"} kit-tool">${result.needsConfirm ? "" : `<div class="kit-section">Required inputs</div>`}${review}${inputs}<button type="button" data-resume-write="1" data-confirm="${result.needsConfirm ? "1" : "0"}" class="kit-btn kit-btn-sm kit-btn-ok">${result.needsConfirm ? "Confirm" : "Continue"}</button></form>`;
 }
 
 function routeFor(objectType) {
