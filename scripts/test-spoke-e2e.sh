@@ -113,6 +113,9 @@ kubectl create secret generic platform-bundle-signing -n platform-system \
 helm upgrade --install platform-hub "${repo_root}/deploy/helm/platform-hub" \
   --namespace platform-system \
   --values "${repo_root}/deploy/helm/platform-hub/ci/test-values.yaml" \
+  --set repository.kind=file \
+  --set replicaCount=1 \
+  --set-string 'planning.temporal.address=' \
   --set imagePullSecrets=null \
   --set 'runtimeSupplementalGroups[0]=0' \
   --set-string 'bootstrapAdministrators[0]=local-developer' \
