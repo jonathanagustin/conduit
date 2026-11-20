@@ -21,6 +21,7 @@ const ROUND = /Round \d+ of this turn: your reply and the tool results/;
 // a real cancelled HTTP call; the production model transport is unchanged.
 const planningRepo = process.env.CONDUIT_SIMULATION_PLANNING_REPO || "";
 const planning = { started: 0, active: 0, disconnected: 0, expired: 0 };
+const planningAccept = { inspect: 0, questions: 0, plan: 0 };
 const planningFailure = { calls: 0 };
 const packagingRun = process.env.CONDUIT_SIMULATION_PACKAGING_RUN || "";
 const packaging = { calls: 0 };
@@ -64,6 +65,12 @@ const server = http.createServer((request, response) => {
     )
       return send(200, planningFailure);
     if (
+      planningRepo &&
+      request.method === "GET" &&
+      request.url === "/planning-accept-fixture"
+    )
+      return send(200, planningAccept);
+    if (
       packagingRun &&
       request.method === "GET" &&
       request.url === "/packaging-fixture"
@@ -91,6 +98,67 @@ const server = http.createServer((request, response) => {
       planningFailure.calls++;
       return send(503, {
         error: { message: "Scripted planning recovery provider failure." },
+      });
+    }
+    if (
+      planningRepo &&
+      prompt.includes(`Repository: ${planningRepo}\n`) &&
+      prompt.includes("CONDUIT_NATIVE_ACCEPT_FIXTURE")
+    ) {
+      const phase = prompt.includes(
+        "Write the packaging plan for this source repository.\n",
+      )
+        ? "plan"
+        : prompt.includes(
+              "Decide what you must ask the operator before you can write a packaging plan.",
+            )
+          ? "questions"
+          : "inspect";
+      planningAccept[phase]++;
+      let content;
+      if (phase === "inspect" && !prompt.includes("inspect_repo: "))
+        content = JSON.stringify({
+          toolCalls: [
+            { name: "inspect_repo", arguments: {} },
+            { name: "read_file", arguments: { path: "README.md" } },
+          ],
+        });
+      else if (phase !== "inspect" && !prompt.includes("read_file: "))
+        content = JSON.stringify({
+          toolCalls: [{ name: "read_file", arguments: { path: "README.md" } }],
+        });
+      else if (phase === "inspect")
+        content =
+          "The loopback fixture contains only README.md; no build files or runtime are established.";
+      else if (phase === "questions")
+        content = JSON.stringify({ questions: [] });
+      else
+        content = JSON.stringify({
+          summary:
+            "CONDUIT_NATIVE_ACCEPT_FIXTURE: review-only planning receipt",
+          baseImage: "scratch (review fixture only)",
+          buildSteps: ["Record this reviewed fixture; no build is executed."],
+          ports: [],
+          networkAllow: [],
+          sso: {
+            required: false,
+            notes: "No application identity claim in this fixture.",
+          },
+          risks: [
+            "Scripted provider; no executable application or model-quality qualification.",
+          ],
+        });
+      return send(200, {
+        id: "chatcmpl-planning-accept-fixture",
+        object: "chat.completion",
+        model: MODEL,
+        choices: [
+          {
+            index: 0,
+            finish_reason: "stop",
+            message: { role: "assistant", content },
+          },
+        ],
       });
     }
     if (planningRepo && prompt.includes(`Repository: ${planningRepo}\n`)) {
