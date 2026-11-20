@@ -195,6 +195,7 @@ sudo docker tag "conduit-spoke-agent:${VERSION}" "localhost:5000/conduit-spoke-a
 sudo docker push "localhost:5000/conduit-hub:${VERSION}"
 sudo docker push "localhost:5000/conduit-spoke-agent:${VERSION}"
 HUB_IMAGE="$(sudo docker buildx imagetools inspect --format '{{json .Manifest}}' "localhost:5000/conduit-hub:${VERSION}" | python3 -c 'import json,sys; print("localhost:5000/conduit-hub@"+json.load(sys.stdin)["digest"])')"
+SPOKE_IMAGE="$(sudo docker buildx imagetools inspect --format '{{json .Manifest}}' "localhost:5000/conduit-spoke-agent:${VERSION}" | python3 -c 'import json,sys; print("localhost:5000/conduit-spoke-agent@"+json.load(sys.stdin)["digest"])')"
 ```
 
 `imagetools inspect` against a plain HTTP registry needs the daemon's
