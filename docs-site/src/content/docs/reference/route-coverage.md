@@ -5,7 +5,7 @@ description: The shipped route and authorization register, including explicit na
 
 Generated from `internal/hub/composition/authorization.go`; this is a route and access-decision inventory, not a substitute for request/response schemas. Compatibility adapter paths are listed by their shipped names; this does not claim a private upstream protocol. The [native API reference](/conduit/reference/native-api/) renders the available schemas. [#391](https://github.com/jonathanagustin/conduit/issues/391) owns the uncontracted remainder.
 
-275 registered patterns; 28 match a native OpenAPI operation. These counts are generated, and include method-not-allowed fallback patterns. Protobuf methods are documented separately and are not counted as additional REST schemas.
+276 registered patterns; 28 match a native OpenAPI operation. These counts are generated, and include method-not-allowed fallback patterns. Protobuf methods are documented separately and are not counted as additional REST schemas.
 
 | Registered route | Access decision | Native OpenAPI contract |
 | --- | --- | --- |
@@ -155,6 +155,7 @@ Generated from `internal/hub/composition/authorization.go`; this is a route and 
 | `POST /api/v2/ontologies/{ontology}/actions/{action}/apply` | `operator-filtered` | [docs/operations/ontology-api.openapi.yaml](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/ontology-api.openapi.yaml) |
 | `POST /api/v2/ontologies/{ontology}/objectSets/loadObjects` | `operator-filtered` | [docs/operations/ontology-api.openapi.yaml](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/ontology-api.openapi.yaml) |
 | `POST /conduit.catalog.v1.ProductReadService/ListProductSummaries` | `operator-filtered` | No native schema |
+| `POST /conduit.changeactivity.v1.ChangeRequestDiscussionReadService/ListChangeRequestComments` | `operator-grant` | No native schema |
 | `POST /conduit.environments.v1.EnvironmentCatalogService/ListEnvironments` | `operator-filtered` | No native schema |
 | `POST /conduit.environments.v1.EnvironmentDetailService/GetEnvironment` | `operator-grant` | No native schema |
 | `POST /conduit.environments.v1.EnvironmentObservationService/GetEnvironmentReportedState` | `operator-grant` | No native schema |

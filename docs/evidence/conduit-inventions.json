@@ -325,7 +325,7 @@
     {
       "id": "changeactivity.Discussion",
       "what": "Native append-only discussion records with request-scoped comment IDs, effective author, original carrier, server UTC time and bounded untrimmed text; independently stored and read under existing request visibility.",
-      "why": "The reviewed CLI comment page establishes one request argument and required text, not a backing transport or output model. Annotation reuses the existing author/reviewer mutation authority; reading reuses the existing request-read policy. Comments cannot update reviews, approval or Plans. Eight-record cursor pages bound the operator response even for maximal JSON-escaped text.",
+      "why": "The reviewed CLI comment page establishes one request argument and required text, not a backing transport or output model. Annotation reuses the existing author/reviewer mutation authority; reading reuses the existing request-read policy. Comments cannot update reviews, approval or Plans. Eight-record cursor pages bound the operator response even for maximal JSON-escaped text. The read-only Connect adapter reuses that native authority, original request context and exact cursor; existing callers remain REST.",
       "displacedBy": "A published or sanitized Change Request discussion contract establishing record fields, comment authority, transport routes and pagination semantics.",
       "riskIfWrong": "Record names, authority, cursor and route choices may need replacement. CONDUIT_NATIVE identifies them; they do not establish unpublished private interoperability or an approval event. Independent component storage prevents legacy snapshot writers from erasing comments."
     },

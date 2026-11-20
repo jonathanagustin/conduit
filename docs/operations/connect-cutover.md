@@ -32,6 +32,7 @@ including reads. A read encoded as POST is not a governed state change.
 | `GET /v1/authorization-audit?view=events` | `conduit.governance.v1.AuthorizationAuditReadService/ListAuthorizationAuditEvents` | Bounded dual-serve adapter; existing callers remain REST |
 | `GET /v1/authorization-audit?view=chain` | `conduit.governance.v1.AuthorizationAuditChainReadService/ListAuthorizationAuditChain` | Filtered projection only; existing callers remain REST; no archive custody authority |
 | `GET /v1/notifications/events` | `conduit.notifications.v1.NotificationService/ListNotificationEvents` | Generated Audit notification client |
+| `GET /v1/change-requests/{requestID}/comments` | `conduit.changeactivity.v1.ChangeRequestDiscussionReadService/ListChangeRequestComments` | Dual-served native eight-comment pages; existing callers remain REST; no automatic fallback |
 
 These are Conduit-native contracts. See [overview](connect-reporting-overview.md),
 [packaging runs](connect-packaging-run.md),
@@ -42,6 +43,7 @@ These are Conduit-native contracts. See [overview](connect-reporting-overview.md
 [Plan approval](connect-plan-approval.md) and
 [Plan cancellation](connect-plan-cancellation.md) and
 [Fleet installations](connect-fleet-installations.md) for their bounded behavior.
+[Change Request discussion](connect-change-request-discussion.md) preserves the native original caller authority and cursor.
 The map does not imply that all Hub routes have RPC equivalents.
 
 [The full Environment detail contract](connect-environment-detail.md) now has

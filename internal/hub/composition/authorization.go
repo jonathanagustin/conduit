@@ -224,6 +224,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal + canReadChangeRequest per row"},
 		{Pattern: "GET /v1/change-requests/{changeRequestID}",
 			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal + canReadChangeRequest, else 403"},
+		{Pattern: "POST /conduit.changeactivity.v1.ChangeRequestDiscussionReadService/ListChangeRequestComments",
+			Decision: DecisionOperatorGrant, Detail: "original operator carrier and native Change Request read authority; shared request-bound discussion paging"},
 		{Pattern: "GET /v1/change-requests/{requestID}/comments",
 			Decision: DecisionOperatorGrant, Detail: "operatorFrom + governance.GetReadableChangeRequest on the original carrier"},
 		{Pattern: "GET /v1/debug-session-requests",
