@@ -266,8 +266,14 @@ export function inspectorMarkup(
     (t) =>
       `<button type="button" role="tab" aria-selected="${t.id === active}" class="kit-tab${t.id === active ? " is-active" : ""}" data-inspector-tab="${esc(t.id)}">${esc(t.label)}</button>`,
   ).join("");
+  const objectType = typeOf(model);
+  const objectKey = keyOf(model);
+  const askButton =
+    model.object && objectType && objectKey
+      ? `<button type="button" class="kit-tab ml-auto" data-inspector-ask-ai="${esc(objectType)}" data-inspector-ask-key="${esc(objectKey)}">Ask AI</button>`
+      : "";
   const parts = [
-    `<div class="flex flex-wrap gap-1 mb-2" role="tablist" aria-label="Inspector">${tabs}</div>`,
+    `<div class="flex flex-wrap items-center gap-1 mb-2" role="tablist" aria-label="Inspector">${tabs}${askButton}</div>`,
   ];
   if (model.error) parts.push(empty(model.error));
   if (model.loading) {

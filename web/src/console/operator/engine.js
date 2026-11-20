@@ -940,6 +940,8 @@ export function mountOperator(host, options) {
   const ontologyGraph = createOntologyGraph({
     state,
     render: () => renderMainWorkspace(),
+    onInspect: (type, key) => inspectObject(type, key),
+    onAskAI: (type, key) => askOntologyObject(type, key),
   });
   ontologyGraph.extendState();
   SCREENS.push(...ontologyGraph.screens);
@@ -1055,31 +1057,7 @@ export function mountOperator(host, options) {
     getReady: () => state.hub?.loading === false,
     onInspect: (type, key) => inspectObject(type, key),
     onNavigate: switchScreen,
-    onAskAI: (objectType, id) => {
-      const chip = { id, objectType, label: id };
-      state.assistantAdded = [
-        ...(state.assistantAdded || []).filter(
-          (existing) =>
-            existing.id !== chip.id || existing.objectType !== chip.objectType,
-        ),
-        chip,
-      ];
-      state.assistantRemoved = (state.assistantRemoved || []).filter(
-        (key) => key !== `${chip.objectType}:${chip.id}`,
-      );
-      state.assistantMode = "ontology";
-      state.chatCollapsed = false;
-      renderChatRail();
-      publishAssistantContext(state, actions);
-      window.dispatchEvent(
-        new CustomEvent("conduit-assistant-draft", {
-          detail: {
-            text: `Analyze Ontology ${chip.objectType} ${chip.id}, its relationships, and any recorded governance or delivery state. Cite recorded facts and state unknowns.`,
-            accepted: false,
-          },
-        }),
-      );
-    },
+    onAskAI: (objectType, id) => askOntologyObject(objectType, id),
   });
   const mountDevWorkspaces = createDevWorkspaces({
     onSelection: (row) => {
@@ -1974,7 +1952,44 @@ export function mountOperator(host, options) {
   }
   actions.inspectObject = inspectObject;
 
+  function askOntologyObject(objectType, id) {
+    if (!objectType || !id) return;
+    const chip = { id, objectType, label: id };
+    state.assistantAdded = [
+      ...(state.assistantAdded || []).filter(
+        (existing) =>
+          existing.id !== chip.id || existing.objectType !== chip.objectType,
+      ),
+      chip,
+    ];
+    state.assistantRemoved = (state.assistantRemoved || []).filter(
+      (key) => key !== `${chip.objectType}:${chip.id}`,
+    );
+    state.assistantMode = "ontology";
+    state.dockSurface = "assistant";
+    state.chatCollapsed = false;
+    renderChatRail();
+    publishAssistantContext(state, actions);
+    window.dispatchEvent(
+      new CustomEvent("conduit-assistant-draft", {
+        detail: {
+          text: `Analyze Ontology ${chip.objectType} ${chip.id}, its relationships, and any recorded governance or delivery state. Cite recorded facts and state unknowns.`,
+          accepted: false,
+        },
+      }),
+    );
+  }
+  actions.askOntologyObject = askOntologyObject;
+
   function handleInspectorClick(target) {
+    const ask = target.closest("[data-inspector-ask-ai]");
+    if (ask) {
+      askOntologyObject(
+        ask.getAttribute("data-inspector-ask-ai"),
+        ask.getAttribute("data-inspector-ask-key"),
+      );
+      return true;
+    }
     const tab = target.closest("[data-inspector-tab]");
     if (tab) {
       inspector.tab = tab.getAttribute("data-inspector-tab") || "props";
