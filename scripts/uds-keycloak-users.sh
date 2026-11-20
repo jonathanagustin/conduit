@@ -88,8 +88,12 @@ read_field() {
   awk -F= -v key="${key}" '$1 == key { print substr($0, index($0, "=") + 1); exit }' "${users_file}"
 }
 
+# The UDS Core uds realm enforces a password policy (length 15, 2 special
+# characters, a digit, lower and upper case). Raw base64 only sometimes meets
+# it, so keep the random part alphanumeric and append a fixed policy-satisfying
+# tail: the entropy is the 32 random characters.
 generate_password() {
-  openssl rand -base64 24 | tr -d '\n'
+  printf '%s%s' "$(openssl rand -base64 36 | tr -d '\n=+/' | cut -c1-32)" '-#9aZ'
 }
 
 mkdir -p "$(dirname "${users_file}")"
