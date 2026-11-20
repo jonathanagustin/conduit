@@ -11,6 +11,10 @@
 !gen/**
 !tools/
 tools/*
+!tools/a2ui/
+!tools/a2ui/**
+!tools/liveevents/
+!tools/liveevents/**
 !tools/cosign-build/
 !tools/cosign-build/go.mod
 !tools/cosign-build/go.sum
@@ -20,6 +24,12 @@ tools/*
 !tools/cosign-build/compat/acr/pkg/
 !tools/cosign-build/compat/acr/pkg/credhelper/
 !tools/cosign-build/compat/acr/pkg/credhelper/*.go
+!api/
+api/*
+!api/a2ui/
+!api/a2ui/**
+!api/live-events/
+!api/live-events/**
 !docs/
 docs/*
 !docs/evidence/
