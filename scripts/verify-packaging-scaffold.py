@@ -23,7 +23,7 @@ TOOL_TIMEOUT = 20
 DEPENDENCIES = {"jsonschema":"4.26.0", "PyYAML":"6.0.3", "attrs":"26.1.0", "jsonschema-specifications":"2025.9.1", "referencing":"0.37.0", "rpds-py":"2026.9.1", "typing-extensions":"4.16.0"}
 HELM_VERSION = "v3.19.0+g3d8990f"
 SCHEMAS = {
- "zarf-v1.0.0.json": "ffb43dc23c17491a48e081c2ea5fe763089cf746b4d2a7beb162dd82b2b9273d",
+ "zarf-v1.0.1.json": "ffb43dc23c17491a48e081c2ea5fe763089cf746b4d2a7beb162dd82b2b9273d",
  "uds-package-v1alpha1.yaml": "57e898e5a8e66c69ac64640c4b7c0e0c8edbff0cd1333d9f632573f5bcc5bc3a",
 }
 EXPECTED = {
@@ -175,7 +175,7 @@ def validate(envelope, schema_dir, helm, expected_helm_sha):
             return values
         data = run("schema-pins", schemas)
         receipt["schemaSHA256"] = dict(SCHEMAS)
-        zarf = decode(data["zarf-v1.0.0.json"])
+        zarf = decode(data["zarf-v1.0.1.json"])
         crd = yaml.safe_load(data["uds-package-v1alpha1.yaml"])
         uds = next(v["schema"]["openAPIV3Schema"] for v in crd["spec"]["versions"] if v["name"] == "v1alpha1")
         with tempfile.TemporaryDirectory(prefix="conduit-scaffold-check-") as tmp:

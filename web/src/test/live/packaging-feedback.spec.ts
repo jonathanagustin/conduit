@@ -343,3 +343,181 @@ test("assistant packaging cancel proposal binds the real waiting run without dis
   expect(writes).toEqual(["/v1/assistant/tools"]);
   expect(restFleetReads).toEqual([]);
 });
+
+test("assistant feedback reviews exact values before Confirm and records one native case", async ({
+  page,
+}) => {
+  await page.goto("./#s08-staged-run");
+  const url = (suffix: string) => new URL(suffix, page.url()).toString();
+  const catalog = async () => {
+    const response = await page.request.get(url("/v1/intelligence/evals"));
+    expect(response.ok(), await response.text()).toBe(true);
+    const body = await response.json();
+    expect(Array.isArray(body.cases)).toBe(true);
+    return body.cases as Record<string, unknown>[];
+  };
+  const before = await catalog();
+  const currentTeam = await page.request.get(url("/v1/teams/Operator"));
+  let existing: Record<string, any> = {};
+  if (currentTeam.ok()) existing = await currentTeam.json();
+  else expect(currentTeam.status(), await currentTeam.text()).toBe(404);
+  const team = await page.request.put(url("/v1/teams/Operator"), {
+    data: {
+      ...existing,
+      name: "Operator",
+      displayName: existing.displayName || "Feedback fixture operators",
+      adminUsers: [...new Set([...(existing.adminUsers || []), "operator"])],
+      memberUsers: [...new Set([...(existing.memberUsers || []), "operator"])],
+    },
+  });
+  expect(team.ok(), await team.text()).toBe(true);
+  await page.reload();
+  await expect(page.locator(`form[data-run="${runId}"]`)).toBeVisible();
+  await page.getByRole("button", { name: "Toggle right chat panel" }).click();
+  const rail = page.locator("#right-chat-rail");
+  await rail.locator('[data-set-mode="ontology"]').click();
+  const writes: Record<string, any>[] = [];
+  page.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/v1/assistant/tools"
+    )
+      writes.push(request.postDataJSON());
+  });
+  const resultAfter = async (action: () => Promise<void>) => {
+    const sent = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/v1/assistant/tools",
+    );
+    await action();
+    const response = await sent;
+    expect(response.status(), await response.text()).toBe(200);
+    return response.json();
+  };
+  const missing = await resultAfter(() =>
+    rail
+      .locator(
+        `[data-assistant-action="write-case"][data-chip-key="PackagingRun:${runId}"]`,
+      )
+      .click(),
+  );
+  expect(missing.writeOps).toBe(0);
+  expect(missing.applied).not.toBe(true);
+  expect(missing.fields.map((field: any) => field.name)).toEqual([
+    "justification",
+    "value",
+    "expectedOutcome",
+  ]);
+  expect(await catalog()).toEqual(before);
+  const args = {
+    action: "add_eval_case",
+    targetId: runId,
+    justification: `Reviewed assistant feedback <img src=x onerror=alert(1)> ${Date.now().toString(16)}`,
+    value: "2Gi",
+    expectedOutcome: "FAIL_REQUIRED",
+  };
+  const form = rail
+    .locator("[data-assistant-results] article")
+    .first()
+    .locator("form");
+  await form.getByLabel("Scenario", { exact: true }).fill(args.justification);
+  await form.getByLabel("Memory value", { exact: true }).fill(args.value);
+  await form
+    .getByRole("combobox", { name: "Expected outcome", exact: true })
+    .selectOption(args.expectedOutcome);
+  const pending = await resultAfter(() =>
+    form.getByRole("button", { name: "Continue", exact: true }).click(),
+  );
+  expect(pending).toMatchObject({
+    needsConfirm: true,
+    writeOps: 0,
+    elicitation: args,
+  });
+  expect(pending.applied).not.toBe(true);
+  expect(await catalog()).toEqual(before);
+  const confirmation = rail.locator("[data-assistant-results] article").first();
+  const review = confirmation.getByRole("region", {
+    name: "Review feedback case",
+  });
+  await expect(review).toBeVisible();
+  for (const value of [
+    runId!,
+    args.justification,
+    args.value,
+    args.expectedOutcome,
+  ])
+    await expect(review).toContainText(value);
+  await expect(review.locator("script,img")).toHaveCount(0);
+  await expect(review).toContainText(
+    "does not run an evaluation or approve packaging",
+  );
+  const denied = await page.request.post(url("/v1/assistant/tools"), {
+    headers: { "X-Platform-Subject": "feedback-ungranted-peer" },
+    data: {
+      mode: "ontology",
+      tool: "governed_write",
+      arguments: { ...args, confirm: true },
+    },
+  });
+  expect(denied.status()).toBe(200);
+  const refusal = await denied.json();
+  expect(refusal.reason).toBe("caller does not have a role for this action");
+  expect(refusal.applied).not.toBe(true);
+  expect(refusal.writeOps).toBe(0);
+  expect(await catalog()).toEqual(before);
+  const added = await resultAfter(() =>
+    confirmation.getByRole("button", { name: "Confirm", exact: true }).click(),
+  );
+  expect(added).toMatchObject({
+    applied: true,
+    allowed: true,
+    state: "recorded",
+    writeOps: 1,
+  });
+  expect(added.objectId).toMatch(/^case-[0-9a-f]{16}$/);
+  const stored = await catalog();
+  expect(stored).toHaveLength(before.length + 1);
+  const exact = stored.filter((item) => item.id === added.objectId);
+  expect(exact).toEqual([
+    {
+      id: added.objectId,
+      scenario: args.justification,
+      boundObject: runId,
+      value: args.value,
+      expectedOutcome: args.expectedOutcome,
+      source: "operator feedback",
+    },
+  ]);
+  const repeat = await resultAfter(() =>
+    rail
+      .locator("[data-assistant-results] article")
+      .filter({
+        has: page.getByRole("button", { name: "Confirm", exact: true }),
+      })
+      .getByRole("button", { name: "Confirm", exact: true })
+      .click(),
+  );
+  expect(repeat.objectId).toBe(added.objectId);
+  expect(await catalog()).toEqual(stored);
+  expect(writes).toEqual([
+    {
+      mode: "ontology",
+      tool: "governed_write",
+      arguments: { action: "add_eval_case", targetId: runId },
+    },
+    { mode: "ontology", tool: "governed_write", arguments: args },
+    {
+      mode: "ontology",
+      tool: "governed_write",
+      arguments: { ...args, confirm: true },
+    },
+    {
+      mode: "ontology",
+      tool: "governed_write",
+      arguments: { ...args, confirm: true },
+    },
+  ]);
+  await page.reload();
+  expect(await catalog()).toEqual(stored);
+});

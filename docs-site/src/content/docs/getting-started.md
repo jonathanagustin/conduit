@@ -6,7 +6,7 @@ sidebar:
   order: 1
 ---
 
-Clone the repository, install the pinned toolchain, and start the local demo. Install Docker and start its daemon. Install zarf v1.0.0 and put it on `PATH`, or set `ZARF_BIN`. The installer does not install Docker or zarf and does not request administrator privileges. `scripts/demo-seed.sh` exits with the zarf archive URL and checksum when zarf is missing.
+Clone the repository, install the pinned toolchain, and start the local demo. Install Docker and start its daemon. Install zarf v1.0.1 and put it on `PATH`, or set `ZARF_BIN`. The installer does not install Docker or zarf and does not request administrator privileges. `scripts/demo-seed.sh` exits with the zarf archive URL and checksum when zarf is missing.
 
 ## Quick start
 

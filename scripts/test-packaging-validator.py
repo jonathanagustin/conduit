@@ -25,7 +25,7 @@ class ReceiptTests(unittest.TestCase):
         self.digest = v.file_sha(self.helm)
         self.files = [{"path": p, "content": "{}\n"} for p in sorted(v.EXPECTED)]
         self.write_bundle()
-        schemas = {"zarf-v1.0.0.json": b'{"type":"object"}', "uds-package-v1alpha1.yaml": b'{"spec":{"versions":[{"name":"v1alpha1","schema":{"openAPIV3Schema":{"type":"object"}}}]}}'}
+        schemas = {"zarf-v1.0.1.json": b'{"type":"object"}', "uds-package-v1alpha1.yaml": b'{"spec":{"versions":[{"name":"v1alpha1","schema":{"openAPIV3Schema":{"type":"object"}}}]}}'}
         self.pins = {}
         for name, raw in schemas.items():
             (self.root / name).write_bytes(raw)
@@ -71,7 +71,7 @@ class ReceiptTests(unittest.TestCase):
         self.assertTrue(any(c["status"] == "not-run" for c in result["checks"]))
 
     def test_schema_or_tool_identity_mismatch(self):
-        for target in [self.root / "zarf-v1.0.0.json", self.helm]:
+        for target in [self.root / "zarf-v1.0.1.json", self.helm]:
             original = target.read_bytes()
             target.write_bytes(b"changed")
             self.assertEqual(self.check()["status"], "failed")
