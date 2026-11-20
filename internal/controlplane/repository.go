@@ -2733,10 +2733,16 @@ func replaceRepositoryTree(root, snapshot string) error {
 
 	snapshotEntries, err := os.ReadDir(snapshot)
 	if err != nil {
+		var restoreErr error
 		for _, moved := range movedToBackup {
-			_ = os.Rename(filepath.Join(backup, moved), filepath.Join(root, moved))
+			if rErr := os.Rename(filepath.Join(backup, moved), filepath.Join(root, moved)); rErr != nil && restoreErr == nil {
+				restoreErr = rErr
+			}
 		}
-		return err
+		if restoreErr != nil {
+			return fmt.Errorf("commit repository transaction: %w; restore failed: %v", err, restoreErr)
+		}
+		return fmt.Errorf("commit repository transaction: %w", err)
 	}
 	var movedFromSnapshot []string
 	for _, entry := range snapshotEntries {
