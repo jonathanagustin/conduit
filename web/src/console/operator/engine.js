@@ -1055,6 +1055,31 @@ export function mountOperator(host, options) {
     getReady: () => state.hub?.loading === false,
     onInspect: (type, key) => inspectObject(type, key),
     onNavigate: switchScreen,
+    onAskAI: (objectType, id) => {
+      const chip = { id, objectType, label: id };
+      state.assistantAdded = [
+        ...(state.assistantAdded || []).filter(
+          (existing) =>
+            existing.id !== chip.id || existing.objectType !== chip.objectType,
+        ),
+        chip,
+      ];
+      state.assistantRemoved = (state.assistantRemoved || []).filter(
+        (key) => key !== `${chip.objectType}:${chip.id}`,
+      );
+      state.assistantMode = "ontology";
+      state.chatCollapsed = false;
+      renderChatRail();
+      publishAssistantContext(state, actions);
+      window.dispatchEvent(
+        new CustomEvent("conduit-assistant-draft", {
+          detail: {
+            text: `Analyze Ontology ${chip.objectType} ${chip.id}, its relationships, and any recorded governance or delivery state. Cite recorded facts and state unknowns.`,
+            accepted: false,
+          },
+        }),
+      );
+    },
   });
   const mountDevWorkspaces = createDevWorkspaces({
     onSelection: (row) => {

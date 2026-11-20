@@ -70,6 +70,7 @@ export function createOntologyExplorer({
   getReady = () => true,
   onInspect,
   onNavigate,
+  onAskAI = null,
 }) {
   const transport = fetchTransport();
   const client = createConduitClient({
@@ -152,10 +153,14 @@ export function createOntologyExplorer({
               page.length
                 ? `<ul>${page
                     .slice(0, 25)
-                    .map(
-                      (row, index) =>
-                        `<li><button type="button" class="so-btn" data-ont-inspect="${index}"${objectKey(chosen, row) ? "" : " disabled"}>Inspect ${esc(objectKey(chosen, row) || "key unavailable")}</button><pre class="whitespace-pre-wrap code-id">${esc(diffValue(row, "sample"))}</pre></li>`,
-                    )
+                    .map((row, index) => {
+                      const key = objectKey(chosen, row);
+                      return `<li><button type="button" class="so-btn" data-ont-inspect="${index}"${key ? "" : " disabled"}>Inspect ${esc(key || "key unavailable")}</button>${
+                        typeof onAskAI === "function"
+                          ? `<button type="button" class="so-btn" data-ont-ask-ai="${index}"${key ? "" : " disabled"}>Ask AI</button>`
+                          : ""
+                      }<pre class="whitespace-pre-wrap code-id">${esc(diffValue(row, "sample"))}</pre></li>`;
+                    })
                     .join("")}</ul>`
                 : "<p>No sample rows are displayed. A failed read is not an empty ontology.</p>"
             }</section>`
@@ -307,6 +312,15 @@ export function createOntologyExplorer({
           chosen = type();
         if (row && chosen && objectKey(chosen, row))
           onInspect(chosen.apiName, objectKey(chosen, row));
+      }
+      if (
+        button.hasAttribute("data-ont-ask-ai") &&
+        typeof onAskAI === "function"
+      ) {
+        const row = page[Number(button.dataset.ontAskAi)],
+          chosen = type();
+        if (row && chosen && objectKey(chosen, row))
+          onAskAI(chosen.apiName, objectKey(chosen, row));
       }
       if (button.dataset.ontPage === "next" && next) {
         history.push(pageToken);
