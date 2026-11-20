@@ -201,17 +201,25 @@ HUB_IMAGE="$(sudo docker buildx imagetools inspect --format '{{json .Manifest}}'
 registry config or a `crane` digest read. The command that produced the
 digests in the evidence log is the one to copy; do not invent a digest.
 
+`deploy/zarf` holds a package template (`zarf.tpl.yaml`), not a `zarf.yaml`,
+so `zarf package create deploy/zarf` fails with `open deploy/zarf/zarf.yaml: no
+such file`. Render the template into a build directory first; the version and
+both image references are baked in at that step, so the package needs no
+`--set` for them. `task zarf:create` does the same two steps.
+
 ```sh
-zarf package create deploy/zarf \
+./scripts/render-zarf-runtime.sh /tmp/conduit-zarf-src \
+  "${VERSION}" "${HUB_IMAGE}" "${SPOKE_IMAGE}"
+zarf package create /tmp/conduit-zarf-src/zarf.gen.yaml \
   --architecture amd64 \
   --confirm \
   --plain-http \
   --skip-sbom \
-  --output /tmp/conduit-zarf \
-  --set "PLATFORM_VERSION=${VERSION}" \
-  --set "HUB_IMAGE=${HUB_IMAGE}" \
-  --set "SPOKE_AGENT_IMAGE=${SPOKE_IMAGE}"
+  --output /tmp/conduit-zarf
 ```
+
+This sequence, with the same flags, produced the package deployed in
+[`uds-core-install-2026-11-20.txt`](../evidence/uds-core-install-2026-11-20.txt).
 
 `--skip-sbom` is a local-validation shortcut. A release package still
 generates the SBOM in the image workflow. The resulting archive is not a
