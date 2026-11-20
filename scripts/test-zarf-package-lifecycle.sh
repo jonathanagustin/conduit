@@ -115,7 +115,8 @@ kubectl config use-context "k3d-${cluster}" >/dev/null
 echo "== create the Environment-owned Secrets with throwaway material"
 (
   cd "${work}"
-  openssl req -x509 -newkey rsa:2048 -nodes -keyout ca.key -out ca.crt -days 2 -subj "/CN=conduit-lifecycle-ca" 2>/dev/null
+  openssl req -x509 -newkey rsa:2048 -nodes -keyout ca.key -out ca.crt -days 2 -subj "/CN=conduit-lifecycle-ca" \
+    -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" 2>/dev/null
   openssl req -newkey rsa:2048 -nodes -keyout hub.key -out hub.csr \
     -subj "/CN=platform-delivery.${namespace}.svc.cluster.local" 2>/dev/null
   printf 'subjectAltName=DNS:platform-delivery.%s.svc.cluster.local,DNS:platform-delivery.%s.svc,DNS:platform-delivery\nextendedKeyUsage=serverAuth\n' \

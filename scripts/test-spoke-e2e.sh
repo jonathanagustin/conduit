@@ -64,6 +64,8 @@ agent_digest="$(docker image inspect "${host_registry}/platform-spoke-agent:${ve
 
 openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
   -subj '/CN=platform-e2e-ca' \
+  -addext 'basicConstraints=critical,CA:TRUE' \
+  -addext 'keyUsage=critical,keyCertSign,cRLSign' \
   -keyout "${test_root}/ca.key" -out "${test_root}/ca.crt" >/dev/null 2>&1
 openssl req -new -newkey rsa:2048 -nodes -sha256 \
   -subj '/CN=platform-hub' \
