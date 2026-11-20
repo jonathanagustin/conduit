@@ -59,3 +59,26 @@ if (errors.length > 0) {
 }
 console.log(`Containerfile and .dockerignore cover all ${dirs.length} console build input directories (${dirs.join(', ')})`);
 JS
+
+# Every top-level module directory imported by the binaries built in
+# Containerfile must be copied into its Go build stage; otherwise `go build`
+# fails only when the Hub image is built (Spoke E2E / OCI images).
+if command -v go >/dev/null 2>&1; then
+  missing_go_dirs=()
+  while IFS= read -r top_dir; do
+    [[ -z "${top_dir}" ]] && continue
+    if ! grep -Eq "^COPY[[:space:]]+${top_dir}/?[[:space:]]+${top_dir}/?$" "${repo_root}/Containerfile"; then
+      missing_go_dirs+=("${top_dir}")
+    fi
+  done < <(
+    go list -deps ./cmd/platform-delivery ./cmd/platform-module-publisher ./cmd/platform-grype-scanner ./cmd/platform-operator \
+      | grep '^github\.com/jonathanagustin/conduit/' \
+      | sed 's|^github\.com/jonathanagustin/conduit/||' \
+      | cut -d/ -f1 \
+      | sort -u
+  )
+  if [[ "${#missing_go_dirs[@]}" -gt 0 ]]; then
+    echo "verify-containerfiles: Containerfile Go build stage missing COPY for imported directories: ${missing_go_dirs[*]}" >&2
+    exit 1
+  fi
+fi
