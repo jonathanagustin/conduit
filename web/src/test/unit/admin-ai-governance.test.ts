@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import {
   parseAdminAITranscriptExport,
   parseAdminAITranscriptsList,
@@ -104,7 +104,11 @@ describe("admin AI governance API parsers", () => {
       parseAdminAITranscriptsList({ transcripts: 123, runs: [] }),
     ).toThrow();
     expect(() =>
-      parseAdminAITranscriptExport({ runId: "", verified: true, exchanges: [] }),
+      parseAdminAITranscriptExport({
+        runId: "",
+        verified: true,
+        exchanges: [],
+      }),
     ).toThrow();
   });
 });

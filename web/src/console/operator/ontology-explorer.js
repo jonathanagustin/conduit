@@ -313,7 +313,10 @@ export function createOntologyExplorer({
         if (row && chosen && objectKey(chosen, row))
           onInspect(chosen.apiName, objectKey(chosen, row));
       }
-      if (button.hasAttribute("data-ont-ask-ai") && typeof onAskAI === "function") {
+      if (
+        button.hasAttribute("data-ont-ask-ai") &&
+        typeof onAskAI === "function"
+      ) {
         const row = page[Number(button.dataset.ontAskAi)],
           chosen = type();
         if (row && chosen && objectKey(chosen, row))

@@ -15,9 +15,7 @@ function esc(value) {
 }
 
 function formatBudget(limit, unit) {
-  return limit === null
-    ? "Unlimited"
-    : `${limit.toLocaleString()} ${unit}/day`;
+  return limit === null ? "Unlimited" : `${limit.toLocaleString()} ${unit}/day`;
 }
 
 function formatTokens(row) {
