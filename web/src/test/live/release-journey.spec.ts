@@ -35,6 +35,56 @@ async function hub<T>(page: Page, path: string): Promise<T> {
   return (await response.json()) as T;
 }
 
+test("Environment summary index uses the native generated read without REST replay", async ({
+  page,
+}) => {
+  const expectedResponse = await page.request.get(
+    "/v1/environments?view=summary&limit=20",
+  );
+  expect(expectedResponse.ok()).toBe(true);
+  const expected = (await expectedResponse.json()) as {
+    environments: { environment: { id: string; generation: string } }[];
+    total: number;
+  };
+  expect(expected.environments.length).toBeGreaterThan(0);
+  const rest: string[] = [];
+  const procedure =
+    "/conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries";
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (
+      url.pathname === "/v1/environments" &&
+      url.searchParams.get("view") === "summary"
+    )
+      rest.push(request.url());
+  });
+  const pending = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === procedure,
+  );
+  await page.goto("./#area-fleet?tab=environments");
+  const response = await pending;
+  expect(response.ok()).toBe(true);
+  expect(response.request().method()).toBe("POST");
+  expect(response.request().postDataJSON()).toMatchObject({ limit: 20 });
+  const observed = await response.json();
+  expect(
+    observed.environments.map(
+      (row: { environment: unknown }) => row.environment,
+    ),
+  ).toEqual(expected.environments.map((row) => row.environment));
+  expect(BigInt(observed.total ?? 0)).toBe(BigInt(expected.total));
+  await expect(
+    page.locator('[data-index-controls="environments"] [data-index-count]'),
+  ).toHaveText(
+    `Showing ${expected.environments.length} of ${expected.total} environments in this page.`,
+  );
+  for (const row of expected.environments)
+    await expect(
+      page.locator(`[data-env-open="${row.environment.id}"]`),
+    ).toBeVisible();
+  expect(rest).toEqual([]);
+});
+
 test("release journey runs end to end on the Hub's own data", async ({
   page,
 }) => {

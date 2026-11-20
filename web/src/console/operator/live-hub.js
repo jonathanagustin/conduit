@@ -29,6 +29,10 @@ import {
   fetchFleetInstallations,
   fleetInstallationsTransport,
 } from "../../api/fleet-installations.js";
+import {
+  fetchEnvironmentSummaries,
+  environmentSummariesTransport,
+} from "../../api/environment-summaries.js";
 import { LiveSubscription, idleLiveStatus } from "../../api/live-events.js";
 import { createLiveOperations } from "./live-operations.js";
 import { liveSessionIdentity } from "../../api/live-identity.js";
@@ -706,7 +710,23 @@ export function createLiveHub({
                 spaceScopedPath(url, activeSpaceId(state.spaceId)),
               );
             }
-          : read;
+          : index === "environments"
+            ? (url) => {
+                if (!current())
+                  throw new DOMException("Hub view changed", "AbortError");
+                const selected = new URL(url, "http://hub.local");
+                if (
+                  selected.pathname === "/v1/environments" &&
+                  selected.searchParams.get("view") === "summary"
+                )
+                  return fetchEnvironmentSummaries(
+                    environmentSummariesTransport(window.location.origin),
+                    options.signal,
+                    spaceScopedPath(url, activeSpaceId(state.spaceId)),
+                  );
+                return read(url);
+              }
+            : read;
       if (options.screen && INDEX_DEFINITIONS[index]) {
         const extra = Object.fromEntries(
           new URL(

@@ -39,7 +39,9 @@ it("reads the fleet total from the native authorized summary envelope", () => {
 });
 
 function install(answer: (url: URL) => unknown) {
-  const requests: URL[] = [];
+  const requests = Object.assign([] as URL[], {
+    environmentBodies: [] as Record<string, unknown>[],
+  });
   vi.stubGlobal("window", {
     location: { origin: "http://hub.local", hash: "" },
   });
@@ -54,6 +56,23 @@ function install(answer: (url: URL) => unknown) {
       "http://hub.local",
     );
     requests.push(url);
+    if (
+      url.pathname ===
+        "/conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries" &&
+      input instanceof Request
+    ) {
+      expect(input.method).toBe("POST");
+      requests.environmentBodies.push(await input.json());
+      return new Response(
+        JSON.stringify({
+          environments: [],
+          total: "0",
+          pageSize: 0,
+          limit: 20,
+        }),
+        { headers: { "content-type": "application/json" } },
+      );
+    }
     return new Response(JSON.stringify(await answer(url)), {
       headers: { "content-type": "application/json" },
     });
@@ -160,19 +179,21 @@ it("resets the environment cursor when the actual Space selector changes", async
   changed({ target: { id: "space-selector", value: second } });
   await vi.waitFor(() =>
     expect(
-      requests.some(
-        (url) =>
-          url.pathname === "/v1/environments" &&
-          url.searchParams.get("spaceId") === second,
-      ),
+      requests.environmentBodies.some((body) => body.spaceId === second),
     ).toBe(true),
   );
-  const next = requests.find(
-    (url) =>
-      url.pathname === "/v1/environments" &&
-      url.searchParams.get("spaceId") === second,
+  const next = requests.environmentBodies.find(
+    (body) => body.spaceId === second,
   )!;
-  expect(next.searchParams.has("cursor")).toBe(false);
+  expect(next).not.toHaveProperty("cursor");
+  expect(requests.environmentBodies[0]).toMatchObject({
+    spaceId: first,
+    cursor: "after-old-space-key",
+    limit: 20,
+  });
+  expect(requests.some((url) => url.pathname === "/v1/environments")).toBe(
+    false,
+  );
   expect(state.releaseEnvironmentId).toBe("");
   expect(state.envDetailId).toBe("");
   expect(new URLSearchParams(state.indexQuery).has("environment")).toBe(false);
