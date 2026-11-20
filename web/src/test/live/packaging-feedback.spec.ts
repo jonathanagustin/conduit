@@ -166,3 +166,164 @@ test("packaging review notes retain exact input without approving the real waiti
     ),
   });
 });
+
+test("assistant packaging cancel proposal binds the real waiting run without dispatch", async ({
+  page,
+}) => {
+  await page.goto("./#s08-staged-run");
+  const origin = new URL(page.url()).origin;
+  const url = (suffix: string) => origin + suffix;
+  const get = async (suffix: string) => {
+    const response = await page.request.get(url(suffix));
+    expect(response.ok(), await response.text()).toBe(true);
+    return response.json();
+  };
+  const parent = await get(path);
+  expect(parent).toMatchObject({
+    runId,
+    phase: "review",
+    targetPlanRef: "env-dev/sample-app",
+  });
+  expect(parent.sourceDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
+  expect(parent.proposalRevision).toBeTruthy();
+  expect(parent.planId || "").toBe("");
+  // Explicit API setup supplies native desired state at the fixture run's exact
+  // target. This is not a browser planning or deployment qualification.
+  const plans = await get("/v1/plans?environment=dev-use2&limit=20");
+  const seed = plans.plans.find(
+    (row: any) => row.desiredState?.environment?.id === "dev-use2",
+  );
+  expect(seed).toBeTruthy();
+  const release = seed.desiredState.releases.find(
+    (row: any) => row.product === "app.example:example-api",
+  );
+  expect(release).toBeTruthy();
+  const setup = await page.request.post(url("/v1/plans"), {
+    data: {
+      ...seed.desiredState,
+      environment: {
+        ...seed.desiredState.environment,
+        id: "env-dev",
+        generation: "native-assistant-proposal-fixture",
+      },
+      releases: [release],
+      entities: [
+        {
+          name: "sample-app",
+          product: release.product,
+          version: release.version,
+          namespace: "example",
+        },
+      ],
+    },
+  });
+  expect(setup.status(), await setup.text()).toBe(201);
+  const team = await page.request.put(url("/v1/teams/Operator"), {
+    data: {
+      name: "Operator",
+      displayName: "Native assistant fixture operators",
+      adminUsers: ["operator"],
+      memberUsers: ["operator"],
+    },
+  });
+  expect(team.ok(), await team.text()).toBe(true);
+  await page.reload();
+  await expect(page.locator(`form[data-run="${runId}"]`)).toBeVisible();
+  await page.getByRole("button", { name: "Toggle right chat panel" }).click();
+  const rail = page.locator("#right-chat-rail");
+  await rail.locator('[data-set-mode="release_plan"]').click();
+  const action = rail.locator(
+    `[data-assistant-action="propose-cancel"][data-chip-key="PackagingRun:${runId}"]`,
+  );
+  await expect(action).toBeVisible();
+  const writes: string[] = [];
+  // These exact generated read procedures use POST; every other POST and all
+  // PUT/PATCH/DELETE requests remain visible to the no-dispatch assertion.
+  const readProcedures = new Set([
+    "/conduit.packaging.v1.PackagingRunService/ListPackagingRuns",
+    "/conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents",
+    "/conduit.packaging.v1.PackagingRunService/GetPackagingRun",
+    "/conduit.fleet.v1.FleetReadService/ListFleetInstallations",
+  ]);
+  page.on("request", (request) => {
+    const requestPath = new URL(request.url()).pathname;
+    if (
+      ["POST", "PUT", "PATCH", "DELETE"].includes(request.method()) &&
+      !(request.method() === "POST" && readProcedures.has(requestPath))
+    )
+      writes.push(requestPath);
+  });
+  const sent = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/v1/assistant/tools",
+  );
+  await action.click();
+  const response = await sent;
+  expect(response.status(), await response.text()).toBe(200);
+  expect(response.request().postDataJSON()).toEqual({
+    mode: "release_plan",
+    tool: "propose_governed_action",
+    arguments: {
+      actionId: "cancel_packaging_run",
+      targetEntityId: runId,
+      targetObjectType: "PackagingRun",
+      environment: "env-dev",
+      installationId: "sample-app",
+      productId: release.product,
+    },
+  });
+  const receipt = await response.json();
+  expect(receipt).toMatchObject({
+    ok: true,
+    allowed: true,
+    tool: "propose_governed_action",
+    changeRequestStatus: "PENDING_APPROVALS",
+    writeOps: 1,
+  });
+  expect(receipt.changeRequestId).toBeTruthy();
+  await expect(rail.locator("[data-assistant-results]")).toContainText(
+    receipt.changeRequestId,
+  );
+  const changePath = `/v1/change-requests/${receipt.changeRequestId}`;
+  const pending = await get(changePath);
+  expect(pending).toMatchObject({
+    id: receipt.changeRequestId,
+    status: "PENDING_APPROVALS",
+    environment: "env-dev",
+    author: { username: "operator" },
+    requirementsSatisfied: false,
+  });
+  expect(pending.execution).toBeFalsy();
+  expect(pending.changes).toHaveLength(1);
+  expect(pending.changes[0].request.assistantAction).toMatchObject({
+    version: "conduit.assistant-action/v1",
+    tier: "CONDUIT_NATIVE",
+    action: "cancel_packaging_run",
+    runId,
+    environment: "env-dev",
+    installation: "sample-app",
+    product: release.product,
+    binding: {
+      sourceDigest: parent.sourceDigest,
+      proposalRevision: parent.proposalRevision,
+      targetPlanRef: parent.targetPlanRef,
+      templateVersion: parent.templateVersion,
+      toolVersions: parent.toolVersions,
+    },
+  });
+  expect(pending.changes[0].request.assistantAction.binding.decisionId).toMatch(
+    /^assistant-[0-9a-f]{32}$/,
+  );
+  const refused = await page.request.post(url(changePath + "/approve"), {
+    data: { rationale: "Author must not approve this proposal." },
+  });
+  expect(refused.status(), await refused.text()).toBe(403);
+  expect(await get(changePath)).toEqual(pending);
+  expect(await get(path)).toEqual(parent);
+  await page.reload();
+  await expect(page.locator(`form[data-run="${runId}"]`)).toBeVisible();
+  expect(await get(changePath)).toEqual(pending);
+  expect(await get(path)).toEqual(parent);
+  expect(writes).toEqual(["/v1/assistant/tools"]);
+});
