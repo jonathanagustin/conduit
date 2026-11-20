@@ -684,6 +684,10 @@ func seedFixture(t *testing.T, handler http.Handler, repository controlplane.Rep
 // entry is a route whose refusal this test does not witness -- and the floor
 // above fails if the list grows past a quarter of the surface.
 var refusedBeforeTheDecision = map[string]int{
+	// The generic RPC body omits the required Change Request ID. A real
+	// unreadable request is witnessed by the discussion Connect parity test.
+	"POST /conduit.changeactivity.v1.ChangeRequestDiscussionReadService/ListChangeRequestComments": http.StatusBadRequest,
+
 	// This matrix has no packaging run reader. A real unreadable target is
 	// separately covered before model dispatch by the model HTTP tests and
 	// the native packaging-proposal browser journey.

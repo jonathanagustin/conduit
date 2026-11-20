@@ -3,7 +3,6 @@ package httpapi
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"github.com/jonathanagustin/conduit/internal/changeactivity/application"
@@ -11,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 )
 
 type LabelMutator interface {
@@ -60,6 +58,7 @@ func Register(mux *http.ServeMux, config Config) error {
 	if config.BindDiscussion == nil {
 		return nil
 	}
+	RegisterDiscussionReadConnect(mux, config.BindDiscussion)
 	mux.HandleFunc("POST /v1/change-requests/{requestID}/comments", func(w http.ResponseWriter, r *http.Request) {
 		service, err := config.BindDiscussion(r)
 		if err != nil {
@@ -85,77 +84,22 @@ func Register(mux *http.ServeMux, config Config) error {
 			fail(w, err)
 			return
 		}
-		id := r.PathValue("requestID")
-		cursor, err := readCursor(r, id)
+		for key, values := range r.URL.Query() {
+			if key != "cursor" || len(values) != 1 {
+				fail(w, domain.ErrInvalid)
+				return
+			}
+		}
+		page, err := service.ReadPage(r.Context(), r.PathValue("requestID"), r.URL.Query().Get("cursor"))
 		if err != nil {
 			fail(w, err)
 			return
 		}
-		comments, err := service.List(r.Context(), id)
-		if err != nil {
-			fail(w, err)
-			return
-		}
-		page := make([]domain.Comment, 0, domain.MaxPageSize)
-		more := false
-		for _, comment := range comments {
-			if !cursor.At.IsZero() && (comment.CreatedAt.Before(cursor.At) || (comment.CreatedAt.Equal(cursor.At) && comment.ID <= cursor.ID)) {
-				continue
-			}
-			if len(page) == domain.MaxPageSize {
-				more = true
-				break
-			}
-			page = append(page, comment)
-		}
-		next := ""
-		if more {
-			last := page[len(page)-1]
-			document, _ := json.Marshal(pageCursor{RequestID: id, ID: last.ID, At: last.CreatedAt})
-			next = base64.RawURLEncoding.EncodeToString(document)
-		}
-		write(w, http.StatusOK, map[string]any{"comments": page, "nextCursor": next, "valueTier": domain.ValueTier})
+		write(w, http.StatusOK, page)
 	})
 	return nil
 }
 
-type pageCursor struct {
-	RequestID string    `json:"request"`
-	ID        string    `json:"id"`
-	At        time.Time `json:"at"`
-}
-
-func readCursor(r *http.Request, id string) (pageCursor, error) {
-	for key, values := range r.URL.Query() {
-		if key != "cursor" || len(values) != 1 {
-			return pageCursor{}, domain.ErrInvalid
-		}
-	}
-	raw := r.URL.Query().Get("cursor")
-	if raw == "" {
-		return pageCursor{}, nil
-	}
-	if len(raw) > 1024 {
-		return pageCursor{}, domain.ErrInvalid
-	}
-	document, err := base64.RawURLEncoding.DecodeString(raw)
-	if err != nil {
-		return pageCursor{}, domain.ErrInvalid
-	}
-	decoder := json.NewDecoder(strings.NewReader(string(document)))
-	decoder.DisallowUnknownFields()
-	var c pageCursor
-	if err := decoder.Decode(&c); err != nil {
-		return pageCursor{}, domain.ErrInvalid
-	}
-	if err := decoder.Decode(new(any)); err != io.EOF {
-		return pageCursor{}, domain.ErrInvalid
-	}
-	if c.RequestID != id || !domain.ValidRequestID(c.RequestID) || !domain.ValidCommentID(c.ID) || c.At.IsZero() {
-		return pageCursor{}, domain.ErrInvalid
-	}
-	return c, nil
-}
 func decode(w http.ResponseWriter, r *http.Request, target any, limit int64) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	decoder := json.NewDecoder(r.Body)
