@@ -115,7 +115,7 @@ helm upgrade --install platform-hub "${repo_root}/deploy/helm/platform-hub" \
   --values "${repo_root}/deploy/helm/platform-hub/ci/test-values.yaml" \
   --set repository.kind=file \
   --set replicaCount=1 \
-  --set-string 'planning.temporal.address=' \
+  --set planning.backend=local \
   --set imagePullSecrets=null \
   --set 'runtimeSupplementalGroups[0]=0' \
   --set-string 'bootstrapAdministrators[0]=local-developer' \
