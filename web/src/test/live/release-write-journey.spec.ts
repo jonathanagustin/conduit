@@ -1,3 +1,5 @@
+import { fromJson, toJson } from "@bufbuild/protobuf";
+import { TimestampSchema } from "@bufbuild/protobuf/wkt";
 import {
   expect,
   type APIRequestContext,
@@ -477,9 +479,45 @@ test("a reviewed promotion passes on actual reported healthy installations", asy
   expect(passed.toChannel).toBe(toChannel);
   expect(passed.policy).toEqual(policy);
   expect(passed.evidence).toHaveLength(body.evidence.length);
-  expect(passed.evidence).toEqual(
+  // Protobuf JSON keeps 3/6/9 fractional digits; Go RFC3339Nano trims
+  // trailing zeros. Compare exact instants, preserving nanoseconds and every
+  // other evidence field rather than rounding through JavaScript Date.
+  const preciseEvidence = (rows: Record<string, any>[]) =>
+    rows.map((entry) => ({
+      ...entry,
+      observedAt:
+        entry.observedAt === undefined
+          ? undefined
+          : fromJson(TimestampSchema, entry.observedAt),
+      healthySince:
+        entry.healthySince === undefined
+          ? undefined
+          : fromJson(TimestampSchema, entry.healthySince),
+    }));
+  const actualEvidence = preciseEvidence(passed.evidence);
+  const expectedEvidence = preciseEvidence(body.evidence);
+  expect(actualEvidence).toEqual(
     expect.arrayContaining(
-      body.evidence.map((entry: any) => expect.objectContaining(entry)),
+      expectedEvidence.map((entry) => expect.objectContaining(entry)),
+    ),
+  );
+  // This assertion must still reject even a one-nanosecond evidence change.
+  const observed = fromJson(TimestampSchema, body.evidence[0].observedAt);
+  const alteredEvidence = preciseEvidence([
+    {
+      ...body.evidence[0],
+      observedAt: toJson(TimestampSchema, {
+        ...observed,
+        nanos:
+          observed.nanos === 999999999
+            ? observed.nanos - 1
+            : observed.nanos + 1,
+      }),
+    },
+  ]);
+  expect(actualEvidence).not.toEqual(
+    expect.arrayContaining(
+      alteredEvidence.map((entry) => expect.objectContaining(entry)),
     ),
   );
   expect(passed.id).not.toBe(seeded.id);

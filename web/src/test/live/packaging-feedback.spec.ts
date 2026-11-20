@@ -237,6 +237,7 @@ test("assistant packaging cancel proposal binds the real waiting run without dis
   );
   await expect(action).toBeVisible();
   const writes: string[] = [];
+  const restFleetReads: string[] = [];
   // These exact generated read procedures use POST; every other POST and all
   // PUT/PATCH/DELETE requests remain visible to the no-dispatch assertion.
   const readProcedures = new Set([
@@ -247,6 +248,8 @@ test("assistant packaging cancel proposal binds the real waiting run without dis
   ]);
   page.on("request", (request) => {
     const requestPath = new URL(request.url()).pathname;
+    if (requestPath === "/v1/fleet/installations")
+      restFleetReads.push(request.url());
     if (
       ["POST", "PUT", "PATCH", "DELETE"].includes(request.method()) &&
       !(request.method() === "POST" && readProcedures.has(requestPath))
@@ -258,7 +261,19 @@ test("assistant packaging cancel proposal binds the real waiting run without dis
       response.request().method() === "POST" &&
       new URL(response.url()).pathname === "/v1/assistant/tools",
   );
+  const fleetLookup = page.waitForRequest(
+    (request) =>
+      new URL(request.url()).pathname ===
+      "/conduit.fleet.v1.FleetReadService/ListFleetInstallations",
+  );
   await action.click();
+  const lookup = await fleetLookup;
+  expect(lookup.method()).toBe("POST");
+  expect(lookup.postDataJSON()).toEqual({
+    environment: "env-dev",
+    installationId: "sample-app",
+    limit: 1,
+  });
   const response = await sent;
   expect(response.status(), await response.text()).toBe(200);
   expect(response.request().postDataJSON()).toEqual({
@@ -326,4 +341,5 @@ test("assistant packaging cancel proposal binds the real waiting run without dis
   expect(await get(changePath)).toEqual(pending);
   expect(await get(path)).toEqual(parent);
   expect(writes).toEqual(["/v1/assistant/tools"]);
+  expect(restFleetReads).toEqual([]);
 });

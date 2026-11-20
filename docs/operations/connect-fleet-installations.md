@@ -75,3 +75,13 @@ a duration or change stale-state evidence. Negative counts/ages and malformed
 page or identity evidence refuse the whole page. Refresh and session boundaries
 retain their existing stale-result guards. No mutation or execution authority
 is added.
+
+
+The assistant's exact packaging-action target lookup also uses this generated
+reader, with limit one and the selected Space. The complete authorized native
+count must equal one as an exact bigint; Environment, installation, Product and
+desired version still bind the proposal. Fresh run reads and selection, identity,
+Space, context-chip and refresh guards remain in place across both asynchronous
+reads and the final proposal boundary. A refused lookup is not replayed as REST;
+its existing Hub error is surfaced. Packaging-run detail and the governed
+proposal command retain their existing transports and authority.

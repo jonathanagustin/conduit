@@ -1,6 +1,22 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Request } from "@playwright/test";
 import { session, stubHub } from "./hub-stub";
 
+const fleetReads = new WeakMap<Page, Request[]>();
+test.afterEach(async ({ page }) => {
+  const requests = fleetReads.get(page) || [];
+  expect(
+    requests.filter(
+      (request) =>
+        new URL(request.url()).pathname === "/v1/fleet/installations",
+    ),
+  ).toEqual([]);
+  for (const request of requests) {
+    expect(new URL(request.url()).pathname).toBe(
+      "/conduit.fleet.v1.FleetReadService/ListFleetInstallations",
+    );
+    expect(request.method()).toBe("POST");
+  }
+});
 const runID = "run-selected-offpage";
 const run = (id = runID) => ({
   configured: true,
@@ -14,6 +30,8 @@ const run = (id = runID) => ({
   toolVersions: "tools-v1",
 });
 const target = () => ({
+  generatedAt: "2026-11-20T01:00:00Z",
+  facets: {},
   installations: [
     {
       environment: "target-env",
@@ -29,6 +47,16 @@ const target = () => ({
 });
 
 async function setup(page: Page, forbidden = false, spaceId = "") {
+  const reads: Request[] = [];
+  fleetReads.set(page, reads);
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (
+      path === "/v1/fleet/installations" ||
+      path === "/conduit.fleet.v1.FleetReadService/ListFleetInstallations"
+    )
+      reads.push(request);
+  });
   const tools: Record<string, unknown>[] = [];
   const lookups: URL[] = [];
   await stubHub(page, (request, url) => {
@@ -169,7 +197,7 @@ test("a forbidden exact lookup refuses before the assistant tool request", async
   const { tools, action } = await setup(page, true);
   await action("propose-cancel").click();
   await expect(page.locator("[data-assistant-results]")).toContainText(
-    "selected packaging context is unavailable",
+    "Fleet fixture refused",
   );
   expect(tools).toEqual([]);
 });
@@ -185,15 +213,18 @@ test("changing screens while the exact target read is pending never posts the ol
   const reading = new Promise<void>((resolve) => {
     entered = resolve;
   });
-  await page.route("**/v1/fleet/installations?**", async (route) => {
-    if (!new URL(route.request().url()).searchParams.has("installationId")) {
-      await route.fallback();
-      return;
-    }
-    entered();
-    await gate;
-    await route.fulfill({ json: target() });
-  });
+  await page.route(
+    "**/conduit.fleet.v1.FleetReadService/ListFleetInstallations",
+    async (route) => {
+      if (!route.request().postDataJSON().installationId) {
+        await route.fallback();
+        return;
+      }
+      entered();
+      await gate;
+      await route.fulfill({ json: target() });
+    },
+  );
   await action("propose-rerun").click();
   await reading;
   await page
@@ -218,11 +249,14 @@ test("removing the selected context chip during its target read never posts the 
   const reading = new Promise<void>((resolve) => {
     entered = resolve;
   });
-  await page.route("**/v1/fleet/installations?**", async (route) => {
-    entered();
-    await gate;
-    await route.fulfill({ json: target() });
-  });
+  await page.route(
+    "**/conduit.fleet.v1.FleetReadService/ListFleetInstallations",
+    async (route) => {
+      entered();
+      await gate;
+      await route.fulfill({ json: target() });
+    },
+  );
   await action("propose-cancel").click();
   await reading;
   await page.locator(`[data-remove-chip="PackagingRun:${runID}"]`).click();

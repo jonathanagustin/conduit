@@ -1,5 +1,9 @@
 // Resolve one action target independently of the visible, bounded Hub indexes.
 // These reads are context only; they never replace index rows or their totals.
+import {
+  fetchFleetInstallations,
+  fleetInstallationsTransport,
+} from "../../api/fleet-installations.js";
 import { activeSpaceId, spaceScopedPath } from "./space-scope.js";
 
 const pending = new WeakMap();
@@ -78,7 +82,9 @@ export async function resolvePackagingActionContext(state, runID) {
     installationId: installation,
     limit: "1",
   });
-  const page = await read(
+  const page = await fetchFleetInstallations(
+    fleetInstallationsTransport(window.location.origin),
+    AbortSignal.timeout(10_000),
     spaceScopedPath(
       `/v1/fleet/installations?${query}`,
       activeSpaceId(state.spaceId),
@@ -97,7 +103,7 @@ export async function resolvePackagingActionContext(state, runID) {
     !row.desiredVersion.trim() ||
     page.nextCursor ||
     page.hasPrevious ||
-    page.summary?.total !== 1 ||
+    page.summary?.total !== BigInt(1) ||
     page.pageSize !== 1 ||
     page.limit !== 1
   )
