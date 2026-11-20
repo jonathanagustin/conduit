@@ -36,3 +36,19 @@ it also includes both architectures and retains UID 65532 on amd64. These checks
 establish availability and image metadata, not a new signature/provenance
 claim or a completed build of every application image. The exact-digest guard
 remains enforced; changing a tag alone cannot satisfy it.
+
+
+The exact Go test source
+`internal/packagingworkflow/adapters/packagingtools/dockerfile_test.go` is excluded
+from dependency extraction. Its Dockerfile strings deliberately test unpinned
+and otherwise invalid input; they are not production image references. Renovate's
+built-in broad Dockerfile filename pattern also matches this Go filename, and
+adding our production Containerfile pattern does not remove that default. The
+exact-path exclusion preserves production Containerfile discovery and the
+release-age, digest, major-review and recorded-evidence policies above.
+
+Because `ignorePaths` replaces the inherited list, the configuration explicitly
+retains all ten paths from `config:recommended`'s `:ignoreModulesAndTests` preset
+before adding this one fixture. The source for that list and the manager patterns
+is Renovate commit `fe6e5aa5df6140de1ef87233aef70a96612ed287`. Review that list
+when changing the preset rather than accidentally dropping module/test exclusions.
