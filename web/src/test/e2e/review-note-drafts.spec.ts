@@ -135,6 +135,8 @@ test("acknowledging one review note does not clear a newer unsent draft", async 
   page,
 }) => {
   const f = await setup(page, true);
+  // Settle initial reads; this case controls the acknowledgement itself.
+  await refresh(page);
   try {
     await f.form.getByLabel("Selector", { exact: true }).fill("first.selector");
     await f.form
@@ -144,12 +146,15 @@ test("acknowledging one review note does not clear a newer unsent draft", async 
       .getByRole("button", { name: "Record review note", exact: true })
       .click();
     await f.writing;
+    await f.form.locator('[name="target"]').selectOption("manifest");
     await f.form.getByLabel("Selector", { exact: true }).fill("later.selector");
     await f.form.getByLabel("Note", { exact: true }).fill("Later unsent draft");
+    await f.form.getByLabel("Note", { exact: true }).blur();
     f.release();
     await expect(
       page.locator("li").filter({ hasText: "First explicit record" }),
     ).toContainText("reviewer-a, not an approval");
+    await expect(f.form.locator('[name="target"]')).toHaveValue("manifest");
     await expect(f.form.getByLabel("Selector", { exact: true })).toHaveValue(
       "later.selector",
     );
