@@ -7,6 +7,10 @@ WORKDIR /src
 COPY mise.toml mise.toml
 COPY scripts/build-console.sh scripts/build-console.sh
 COPY internal/consoleui/dist/README.txt internal/consoleui/dist/README.txt
+COPY api/a2ui/ api/a2ui/
+COPY api/live-events/ api/live-events/
+COPY tools/a2ui/ tools/a2ui/
+COPY tools/liveevents/ tools/liveevents/
 COPY web/ web/
 RUN npm install --global --ignore-scripts pnpm@12.20.0 \
  && test "$(pnpm --version)" = 12.20.0 \

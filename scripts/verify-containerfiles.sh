@@ -21,3 +21,41 @@ if [[ "${#containerfiles[@]}" -eq 0 ]]; then
 fi
 
 "${hadolint_bin}" --failure-threshold info "${containerfiles[@]}"
+
+# Every input directory hashed and validated by scripts/build-console.sh must be
+# both unignored in .dockerignore and copied into Containerfile's console stage,
+# otherwise Hub image builds fail only when Containerfile is built (Spoke E2E /
+# OCI images) while Trunk's non-container console build stays green.
+node --input-type=module - "${repo_root}" <<'JS'
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const root = process.argv[2];
+const buildScript = readFileSync(join(root, 'scripts/build-console.sh'), 'utf8');
+const match = buildScript.match(/for\s*\(\s*const\s+directory\s+of\s*\[([^\]]+)\]\s*\)\s*walk\(directory\)/);
+if (!match) {
+  console.error('verify-containerfiles: cannot locate console input directory list in scripts/build-console.sh');
+  process.exit(1);
+}
+const dirs = Array.from(match[1].matchAll(/['"]([^'"]+)['"]/g), (m) => m[1]);
+if (dirs.length === 0) {
+  console.error('verify-containerfiles: scripts/build-console.sh declared zero console input directories');
+  process.exit(1);
+}
+const containerfile = readFileSync(join(root, 'Containerfile'), 'utf8');
+const dockerignore = readFileSync(join(root, '.dockerignore'), 'utf8');
+const errors = [];
+for (const dir of dirs) {
+  if (!new RegExp(`^COPY\\s+${dir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?\\s+${dir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?$`, 'm').test(containerfile)) {
+    errors.push(`Containerfile missing COPY for console input directory: ${dir}/`);
+  }
+  if (!dockerignore.includes(`!${dir}/`) || !dockerignore.includes(`!${dir}/**`)) {
+    errors.push(`.dockerignore missing allowlist (!${dir}/ and !${dir}/**) for console input directory: ${dir}`);
+  }
+}
+if (errors.length > 0) {
+  for (const err of errors) console.error(`verify-containerfiles: ${err}`);
+  process.exit(1);
+}
+console.log(`Containerfile and .dockerignore cover all ${dirs.length} console build input directories (${dirs.join(', ')})`);
+JS
