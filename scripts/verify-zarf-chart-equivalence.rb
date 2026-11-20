@@ -316,14 +316,18 @@ Dir.mktmpdir("zarf-chart-equivalence") do |work|
       end
       if profile == "postgres"
         [false, true].each do |metrics|
-          selected = variables.merge("UDS_METRICS" => metrics, "METRICS_ADDRESS" => ":9090")
-          File.write(values_file, JSON.generate(ConduitZarfRuntimeValues.nested(selected, derived)))
-          native = run!(zarf, "dev", "inspect", "manifests", compiled, "--architecture", "amd64", "--no-color", "--values", values_file)
-          owners = ConduitSafeYAML.stream(native).compact.select { |item| item.is_a?(Hash) && item["kind"] == "Package" }
-          abort "UDS metrics selection must render exactly one Package owner" unless owners.length == 1
-          abort "UDS monitor does not follow the typed metrics setting" unless owners.first.fetch("spec").key?("monitor") == metrics
-          expected_owner = YAML.safe_load(substitute(File.read(File.join(zarf_directory, "manifests/uds-package.yaml")), selected, constants))
-          abort "UDS native template differs from the parity helper" unless owners.first == expected_owner
+          %w[sidecar ambient].each do |mesh_mode|
+            selected = variables.merge("UDS_METRICS" => metrics, "UDS_SERVICE_MESH_MODE" => mesh_mode, "METRICS_ADDRESS" => ":9090")
+            File.write(values_file, JSON.generate(ConduitZarfRuntimeValues.nested(selected, derived)))
+            native = run!(zarf, "dev", "inspect", "manifests", compiled, "--architecture", "amd64", "--no-color", "--values", values_file)
+            owners = ConduitSafeYAML.stream(native).compact.select { |item| item.is_a?(Hash) && item["kind"] == "Package" }
+            abort "UDS metrics selection must render exactly one Package owner" unless owners.length == 1
+            abort "UDS monitor does not follow the typed metrics setting" unless owners.first.fetch("spec").key?("monitor") == metrics
+            abort "UDS serviceMesh.mode does not follow UDS_SERVICE_MESH_MODE" unless
+              owners.first.dig("spec", "network", "serviceMesh", "mode") == mesh_mode
+            expected_owner = YAML.safe_load(substitute(File.read(File.join(zarf_directory, "manifests/uds-package.yaml")), selected, constants))
+            abort "UDS native template differs from the parity helper" unless owners.first == expected_owner
+          end
         end
         # Go's POSIX [:cntrl:] class is ASCII; Ruby's also matches C1
         # controls. Probe the actual pinned CLI so Ruby cannot accidentally
@@ -331,7 +335,8 @@ Dir.mktmpdir("zarf-chart-equivalence") do |work|
         {
           "PACKAGING_TEMPORAL_ADDRESS" => ["temporal:65536", "user:credential@temporal:7233"],
           "PACKAGING_TEMPORAL_NAMESPACE" => ["namespace\u0085rewrite"],
-          "PACKAGING_TEMPORAL_TASK_QUEUE" => ["queue\u0085rewrite"]
+          "PACKAGING_TEMPORAL_TASK_QUEUE" => ["queue\u0085rewrite"],
+          "UDS_SERVICE_MESH_MODE" => ["none", "istio"]
         }.each do |name, values|
           values.each do |value|
             File.write(values_file, JSON.generate(ConduitZarfRuntimeValues.nested(variables.merge(name => value), derived)))
@@ -339,7 +344,7 @@ Dir.mktmpdir("zarf-chart-equivalence") do |work|
               "--architecture", "amd64", "--no-color", "--values", values_file)
             abort "pinned Zarf accepted unsafe #{name} configuration" if status.success?
             abort "pinned Zarf refused #{name} for an unexpected reason" unless
-              stderr.include?(name) && stderr.match?(/pattern|schema/)
+              stderr.include?(name) && stderr.match?(/pattern|schema|enum/)
           end
         end
         # Zl/Zp are not Cc controls. Keep values this exact templating/parser

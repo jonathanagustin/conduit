@@ -406,6 +406,14 @@
       "type": "boolean",
       "description": "Enable the Hub monitor in the single optional UDS Package owner. Requires a postgres Hub listening on :9090."
     },
+    "UDS_SERVICE_MESH_MODE": {
+      "type": "string",
+      "description": "Istio service mesh mode for the optional UDS Package CR (sidecar or ambient). Defaults to sidecar; live UDS Core gateway and Spoke lease qualification remain tracked in #830.",
+      "enum": [
+        "sidecar",
+        "ambient"
+      ]
+    },
     "rendered": {
       "type": "object",
       "properties": {

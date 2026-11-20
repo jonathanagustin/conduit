@@ -81,7 +81,10 @@ Moving an existing install from `file` to
 `/metrics` needs `REPOSITORY_KIND=postgres` and `METRICS_ADDRESS=:9090`
 in the native deploy values file. Select `--components uds` and set the boolean
 `UDS_METRICS: true` to add its ServiceMonitor. The same optional component owns
-exactly one Package CR with metrics either off or on. The retired `uds-metrics`
+exactly one Package CR with metrics either off or on, and sets
+`spec.network.serviceMesh.mode` from `UDS_SERVICE_MESH_MODE` (`sidecar` by
+default; `ambient` is also accepted by the schema, though live UDS Core gateway
+and Spoke lease qualification remain open under #830). The retired `uds-metrics`
 and `uds-disabled` names and the deprecated choice group are gone; a plain
 confirmed install selects no UDS component. Selecting `uds-observability` also
 requires the metrics setting. No UDS Core installation is implied by selection.
