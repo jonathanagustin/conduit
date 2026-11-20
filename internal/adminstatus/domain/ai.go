@@ -54,7 +54,7 @@ type aiCapability struct {
 var aiCapabilities = []aiCapability{
 	{id: "aiAssistant", label: "AI assistant", needsModel: true, withoutModel: "No model provider is configured; the assistant makes no model call"},
 	{id: "aiPlanning", label: "AI planning", needsModel: true, tools: []string{"git"}, withoutModel: "No model provider is configured; planning turns are refused"},
-	{id: "aiAppGeneration", label: "AI app generation", needsModel: true, tools: []string{"docker", "go"}, withoutModel: "No model provider is configured; the recorded application is used and no model call is made"},
+	{id: "aiAppGeneration", label: "AI app generation", needsModel: true, tools: []string{"docker"}, withoutModel: "No model provider is configured; the recorded application is used and no model call is made"},
 	{id: "aiPackagingProposals", label: "AI packaging proposals", needsModel: true, withoutModel: "No model provider is configured; the recorded proposals are used and no model call is made"},
 }
 
@@ -70,7 +70,16 @@ func AIComponents(facts AIFacts) []Component {
 	}
 	out := []Component{providerComponent(facts)}
 	for _, capability := range aiCapabilities {
-		out = append(out, capabilityComponent(facts, capability))
+		component := capabilityComponent(facts, capability)
+		// Docker is shared by every source shape; only Go/HTML and the
+		// recorded Go demonstration require the Go compiler.
+		if capability.id == "aiAppGeneration" && !facts.Tools["go"] {
+			component.Detail += "; Go/HTML builds and the recorded Go demonstration also require go"
+			if facts.ProviderKind == ProviderHTTP && facts.Tools["docker"] {
+				component.Detail += "; Python build prerequisites are present"
+			}
+		}
+		out = append(out, component)
 	}
 	return append(out, packagingComputeComponent(facts))
 }
