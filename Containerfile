@@ -36,9 +36,12 @@ RUN go mod download && \
     -ldflags="-s -w" -o /out/cosign github.com/sigstore/cosign/v3/cmd/cosign
 WORKDIR /source
 COPY go.mod go.sum ./
+COPY api api
 COPY cmd cmd
-COPY internal internal
+COPY docs docs
 COPY gen gen
+COPY internal internal
+COPY skills skills
 RUN rm -rf internal/consoleui/dist
 COPY --from=console /src/internal/consoleui/dist/ internal/consoleui/dist/
 RUN mkdir -p /out/state && touch /out/state/.keep && \
