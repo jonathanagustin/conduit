@@ -71,7 +71,12 @@ test("Environment summary index uses the native generated read without REST repl
     observed.environments.map(
       (row: { environment: unknown }) => row.environment,
     ),
-  ).toEqual(expected.environments.map((row) => row.environment));
+  ).toEqual(
+    expected.environments.map((row) => ({
+      id: row.environment.id,
+      generation: row.environment.generation,
+    })),
+  );
   expect(BigInt(observed.total ?? 0)).toBe(BigInt(expected.total));
   await expect(
     page.locator('[data-index-controls="environments"] [data-index-count]'),

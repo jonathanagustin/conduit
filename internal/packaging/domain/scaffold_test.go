@@ -60,7 +60,7 @@ func TestScaffoldDeterminismAndProvenance(t *testing.T) {
 	}
 }
 func TestScaffoldFailsClosed(t *testing.T) {
-	for _, change := range []func(*ScaffoldInput){func(i *ScaffoldInput) { i.Profile = "geoserver-stateful" }, func(i *ScaffoldInput) { i.Image = "app:latest" }, func(i *ScaffoldInput) { i.Name = "../escape" }, func(i *ScaffoldInput) { i.Name = "kube-system" }, func(i *ScaffoldInput) { i.UID = 0 }, func(i *ScaffoldInput) { i.Port = 80 }, func(i *ScaffoldInput) { i.CPUMilli = 0 }, func(i *ScaffoldInput) { i.MemoryMiB = 0 }, func(i *ScaffoldInput) { i.SourceRevision = "main" }, func(i *ScaffoldInput) { i.SourceSHA256 = "" }, func(i *ScaffoldInput) { i.ZarfVersion = "latest" }, func(i *ScaffoldInput) { i.UDSCommit = "main" }, func(i *ScaffoldInput) { i.Version = "{{ .Values.secret }}" }} {
+	for _, change := range []func(*ScaffoldInput){func(i *ScaffoldInput) { i.Profile = "geoserver-stateful" }, func(i *ScaffoldInput) { i.Image = "app:latest" }, func(i *ScaffoldInput) { i.Name = "../escape" }, func(i *ScaffoldInput) { i.Name = "kube-system" }, func(i *ScaffoldInput) { i.UID = 0 }, func(i *ScaffoldInput) { i.Port = 80 }, func(i *ScaffoldInput) { i.CPUMilli = 0 }, func(i *ScaffoldInput) { i.MemoryMiB = 0 }, func(i *ScaffoldInput) { i.SourceRevision = "main" }, func(i *ScaffoldInput) { i.SourceSHA256 = "" }, func(i *ScaffoldInput) { i.ZarfVersion = "latest" }, func(i *ScaffoldInput) { i.ZarfVersion = "1.0.0" }, func(i *ScaffoldInput) { i.UDSCommit = "main" }, func(i *ScaffoldInput) { i.Version = "{{ .Values.secret }}" }} {
 		in := scaffoldFixture()
 		change(&in)
 		if _, e := GenerateScaffold(in); e == nil {

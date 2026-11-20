@@ -200,7 +200,12 @@ export function indexPage(body, key, url) {
 }
 
 /** Rich views expand one visible page, with at most four reads in flight. */
-export async function expandIndexRows(index, rows, read) {
+export async function expandIndexRows(
+  index,
+  rows,
+  read,
+  fullEnvironmentDetails = false,
+) {
   const result = Array.from({ length: rows.length });
   let position = 0;
   async function worker() {
@@ -214,9 +219,12 @@ export async function expandIndexRows(index, rows, read) {
         result[at] = full;
       } else if (
         index === "environments" &&
-        Number.isSafeInteger(row.reported?.entityCount) &&
-        !Array.isArray(row.reported.entities)
+        (fullEnvironmentDetails ||
+          (Number.isSafeInteger(row.reported?.entityCount) &&
+            !Array.isArray(row.reported.entities)))
       ) {
+        // The generated index omits configuration even without a report.
+        // Preserve labels, namespaces and policy through the separate detail read.
         const full = await read(
           `/v1/environments/${encodeURIComponent(row.environment?.id || "")}`,
         );
@@ -239,11 +247,22 @@ export async function expandIndexRows(index, rows, read) {
   return result;
 }
 
-export async function readIndexPage(index, query, read, extra = {}) {
+export async function readIndexPage(
+  index,
+  query,
+  read,
+  extra = {},
+  fullEnvironmentDetails = false,
+) {
   const definition = INDEX_DEFINITIONS[index];
   const url = indexRequest(index, query, extra);
   const page = indexPage(await read(url), definition.key, url);
-  page.rows = await expandIndexRows(index, page.rows, read);
+  page.rows = await expandIndexRows(
+    index,
+    page.rows,
+    read,
+    fullEnvironmentDetails,
+  );
   return page;
 }
 

@@ -16,7 +16,7 @@ for image in "$hub" "$spoke"; do
 done
 zarf=${ZARF_BIN-zarf}
 [[ -n "$zarf" ]] || { echo 'ZARF_BIN must name a Zarf executable' >&2; exit 1; }
-[[ $("$zarf" version) == v1.0.0 ]] || { echo 'requires qualified Zarf v1.0.0' >&2; exit 1; }
+[[ $("$zarf" version) == v1.0.1 ]] || { echo 'requires qualified Zarf v1.0.1' >&2; exit 1; }
 # Never overwrite an existing package or follow a caller-supplied output symlink.
 mkdir -m 700 -- "$output"
 complete=false

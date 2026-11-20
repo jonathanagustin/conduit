@@ -9,6 +9,7 @@ test("Environment summary pages use generated reads with Space and opaque cursor
 }) => {
   const calls: Record<string, unknown>[] = [];
   const rest: string[] = [];
+  const details: string[] = [];
   page.on("request", (request) => {
     const url = new URL(request.url());
     if (
@@ -21,6 +22,23 @@ test("Environment summary pages use generated reads with Space and opaque cursor
     if (url.pathname === "/v1/session") return { json: session() };
     if (url.pathname === "/v1/spaces")
       return { json: { spaces: [{ id: SPACE, name: "Selected" }] } };
+    if (url.pathname.startsWith("/v1/environments/")) {
+      const id = decodeURIComponent(
+        url.pathname.slice("/v1/environments/".length),
+      );
+      details.push(id);
+      expect(url.searchParams.get("spaceId")).toBe(SPACE);
+      return {
+        json: {
+          environment: {
+            id,
+            generation: "opaque/+=",
+            labels: { review: "retained" },
+          },
+          spoke: { state: "UNREACHABLE" },
+        },
+      };
+    }
     return { json: {} };
   });
   await page.route("**" + procedure, async (route) => {
@@ -59,6 +77,8 @@ test("Environment summary pages use generated reads with Space and opaque cursor
   await expect
     .poll(() => calls.some((c) => c.cursor === "opaque/+=="))
     .toBe(true);
+  await expect(page.locator('[data-env-open="environment-20"]')).toBeVisible();
+  expect(new Set(details).size).toBe(40);
   expect(rest).toEqual([]);
 });
 

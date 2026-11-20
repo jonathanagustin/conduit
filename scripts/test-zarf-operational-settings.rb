@@ -16,7 +16,7 @@ directory = File.join(root, "deploy/zarf")
 definition = ConduitZarfRuntimeValues.definition(directory, {"HUB_IMAGE" => "fixture-hub", "SPOKE_AGENT_IMAGE" => "fixture-spoke"})
 zarf = ENV.fetch("ZARF_BIN", "zarf")
 version, error, status = Open3.capture3(zarf, "version")
-abort "requires pinned Zarf v1.0.0: #{version}#{error}" unless status.success? && version.strip == "v1.0.0"
+abort "requires pinned Zarf v1.0.1: #{version}#{error}" unless status.success? && version.strip == "v1.0.1"
 
 components = definition.fetch("components").to_h { |item| [item.fetch("name"), item] }
 abort "runtime must remain required by default" if components.fetch("runtime")["optional"]

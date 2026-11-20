@@ -58,7 +58,7 @@ The Environment summary adapter reuses the native Environment/Space query and
 is explicitly registered. [Its contract note](connect-environment-summaries.md)
 records the narrow projection, presence and authority boundaries. The CLI's
 explicit full/summary list and full detail commands can select Connect;
-console Environment summary indexes use the generated read; full/detail callers remain REST. #394 stays open for the remaining migration.
+the dedicated Environment index uses the generated read; other panels and full/detail callers remain REST. #394 stays open for the remaining migration.
 
 Known contract follow-ons are full Plan index/detail, change-request approve/reject,
 and audit-chain export. [Audit event reads](connect-audit-events.md) share the

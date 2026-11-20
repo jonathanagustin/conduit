@@ -287,21 +287,18 @@ describe("Space-scoped refresh", () => {
       indexQuery: `space=${SPACE}`,
     };
     await createLiveHub({ state, render: () => {} }).refresh();
-    for (const path of ["/v1/plans", "/v1/products"]) {
+    for (const path of ["/v1/environments", "/v1/plans", "/v1/products"]) {
       const request = requests.find((url) => url.pathname === path);
       expect(request?.searchParams.get("spaceId"), path).toBe(SPACE);
     }
     expect(requests.fleetBodies).toEqual([{ spaceId: SPACE, limit: 20 }]);
-    expect(requests.environmentBodies).toEqual([{ spaceId: SPACE, limit: 20 }]);
-    expect(requests.some((url) => url.pathname === "/v1/environments")).toBe(
-      false,
-    );
+    expect(requests.environmentBodies).toEqual([]);
     expect(
       requests.some((url) => url.pathname === "/v1/fleet/installations"),
     ).toBe(false);
     expect(state.hub.plans[0].plan.environment).toBe("later-environment");
     expect(state.hub.installations).toHaveLength(1);
-    expect(state.hub.indexPages.environments.total).toBe("40");
+    expect(state.hub.indexPages.environments.total).toBe(40);
   });
 
   it.each([false, true])(

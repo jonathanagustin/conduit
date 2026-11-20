@@ -84,7 +84,7 @@ distinction in issue acceptance and release notes.
 
 ## Operator summary index
 
-The active operator workbench uses the generated summary read for
+The dedicated operator Environment index (`flt-environments`) uses the generated summary read for
 `/v1/environments?view=summary`, including the visible Environment index and
 its filter/cursor refreshes. Search, limit, cursor and selected Space are sent
 unchanged to the native read. Counts remain exact; generation stays opaque,
@@ -92,7 +92,10 @@ missing report/liveness times stay absent and reported entity bodies are not
 invented. Malformed envelopes, mismatched report identities, duplicate rows,
 unsafe entity counts and unsupported selections fail without REST replay.
 
-This is an incremental caller migration. Full-catalog reads and selected
+This is an incremental caller migration. Other panels retain their existing
+reader. The dedicated index expands every summary through the existing full
+REST detail reader, including Environments with no report, so labels,
+namespaces and policy remain available. Full-catalog reads and selected
 Environment detail expansion still use their existing REST readers; those
 separate reads are not fallback after a failed summary RPC. Existing view,
 session and Space-change guards remain in place. CLI defaults and commands

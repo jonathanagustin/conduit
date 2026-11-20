@@ -526,6 +526,7 @@ test("a reviewed promotion passes on actual reported healthy installations", asy
 
 test("the Space selector scopes environments at the Hub", async ({ page }) => {
   await openWorkbench(page);
+  await openArea(page, "Fleet", "Environments");
   const space = (await send(
     page.request,
     hubURL(page, "/v1/spaces"),
@@ -541,15 +542,16 @@ test("the Space selector scopes environments at the Hub", async ({ page }) => {
   const scoped = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return (
-      response.request().method() === "GET" &&
-      url.pathname === "/v1/environments" &&
-      url.searchParams.get("spaceId") === space.id
+      response.request().method() === "POST" &&
+      url.pathname ===
+        "/conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries" &&
+      response.request().postDataJSON().spaceId === space.id
     );
   });
   await selector.selectOption(space.id);
   const scopedResponse = await scoped;
   expect(scopedResponse.ok()).toBe(true);
-  expect((await scopedResponse.json()).environments).toEqual([]);
+  expect((await scopedResponse.json()).environments ?? []).toEqual([]);
   await expect(page.locator("[data-space-scope]")).toBeVisible();
   await openArea(page, "Fleet", "Environments");
   await expect(

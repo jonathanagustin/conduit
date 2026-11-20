@@ -21,9 +21,9 @@ if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
 fi
 if ! command -v zarf >/dev/null 2>&1 && [[ -z "${ZARF_BIN:-}" ]]; then
   echo "zarf is required for package lint and package create." >&2
-  echo "Install zarf v1.0.0 and put it on PATH, or set ZARF_BIN to that binary." >&2
-  echo "Archive: https://github.com/zarf-dev/zarf/releases/download/v1.0.0/zarf_v1.0.0_Linux_amd64" >&2
-  echo "sha256: c58cf0241796525d9df9a449a5a2218743efa446b540a996f355d71349852857" >&2
+  echo "Install zarf v1.0.1 and put it on PATH, or set ZARF_BIN to that binary." >&2
+  echo "Archive: https://github.com/zarf-dev/zarf/releases/download/v1.0.1/zarf_v1.0.1_Linux_amd64" >&2
+  echo "sha256: 73f64e4c2d9ca2eba5c5067e5507e00b9ec553ff66acece497d2062bf5815a6b" >&2
   exit 1
 fi
 # shellcheck source=SCRIPTDIR/lib/demo-docker-network.sh

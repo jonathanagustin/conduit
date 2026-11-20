@@ -11,7 +11,7 @@ grep -q 'ZARF_BIN must name a Zarf executable' "$work/empty.log"
 cat > "$work/zarf" <<STUB
 #!/bin/sh
 printf '%s\\n' "\$*" >> "$work/calls"
-if [ "\$1" = version ]; then echo v1.0.0; fi
+if [ "\$1" = version ]; then echo v1.0.1; fi
 if [ "\$1 \$2" = "dev template" ]; then printf 'fixture\\n' > "\${3%/*}/zarf.gen.yaml"; fi
 STUB
 chmod +x "$work/zarf"

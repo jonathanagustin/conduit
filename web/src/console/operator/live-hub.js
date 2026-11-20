@@ -699,6 +699,8 @@ export function createLiveHub({
     const wants = (index) => !required || required.has(index);
     const truncated = {};
     const pages = async (path, key, index) => {
+      const environmentSummaryIndex =
+        index === "environments" && options.screen === "flt-environments";
       const load =
         index === "installations"
           ? (url) => {
@@ -710,7 +712,7 @@ export function createLiveHub({
                 spaceScopedPath(url, activeSpaceId(state.spaceId)),
               );
             }
-          : index === "environments"
+          : environmentSummaryIndex
             ? (url) => {
                 if (!current())
                   throw new DOMException("Hub view changed", "AbortError");
@@ -736,7 +738,13 @@ export function createLiveHub({
         );
         const url = indexRequest(index, options.query, extra);
         try {
-          const page = await readIndexPage(index, options.query, load, extra);
+          const page = await readIndexPage(
+            index,
+            options.query,
+            load,
+            extra,
+            environmentSummaryIndex,
+          );
           next.indexPages[index] = page;
           if (page.nextCursor || page.hasPrevious)
             truncated[index] = {
