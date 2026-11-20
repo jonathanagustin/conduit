@@ -42,11 +42,13 @@ func addChangeActivityCommands(group *cobra.Command, state *commandState) {
 	comment.Flags().StringVarP(&text, "comment", "c", "", "discussion text (required)")
 	_ = comment.MarkFlagRequired("comment")
 	group.AddCommand(comment)
-	group.AddCommand(&cobra.Command{Use: "comments REQUEST_RID", Short: "List Conduit-native discussion comments with server-recorded authors and times", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	comments := &cobra.Command{Use: "comments REQUEST_RID", Short: "List Conduit-native discussion comments with server-recorded authors and times", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		return run(cmd, func(port operator.ChangeActivityControlPlane) (any, error) {
 			return port.ListChangeRequestComments(cmd.Context(), args[0])
 		})
-	}})
+	}}
+	comments.Flags().StringVar(&state.config.DiscussionReadTransport, "read-transport", "rest", "discussion read transport: rest or connect; failures are never replayed")
+	group.AddCommand(comments)
 	labels := &cobra.Command{Use: "label", Short: "Add or remove one existing Change Request label"}
 	for _, operation := range []string{"add", "remove"} {
 		var name string

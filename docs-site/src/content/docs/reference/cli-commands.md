@@ -243,8 +243,12 @@ conduit changerequest comment REQUEST_RID [flags]
 List Conduit-native discussion comments with server-recorded authors and times
 
 ```text
-conduit changerequest comments REQUEST_RID
+conduit changerequest comments REQUEST_RID [flags]
 ```
+
+| Flag | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `--read-transport` | `string` | `rest` | discussion read transport: rest or connect; failures are never replayed |
 
 ## conduit changerequest get
 
