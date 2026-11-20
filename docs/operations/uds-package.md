@@ -277,6 +277,17 @@ when the check is done: `k3d cluster delete conduit-zarf`.
 
 ## UDS Core slim-dev, then the Package CR
 
+Live findings of 2026-11-20 (`docs/evidence/uds-core-install-2026-11-20.txt`)
+that contradict earlier text on this page: the deploy command no longer sets
+`OPERATOR_OIDC_CA_FILE`, because on Core 1.17.1 the `uds-trust-bundle`
+ConfigMap exists only in `istio-system` and the Hub refuses to start when the
+named file is missing (the tenant gateway certificate is publicly trusted).
+Core 1.17.1 puts Keycloak in ambient mode; where ambient cannot initialize,
+sidecar clients and the gateway get 503 from Keycloak and the Hub exits at
+OIDC discovery. Through the tenant gateway the Hub console currently returns
+503/400, because the gateway sends plain HTTP to the Hub's TLS port.
+
+
 Run this only after the plain cluster is gone. Slim-dev creates its own k3d
 cluster, initializes Zarf, and installs Istio, Keycloak, and Pepr. It does
 not install the Portal layer. See [Portal tiles](#portal-tiles).
@@ -294,7 +305,6 @@ uds zarf package deploy /tmp/conduit-zarf/zarf-package-platform-runtime-amd64-0.
   --set-variables OPERATOR_OIDC_CLIENT_ID=conduit-hub \
   --set-variables OPERATOR_OIDC_USERNAME_CLAIM=preferred_username \
   --set-variables OPERATOR_OIDC_GROUPS_CLAIM=groups \
-  --set-variables OPERATOR_OIDC_CA_FILE=/etc/ssl/platform-ca/ca-bundle.pem \
   --set-variables OPERATOR_OIDC_CLIENT_SECRET_FILE=/run/conduit-sso/client-secret
 
 uds zarf tools kubectl -n platform-system rollout status deploy/platform-delivery --timeout=180s
