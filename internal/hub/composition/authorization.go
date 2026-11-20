@@ -202,6 +202,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionPublic, Detail: "the identity provider's return address: it is where a person becomes authenticated, so it cannot require that they already are; it redeems a single-use state bound to the browser that started the sign-in"},
 		{Pattern: "GET /v1/auth/login",
 			Decision: DecisionPublic, Detail: "starts a sign-in by redirecting to the configured issuer; it reads no Hub record and its redirect address comes from configuration only"},
+		{Pattern: "POST /conduit.governance.v1.AuthorizationAuditChainReadService/ListAuthorizationAuditChain",
+			Decision: DecisionOperatorGrant, Detail: "native original operator carrier + shared governance administrator decision before decoding and reading the filtered chain projection"},
 		{Pattern: "POST /conduit.governance.v1.AuthorizationAuditReadService/ListAuthorizationAuditEvents",
 			Decision: DecisionOperatorGrant, Detail: "native original operator carrier + shared governance administrator decision before decoding and reading"},
 		{Pattern: "GET /v1/authorization-audit",

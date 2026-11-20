@@ -31,3 +31,14 @@ type AuditEventReadPage struct {
 	NextCursor             string
 	HasPrevious            bool
 }
+
+// AuditChainReadQuery selects the native filtered projection, not the raw ledger.
+type AuditChainReadQuery AuditEventReadQuery
+
+// AuditChainReadPage retains exact projection digest material and seek metadata.
+type AuditChainReadPage struct {
+	Entries                []domain.AuthorizationAuditChainEntry
+	Total, PageSize, Limit int
+	NextCursor             string
+	HasPrevious            bool
+}

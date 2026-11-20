@@ -24,3 +24,26 @@ error. Repository diagnostics are never returned.
 
 This method grants no chain export, pruning, retention or archive authority.
 Those operations and their custody decisions remain separate.
+
+## Filtered chain projection
+
+`conduit.governance.v1.AuthorizationAuditChainReadService/ListAuthorizationAuditChain`
+serves the existing REST `view=chain` read with the same original-carrier
+administrator decision, bounds, filters, order and forward-only cursors. Its
+separate procedure makes an older Hub explicitly refuse an unsupported method;
+clients must select REST explicitly rather than silently retry another transport.
+No existing caller changes transport.
+
+Each entry retains the exact native sequence, previous digest, digest, resource,
+origin and payload bytes. Sequence is protobuf uint64, which uses a decimal
+string in protobuf JSON. Optional display context is JSON bytes and is not a
+digest input. Missing recorded time remains absent. Page boundaries carry the
+native projection checkpoint in a cursor bound to the view and filters.
+
+This is a Conduit extension backed by the native chain algorithm, not a private
+Apollo protocol. A filtered reconstruction is not persisted ledger commit order,
+an independently retained trust anchor, a verified raw archive export or archive
+custody authority. The read adds no mutation, retention, pruning or publication.
+The separate offline database verifier and its explicit checkpoint choices are
+unchanged. REST/protobuf pagination and exact digest material, cursor rebinding,
+original delegated carrier and refusal-before-decoding tests constrain the adapter.

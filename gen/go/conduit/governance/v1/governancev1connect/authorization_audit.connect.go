@@ -16,6 +16,9 @@ const (
 	// AuthorizationAuditReadServiceName is the fully-qualified name of the
 	// AuthorizationAuditReadService service.
 	AuthorizationAuditReadServiceName = "conduit.governance.v1.AuthorizationAuditReadService"
+	// AuthorizationAuditChainReadServiceName is the fully-qualified name of the
+	// AuthorizationAuditChainReadService service.
+	AuthorizationAuditChainReadServiceName = "conduit.governance.v1.AuthorizationAuditChainReadService"
 )
 
 // These constants are the procedure names of the RPCs defined in this package. They're exposed at
@@ -29,6 +32,9 @@ const (
 	// AuthorizationAuditReadServiceListAuthorizationAuditEventsProcedure is the procedure name of the
 	// AuthorizationAuditReadService's ListAuthorizationAuditEvents RPC.
 	AuthorizationAuditReadServiceListAuthorizationAuditEventsProcedure = "/conduit.governance.v1.AuthorizationAuditReadService/ListAuthorizationAuditEvents"
+	// AuthorizationAuditChainReadServiceListAuthorizationAuditChainProcedure is the procedure name of
+	// the AuthorizationAuditChainReadService's ListAuthorizationAuditChain RPC.
+	AuthorizationAuditChainReadServiceListAuthorizationAuditChainProcedure = "/conduit.governance.v1.AuthorizationAuditChainReadService/ListAuthorizationAuditChain"
 )
 
 var (
@@ -103,6 +109,81 @@ func (h authorizationAuditReadServiceHandler) listAuthorizationAuditEvents(ctx c
 		return err
 	}
 	res, err := h.svc.ListAuthorizationAuditEvents(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
+
+var (
+	authorizationAuditChainReadServiceListAuthorizationAuditChainSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType:       connect.StreamTypeUnary,
+			Schema:           v1.File_conduit_governance_v1_authorization_audit_proto.Services().ByName("AuthorizationAuditChainReadService").Methods().ByName("ListAuthorizationAuditChain"),
+			Procedure:        AuthorizationAuditChainReadServiceListAuthorizationAuditChainProcedure,
+			IdempotencyLevel: connect.IdempotencyNoSideEffects,
+		}
+	})
+)
+
+// AuthorizationAuditChainReadServiceClient is a client for the
+// conduit.governance.v1.AuthorizationAuditChainReadService service.
+type AuthorizationAuditChainReadServiceClient interface {
+	ListAuthorizationAuditChain(context.Context, *v1.ListAuthorizationAuditChainRequest) (*v1.ListAuthorizationAuditChainResponse, error)
+}
+
+// NewAuthorizationAuditChainReadServiceClient constructs a client for the
+// conduit.governance.v1.AuthorizationAuditChainReadService service. Multiple service clients may
+// share a single connect.Client.
+func NewAuthorizationAuditChainReadServiceClient(client *connect.Client) AuthorizationAuditChainReadServiceClient {
+	return &authorizationAuditChainReadServiceClient{client: client}
+}
+
+// AuthorizationAuditChainReadServiceHandler is an implementation of the
+// conduit.governance.v1.AuthorizationAuditChainReadService service.
+type AuthorizationAuditChainReadServiceHandler interface {
+	ListAuthorizationAuditChain(context.Context, *v1.ListAuthorizationAuditChainRequest) (*v1.ListAuthorizationAuditChainResponse, error)
+}
+
+// RegisterAuthorizationAuditChainReadServiceHandler registers svc as the
+// conduit.governance.v1.AuthorizationAuditChainReadService implementation on server.
+func RegisterAuthorizationAuditChainReadServiceHandler(server *connect.Server, svc AuthorizationAuditChainReadServiceHandler) {
+	adapter := authorizationAuditChainReadServiceHandler{svc: svc}
+	server.Register(
+		connect.Method{Spec: authorizationAuditChainReadServiceListAuthorizationAuditChainSpec(), Handler: adapter.listAuthorizationAuditChain},
+	)
+}
+
+// UnimplementedAuthorizationAuditChainReadServiceHandler returns CodeUnimplemented from all
+// methods.
+type UnimplementedAuthorizationAuditChainReadServiceHandler struct{}
+
+func (UnimplementedAuthorizationAuditChainReadServiceHandler) ListAuthorizationAuditChain(context.Context, *v1.ListAuthorizationAuditChainRequest) (*v1.ListAuthorizationAuditChainResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "conduit.governance.v1.AuthorizationAuditChainReadService.ListAuthorizationAuditChain is not implemented")
+}
+
+type authorizationAuditChainReadServiceClient struct {
+	client *connect.Client
+}
+
+func (c *authorizationAuditChainReadServiceClient) ListAuthorizationAuditChain(ctx context.Context, req *v1.ListAuthorizationAuditChainRequest) (*v1.ListAuthorizationAuditChainResponse, error) {
+	var res v1.ListAuthorizationAuditChainResponse
+	if err := c.client.CallUnary(ctx, authorizationAuditChainReadServiceListAuthorizationAuditChainSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+type authorizationAuditChainReadServiceHandler struct {
+	svc AuthorizationAuditChainReadServiceHandler
+}
+
+func (h authorizationAuditChainReadServiceHandler) listAuthorizationAuditChain(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListAuthorizationAuditChainRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListAuthorizationAuditChain(ctx, &req)
 	if err != nil {
 		return err
 	}

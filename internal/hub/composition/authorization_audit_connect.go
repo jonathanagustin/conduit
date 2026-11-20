@@ -40,6 +40,13 @@ func mountAuthorizationAuditConnect(legacy http.Handler, repository controlplane
 			}
 			return context.WithValue(r.Context(), auditReadPrincipalKey{}, principal), nil
 		},
+		ReadChain: func(ctx context.Context, q governanceapp.AuditChainReadQuery) (governanceapp.AuditChainReadPage, error) {
+			principal, ok := ctx.Value(auditReadPrincipalKey{}).(controlplane.Principal)
+			if !ok {
+				return governanceapp.AuditChainReadPage{}, governanceapp.ErrAuditReadUnauthenticated
+			}
+			return controlplane.ReadAuthorizationAuditChain(ctx, repository, governance, principal, options, q)
+		},
 		Read: func(ctx context.Context, q governanceapp.AuditEventReadQuery) (governanceapp.AuditEventReadPage, error) {
 			principal, ok := ctx.Value(auditReadPrincipalKey{}).(controlplane.Principal)
 			if !ok {
