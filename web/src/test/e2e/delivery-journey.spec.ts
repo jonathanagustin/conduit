@@ -120,6 +120,24 @@ type Hub = {
 /** One dispatcher for every Hub route the delivery views read or write. */
 async function stubHub(page: Page, hub: Hub) {
   await page.route(
+    "**/conduit.fleet.v1.FleetReadService/ListFleetInstallations",
+    (route) => {
+      const body = route.request().postDataJSON();
+      const installations = hub.installations ?? [];
+      return route.fulfill({
+        json: {
+          generatedAt: "2026-11-20T01:00:00Z",
+          maxResultAgeSeconds: "0",
+          installations,
+          summary: { total: String(installations.length) },
+          facets: {},
+          pageSize: installations.length,
+          limit: body.limit || 100,
+        },
+      });
+    },
+  );
+  await page.route(
     "**/conduit.packaging.v1.PackagingRunService/ListPackagingRuns",
     (route) =>
       route.fulfill({

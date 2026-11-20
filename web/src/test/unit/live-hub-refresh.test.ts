@@ -34,6 +34,19 @@ function stubHub(calls: Call[]) {
           }),
           { headers: { "content-type": "application/json" } },
         );
+      if (path.endsWith("/ListFleetInstallations"))
+        return new Response(
+          JSON.stringify({
+            generatedAt: "2026-11-20T01:00:00Z",
+            maxResultAgeSeconds: "120",
+            installations: [],
+            summary: { total: "0" },
+            facets: {},
+            pageSize: 0,
+            limit: 20,
+          }),
+          { headers: { "content-type": "application/json" } },
+        );
       if (path === "/v1/bundles") {
         return new Response(JSON.stringify({ bundles: [{ id: "b1" }] }), {
           status: 200,
@@ -164,6 +177,7 @@ describe("live hub refresh", () => {
       expect([
         ...REFRESH_READ_POSTS,
         "/conduit.packaging.v1.PackagingRunService/ListPackagingRuns",
+        "/conduit.fleet.v1.FleetReadService/ListFleetInstallations",
       ]).toContain(post.path);
     }
     expect(

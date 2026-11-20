@@ -151,3 +151,53 @@ test("release journey runs end to end on the Hub's own data", async ({
   await main.locator("[data-ledger-check]").click();
   await expect(main.getByText(/All \d+ links match/)).toBeVisible();
 });
+
+test("active Fleet generated read uses native Hub visibility without REST replay", async ({
+  page,
+}) => {
+  const restReads: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/v1/fleet/installations")
+      restReads.push(request.url());
+  });
+  const procedure = "/conduit.fleet.v1.FleetReadService/ListFleetInstallations";
+  const observed = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === procedure &&
+      response.request().method() === "POST",
+  );
+  await page.goto("./#rm05-release-rollout");
+  const response = await observed;
+  expect(response.ok(), await response.text()).toBe(true);
+  expect(response.request().postDataJSON()).toEqual({ limit: 20 });
+  const body = await response.json();
+  expect(body.installations.length).toBeGreaterThan(0);
+  expect(
+    body.installations.every(
+      (row: { environment: string; installationId: string }) =>
+        row.environment && row.installationId,
+    ),
+  ).toBe(true);
+  await expect(
+    page.locator('[data-index-controls="installations"] [data-index-count]'),
+  ).toHaveText(
+    `Showing ${body.installations.length} of ${body.summary.total} installations in this page.`,
+  );
+  expect(restReads).toEqual([]);
+  // This fixture's operator has Environment authority; another authenticated
+  // caller has none and receives the native filtered empty projection.
+  const denied = await page.request.post(
+    new URL(procedure, page.url()).toString(),
+    {
+      headers: {
+        "X-Platform-Subject": "fleet-unprivileged",
+        "Connect-Protocol-Version": "1",
+      },
+      data: { limit: 20 },
+    },
+  );
+  expect(denied.status(), await denied.text()).toBe(200);
+  const filtered = await denied.json();
+  expect(filtered.installations || []).toEqual([]);
+  expect(filtered.summary?.total || "0").toBe("0");
+});

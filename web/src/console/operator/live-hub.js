@@ -25,6 +25,10 @@ import {
   fetchPackagingEvents,
   packagingEventsTransport,
 } from "../../api/packaging-events.js";
+import {
+  fetchFleetInstallations,
+  fleetInstallationsTransport,
+} from "../../api/fleet-installations.js";
 import { LiveSubscription, idleLiveStatus } from "../../api/live-events.js";
 import { createLiveOperations } from "./live-operations.js";
 import { liveSessionIdentity } from "../../api/live-identity.js";
@@ -689,6 +693,18 @@ export function createLiveHub({
     const wants = (index) => !required || required.has(index);
     const truncated = {};
     const pages = async (path, key, index) => {
+      const load =
+        index === "installations"
+          ? (url) => {
+              if (!current())
+                throw new DOMException("Hub view changed", "AbortError");
+              return fetchFleetInstallations(
+                fleetInstallationsTransport(window.location.origin),
+                options.signal,
+                spaceScopedPath(url, activeSpaceId(state.spaceId)),
+              );
+            }
+          : read;
       if (options.screen && INDEX_DEFINITIONS[index]) {
         const extra = Object.fromEntries(
           new URL(
@@ -698,7 +714,7 @@ export function createLiveHub({
         );
         const url = indexRequest(index, options.query, extra);
         try {
-          const page = await readIndexPage(index, options.query, read, extra);
+          const page = await readIndexPage(index, options.query, load, extra);
           next.indexPages[index] = page;
           if (page.nextCursor || page.hasPrevious)
             truncated[index] = {
@@ -718,7 +734,7 @@ export function createLiveHub({
           throw error;
         }
       }
-      const page = await readPages(path, key, read, true);
+      const page = await readPages(path, key, load, true);
       if (page.truncated)
         truncated[index] = { shown: page.rows.length, total: page.total };
       return page.rows;

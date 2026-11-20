@@ -142,7 +142,9 @@ describe("server Space scope", () => {
 describe("Space-scoped refresh", () => {
   afterEach(() => vi.unstubAllGlobals());
   function install(spacesAvailable = true) {
-    const requests: URL[] = [];
+    const requests = Object.assign([] as URL[], {
+      fleetBodies: [] as Record<string, unknown>[],
+    });
     vi.stubGlobal("window", { location: { origin: "http://hub.local" } });
     vi.stubGlobal("document", {
       getElementById: () => null,
@@ -159,6 +161,37 @@ describe("Space-scoped refresh", () => {
         requests.push(url);
         const json = (body: unknown, status = 200) =>
           new Response(JSON.stringify(body), { status });
+        if (
+          url.pathname ===
+            "/conduit.fleet.v1.FleetReadService/ListFleetInstallations" &&
+          input instanceof Request
+        ) {
+          expect(input.method).toBe("POST");
+          const body = await input.json();
+          requests.fleetBodies.push(body);
+          if (body.spaceId && body.spaceId !== SPACE)
+            return new Response(
+              JSON.stringify({
+                code: "permission_denied",
+                message: "unknown or denied Space",
+              }),
+              { status: 403, headers: { "content-type": "application/json" } },
+            );
+          return new Response(
+            JSON.stringify({
+              generatedAt: "2026-11-20T01:00:00Z",
+              maxResultAgeSeconds: "120",
+              installations: [
+                { environment: "later-environment", installationId: "app" },
+              ],
+              summary: { total: "1" },
+              facets: {},
+              pageSize: 1,
+              limit: body.limit || 100,
+            }),
+            { headers: { "content-type": "application/json" } },
+          );
+        }
         if (url.pathname === "/v1/spaces")
           return spacesAvailable
             ? json({ spaces: [{ id: SPACE }] })
@@ -221,15 +254,14 @@ describe("Space-scoped refresh", () => {
       indexQuery: `space=${SPACE}`,
     };
     await createLiveHub({ state, render: () => {} }).refresh();
-    for (const path of [
-      "/v1/environments",
-      "/v1/plans",
-      "/v1/products",
-      "/v1/fleet/installations",
-    ]) {
+    for (const path of ["/v1/environments", "/v1/plans", "/v1/products"]) {
       const request = requests.find((url) => url.pathname === path);
       expect(request?.searchParams.get("spaceId"), path).toBe(SPACE);
     }
+    expect(requests.fleetBodies).toEqual([{ spaceId: SPACE, limit: 20 }]);
+    expect(
+      requests.some((url) => url.pathname === "/v1/fleet/installations"),
+    ).toBe(false);
     expect(state.hub.plans[0].plan.environment).toBe("later-environment");
     expect(state.hub.installations).toHaveLength(1);
     expect(state.hub.indexPages.environments.total).toBe(40);
