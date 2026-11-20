@@ -215,6 +215,28 @@ function installHub(answer: (url: URL) => unknown) {
       "http://hub.local",
     );
     paths.push(url.pathname + url.search);
+    if (
+      url.pathname ===
+        "/conduit.fleet.v1.FleetReadService/ListFleetInstallations" &&
+      input instanceof Request
+    ) {
+      const request = await input.json();
+      const native = new URL("/v1/fleet/installations", "http://hub.local");
+      for (const [key, value] of Object.entries(request))
+        native.searchParams.set(key, String(value));
+      const body = (await answer(native)) as Record<string, any>;
+      return new Response(
+        JSON.stringify({
+          generatedAt: "2026-11-20T01:00:00Z",
+          maxResultAgeSeconds: "120",
+          facets: {},
+          limit: request.limit || 100,
+          pageSize: body.installations?.length || 0,
+          ...body,
+        }),
+        { headers: { "content-type": "application/json" } },
+      );
+    }
     return new Response(JSON.stringify(await answer(url)), {
       headers: { "content-type": "application/json" },
     });
@@ -266,6 +288,17 @@ describe("visible-screen reads", () => {
       installationId: "app",
       product: "app.example:api",
       observedVersion: "1.0.0",
+      namespace: "",
+      desiredVersion: "",
+      desiredReleaseDigest: "",
+      observedReleaseDigest: "",
+      desiredConfigDigest: "",
+      observedConfigDigest: "",
+      rolloutStatus: "",
+      configStatus: "",
+      lifecycle: "",
+      observationAgeSeconds: 0,
+      stale: false,
       health: "HEALTHY",
     };
     const desiredState = {
@@ -303,7 +336,10 @@ describe("visible-screen reads", () => {
     const state: Record<string, any> = { screen: "rm06-promotion-pipe" };
     await createLiveHub({ state, render: () => {} }).refresh();
     expect(
-      paths.some((path) => path.startsWith("/v1/fleet/installations?")),
+      paths.some(
+        (path) =>
+          path === "/conduit.fleet.v1.FleetReadService/ListFleetInstallations",
+      ),
     ).toBe(true);
     expect(paths.some((path) => path.startsWith("/v1/plans?"))).toBe(true);
     expect(state.hub.installations).toEqual([installation]);

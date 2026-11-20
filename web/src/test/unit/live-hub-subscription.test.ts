@@ -49,7 +49,8 @@ function setup(streamStatus = 200) {
             : input.url;
       calls.push({
         path,
-        method: init?.method ?? "GET",
+        method:
+          input instanceof Request ? input.method : (init?.method ?? "GET"),
         signal: init?.signal,
         headers: init?.headers,
       });
@@ -68,6 +69,22 @@ function setup(streamStatus = 200) {
           { headers: { "content-type": "application/json" } },
         );
       }
+      if (
+        path ===
+        "http://hub.local/conduit.fleet.v1.FleetReadService/ListFleetInstallations"
+      )
+        return new Response(
+          JSON.stringify({
+            generatedAt: "2026-11-20T01:00:00Z",
+            maxResultAgeSeconds: "120",
+            installations: [],
+            summary: { total: "0" },
+            facets: {},
+            pageSize: 0,
+            limit: 20,
+          }),
+          { headers: { "content-type": "application/json" } },
+        );
       if (path === "/v1/events") {
         const body = new ReadableStream<Uint8Array>({
           start(value) {
@@ -159,7 +176,17 @@ describe("active Hub live bridge", () => {
     await vi.advanceTimersByTimeAsync(30000);
     await tick();
     expect(fixture.calls).toHaveLength(count);
-    expect(fixture.calls.every((call) => call.method === "GET")).toBe(true);
+    expect(
+      fixture.calls.every(
+        (call) =>
+          call.method === "GET" ||
+          (call.method === "POST" &&
+            [
+              "http://hub.local/conduit.fleet.v1.FleetReadService/ListFleetInstallations",
+              "http://hub.local/conduit.packaging.v1.PackagingRunService/ListPackagingRuns",
+            ].includes(call.path)),
+      ),
+    ).toBe(true);
   });
   it("shows authorization failure and keeps a read-only polling fallback without reconnect loops", async () => {
     const fixture = setup(403);

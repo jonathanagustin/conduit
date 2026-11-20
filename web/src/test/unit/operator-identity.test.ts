@@ -173,7 +173,12 @@ describe("native operator display boundaries", () => {
     expect(f.reads()).toBe(1);
     expect(
       f.calls.every(
-        (c) => c.method === "GET" || c.path.endsWith("/ListPackagingRuns"),
+        (c) =>
+          c.method === "GET" ||
+          (c.method === "POST" &&
+            ["/ListPackagingRuns", "/ListFleetInstallations"].some((path) =>
+              c.path.endsWith(path),
+            )),
       ),
     ).toBe(true);
     f.hub.stop();

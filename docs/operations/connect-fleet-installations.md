@@ -4,7 +4,9 @@ The Hub dual-serves `GET /v1/fleet/installations` through the exact POST
 `conduit.fleet.v1.FleetReadService/ListFleetInstallations`. This is a Conduit
 extension derived from the native projection and paginator at main commit
 `d17bf007c5f2c2303148da1bd88580618b95615d`, not a private Apollo protocol.
-Existing CLI and console Fleet callers remain on REST.
+Active operator installation refreshes use the generated Connect reader for
+initial loads, result windows and later refreshes. CLI and the legacy
+`web/src/console/data/hub.ts` Fleet helper remain REST.
 
 ## Authority and query
 
@@ -53,3 +55,20 @@ preserve UTC instants and nanoseconds. A missing observation remains absent,
 never the current time. Invalid timestamps, negative counts/ages and ambiguous
 UTF-8-normalized count keys refuse the whole result. Open status strings remain
 open. Protobuf collections do not retain Go nil-versus-empty distinctions.
+
+## Active operator client
+
+The generated reader retains selected Space, filter and opaque cursor coordinates,
+uses same-origin credentials and cancellation, and maps refusals through the
+existing Hub error type. It never replays a refused or ambiguous request as REST.
+Counter and facet int64 values stay exact; the result-window label renders the
+full decimal total. Observation age must fit a JavaScript safe integer rather
+than being rounded. Missing observations remain absent, timestamps retain
+nanoseconds, and open status strings remain open.
+
+An unset native maximum-age policy is zero, not proof that the Hub failed to
+configure a required policy. The client preserves that value; it does not invent
+a duration or change stale-state evidence. Negative counts/ages and malformed
+page or identity evidence refuse the whole page. Refresh and session boundaries
+retain their existing stale-result guards. No mutation or execution authority
+is added.

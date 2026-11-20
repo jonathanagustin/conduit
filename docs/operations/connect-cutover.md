@@ -24,7 +24,7 @@ including reads. A read encoded as POST is not a governed state change.
 | `POST /v1/plans/{planID}/approvals` | `conduit.plans.v1.PlanApprovalService/ApprovePlan` | Generated active operator delivery/approval panels and legacy helper; explicit CLI `plan approve --write-transport connect` returns a versioned receipt; CLI default remains REST, no automatic retry |
 | `GET /v1/plans?view=summary` | `conduit.plans.v1.PlanReadService/ListPlanSummaries` | Explicit CLI `plan list --read-transport connect` without a selected Space; default remains REST |
 | `GET /v1/plans?view=summary&spaceId=SPACE` | `conduit.plans.v1.PlanScopedReadService/ListPlanSummariesInSpace` | CLI `plan list --space-id SPACE --read-transport connect`; validates echoed Space; unsupported Hubs fail without replay |
-| `GET /v1/fleet/installations` | `conduit.fleet.v1.FleetReadService/ListFleetInstallations` | Dual-served filtered Fleet projection; current CLI and console callers remain REST |
+| `GET /v1/fleet/installations` | `conduit.fleet.v1.FleetReadService/ListFleetInstallations` | Generated active operator installation pages/refreshes; filtered native projection; CLI and legacy helper remain REST; no fallback |
 | `GET /v1/environments?view=full` (or absent view) | `conduit.environments.v1.EnvironmentCatalogService/ListEnvironments` | CLI `environment list --read-transport connect`; REST remains default and console callers remain REST |
 | `GET /v1/environments?view=summary` | `conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries` | CLI `environment list --view summary --read-transport connect`; explicit full-view Connect is also available |
 | `GET /v1/environments/{environmentID}/reported-state` | `conduit.environments.v1.EnvironmentObservationService/GetEnvironmentReportedState` | CLI `environment reported-state --read-transport connect`; REST remains the default; failures are not replayed |
@@ -227,3 +227,11 @@ wrong-Plan or unrecorded details remain unknown. Error messages direct the calle
 to refresh and preserve the mapped status without displaying server diagnostics.
 No command failure is automatically replayed over REST, and REST deprecation is
 not activated.
+
+## Unsent review input during refresh
+
+Packaging review-note fields remain an in-memory draft for their exact run while
+read refreshes replace the view. A native identity change clears those drafts.
+Acknowledging one recorded note clears only the submitted draft; a later edit is
+retained. Only the explicit Record action posts feedback, and recorded notes stay
+in the existing Hub store. Refresh adds no approval or execution authority.

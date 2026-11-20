@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { APPLICATIONS } from "./hub-stub";
-import { installPackagingReadStub, hydrate } from "./console-fixture";
+import {
+  installPackagingReadStub,
+  hydrate,
+  fleetFixtureURL,
+  fulfillFleetFixture,
+} from "./console-fixture";
 
 installPackagingReadStub();
 
@@ -29,174 +34,177 @@ test("Intelligence stages only scoped confirmed proposals and distinguishes eval
     },
   ];
   let created = false;
-  await page.route("**/v1/**", async (route) => {
-    const path = new URL(route.request().url()).pathname;
-    if (
-      route.request().method() !== "GET" &&
-      (/\/(approve|leases|start)$/.test(path) ||
-        path.includes("model-proposal"))
-    )
-      forbidden.push(path);
-    if (path === "/v1/session")
-      return route.fulfill({
-        json: {
-          actor: { username: "intel-writer" },
-          effective: { username: "intel-writer" },
-          applications: APPLICATIONS,
-        },
-      });
-    if (path === "/v1/fleet/installations")
-      return route.fulfill({
-        json: {
-          installations: [
-            {
-              environment: "scoped-prod",
-              installationId: "native-api",
-              product: "native-product",
-              desiredVersion: "1",
-            },
-            {
-              environment: "foreign-observed",
-              installationId: "observed-only",
-              product: "unknown",
-            },
-          ],
-        },
-      });
-    if (path === "/v1/intelligence/logic")
-      return route.fulfill({
-        json: {
-          adapter: "recorded",
-          timeout: "45s",
-          gateRule: "memory <= 1Gi",
-          label: "No model call",
-        },
-      });
-    if (path === "/v1/intelligence/courses")
-      return route.fulfill({
-        json: {
-          label: "No model call",
-          options: [
-            {
-              id: "coa-512",
-              title: "512Mi option",
-              value: "512Mi",
-              outcome: "PASS",
-              blocked: false,
-              reason: "within ceiling",
-              tradeoff: "bounded memory",
-              label: "No model call",
-            },
-            {
-              id: "coa-8gi",
-              title: "8Gi option",
-              value: "8Gi",
-              outcome: "FAIL_REQUIRED",
-              blocked: true,
-              reason: "exceeds ceiling",
-              tradeoff: "blocked",
-              label: "No model call",
-            },
-          ],
-        },
-      });
-    if (path === "/v1/intelligence/courses/select") {
-      const body = route.request().postDataJSON();
-      selections.push(body);
-      created = true;
-      return route.fulfill({
-        json: {
-          valueTier: "CONDUIT_NATIVE",
-          changeRequestId: "intel-request",
-          status: "PENDING_APPROVALS",
-          environment: body.Environment,
-          installationId: body.InstallationID,
-          productId: body.ProductID,
-          value: body.Value,
-        },
-      });
-    }
-    if (path === "/v1/change-requests")
-      return route.fulfill({
-        json: {
-          changeRequests: created
-            ? [
-                {
-                  id: "intel-request",
-                  title: "Scoped memory proposal",
-                  targetKind: "CONDUIT_NATIVE_INTELLIGENCE_COURSE",
-                  environment: "scoped-prod",
-                  author: { username: "intel-writer" },
-                  status: "PENDING_APPROVALS",
-                  changes: [
-                    {
-                      id: "memory",
-                      diff: { "limits.memory": { after: "512Mi" } },
-                    },
-                  ],
-                  requirements: [{ kind: "TEAM", team: "release-reviewers" }],
-                },
-              ]
-            : [],
-        },
-      });
-    if (path === "/v1/intelligence/evals")
-      return route.fulfill({ json: { cases } });
-    if (path === "/v1/intelligence/evals/run")
-      return route.fulfill({
-        json: {
-          label: "No model call",
-          results: cases.map((item) => ({
-            case: item,
-            columns: [
+  await page.route(
+    /\/v1\/|\/conduit\.fleet\.v1\.FleetReadService\/ListFleetInstallations/,
+    async (route) => {
+      const path = fleetFixtureURL(route).pathname;
+      if (
+        route.request().method() !== "GET" &&
+        (/\/(approve|leases|start)$/.test(path) ||
+          path.includes("model-proposal"))
+      )
+        forbidden.push(path);
+      if (path === "/v1/session")
+        return fulfillFleetFixture(route, {
+          json: {
+            actor: { username: "intel-writer" },
+            effective: { username: "intel-writer" },
+            applications: APPLICATIONS,
+          },
+        });
+      if (path === "/v1/fleet/installations")
+        return fulfillFleetFixture(route, {
+          json: {
+            installations: [
               {
-                adapter: "recorded",
-                outcome: item.expectedOutcome,
-                passed: true,
-                reason: "recorded gate",
+                environment: "scoped-prod",
+                installationId: "native-api",
+                product: "native-product",
+                desiredVersion: "1",
+              },
+              {
+                environment: "foreign-observed",
+                installationId: "observed-only",
+                product: "unknown",
+              },
+            ],
+          },
+        });
+      if (path === "/v1/intelligence/logic")
+        return fulfillFleetFixture(route, {
+          json: {
+            adapter: "recorded",
+            timeout: "45s",
+            gateRule: "memory <= 1Gi",
+            label: "No model call",
+          },
+        });
+      if (path === "/v1/intelligence/courses")
+        return fulfillFleetFixture(route, {
+          json: {
+            label: "No model call",
+            options: [
+              {
+                id: "coa-512",
+                title: "512Mi option",
+                value: "512Mi",
+                outcome: "PASS",
+                blocked: false,
+                reason: "within ceiling",
+                tradeoff: "bounded memory",
+                label: "No model call",
+              },
+              {
+                id: "coa-8gi",
+                title: "8Gi option",
+                value: "8Gi",
+                outcome: "FAIL_REQUIRED",
+                blocked: true,
+                reason: "exceeds ceiling",
+                tradeoff: "blocked",
                 label: "No model call",
               },
             ],
-          })),
-        },
-      });
-    if (path === "/v1/intelligence/evals/cases") {
-      const body = route.request().postDataJSON();
-      feedback.push(body);
-      const added = {
-        id: "feedback-native",
-        scenario: body.Scenario,
-        boundObject: body.BoundObject,
-        value: body.Value,
-        expectedOutcome: body.ExpectedOutcome,
-        source: "operator feedback",
-      };
-      cases.push(added);
-      return route.fulfill({ status: 201, json: added });
-    }
-    if (path === "/v1/intelligence/events")
-      return route.fulfill({
-        json: {
-          label: "Example data",
-          note: "These rules do not execute.",
-          observed: [
-            {
-              runId: "visible-run",
-              phase: "BLOCKED",
-              outcome: "FAIL_REQUIRED",
-            },
-          ],
-          rules: [
-            {
-              name: "Example proposal rule",
-              executes: false,
-              label: "Example data",
-            },
-          ],
-        },
-      });
-    return route.fulfill({ json: {} });
-  });
+          },
+        });
+      if (path === "/v1/intelligence/courses/select") {
+        const body = route.request().postDataJSON();
+        selections.push(body);
+        created = true;
+        return fulfillFleetFixture(route, {
+          json: {
+            valueTier: "CONDUIT_NATIVE",
+            changeRequestId: "intel-request",
+            status: "PENDING_APPROVALS",
+            environment: body.Environment,
+            installationId: body.InstallationID,
+            productId: body.ProductID,
+            value: body.Value,
+          },
+        });
+      }
+      if (path === "/v1/change-requests")
+        return fulfillFleetFixture(route, {
+          json: {
+            changeRequests: created
+              ? [
+                  {
+                    id: "intel-request",
+                    title: "Scoped memory proposal",
+                    targetKind: "CONDUIT_NATIVE_INTELLIGENCE_COURSE",
+                    environment: "scoped-prod",
+                    author: { username: "intel-writer" },
+                    status: "PENDING_APPROVALS",
+                    changes: [
+                      {
+                        id: "memory",
+                        diff: { "limits.memory": { after: "512Mi" } },
+                      },
+                    ],
+                    requirements: [{ kind: "TEAM", team: "release-reviewers" }],
+                  },
+                ]
+              : [],
+          },
+        });
+      if (path === "/v1/intelligence/evals")
+        return fulfillFleetFixture(route, { json: { cases } });
+      if (path === "/v1/intelligence/evals/run")
+        return fulfillFleetFixture(route, {
+          json: {
+            label: "No model call",
+            results: cases.map((item) => ({
+              case: item,
+              columns: [
+                {
+                  adapter: "recorded",
+                  outcome: item.expectedOutcome,
+                  passed: true,
+                  reason: "recorded gate",
+                  label: "No model call",
+                },
+              ],
+            })),
+          },
+        });
+      if (path === "/v1/intelligence/evals/cases") {
+        const body = route.request().postDataJSON();
+        feedback.push(body);
+        const added = {
+          id: "feedback-native",
+          scenario: body.Scenario,
+          boundObject: body.BoundObject,
+          value: body.Value,
+          expectedOutcome: body.ExpectedOutcome,
+          source: "operator feedback",
+        };
+        cases.push(added);
+        return fulfillFleetFixture(route, { status: 201, json: added });
+      }
+      if (path === "/v1/intelligence/events")
+        return fulfillFleetFixture(route, {
+          json: {
+            label: "Example data",
+            note: "These rules do not execute.",
+            observed: [
+              {
+                runId: "visible-run",
+                phase: "BLOCKED",
+                outcome: "FAIL_REQUIRED",
+              },
+            ],
+            rules: [
+              {
+                name: "Example proposal rule",
+                executes: false,
+                label: "Example data",
+              },
+            ],
+          },
+        });
+      return fulfillFleetFixture(route, { json: {} });
+    },
+  );
   await hydrate(page);
   await page.goto("/console/");
   await page

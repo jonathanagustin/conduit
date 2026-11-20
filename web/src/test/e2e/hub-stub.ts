@@ -78,6 +78,65 @@ export async function stubHub(page: Page, handler: Handler): Promise<void> {
         },
       }),
   );
+  // Test-only projection of this fixture's declared Fleet records onto the
+  // shipped RPC. Browser requests remain RPC; no production fallback is added.
+  await page.route(
+    "**/conduit.fleet.v1.FleetReadService/ListFleetInstallations",
+    async (route) => {
+      const request = route.request();
+      const query = request.postDataJSON() as Record<string, unknown>;
+      const url = new URL("/v1/fleet/installations", request.url());
+      for (const [key, value] of Object.entries(query))
+        url.searchParams.set(key, String(value));
+      const answer = handler(request, url);
+      const status = answer?.status ?? 200;
+      if (status !== 200) {
+        const code =
+          (
+            {
+              401: "unauthenticated",
+              403: "permission_denied",
+              404: "not_found",
+              400: "invalid_argument",
+              422: "invalid_argument",
+            } as Record<number, string>
+          )[status] || "unavailable";
+        await route.fulfill({
+          status: status === 422 ? 400 : status,
+          json: { code, message: "Fleet fixture refused" },
+        });
+        return;
+      }
+      const body = (answer?.json || {}) as Record<string, unknown>;
+      if (!Array.isArray(body.installations)) {
+        await route.fulfill({
+          status: 503,
+          json: {
+            code: "unavailable",
+            message: "Fleet fixture did not declare installation evidence",
+          },
+        });
+        return;
+      }
+      const installations = Array.isArray(body.installations)
+        ? body.installations
+        : [];
+      await route.fulfill({
+        json: {
+          generatedAt: body.generatedAt || "2026-11-20T01:00:00Z",
+          maxResultAgeSeconds: body.maxResultAgeSeconds ?? "0",
+          installations,
+          summary: body.summary || { total: String(installations.length) },
+          facets: body.facets || {},
+          pageSize: body.pageSize ?? installations.length,
+          limit: body.limit ?? query.limit ?? 100,
+          nextCursor: body.nextCursor || "",
+          previousCursor: body.previousCursor || "",
+          hasPrevious: body.hasPrevious || false,
+        },
+      });
+    },
+  );
   await page.route("**/v1/**", async (route) => {
     const request = route.request();
     const answer = handler(request, new URL(request.url()));
