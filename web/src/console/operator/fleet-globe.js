@@ -11,6 +11,53 @@ function canvasPaint(value) {
   );
 }
 
+const CONDUIT_METRO_HUBS = [
+  [-74.0, 40.7, 2.2, 18],
+  [-71.1, 42.3, 1.8, 12],
+  [-75.2, 39.9, 1.8, 10],
+  [-77.0, 38.9, 2.0, 14],
+  [-76.3, 36.9, 1.8, 11],
+  [-87.6, 41.8, 2.1, 16],
+  [-83.0, 42.3, 1.6, 10],
+  [-79.4, 43.7, 1.7, 11],
+  [-84.4, 33.7, 1.9, 13],
+  [-80.2, 25.8, 1.7, 10],
+  [-95.4, 29.7, 2.0, 14],
+  [-96.8, 32.8, 2.0, 14],
+  [-93.3, 45.0, 1.6, 10],
+  [-90.2, 38.6, 1.5, 9],
+  [-80.8, 35.2, 1.6, 10],
+  [-105.0, 39.7, 1.7, 11],
+  [-112.1, 33.4, 1.7, 10],
+  [-118.2, 34.0, 2.1, 15],
+  [-122.4, 37.8, 1.9, 12],
+  [-122.3, 47.6, 1.9, 12],
+  [-123.1, 49.3, 1.5, 8],
+  [-99.1, 19.4, 1.9, 12],
+  [-113.5, 53.5, 1.3, 6],
+  [-73.6, 45.5, 1.5, 8],
+];
+const CONDUIT_NIGHT_LIGHTS = [];
+(function seedConduitLights() {
+  let s = 4219;
+  const rand = () => {
+    s = (s * 16807) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+  CONDUIT_METRO_HUBS.forEach(([lng, lat, size, count]) => {
+    CONDUIT_NIGHT_LIGHTS.push([lng, lat, size, 0.9]);
+    for (let i = 0; i < count; i++) {
+      const spread = i < count * 0.6 ? 1.35 : 3.0;
+      CONDUIT_NIGHT_LIGHTS.push([
+        lng + (rand() - 0.5) * spread * 1.55,
+        lat + (rand() - 0.5) * spread,
+        0.55 + rand() * 0.85,
+        0.22 + rand() * 0.52,
+      ]);
+    }
+  });
+})();
+
 /**
  * Interactive canvas globe controller for the Fleet Overview workspace.
  * @param {{ isDisposed: () => boolean, onSelectScreen: (screen: string) => void }} options
