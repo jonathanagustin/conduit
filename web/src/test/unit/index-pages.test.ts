@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import {
   INDEX_LIMIT,
+  expandIndexRows,
   changeIndexQuery,
   indexControlsMarkup,
   indexPage,
@@ -514,4 +515,54 @@ describe("honest page totals and lazy settings", () => {
       ),
     );
   });
+});
+
+it("generated Environment indexes hydrate configuration even without a report", async () => {
+  const read = vi.fn(async (path: string) => ({
+    environment: {
+      id: decodeURIComponent(path.split("/").at(-1)!),
+      labels: { region: "east" },
+      namespaces: [{ name: "owned" }],
+    },
+  }));
+  const result = await expandIndexRows(
+    "environments",
+    [{ environment: { id: "never-reported" } }],
+    read,
+    true,
+  );
+  expect(read).toHaveBeenCalledExactlyOnceWith(
+    "/v1/environments/never-reported",
+  );
+  expect(result[0].environment.labels).toEqual({ region: "east" });
+  expect(result[0].environment.namespaces).toEqual([{ name: "owned" }]);
+  expect(result[0]).not.toHaveProperty("reported");
+  await expect(
+    expandIndexRows(
+      "environments",
+      [{ environment: { id: "expected" } }],
+      async () => ({ environment: { id: "other" } }),
+      true,
+    ),
+  ).rejects.toThrow("Environment details unavailable");
+});
+
+it("retains empty Environment wording with an exact known zero total", () => {
+  const page = indexPage(
+    { environments: [], total: BigInt(0) },
+    "environments",
+    "/v1/environments?view=summary",
+  );
+  expect(page.total).toBe("0");
+  const markup = (total: string) =>
+    indexControlsMarkup(
+      { indexPages: { environments: { ...page, total } } },
+      "flt-environments",
+      new URLSearchParams(),
+      (value: unknown) => String(value),
+    );
+  expect(markup("0")).toContain("Showing 0 environments in this page.");
+  expect(markup("100")).toContain(
+    "Showing 0 of 100 environments in this page.",
+  );
 });

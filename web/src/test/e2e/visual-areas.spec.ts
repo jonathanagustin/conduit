@@ -37,6 +37,16 @@ for (const [size, viewport] of Object.entries({
             },
           };
         });
+        await page.route(
+          "**/conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries",
+          (route) => {
+            expect(route.request().method()).toBe("POST");
+            expect(route.request().postDataJSON().limit).toBe(20);
+            return route.fulfill({
+              json: { environments: [], total: "0", pageSize: 0, limit: 20 },
+            });
+          },
+        );
         await page.goto(`/console/#${area}`);
         await expect(page.locator("#main-workspace")).toContainText(spec.label);
         await expect

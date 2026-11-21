@@ -24,7 +24,7 @@ including reads. A read encoded as POST is not a governed state change.
 | `POST /v1/plans/{planID}/approvals` | `conduit.plans.v1.PlanApprovalService/ApprovePlan` | Generated active operator delivery/approval panels and legacy helper; explicit CLI `plan approve --write-transport connect` returns a versioned receipt; CLI default remains REST, no automatic retry |
 | `GET /v1/plans?view=summary` | `conduit.plans.v1.PlanReadService/ListPlanSummaries` | Explicit CLI `plan list --read-transport connect` without a selected Space; default remains REST |
 | `GET /v1/plans?view=summary&spaceId=SPACE` | `conduit.plans.v1.PlanScopedReadService/ListPlanSummariesInSpace` | CLI `plan list --space-id SPACE --read-transport connect`; validates echoed Space; unsupported Hubs fail without replay |
-| `GET /v1/fleet/installations` | `conduit.fleet.v1.FleetReadService/ListFleetInstallations` | Generated active operator installation pages/refreshes; filtered native projection; CLI and legacy helper remain REST; no fallback |
+| `GET /v1/fleet/installations` | `conduit.fleet.v1.FleetReadService/ListFleetInstallations` | Generated active operator installation pages/refreshes; filtered native projection; legacy helper and packaging exact-target lookup also use the generated read; no fallback |
 | `GET /v1/environments?view=full` (or absent view) | `conduit.environments.v1.EnvironmentCatalogService/ListEnvironments` | CLI `environment list --read-transport connect`; REST remains default and console callers remain REST |
 | `GET /v1/environments?view=summary` | `conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries` | CLI `environment list --view summary --read-transport connect`; explicit full-view Connect is also available |
 | `GET /v1/environments/{environmentID}/reported-state` | `conduit.environments.v1.EnvironmentObservationService/GetEnvironmentReportedState` | CLI `environment reported-state --read-transport connect`; REST remains the default; failures are not replayed |
@@ -58,7 +58,7 @@ The Environment summary adapter reuses the native Environment/Space query and
 is explicitly registered. [Its contract note](connect-environment-summaries.md)
 records the narrow projection, presence and authority boundaries. The CLI's
 explicit full/summary list and full detail commands can select Connect;
-console Environment callers remain REST. #394 stays open for the remaining migration.
+the dedicated Environment index uses the generated read; other panels and full/detail callers remain REST. #394 stays open for the remaining migration.
 
 Known contract follow-ons are full Plan index/detail, change-request approve/reject,
 and audit-chain export. [Audit event reads](connect-audit-events.md) share the

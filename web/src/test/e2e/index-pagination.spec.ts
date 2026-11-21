@@ -204,7 +204,7 @@ test("changing Space starts the Environment index at its first page and clears i
 }) => {
   const first = `space_${"a".repeat(32)}`,
     second = `space_${"b".repeat(32)}`;
-  const requests: URL[] = [];
+  const requests: Record<string, unknown>[] = [];
   await stubHub(page, (_request, url) => {
     if (url.pathname === "/v1/session") return { json: session() };
     if (url.pathname === "/v1/spaces")
@@ -217,7 +217,6 @@ test("changing Space starts the Environment index at its first page and clears i
         },
       };
     if (url.pathname === "/v1/environments") {
-      requests.push(url);
       const prefix = url.searchParams.get("spaceId") === first ? "a" : "b";
       const rows = Array.from({ length: prefix === "a" ? 41 : 5 }, (_, i) => ({
         environment: { id: `env-${prefix}-${i}` },
@@ -233,10 +232,46 @@ test("changing Space starts the Environment index at its first page and clears i
         },
       };
     }
+    if (url.pathname.startsWith("/v1/environments/"))
+      return {
+        json: {
+          environment: {
+            id: decodeURIComponent(
+              url.pathname.slice("/v1/environments/".length),
+            ),
+          },
+          reported: { entities: [] },
+        },
+      };
     if (url.pathname === "/v1/fleet/installations")
       return { json: { installations: [], summary: { total: 0 } } };
     return { json: {} };
   });
+  await page.route(
+    "**/conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries",
+    async (route) => {
+      const body = route.request().postDataJSON();
+      requests.push(body);
+      expect(route.request().method()).toBe("POST");
+      expect(body.limit).toBe(20);
+      const prefix = body.spaceId === first ? "a" : "b";
+      const rows = Array.from({ length: prefix === "a" ? 41 : 5 }, (_, i) => ({
+        environment: { id: `env-${prefix}-${i}` },
+        spoke: { state: "UNREACHABLE" },
+      }));
+      const offset = body.cursor ? 20 : 0;
+      await route.fulfill({
+        json: {
+          environments: rows.slice(offset, offset + 20),
+          total: String(rows.length),
+          limit: 20,
+          pageSize: Math.min(20, rows.length - offset),
+          hasPrevious: offset > 0,
+          ...(offset + 20 < rows.length ? { nextCursor: "after-20" } : {}),
+        },
+      });
+    },
+  );
   await page.goto(
     `/console/#flt-environments?space=${first}&environments.cursor=after-20&environment=env-a-24`,
   );
@@ -253,9 +288,13 @@ test("changing Space starts the Environment index at its first page and clears i
   expect(query.has("environments.cursor")).toBe(false);
   expect(query.has("environment")).toBe(false);
   expect(query.has("installations.environment")).toBe(false);
-  const secondRead = requests.find(
-    (url) => url.searchParams.get("spaceId") === second,
-  );
-  expect(secondRead?.searchParams.has("cursor")).toBe(false);
+  const secondRead = requests.find((body) => body.spaceId === second);
+  expect(secondRead).toBeDefined();
+  expect(secondRead).not.toHaveProperty("cursor");
+  expect(requests[0]).toMatchObject({
+    spaceId: first,
+    cursor: "after-20",
+    limit: 20,
+  });
   await expect(page.locator('[data-env-open="env-b-0"]')).toBeVisible();
 });

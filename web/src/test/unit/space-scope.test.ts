@@ -144,6 +144,7 @@ describe("Space-scoped refresh", () => {
   function install(spacesAvailable = true) {
     const requests = Object.assign([] as URL[], {
       fleetBodies: [] as Record<string, unknown>[],
+      environmentBodies: [] as Record<string, unknown>[],
     });
     vi.stubGlobal("window", { location: { origin: "http://hub.local" } });
     vi.stubGlobal("document", {
@@ -188,6 +189,38 @@ describe("Space-scoped refresh", () => {
               facets: {},
               pageSize: 1,
               limit: body.limit || 100,
+            }),
+            { headers: { "content-type": "application/json" } },
+          );
+        }
+        if (
+          url.pathname ===
+            "/conduit.environments.v1.EnvironmentReadService/ListEnvironmentSummaries" &&
+          input instanceof Request
+        ) {
+          expect(input.method).toBe("POST");
+          const body = await input.json();
+          requests.environmentBodies.push(body);
+          if (body.spaceId && body.spaceId !== SPACE)
+            return new Response(
+              JSON.stringify({
+                code: "permission_denied",
+                message: "unknown or denied Space",
+              }),
+              { status: 403, headers: { "content-type": "application/json" } },
+            );
+          return new Response(
+            JSON.stringify({
+              environments: [
+                {
+                  environment: { id: "page-first" },
+                  spoke: { state: "UNREACHABLE" },
+                },
+              ],
+              total: "40",
+              pageSize: 1,
+              limit: body.limit ?? 100,
+              nextCursor: "next-environments",
             }),
             { headers: { "content-type": "application/json" } },
           );
@@ -259,6 +292,7 @@ describe("Space-scoped refresh", () => {
       expect(request?.searchParams.get("spaceId"), path).toBe(SPACE);
     }
     expect(requests.fleetBodies).toEqual([{ spaceId: SPACE, limit: 20 }]);
+    expect(requests.environmentBodies).toEqual([]);
     expect(
       requests.some((url) => url.pathname === "/v1/fleet/installations"),
     ).toBe(false);
@@ -277,13 +311,20 @@ describe("Space-scoped refresh", () => {
         indexQuery: `space=${OTHER}`,
       };
       await createLiveHub({ state, render: () => {} }).refresh();
-      const reads = requests.filter((url) =>
-        ["/v1/environments", "/v1/fleet/installations"].includes(url.pathname),
-      );
-      expect(reads.length).toBeGreaterThan(0);
+      expect(requests.environmentBodies.length).toBeGreaterThan(0);
+      expect(requests.fleetBodies.length).toBeGreaterThan(0);
       expect(
-        reads.every((url) => url.searchParams.get("spaceId") === OTHER),
+        [...requests.environmentBodies, ...requests.fleetBodies].every(
+          (body) => body.spaceId === OTHER,
+        ),
       ).toBe(true);
+      expect(
+        requests.some((url) =>
+          ["/v1/environments", "/v1/fleet/installations"].includes(
+            url.pathname,
+          ),
+        ),
+      ).toBe(false);
       expect(state.hub.environments).toEqual([]);
       expect(state.hub.indexPages.environments.error).toContain(
         "did not return",
